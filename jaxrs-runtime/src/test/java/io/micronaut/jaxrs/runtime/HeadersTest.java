@@ -12,10 +12,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import javax.inject.Inject;
-import javax.ws.rs.core.Cookie;
-import javax.ws.rs.core.EntityTag;
-import javax.ws.rs.core.Link;
-import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.*;
 import java.util.List;
 import java.util.Locale;
 
@@ -26,6 +23,31 @@ class HeadersTest {
 
     @Inject @Client("/api")
     RxHttpClient httpClient;
+
+    @Test
+    void testCacheControl() {
+        final CacheControl cacheControl = new CacheControl();
+        cacheControl.setNoCache(true);
+        cacheControl.setNoStore(true);
+        final HttpResponse<String> response = headerClient.cacheControl(cacheControl);
+        final String result = response.body();
+
+        Assertions.assertEquals(
+                "no-cache, no-transform, no-store",
+                result
+        );
+
+
+        final CacheControl cc = response.getHeaders()
+                .getFirst(javax.ws.rs.core.HttpHeaders.CACHE_CONTROL, CacheControl.class)
+                .get();
+        Assertions.assertTrue(
+                cc.isNoCache()
+        );
+        Assertions.assertTrue(
+                cc.isNoStore()
+        );
+    }
 
     @Test
     void testContentType() {

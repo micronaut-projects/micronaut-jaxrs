@@ -27,4 +27,9 @@ public interface HeaderClient {
     @Path("/link")
     @Consumes("text/plain")
     HttpResponse<String> link(@HeaderParam(HttpHeaders.LINK) Link link);
+
+    @GET
+    @Path("/cache-control")
+    @Produces("text/plain")
+    HttpResponse<String> cacheControl(@HeaderParam(HttpHeaders.CACHE_CONTROL) CacheControl cacheControl);
 }

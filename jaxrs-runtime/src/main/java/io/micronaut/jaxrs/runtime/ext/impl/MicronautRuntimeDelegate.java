@@ -26,6 +26,7 @@ public final class MicronautRuntimeDelegate extends RuntimeDelegate {
         HEADER_DELEGATES.put(EntityTag.class, new EntityTagDelegate());
         HEADER_DELEGATES.put(NewCookie.class, new NewCookieHeaderDelegate());
         HEADER_DELEGATES.put(Link.class, new LinkDelegate());
+        HEADER_DELEGATES.put(CacheControl.class, CacheControlDelegate.INSTANCE);
     }
 
     @Override

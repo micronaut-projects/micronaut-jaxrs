@@ -5,10 +5,7 @@ import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.convert.TypeConverterRegistrar;
 
 import javax.inject.Singleton;
-import javax.ws.rs.core.Cookie;
-import javax.ws.rs.core.EntityTag;
-import javax.ws.rs.core.Link;
-import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.*;
 
 /**
  * Registers JAX-RS converters.
@@ -27,6 +24,8 @@ public class JaxRsConverterRegistrar implements TypeConverterRegistrar {
         conversionService.addConverter(String.class, EntityTag.class, EntityTag::valueOf);
         conversionService.addConverter(Link.class, String.class, Link::toString);
         conversionService.addConverter(String.class, Link.class, Link::valueOf);
+        conversionService.addConverter(CacheControl.class, String.class, CacheControl::toString);
+        conversionService.addConverter(String.class, CacheControl.class, CacheControl::valueOf);
         conversionService.addConverter(Cookie.class, String.class, Cookie::getValue);
     }
 }

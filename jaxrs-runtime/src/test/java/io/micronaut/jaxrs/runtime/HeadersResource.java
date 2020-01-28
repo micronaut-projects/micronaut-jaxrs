@@ -48,6 +48,16 @@ public class HeadersResource {
     }
 
     @GET
+    @Path("/cache-control")
+    @Produces("text/plain")
+    Response cacheControl(@HeaderParam(HttpHeaders.CACHE_CONTROL) CacheControl cacheControl) {
+        return Response.ok()
+                .entity(cacheControl.toString())
+                .cacheControl(cacheControl)
+                .build();
+    }
+
+    @GET
     @Produces("text/plain")
     Response headers(HttpHeaders httpHeaders) {
         final Response.ResponseBuilder ok = Response.ok();
