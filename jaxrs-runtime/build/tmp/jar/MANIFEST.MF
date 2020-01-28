@@ -1,5 +1,0 @@
-Manifest-Version: 1.0
-Implementation-Title: Micronaut JAX-RS
-Automatic-Module-Name: io.micronaut.jaxrs.jaxrs_runtime
-Implementation-Version: 1.0.0.BUILD-SNAPSHOT
-

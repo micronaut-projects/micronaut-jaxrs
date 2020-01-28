@@ -1,7 +1,0 @@
-io.micronaut.jaxrs.runtime.ext.convert.$JaxRsConverterRegistrarDefinitionClass
-io.micronaut.jaxrs.runtime.core.$JaxRsRuntimeDefinitionClass
-io.micronaut.jaxrs.runtime.core.$JaxRsApplicationUriNamingStrategyDefinitionClass
-io.micronaut.jaxrs.runtime.ext.bind.$ContextAnnotationBinderDefinitionClass
-io.micronaut.jaxrs.runtime.ext.bind.$CookieRequestArgumentBinderDefinitionClass
-io.micronaut.jaxrs.runtime.ext.bind.$HttpHeadersBinderDefinitionClass
-io.micronaut.jaxrs.runtime.core.$JaxRsResponseFilterDefinitionClass

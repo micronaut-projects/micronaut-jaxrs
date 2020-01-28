@@ -1,6 +1,0 @@
-io.micronaut.jaxrs.processor
-io.micronaut.jaxrs.runtime.annotation
-io.micronaut.jaxrs.runtime.core
-io.micronaut.jaxrs.runtime.ext.bind
-io.micronaut.jaxrs.runtime.ext.convert
-io.micronaut.jaxrs.runtime.ext.impl
