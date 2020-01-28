@@ -1,0 +1,306 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+                      "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <!-- Global site tag (gtag.js) - Google Analytics -->
+    <script src="/cdn-cgi/apps/head/3cOPSgo5Omz84ycX7CvigfX4cpw.js"></script><script async src="https://www.googletagmanager.com/gtag/js?id=UA-82213539-2"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'UA-82213539-2');
+    </script>
+    <title>3 Supported API 1.0.0.BUILD-SNAPSHOT</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+    <link rel="stylesheet" href="../css/main.css" type="text/css" media="screen, print" title="Style" charset="utf-8"/>
+    <link rel="stylesheet" href="../css/pdf.css" type="text/css" media="print" title="PDF" charset="utf-8"/>
+    <script type="text/javascript">
+function addJsClass() {
+    var classes = document.body.className.split(" ");
+    classes.push("js");
+    document.body.className = classes.join(" ");
+}
+    </script>
+</head>
+
+<body class="body" onload="addJsClass();">
+<div id="navigation">
+    <div class="navTitle">
+        
+        Micronaut JAX-RS
+    </div>
+    <div class="navLinks">
+        <ul>
+            <li>
+                <div id="nav-summary" onmouseover="toggleNavSummary(false)" onmouseout="toggleNavSummary(true)">
+                    <a href="../guide/index.html" class="button">Table of contents</a>
+
+                    <div id="nav-summary-childs" style="display:none;">
+                        
+                        <div class="toc-item" style="margin-left:0"><a href="../guide/introduction.html"><strong>1</strong><span>Introduction</span></a>
+                        </div>
+                        
+                        <div class="toc-item" style="margin-left:0"><a href="../guide/quickStart.html"><strong>2</strong><span>Quick Start</span></a>
+                        </div>
+                        
+                        <div class="toc-item" style="margin-left:0"><a href="../guide/supportedApi.html"><strong>3</strong><span>Supported API</span></a>
+                        </div>
+                        
+                    </div>
+                </div>
+            </li>
+            <li class="separator selected">
+                <a id="ref-button" onclick="localToggle(); return false;" href="#">Quick Reference</a>
+            </li>
+        </ul>
+    </div>
+
+
+</div>
+
+<table id="colset" border="0" cellpadding="0" cellspacing="0">
+    <tr>
+        <td id="col1">
+            <div id="main" class="corner-all">
+
+                
+                    <div class="toc-item prev-left"><a href="../guide/quickStart.html">&lt;&lt; <strong>2</strong><span>Quick Start</span></a></div>
+                
+
+                <span id='toggle-col1' class="toggle">(<a href="#" onclick="localToggle(); return false;">Quick Reference</a>)</span>
+
+                
+
+
+                <div class="project">
+                    <h1>3 Supported API</h1>
+
+                    <p><strong>Version:</strong> 1.0.0.BUILD-SNAPSHOT</p>
+                </div>
+
+                
+
+                
+<h1 id="supportedApi"><a class="anchor" href="#supportedApi"></a>3 Supported API</h1>
+
+<div class='contribute-btn'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-jaxrs/edit/master/src/main/docs/guide/supportedApi.adoc"'>
+        <i class='fa fa-pencil-square-o'></i> Improve this doc
+    </button>
+</div>
+
+
+<div class="paragraph">
+<p>As of this writing Micronaut JAX-RS supports the annotations and types defined within the <code>javax.ws.rs</code> package and the <code>javax.ws.rs.core</code> subpackage only.</p>
+</div>
+<div class="paragraph">
+<p>All interfaces, annotations and types contained within the following packages are not supported:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>javax.ws.rs.client</code></p>
+</li>
+<li>
+<p><code>javax.ws.rs.container</code></p>
+</li>
+<li>
+<p><code>javax.ws.rs.ext</code></p>
+</li>
+</ul>
+</div>
+<div class="sect3">
+<h4 id="_supported_annotations">Supported Annotations</h4>
+<div class="paragraph">
+<p>Micronaut JAX-RS works by converting (at compilation time) a JAX-RS annotation definition into the equivalent Micronaut version.</p>
+</div>
+<table class="tableblock frame-all grid-all spread">
+<caption class="title">Table 1. Supported JAX-RS Annotations</caption>
+<colgroup>
+<col style="width: 33.3333%;">
+<col style="width: 33.3333%;">
+<col style="width: 33.3334%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">JAX-RS Annotation</th>
+<th class="tableblock halign-left valign-top">Target Annotation</th>
+<th class="tableblock halign-left valign-top">Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/Path.html">@Path</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/Controller.html">@Controller</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>@Path("/foo")</code> // on type</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/Path.html">@Path</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/UriMapping.html">@UriMapping</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>@Path("/foo")</code> // on method</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/HttpMethod.html">@HttpMethod</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/HttpMethodMapping.html">@HttpMethodMapping</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>@HttpMethod("TRACE")</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/GET.html">@GET</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/Get.html">@Get</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>@GET @Path("/foo/bar")</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/POST.html">@POST</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/Post.html">@Post</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>@POST @Path("/foo/bar")</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/DELETE.html">@DELETE</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/Delete.html">@Delete</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>@DELETE @Path("/foo/bar")</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/OPTIONS.html">@OPTIONS</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/Options.html">@Options</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>@OPTIONS @Path("/foo/bar")</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/HEAD.html">@HEAD</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/Head.html">@Head</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>@HEAD @Path("/foo/bar")</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/Consumes.html">@Consumes</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/Consumes.html">@Consumes</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>@Consumes("application/json")</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/Produces.html">@Produces</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/Produces.html">@Produces</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>@Produces("application/json")</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/PathParam.html">@PathParam</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/PathVariable.html">@PathVariable</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>@PathParam("foo")</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/CookieParam.html">@CookieParam</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/CookieValue.html">@CookieValue</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>@CookieParam("myCookie")</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/HeaderParam.html">@HeaderParam</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/Header.html">@Header</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>@HeaderParam("Content-Type")</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/QueryParam.html">@QueryParam</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/QueryValue.html">@QueryValue</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>@QueryParam("myParam")</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/DefaultValue.html">@DefaultValue</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/Bindable.html">@Bindable(defaultValue="..")</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>@DefaultValue("example")</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/core/Context.html">@Context</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">No equivalent. Injects a bean in to a parameter.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>@Context</code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="sect3">
+<h4 id="_injectable_parameter_types">Injectable Parameter Types</h4>
+<div class="paragraph">
+<p>In addition to the supported JAX-RS annotations you can us the following JAX-RS types as parameter types to resources or client definitions:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/core/HttpHeaders.html">javax.ws.rs.core.HttpHeaders</a></p>
+</li>
+<li>
+<p><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/core/CacheControl.html">javax.ws.rs.core.CacheControl</a></p>
+</li>
+<li>
+<p><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/core/Cookie.html">javax.ws.rs.core.Cookie</a></p>
+</li>
+<li>
+<p><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/core/EntityTag.html">javax.ws.rs.core.EntityTag</a></p>
+</li>
+<li>
+<p><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/core/Link.html">javax.ws.rs.core.Link</a></p>
+</li>
+<li>
+<p><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/core/MediaType.html">javax.ws.rs.core.MediaType</a></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>You can also use the <a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/core/Context.html">@Context</a> annotation to inject any bean into a resource type&#8217;s method parameter.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+Parameter binding to constructor argument of resource types is not supported at this time.
+</td>
+</tr>
+</table>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_supported_return_types">Supported Return Types</h4>
+<div class="paragraph">
+<p>You can also use the following return types from the JAX-RS API in your resource classes:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/core/Response.html">javax.ws.rs.core.Response</a></p>
+</li>
+<li>
+<p><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/core/StreamingOutput.html">javax.ws.rs.core.StreamingOutput</a></p>
+</li>
+</ul>
+</div>
+</div>
+
+
+                <div style="clear:both;margin-top:15px;"></div>
+                
+                    <div class="toc-item prev-left"><a href="../guide/quickStart.html">&lt;&lt; <strong>2</strong><span>Quick Start</span></a></div>
+                
+                <div style="clear:both"></div>
+            </div>
+        </td>
+        <td id="col2">
+            <div class="local clearfix">
+                <div class="local-title">
+                    <a href="../guide/index.html" target="mainFrame">Quick Reference</a>
+                    <span class="toggle">(<a href="#" onclick="localToggle(); return false;">hide</a>)</span>
+                </div>
+                <div class="menu">
+                    
+                </div>
+            </div>
+        </td>
+    </tr>
+</table>
+
+<div id="footer">
+    
+    
+</div>
+
+<script type="text/javascript" src="../js/docs.js"></script>
+
+</body>
+</html>
