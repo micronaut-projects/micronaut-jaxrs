@@ -10,7 +10,7 @@ import java.util.List;
 
 /**
  * Forked from RESTEasy.
- * 
+ *
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
  * @version $Revision: 1 $
  */

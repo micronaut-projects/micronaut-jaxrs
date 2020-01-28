@@ -16,7 +16,20 @@ import example.repositories.PetRepository;
 import io.micronaut.context.event.StartupEvent;
 import io.micronaut.runtime.Micronaut;
 import io.micronaut.runtime.event.annotation.EventListener;
+import io.swagger.v3.oas.annotations.OpenAPIDefinition;
+import io.swagger.v3.oas.annotations.info.Contact;
+import io.swagger.v3.oas.annotations.info.Info;
+import io.swagger.v3.oas.annotations.info.License;
 
+
+@OpenAPIDefinition(
+        info = @Info(
+                title = "Pets Application",
+                version = "1.0",
+                description = "Pets Application",
+                license = @License(name = "Apache 2.0", url = "http://foo.bar")
+        )
+)
 @Singleton
 @TypeHint(typeNames = {"org.h2.Driver", "org.h2.mvstore.db.MVTableEngine"})
 public class Application extends javax.ws.rs.core.Application {

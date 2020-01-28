@@ -32,8 +32,11 @@ dependencies {
     annotationProcessor "io.micronaut:micronaut-validation"
     annotationProcessor "io.micronaut.data:micronaut-data-processor"
     annotationProcessor "io.micronaut.jaxrs:micronaut-jaxrs-processor:$micronautJaxRsVersion"
+    annotationProcessor "io.micronaut.configuration:micronaut-openapi" 
+    
 
     compileOnly "com.oracle.substratevm:svm"
+    implementation "io.swagger.core.v3:swagger-annotations"
     implementation "io.micronaut.jaxrs:micronaut-jaxrs-runtime:$micronautJaxRsVersion"
     implementation "io.micronaut:micronaut-inject"
     implementation "io.micronaut:micronaut-validation"
@@ -70,3 +73,6 @@ shadowJar {
 
 run.classpath += configurations.developmentOnly
 run.jvmArgs('-noverify', '-XX:TieredStopAtLevel=1', '-Dcom.sun.management.jmxremote')
+
+compileJava.options.fork = true
+compileJava.options.forkOptions.jvmArgs = ['-Xdebug', '-Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=5005']

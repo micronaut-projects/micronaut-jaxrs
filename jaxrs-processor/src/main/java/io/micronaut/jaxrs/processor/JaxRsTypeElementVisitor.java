@@ -25,6 +25,13 @@ import java.util.List;
  */
 public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Object> {
 
+    public static final int POSITION = 200;
+
+    @Override
+    public int getOrder() {
+        return POSITION; // higher priority to ensure mutations visible
+    }
+
     @Override
     public void visitClass(ClassElement element, VisitorContext context) {
         if (element.hasAnnotation(Path.class) && !element.isAbstract()) {
