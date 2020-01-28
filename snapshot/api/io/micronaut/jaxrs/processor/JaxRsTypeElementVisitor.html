@@ -17,7 +17,7 @@
     catch(err) {
     }
 //-->
-var methods = {"i0":10,"i1":10};
+var methods = {"i0":10,"i1":10,"i2":10};
 var tabs = {65535:["t0","All Methods"],2:["t2","Instance Methods"],8:["t4","Concrete Methods"]};
 var altColor = "altColor";
 var rowColor = "rowColor";
@@ -73,13 +73,13 @@ var activeTableTab = "activeTableTab";
 <ul class="subNavList">
 <li>Summary:&nbsp;</li>
 <li>Nested&nbsp;|&nbsp;</li>
-<li>Field&nbsp;|&nbsp;</li>
+<li><a href="#field.summary">Field</a>&nbsp;|&nbsp;</li>
 <li><a href="#constructor.summary">Constr</a>&nbsp;|&nbsp;</li>
 <li><a href="#method.summary">Method</a></li>
 </ul>
 <ul class="subNavList">
 <li>Detail:&nbsp;</li>
-<li>Field&nbsp;|&nbsp;</li>
+<li><a href="#field.detail">Field</a>&nbsp;|&nbsp;</li>
 <li><a href="#constructor.detail">Constr</a>&nbsp;|&nbsp;</li>
 <li><a href="#method.detail">Method</a></li>
 </ul>
@@ -133,6 +133,17 @@ implements <a href="https://docs.micronaut.io/latest/api/io/micronaut/inject/vis
 <!--   -->
 </a>
 <h3>Field Summary</h3>
+<table class="memberSummary" border="0" cellpadding="3" cellspacing="0" summary="Field Summary table, listing fields, and an explanation">
+<caption><span>Fields</span><span class="tabEnd">&nbsp;</span></caption>
+<tr>
+<th class="colFirst" scope="col">Modifier and Type</th>
+<th class="colLast" scope="col">Field and Description</th>
+</tr>
+<tr class="altColor">
+<td class="colFirst"><code>static int</code></td>
+<td class="colLast"><code><span class="memberNameLink"><a href="../../../../io/micronaut/jaxrs/processor/JaxRsTypeElementVisitor.html#POSITION">POSITION</a></span></code>&nbsp;</td>
+</tr>
+</table>
 <ul class="blockList">
 <li class="blockList"><a name="fields.inherited.from.class.io.micronaut.core.order.Ordered">
 <!--   -->
@@ -172,11 +183,15 @@ implements <a href="https://docs.micronaut.io/latest/api/io/micronaut/inject/vis
 <th class="colLast" scope="col">Method and Description</th>
 </tr>
 <tr id="i0" class="altColor">
+<td class="colFirst"><code>int</code></td>
+<td class="colLast"><code><span class="memberNameLink"><a href="../../../../io/micronaut/jaxrs/processor/JaxRsTypeElementVisitor.html#getOrder--">getOrder</a></span>()</code>&nbsp;</td>
+</tr>
+<tr id="i1" class="rowColor">
 <td class="colFirst"><code>void</code></td>
 <td class="colLast"><code><span class="memberNameLink"><a href="../../../../io/micronaut/jaxrs/processor/JaxRsTypeElementVisitor.html#visitClass-io.micronaut.inject.ast.ClassElement-io.micronaut.inject.visitor.VisitorContext-">visitClass</a></span>(<a href="https://docs.micronaut.io/latest/api/io/micronaut/inject/ast/ClassElement.html?is-external=true" title="class or interface in io.micronaut.inject.ast">ClassElement</a>&nbsp;element,
           <a href="https://docs.micronaut.io/latest/api/io/micronaut/inject/visitor/VisitorContext.html?is-external=true" title="class or interface in io.micronaut.inject.visitor">VisitorContext</a>&nbsp;context)</code>&nbsp;</td>
 </tr>
-<tr id="i1" class="rowColor">
+<tr id="i2" class="altColor">
 <td class="colFirst"><code>void</code></td>
 <td class="colLast"><code><span class="memberNameLink"><a href="../../../../io/micronaut/jaxrs/processor/JaxRsTypeElementVisitor.html#visitMethod-io.micronaut.inject.ast.MethodElement-io.micronaut.inject.visitor.VisitorContext-">visitMethod</a></span>(<a href="https://docs.micronaut.io/latest/api/io/micronaut/inject/ast/MethodElement.html?is-external=true" title="class or interface in io.micronaut.inject.ast">MethodElement</a>&nbsp;element,
            <a href="https://docs.micronaut.io/latest/api/io/micronaut/inject/visitor/VisitorContext.html?is-external=true" title="class or interface in io.micronaut.inject.visitor">VisitorContext</a>&nbsp;context)</code>&nbsp;</td>
@@ -196,13 +211,6 @@ implements <a href="https://docs.micronaut.io/latest/api/io/micronaut/inject/vis
 <h3>Methods inherited from interface&nbsp;io.micronaut.inject.visitor.<a href="https://docs.micronaut.io/latest/api/io/micronaut/inject/visitor/TypeElementVisitor.html?is-external=true" title="class or interface in io.micronaut.inject.visitor">TypeElementVisitor</a></h3>
 <code><a href="https://docs.micronaut.io/latest/api/io/micronaut/inject/visitor/TypeElementVisitor.html?is-external=true#finish-io.micronaut.inject.visitor.VisitorContext-" title="class or interface in io.micronaut.inject.visitor">finish</a>, <a href="https://docs.micronaut.io/latest/api/io/micronaut/inject/visitor/TypeElementVisitor.html?is-external=true#start-io.micronaut.inject.visitor.VisitorContext-" title="class or interface in io.micronaut.inject.visitor">start</a>, <a href="https://docs.micronaut.io/latest/api/io/micronaut/inject/visitor/TypeElementVisitor.html?is-external=true#visitConstructor-io.micronaut.inject.ast.ConstructorElement-io.micronaut.inject.visitor.VisitorContext-" title="class or interface in io.micronaut.inject.visitor">visitConstructor</a>, <a href="https://docs.micronaut.io/latest/api/io/micronaut/inject/visitor/TypeElementVisitor.html?is-external=true#visitField-io.micronaut.inject.ast.FieldElement-io.micronaut.inject.visitor.VisitorContext-" title="class or interface in io.micronaut.inject.visitor">visitField</a></code></li>
 </ul>
-<ul class="blockList">
-<li class="blockList"><a name="methods.inherited.from.class.io.micronaut.core.order.Ordered">
-<!--   -->
-</a>
-<h3>Methods inherited from interface&nbsp;io.micronaut.core.order.<a href="https://docs.micronaut.io/latest/api/io/micronaut/core/order/Ordered.html?is-external=true" title="class or interface in io.micronaut.core.order">Ordered</a></h3>
-<code><a href="https://docs.micronaut.io/latest/api/io/micronaut/core/order/Ordered.html?is-external=true#getOrder--" title="class or interface in io.micronaut.core.order">getOrder</a></code></li>
-</ul>
 </li>
 </ul>
 </li>
@@ -211,6 +219,27 @@ implements <a href="https://docs.micronaut.io/latest/api/io/micronaut/inject/vis
 <div class="details">
 <ul class="blockList">
 <li class="blockList">
+<!-- ============ FIELD DETAIL =========== -->
+<ul class="blockList">
+<li class="blockList"><a name="field.detail">
+<!--   -->
+</a>
+<h3>Field Detail</h3>
+<a name="POSITION">
+<!--   -->
+</a>
+<ul class="blockListLast">
+<li class="blockList">
+<h4>POSITION</h4>
+<pre>public static final&nbsp;int POSITION</pre>
+<dl>
+<dt><span class="seeLabel">See Also:</span></dt>
+<dd><a href="../../../../constant-values.html#io.micronaut.jaxrs.processor.JaxRsTypeElementVisitor.POSITION">Constant Field Values</a></dd>
+</dl>
+</li>
+</ul>
+</li>
+</ul>
 <!-- ========= CONSTRUCTOR DETAIL ======== -->
 <ul class="blockList">
 <li class="blockList"><a name="constructor.detail">
@@ -234,6 +263,19 @@ implements <a href="https://docs.micronaut.io/latest/api/io/micronaut/inject/vis
 <!--   -->
 </a>
 <h3>Method Detail</h3>
+<a name="getOrder--">
+<!--   -->
+</a>
+<ul class="blockList">
+<li class="blockList">
+<h4>getOrder</h4>
+<pre>public&nbsp;int&nbsp;getOrder()</pre>
+<dl>
+<dt><span class="overrideSpecifyLabel">Specified by:</span></dt>
+<dd><code><a href="https://docs.micronaut.io/latest/api/io/micronaut/core/order/Ordered.html?is-external=true#getOrder--" title="class or interface in io.micronaut.core.order">getOrder</a></code>&nbsp;in interface&nbsp;<code><a href="https://docs.micronaut.io/latest/api/io/micronaut/core/order/Ordered.html?is-external=true" title="class or interface in io.micronaut.core.order">Ordered</a></code></dd>
+</dl>
+</li>
+</ul>
 <a name="visitClass-io.micronaut.inject.ast.ClassElement-io.micronaut.inject.visitor.VisitorContext-">
 <!--   -->
 </a>
@@ -315,13 +357,13 @@ implements <a href="https://docs.micronaut.io/latest/api/io/micronaut/inject/vis
 <ul class="subNavList">
 <li>Summary:&nbsp;</li>
 <li>Nested&nbsp;|&nbsp;</li>
-<li>Field&nbsp;|&nbsp;</li>
+<li><a href="#field.summary">Field</a>&nbsp;|&nbsp;</li>
 <li><a href="#constructor.summary">Constr</a>&nbsp;|&nbsp;</li>
 <li><a href="#method.summary">Method</a></li>
 </ul>
 <ul class="subNavList">
 <li>Detail:&nbsp;</li>
-<li>Field&nbsp;|&nbsp;</li>
+<li><a href="#field.detail">Field</a>&nbsp;|&nbsp;</li>
 <li><a href="#constructor.detail">Constr</a>&nbsp;|&nbsp;</li>
 <li><a href="#method.detail">Method</a></li>
 </ul>
