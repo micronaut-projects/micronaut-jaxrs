@@ -8,12 +8,23 @@ import io.micronaut.jaxrs.runtime.annotation.ContextBindable;
 
 import javax.inject.Singleton;
 
+/**
+ * Handles the JAX-RS {@code Context} annotation binding.
+ *
+ * @param <T> The type to bind
+ * @author graemerocher
+ * @since 1.0
+ */
 @Singleton
 public class ContextAnnotationBinder<T> implements AnnotatedRequestArgumentBinder<ContextBindable, T> {
 
     private final BeanContext beanContext;
 
-    public ContextAnnotationBinder(BeanContext beanContext) {
+    /**
+     * Default constructor.
+     * @param beanContext The bean context
+     */
+    protected ContextAnnotationBinder(BeanContext beanContext) {
         this.beanContext = beanContext;
     }
 

@@ -19,10 +19,17 @@ public class JaxRsUriBuilder extends UriBuilder {
 
     private io.micronaut.http.uri.UriBuilder uriBuilder;
 
+    /**
+     * Default constructor.
+     */
     public JaxRsUriBuilder() {
         this.uriBuilder = io.micronaut.http.uri.UriBuilder.of("/");
     }
 
+    /**
+     * Copy constructor.
+     * @param uriBuilder The uri builder
+     */
     JaxRsUriBuilder(io.micronaut.http.uri.UriBuilder uriBuilder) {
         this.uriBuilder = uriBuilder;
     }

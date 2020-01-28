@@ -9,6 +9,12 @@ import javax.inject.Singleton;
 import javax.ws.rs.core.HttpHeaders;
 import java.util.Optional;
 
+/**
+ * Handles binding of the JAX-RS {@code HttpHeaders} type.
+ *
+ * @author graemerocher
+ * @since 1.0
+ */
 @Singleton
 public class HttpHeadersBinder implements TypedRequestArgumentBinder<HttpHeaders> {
 

@@ -43,21 +43,21 @@ class NewCookieHeaderDelegate implements RuntimeDelegate.HeaderDelegate {
         for (Map.Entry<String, String> entry : map.entrySet()) {
             String name = entry.getKey();
             String value = entry.getValue();
-            if (name.equalsIgnoreCase("Comment"))
+            if (name.equalsIgnoreCase("Comment")) {
                 comment = value;
-            else if (name.equalsIgnoreCase("Domain"))
+            } else if (name.equalsIgnoreCase("Domain")) {
                 domain = value;
-            else if (name.equalsIgnoreCase("Max-Age"))
+            } else if (name.equalsIgnoreCase("Max-Age")) {
                 maxAge = Integer.parseInt(value);
-            else if (name.equalsIgnoreCase("Path"))
+            } else if (name.equalsIgnoreCase("Path")) {
                 path = value;
-            else if (name.equalsIgnoreCase("Secure"))
+            } else if (name.equalsIgnoreCase("Secure")) {
                 secure = true;
-            else if (name.equalsIgnoreCase("Version"))
+            } else if (name.equalsIgnoreCase("Version")) {
                 version = Integer.parseInt(value);
-            else if (name.equalsIgnoreCase("HttpOnly"))
+            } else if (name.equalsIgnoreCase("HttpOnly")) {
                 httpOnly = true;
-            else if (name.equalsIgnoreCase("Expires")) {
+            } else if (name.equalsIgnoreCase("Expires")) {
                 try {
                     expiry = new SimpleDateFormat(OLD_COOKIE_PATTERN, Locale.US).parse(value);
                 } catch (ParseException e) {
@@ -112,10 +112,12 @@ class NewCookieHeaderDelegate implements RuntimeDelegate.HeaderDelegate {
             b.append(";Expires=");
             b.append(new SimpleDateFormat(OLD_COOKIE_PATTERN).format(cookie.getExpiry()));
         }
-        if (cookie.isSecure())
+        if (cookie.isSecure()) {
             b.append(";Secure");
-        if (cookie.isHttpOnly())
+        }
+        if (cookie.isHttpOnly()) {
             b.append(";HttpOnly");
+        }
         return b.toString();
     }
 

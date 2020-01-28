@@ -15,6 +15,12 @@ import javax.inject.Singleton;
 import javax.ws.rs.ApplicationPath;
 import javax.ws.rs.core.Application;
 
+/**
+ * Configures a URI naming strategy based on the {@link ApplicationPath} annotation.
+ *
+ * @author graemerocher
+ * @since 1.0
+ */
 @Singleton
 @Requires(classes = RouteBuilder.UriNamingStrategy.class)
 @Requires(beans = Application.class)

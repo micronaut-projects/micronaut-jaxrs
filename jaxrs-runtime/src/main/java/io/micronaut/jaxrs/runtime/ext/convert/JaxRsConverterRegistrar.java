@@ -1,5 +1,6 @@
 package io.micronaut.jaxrs.runtime.ext.convert;
 
+import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.convert.TypeConverterRegistrar;
 
@@ -9,7 +10,14 @@ import javax.ws.rs.core.EntityTag;
 import javax.ws.rs.core.Link;
 import javax.ws.rs.core.MediaType;
 
+/**
+ * Registers JAX-RS converters.
+ *
+ * @author graemerocher
+ * @since 1.0
+ */
 @Singleton
+@Internal
 public class JaxRsConverterRegistrar implements TypeConverterRegistrar {
     @Override
     public void register(ConversionService<?> conversionService) {

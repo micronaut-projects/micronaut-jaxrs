@@ -219,15 +219,15 @@ import java.util.Map;
  */
 @Internal
 final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate {
-    private static Map<String, MediaType> map = new ConcurrentLinkedHashMap.Builder<String, MediaType>()
+    private static final Map<String, MediaType> MAP = new ConcurrentLinkedHashMap.Builder<String, MediaType>()
             .maximumWeightedCapacity(200)
             .build();
-    private static Map<MediaType, String> reverseMap = new ConcurrentLinkedHashMap.Builder<MediaType, String>()
+    private static final Map<MediaType, String> REVERSE_MAP = new ConcurrentLinkedHashMap.Builder<MediaType, String>()
             .maximumWeightedCapacity(200)
             .build();
     private static final char[] QUOTED_CHARS = "()<>@,;:\\\"/[]?= \t\r\n".toCharArray();
 
-
+    @Override
     public Object fromString(String type) throws IllegalArgumentException {
         if (type == null) {
             ArgumentUtils.requireNonNull("type", type);
@@ -235,35 +235,43 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate {
         return parse(type);
     }
 
+    @Override
     public String toString(Object o) {
         if (o == null) {
             ArgumentUtils.requireNonNull("o", o);
         }
         MediaType type = (MediaType) o;
-        String result = reverseMap.get(type);
+        String result = REVERSE_MAP.get(type);
         if (result == null) {
             result = internalToString(type);
-            reverseMap.put(type, result);
-            map.put(result, type);
+            REVERSE_MAP.put(type, result);
+            MAP.put(result, type);
         }
         return result;
     }
 
     private static MediaType parse(String type) {
-        MediaType result = map.get(type);
+        MediaType result = MAP.get(type);
         if (result == null) {
             result = internalParse(type);
-            map.put(type, result);
-            reverseMap.put(result, type);
+            MAP.put(type, result);
+            REVERSE_MAP.put(result, type);
         }
         return result;
     }
 
+    /**
+     * Checks whether a string is quoted.
+     * @param str The str
+     * @return True if it is
+     */
     static boolean quoted(String str) {
         for (int i = 0; i < str.length(); i++) {
             char c = str.charAt(i);
             for (char q : QUOTED_CHARS) {
-                if (c == q) return true;
+                if (c == q) {
+                    return true;
+                }
             }
         }
         return false;
@@ -274,8 +282,8 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate {
         int paramIndex = type.indexOf(';');
         String major;
         String subtype;
-        if (typeIndex < 0) // possible "*"
-        {
+        if (typeIndex < 0) { // possible "*"
+
             major = type;
             if (paramIndex > -1) {
                 major = major.substring(0, paramIndex);
@@ -311,7 +319,9 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate {
     }
 
     private static boolean isValid(String str) {
-        if (str == null || str.length() == 0) return false;
+        if (str == null || str.length() == 0) {
+            return false;
+        }
         for (int i = 0; i < str.length(); i++) {
             switch (str.charAt(i)) {
                 case '/':
@@ -340,12 +350,17 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate {
         StringBuilder buf = new StringBuilder();
 
         buf.append(type.getType().toLowerCase()).append("/").append(type.getSubtype().toLowerCase());
-        if (type.getParameters() == null || type.getParameters().size() == 0) return buf.toString();
+        if (type.getParameters() == null || type.getParameters().size() == 0) {
+            return buf.toString();
+        }
         for (String name : type.getParameters().keySet()) {
             buf.append(';').append(name).append('=');
             String val = type.getParameters().get(name);
-            if (quoted(val)) buf.append('"').append(val).append('"');
-            else buf.append(val);
+            if (quoted(val)) {
+                buf.append('"').append(val).append('"');
+            } else {
+                buf.append(val);
+            }
         }
         return buf.toString();
     }

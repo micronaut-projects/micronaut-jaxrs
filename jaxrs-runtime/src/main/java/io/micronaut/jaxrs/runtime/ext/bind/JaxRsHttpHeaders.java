@@ -19,6 +19,10 @@ public class JaxRsHttpHeaders implements HttpHeaders {
 
     private final io.micronaut.http.HttpHeaders httpHeaders;
 
+    /**
+     * Default constructor.
+     * @param httpHeaders The Micronaut headers
+     */
     public JaxRsHttpHeaders(io.micronaut.http.HttpHeaders httpHeaders) {
         this.httpHeaders = httpHeaders;
     }

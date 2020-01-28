@@ -16,18 +16,25 @@ import java.util.List;
  * @version $Revision: 1 $
  */
 @Internal
-final class CookieHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Cookie> {
+public final class CookieHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Cookie> {
 
+    @Override
     public Cookie fromString(String value) throws IllegalArgumentException {
         return parseCookies(value).get(0);
     }
 
+    @Override
     public String toString(Cookie value) {
         StringBuilder buf = new StringBuilder();
         ServerCookie.appendCookieValue(buf, 0, value.getName(), value.getValue(), value.getPath(), value.getDomain(), null, -1, false);
         return buf.toString();
     }
 
+    /**
+     * Parse cookies from the header.
+     * @param cookieHeader The header
+     * @return The list of cookies
+     */
     public static List<Cookie> parseCookies(String cookieHeader) {
         ArgumentUtils.requireNonNull("cookieHeader", cookieHeader);
         try {
@@ -44,12 +51,12 @@ final class CookieHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Cooki
                 String[] nv = part.split("=", 2);
                 String name = nv.length > 0 ? nv[0].trim() : "";
                 String value = nv.length > 1 ? nv[1].trim() : "";
-                if (value.startsWith("\"") && value.endsWith("\"") && value.length() > 1)
+                if (value.startsWith("\"") && value.endsWith("\"") && value.length() > 1) {
                     value = value.substring(1, value.length() - 1);
+                }
                 if (!name.startsWith("$")) {
                     if (cookieName != null) {
                         cookies.add(new Cookie(cookieName, cookieValue, path, domain, version));
-                        cookieName = cookieValue = path = domain = null;
                     }
 
                     cookieName = name;

@@ -13,6 +13,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
+/**
+ * Maps the JAX-RS {@code HttpMethod} annotation.
+ *
+ * @author graemerocher
+ * @since 1.0
+ */
 public class HttpMethodMapper implements NamedAnnotationMapper {
     @Nonnull
     @Override

@@ -17,6 +17,7 @@ import javax.ws.rs.ext.RuntimeDelegate;
 @Internal
 final class EntityTagDelegate implements RuntimeDelegate.HeaderDelegate<EntityTag> {
 
+    @Override
     public EntityTag fromString(String value) throws IllegalArgumentException {
         ArgumentUtils.requireNonNull("value", value);
         boolean weakTag = false;
@@ -33,6 +34,7 @@ final class EntityTagDelegate implements RuntimeDelegate.HeaderDelegate<EntityTa
         return new EntityTag(value, weakTag);
     }
 
+    @Override
     public String toString(EntityTag value) {
         String weak = value.isWeak() ? "W/" : "";
         return weak + '"' + value.getValue() + '"';

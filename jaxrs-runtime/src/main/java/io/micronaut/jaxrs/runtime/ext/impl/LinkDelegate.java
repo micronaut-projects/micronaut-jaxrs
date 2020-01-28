@@ -17,6 +17,7 @@ import java.util.Map;
  */
 @Internal
 final class LinkDelegate implements RuntimeDelegate.HeaderDelegate<Link> {
+
     @Override
     public Link fromString(String value) throws IllegalArgumentException {
         ArgumentUtils.requireNonNull("value", value);
@@ -38,6 +39,9 @@ final class LinkDelegate implements RuntimeDelegate.HeaderDelegate<Link> {
         return buf.toString();
     }
 
+    /**
+     * Parser impl.
+     */
     private static final class Parser {
         private int curr;
         private String value;
@@ -80,18 +84,26 @@ final class LinkDelegate implements RuntimeDelegate.HeaderDelegate<Link> {
                 List<String> values = attributes.get(name);
                 switch (name) {
                     case "rel":
-                        for (String val : values) builder.rel(val);
+                        for (String val : values) {
+                            builder.rel(val);
+                        }
                         break;
                     case "title":
-                        for (String val : values) builder.title(val);
+                        for (String val : values) {
+                            builder.title(val);
+                        }
 
                         break;
                     case "type":
-                        for (String val : values) builder.type(val);
+                        for (String val : values) {
+                            builder.type(val);
+                        }
 
                         break;
                     default:
-                        for (String val : values) builder.param(name, val);
+                        for (String val : values) {
+                            builder.param(name, val);
+                        }
 
                         break;
                 }
@@ -100,8 +112,9 @@ final class LinkDelegate implements RuntimeDelegate.HeaderDelegate<Link> {
 
         String parseLink() {
             int end = value.indexOf('>', curr);
-            if (end == -1)
+            if (end == -1) {
                 throw new IllegalArgumentException("Unable to parse Link header.  No end to link:" + value);
+            }
             String href = value.substring(curr + 1, end);
             curr = end + 1;
             return href;
@@ -135,7 +148,9 @@ final class LinkDelegate implements RuntimeDelegate.HeaderDelegate<Link> {
                     StringBuilder buf = new StringBuilder();
                     while (curr < value.length()) {
                         char c = value.charAt(curr);
-                        if (c == ',' || c == ';') break;
+                        if (c == ',' || c == ';') {
+                            break;
+                        }
                         buf.append(value.charAt(curr));
                         curr++;
                     }

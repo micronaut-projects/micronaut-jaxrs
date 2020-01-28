@@ -19,29 +19,36 @@ import java.util.Map;
  * @version $Revision: 1 $
  */
 @Internal
-class LinkImpl extends Link
-{
-    private static final RuntimeDelegate.HeaderDelegate<Link> delegate =
+class LinkImpl extends Link {
+    private static final RuntimeDelegate.HeaderDelegate<Link> DELEGATE =
             RuntimeDelegate.getInstance().createHeaderDelegate(Link.class);
 
-    private final URI uri;
 
     /**
      * A map for all the link parameters such as "rel", "type", etc.
      */
     protected final Map<String, String> map;
 
+    private final URI uri;
 
-    public static Link valueOf(String value)
-    {
-        return delegate.fromString(value);
-    }
-
-    LinkImpl(final URI uri, final Map<String, String> map)
-    {
+    /**
+     * Default constructor.
+     * @param uri The URI
+     * @param map The parameters
+     */
+    LinkImpl(final URI uri, final Map<String, String> map) {
         this.uri = uri;
         this.map = map.isEmpty() ? Collections.emptyMap() : Collections
                 .unmodifiableMap(new HashMap<>(map));
+    }
+
+    /**
+     * Creates a link for the given value.
+     * @param value The value
+     * @return The link
+     */
+    public static Link valueOf(String value) {
+        return DELEGATE.fromString(value);
     }
 
     @Override
@@ -102,7 +109,7 @@ class LinkImpl extends Link
 
     @Override
     public String toString() {
-        return delegate.toString(this);
+        return DELEGATE.toString(this);
     }
 
 }

@@ -2,7 +2,6 @@ package io.micronaut.jaxrs.processor;
 
 import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.AnnotationValueBuilder;
-import io.micronaut.http.annotation.PathVariable;
 import io.micronaut.http.annotation.QueryValue;
 import io.micronaut.inject.annotation.NamedAnnotationMapper;
 import io.micronaut.inject.visitor.VisitorContext;
@@ -12,6 +11,12 @@ import java.lang.annotation.Annotation;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Maps the JAX-RS {@code QueryParam} annotation.
+ *
+ * @author graemerocher
+ * @since 1.0
+ */
 public class QueryParamMapper implements NamedAnnotationMapper {
     @Nonnull
     @Override
@@ -29,3 +34,4 @@ public class QueryParamMapper implements NamedAnnotationMapper {
         );
     }
 }
+

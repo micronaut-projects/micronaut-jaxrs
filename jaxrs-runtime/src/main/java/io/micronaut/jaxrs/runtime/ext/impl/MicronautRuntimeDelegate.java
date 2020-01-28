@@ -9,6 +9,12 @@ import javax.ws.rs.ext.RuntimeDelegate;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * RuntimeDelegate implementation for JAX-RS.
+ *
+ * @author graemerocher
+ * @since 1.0
+ */
 @Internal
 public final class MicronautRuntimeDelegate extends RuntimeDelegate {
 

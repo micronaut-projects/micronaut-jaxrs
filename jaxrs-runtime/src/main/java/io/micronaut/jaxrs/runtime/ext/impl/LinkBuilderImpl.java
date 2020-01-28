@@ -113,7 +113,9 @@ final class LinkBuilderImpl implements Link.Builder {
         ArgumentUtils.requireNonNull("values", values);
         URI built = uriBuilder.build(values);
         URI with = built;
-        if (baseUri != null) with = baseUri.resolve(built);
+        if (baseUri != null) {
+            with = baseUri.resolve(built);
+        }
         return new LinkImpl(uri.relativize(with), this.map);
     }
 

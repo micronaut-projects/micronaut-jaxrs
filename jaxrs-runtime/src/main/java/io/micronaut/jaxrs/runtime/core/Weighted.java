@@ -84,7 +84,7 @@ public class Weighted<T> implements Comparable<Weighted<T>> {
         ArgumentUtils.requireNonNull("o", o);
         if (weight > o.weight) {
             return -1;
-        } else if(weight < o.weight) {
+        } else if (weight < o.weight) {
             return 1;
         }
         return 0;

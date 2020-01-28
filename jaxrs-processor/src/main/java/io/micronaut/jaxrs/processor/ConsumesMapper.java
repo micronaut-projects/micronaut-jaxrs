@@ -11,6 +11,12 @@ import java.lang.annotation.Annotation;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Maps the JAX-RS {@code Consumes} annotation.
+ *
+ * @author graemerocher
+ * @since 1.0
+ */
 public class ConsumesMapper implements NamedAnnotationMapper {
     @Nonnull
     @Override

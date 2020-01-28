@@ -42,7 +42,7 @@ public class JaxRsResponseFilter implements HttpServerFilter {
                         }
 
                         @Override
-                        public void writeTo(Writer out) throws IOException {
+                        public void writeTo(Writer out) {
                             // no-op - handled by OutputStream variant
                         }
                     });

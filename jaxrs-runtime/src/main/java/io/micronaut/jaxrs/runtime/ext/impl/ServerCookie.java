@@ -13,8 +13,24 @@ import java.util.TimeZone;
  * Server-side cookie representation.  Stolen from Tomcat.
  */
 final class ServerCookie implements Serializable {
-    private static final String tspecials = ",; ";
-    private static final String tspecials2 = "()<>@,;:\\\"/[]?={} \t";
+    private static final String TSPECIALS = ",; ";
+    private static final String TSPECIALS_2 = "()<>@,;:\\\"/[]?={} \t";
+    /**
+     * US locale - all HTTP dates are in english.
+     */
+    private static final Locale LOCALE_US = Locale.US;
+
+    /**
+     * GMT timezone - all HTTP dates are on GMT.
+     */
+    private static final TimeZone GMT_ZONE = TimeZone.getTimeZone("GMT");
+    /**
+     * Pattern used for old cookies.
+     */
+    private static final String OLD_COOKIE_PATTERN = "EEE, dd-MMM-yyyy HH:mm:ss z";
+
+    private static final DateFormat OLD_COOKIE_FORMAT = new SimpleDateFormat(OLD_COOKIE_PATTERN, LOCALE_US);
+    private static final String ANCIENT_DATE = formatOldCookie(new Date(10000));
 
     /*
      * Tests a string and returns true if the string counts as a
@@ -34,7 +50,7 @@ final class ServerCookie implements Serializable {
         for (int i = 0; i < len; i++) {
             char c = value.charAt(i);
 
-            if (tspecials.indexOf(c) != -1) {
+            if (TSPECIALS.indexOf(c) != -1) {
                 return false;
             }
         }
@@ -42,7 +58,9 @@ final class ServerCookie implements Serializable {
     }
 
     private static boolean containsCTL(String value, int version) {
-        if (value == null) return false;
+        if (value == null) {
+            return false;
+        }
         int len = value.length();
         for (int i = 0; i < len; i++) {
             char c = value.charAt(i);
@@ -56,7 +74,6 @@ final class ServerCookie implements Serializable {
         return false;
     }
 
-
     private static boolean isToken2(String value) {
         if (value == null) {
             return true;
@@ -65,7 +82,7 @@ final class ServerCookie implements Serializable {
 
         for (int i = 0; i < len; i++) {
             char c = value.charAt(i);
-            if (tspecials2.indexOf(c) != -1) {
+            if (TSPECIALS_2.indexOf(c) != -1) {
                 return false;
             }
         }
@@ -120,52 +137,44 @@ final class ServerCookie implements Serializable {
         }
     }
 
-    /**
-     * US locale - all HTTP dates are in english
-     */
-    private static final Locale LOCALE_US = Locale.US;
-
-    /**
-     * GMT timezone - all HTTP dates are on GMT
-     */
-    public static final TimeZone GMT_ZONE = TimeZone.getTimeZone("GMT");
-    /**
-     * Pattern used for old cookies
-     */
-    private static final String OLD_COOKIE_PATTERN = "EEE, dd-MMM-yyyy HH:mm:ss z";
-
-
-    private static final DateFormat oldCookieFormat = new SimpleDateFormat(OLD_COOKIE_PATTERN, LOCALE_US);
-
-    public static String formatOldCookie(Date d) {
+    private static String formatOldCookie(Date d) {
         String ocf;
-        synchronized (oldCookieFormat) {
-            ocf = oldCookieFormat.format(d);
+        synchronized (OLD_COOKIE_FORMAT) {
+            ocf = OLD_COOKIE_FORMAT.format(d);
         }
         return ocf;
     }
 
-    public static void formatOldCookie(Date d, StringBuffer sb,
-                                       FieldPosition fp) {
-        synchronized (oldCookieFormat) {
-            oldCookieFormat.format(d, sb, fp);
+    private static void formatOldCookie(Date d, StringBuffer sb,
+                                        FieldPosition fp) {
+        synchronized (OLD_COOKIE_FORMAT) {
+            OLD_COOKIE_FORMAT.format(d, sb, fp);
         }
     }
 
-
-    private static final String ancientDate = formatOldCookie(new Date(10000));
-
-
     // TODO RFC2965 fields also need to be passed
-    public static void appendCookieValue(StringBuilder headerBuf,
-                                         int version,
-                                         String name,
-                                         String value,
-                                         String path,
-                                         String domain,
-                                         String comment,
-                                         int maxAge,
-                                         boolean isSecure) {
+
+    /**
+     * Append a cookie value.
+     * @param headerBuf The header buf
+     * @param version the version
+     * @param name the name
+     * @param value the value
+     * @param path the path
+     * @param domain the domain
+     * @param comment the comment
+     * @param maxAge the max age
+     * @param isSecure Whether it is secure
+     */
+    static void appendCookieValue(StringBuilder headerBuf,
+                                  int version,
+                                  String name,
+                                  String value,
+                                  String path,
+                                  String domain,
+                                  String comment,
+                                  int maxAge,
+                                  boolean isSecure) {
         StringBuffer buf = new StringBuffer();
         // Servlet implementation checks name
         buf.append(name);
@@ -199,13 +208,14 @@ final class ServerCookie implements Serializable {
                 // Wdy, DD-Mon-YY HH:MM:SS GMT ( Expires Netscape format )
                 buf.append("; Expires=");
                 // To expire immediately we need to set the time in past
-                if (maxAge == 0)
-                    buf.append(ancientDate);
-                else
+                if (maxAge == 0) {
+                    buf.append(ANCIENT_DATE);
+                } else {
                     formatOldCookie
                             (new Date(System.currentTimeMillis() +
                                             maxAge * 1000L), buf,
                                     new FieldPosition(0));
+                }
 
             } else {
                 buf.append("; Max-Age=");
@@ -227,8 +237,10 @@ final class ServerCookie implements Serializable {
         headerBuf.append(buf);
     }
 
-    public static boolean alreadyQuoted(String value) {
-        if (value == null || value.length() == 0) return false;
+    private static boolean alreadyQuoted(String value) {
+        if (value == null || value.length() == 0) {
+            return false;
+        }
         return (value.charAt(0) == '\"' && value.charAt(value.length() - 1) == '\"');
     }
 
@@ -239,7 +251,7 @@ final class ServerCookie implements Serializable {
      * @param buf     buffer
      * @param value   value
      */
-    public static void maybeQuote2(int version, StringBuffer buf, String value) {
+    private static void maybeQuote2(int version, StringBuffer buf, String value) {
         if (value == null || value.length() == 0) {
             buf.append("\"\"");
         } else if (containsCTL(value, version)) {
@@ -286,10 +298,11 @@ final class ServerCookie implements Serializable {
                     throw new IllegalArgumentException("Invalid character in cookie: " + s);
                 }
                 b.append(s.charAt(i));
-            } else if (c == '"')
+            } else if (c == '"') {
                 b.append('\\').append('"');
-            else
+            } else {
                 b.append(c);
+            }
         }
 
         return b.toString();

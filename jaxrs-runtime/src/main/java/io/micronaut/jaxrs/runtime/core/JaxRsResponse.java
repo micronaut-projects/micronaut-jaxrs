@@ -21,6 +21,9 @@ class JaxRsResponse extends Response {
 
     private final MutableHttpResponse<Object> response = HttpResponse.ok();
 
+    /**
+     * @return The Micronaut response object
+     */
     public MutableHttpResponse<Object> getResponse() {
         return response;
     }

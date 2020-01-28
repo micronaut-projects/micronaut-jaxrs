@@ -13,5 +13,6 @@ io.micronaut.jaxrs.processor.CookieParamMapper
 io.micronaut.jaxrs.processor.QueryParamMapper
 io.micronaut.jaxrs.processor.FormParamMapper
 io.micronaut.jaxrs.processor.ProducesMapper
+io.micronaut.jaxrs.processor.ConsumesMapper
 io.micronaut.jaxrs.processor.DefaultValueMapper
 io.micronaut.jaxrs.processor.HttpMethodMapper
