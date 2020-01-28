@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.micronaut.jaxrs.processor.ParameterAnnotationSpec" tests="8" skipped="0" failures="0" errors="0" timestamp="2020-01-28T11:33:15" hostname="Graemes-iMac-Pro.local" time="1.191">
+  <properties/>
+  <testcase name="test map parameter annotation interface javax.ws.rs.PathParam" classname="io.micronaut.jaxrs.processor.ParameterAnnotationSpec" time="0.824"/>
+  <testcase name="test map parameter annotation interface javax.ws.rs.HeaderParam" classname="io.micronaut.jaxrs.processor.ParameterAnnotationSpec" time="0.075"/>
+  <testcase name="test map parameter annotation interface javax.ws.rs.CookieParam" classname="io.micronaut.jaxrs.processor.ParameterAnnotationSpec" time="0.075"/>
+  <testcase name="test map parameter annotation interface javax.ws.rs.QueryParam" classname="io.micronaut.jaxrs.processor.ParameterAnnotationSpec" time="0.055"/>
+  <testcase name="test map parameter annotation interface javax.ws.rs.FormParam" classname="io.micronaut.jaxrs.processor.ParameterAnnotationSpec" time="0.047"/>
+  <testcase name="test default value" classname="io.micronaut.jaxrs.processor.ParameterAnnotationSpec" time="0.045"/>
+  <testcase name="test unsupported parameter annotation interface javax.ws.rs.MatrixParam" classname="io.micronaut.jaxrs.processor.ParameterAnnotationSpec" time="0.04"/>
+  <testcase name="test unsupported parameter annotation interface javax.ws.rs.BeanParam" classname="io.micronaut.jaxrs.processor.ParameterAnnotationSpec" time="0.028"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

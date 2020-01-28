@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.micronaut.jaxrs.runtime.HeadersTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2020-01-28T11:33:22" hostname="Graemes-iMac-Pro.local" time="0.373">
+  <properties/>
+  <testcase name="testAcceptHeader()" classname="io.micronaut.jaxrs.runtime.HeadersTest" time="0.318"/>
+  <testcase name="testEtag()" classname="io.micronaut.jaxrs.runtime.HeadersTest" time="0.018"/>
+  <testcase name="testLink()" classname="io.micronaut.jaxrs.runtime.HeadersTest" time="0.011"/>
+  <testcase name="testContentType()" classname="io.micronaut.jaxrs.runtime.HeadersTest" time="0.006"/>
+  <testcase name="testAcceptLanguageHeader()" classname="io.micronaut.jaxrs.runtime.HeadersTest" time="0.006"/>
+  <testcase name="testCookie()" classname="io.micronaut.jaxrs.runtime.HeadersTest" time="0.012"/>
+  <system-out><![CDATA[12:33:21.980 [Test worker] INFO  i.m.context.env.DefaultEnvironment - Established active environments: [test]
+12:33:22.548 [Test worker] DEBUG i.m.web.router.DefaultRouteBuilder - Created Route: GET /api/notifications/ping -> $NotificationsResourceDefinition$Intercepted#Response ping(Application application) (application/json )
+12:33:22.548 [Test worker] DEBUG i.m.web.router.DefaultRouteBuilder - Created Route: HEAD /api/notifications/ping -> $NotificationsResourceDefinition$Intercepted#Response ping(Application application) (application/json )
+12:33:22.550 [Test worker] DEBUG i.m.web.router.DefaultRouteBuilder - Created Route: GET /api/notifications/get/{id} -> $NotificationsResourceDefinition$Intercepted#Response getNotification(int id) (application/json )
+12:33:22.550 [Test worker] DEBUG i.m.web.router.DefaultRouteBuilder - Created Route: HEAD /api/notifications/get/{id} -> $NotificationsResourceDefinition$Intercepted#Response getNotification(int id) (application/json )
+12:33:22.550 [Test worker] DEBUG i.m.web.router.DefaultRouteBuilder - Created Route: GET /api/notifications/query -> $NotificationsResourceDefinition$Intercepted#Response getDefault(int id) (application/json )
+12:33:22.551 [Test worker] DEBUG i.m.web.router.DefaultRouteBuilder - Created Route: HEAD /api/notifications/query -> $NotificationsResourceDefinition$Intercepted#Response getDefault(int id) (application/json )
+12:33:22.551 [Test worker] DEBUG i.m.web.router.DefaultRouteBuilder - Created Route: POST /api/notifications -> $NotificationsResourceDefinition$Intercepted#Response postNotification(Notification notification) (application/json )
+12:33:22.552 [Test worker] DEBUG i.m.web.router.DefaultRouteBuilder - Created Route: POST /api/headers/content-type -> HeadersResource#Response contentType(MediaType mediaType) (application/json )
+12:33:22.552 [Test worker] DEBUG i.m.web.router.DefaultRouteBuilder - Created Route: GET /api/headers/cookie -> HeadersResource#Response cookie(Cookie cookie) (application/json )
+12:33:22.552 [Test worker] DEBUG i.m.web.router.DefaultRouteBuilder - Created Route: HEAD /api/headers/cookie -> HeadersResource#Response cookie(Cookie cookie) (application/json )
+12:33:22.552 [Test worker] DEBUG i.m.web.router.DefaultRouteBuilder - Created Route: GET /api/headers/etag -> HeadersResource#Response etag(EntityTag entityTag) (application/json )
+12:33:22.553 [Test worker] DEBUG i.m.web.router.DefaultRouteBuilder - Created Route: HEAD /api/headers/etag -> HeadersResource#Response etag(EntityTag entityTag) (application/json )
+12:33:22.553 [Test worker] DEBUG i.m.web.router.DefaultRouteBuilder - Created Route: GET /api/headers/link -> HeadersResource#Response link(Link link) (application/json )
+12:33:22.553 [Test worker] DEBUG i.m.web.router.DefaultRouteBuilder - Created Route: HEAD /api/headers/link -> HeadersResource#Response link(Link link) (application/json )
+12:33:22.553 [Test worker] DEBUG i.m.web.router.DefaultRouteBuilder - Created Route: GET /api/headers -> HeadersResource#Response headers(HttpHeaders httpHeaders) (application/json )
+12:33:22.553 [Test worker] DEBUG i.m.web.router.DefaultRouteBuilder - Created Route: HEAD /api/headers -> HeadersResource#Response headers(HttpHeaders httpHeaders) (application/json )
+12:33:23.119 [nioEventLoopGroup-1-2] DEBUG i.m.http.client.DefaultHttpClient - Sending HTTP Request: GET /api/headers
+12:33:23.120 [nioEventLoopGroup-1-2] DEBUG i.m.http.client.DefaultHttpClient - Chosen Server: localhost(19569)
+12:33:23.121 [nioEventLoopGroup-1-2] TRACE i.m.http.client.DefaultHttpClient - Accept: application/json;q=0.7,application/xml;q=0.9
+12:33:23.121 [nioEventLoopGroup-1-2] TRACE i.m.http.client.DefaultHttpClient - host: localhost:19569
+12:33:23.121 [nioEventLoopGroup-1-2] TRACE i.m.http.client.DefaultHttpClient - connection: close
+12:33:23.186 [nioEventLoopGroup-1-2] TRACE i.m.http.client.DefaultHttpClient - HTTP Client Response Received for Request: GET http://localhost:19569/api/headers
+12:33:23.186 [nioEventLoopGroup-1-2] TRACE i.m.http.client.DefaultHttpClient - Status Code: 200 Ok
+12:33:23.187 [nioEventLoopGroup-1-2] TRACE i.m.http.client.DefaultHttpClient - Accept: application/json;q=0.7,application/xml;q=0.9
+12:33:23.187 [nioEventLoopGroup-1-2] TRACE i.m.http.client.DefaultHttpClient - host: localhost:19569
+12:33:23.187 [nioEventLoopGroup-1-2] TRACE i.m.http.client.DefaultHttpClient - Date: Tue, 28 Jan 2020 11:33:23 GMT
+12:33:23.187 [nioEventLoopGroup-1-2] TRACE i.m.http.client.DefaultHttpClient - content-type: text/plain
+12:33:23.187 [nioEventLoopGroup-1-2] TRACE i.m.http.client.DefaultHttpClient - content-length: 4
+12:33:23.187 [nioEventLoopGroup-1-2] TRACE i.m.http.client.DefaultHttpClient - connection: close
+12:33:23.187 [nioEventLoopGroup-1-2] TRACE i.m.http.client.DefaultHttpClient - Response Body
+12:33:23.187 [nioEventLoopGroup-1-2] TRACE i.m.http.client.DefaultHttpClient - ----
+12:33:23.187 [nioEventLoopGroup-1-2] TRACE i.m.http.client.DefaultHttpClient - echo
+12:33:23.187 [nioEventLoopGroup-1-2] TRACE i.m.http.client.DefaultHttpClient - ----
+12:33:23.207 [nioEventLoopGroup-1-4] DEBUG i.m.http.client.DefaultHttpClient - Sending HTTP Request: GET /api/headers/etag
+12:33:23.208 [nioEventLoopGroup-1-4] DEBUG i.m.http.client.DefaultHttpClient - Chosen Server: localhost(19569)
+12:33:23.208 [nioEventLoopGroup-1-4] TRACE i.m.http.client.DefaultHttpClient - ETag: "foo"
+12:33:23.208 [nioEventLoopGroup-1-4] TRACE i.m.http.client.DefaultHttpClient - Accept: application/json
+12:33:23.208 [nioEventLoopGroup-1-4] TRACE i.m.http.client.DefaultHttpClient - host: localhost:19569
+12:33:23.208 [nioEventLoopGroup-1-4] TRACE i.m.http.client.DefaultHttpClient - connection: close
+12:33:23.212 [nioEventLoopGroup-1-4] TRACE i.m.http.client.DefaultHttpClient - HTTP Client Response Received for Request: GET http://localhost:19569/api/headers/etag
+12:33:23.212 [nioEventLoopGroup-1-4] TRACE i.m.http.client.DefaultHttpClient - Status Code: 200 Ok
+12:33:23.212 [nioEventLoopGroup-1-4] TRACE i.m.http.client.DefaultHttpClient - ETag: "foo"
+12:33:23.212 [nioEventLoopGroup-1-4] TRACE i.m.http.client.DefaultHttpClient - Date: Tue, 28 Jan 2020 11:33:23 GMT
+12:33:23.212 [nioEventLoopGroup-1-4] TRACE i.m.http.client.DefaultHttpClient - content-type: text/plain
+12:33:23.212 [nioEventLoopGroup-1-4] TRACE i.m.http.client.DefaultHttpClient - content-length: 3
+12:33:23.213 [nioEventLoopGroup-1-4] TRACE i.m.http.client.DefaultHttpClient - connection: close
+12:33:23.213 [nioEventLoopGroup-1-4] TRACE i.m.http.client.DefaultHttpClient - Response Body
+12:33:23.213 [nioEventLoopGroup-1-4] TRACE i.m.http.client.DefaultHttpClient - ----
+12:33:23.214 [nioEventLoopGroup-1-4] TRACE i.m.http.client.DefaultHttpClient - foo
+12:33:23.214 [nioEventLoopGroup-1-4] TRACE i.m.http.client.DefaultHttpClient - ----
+12:33:23.220 [nioEventLoopGroup-1-6] DEBUG i.m.http.client.DefaultHttpClient - Sending HTTP Request: GET /api/headers/link
+12:33:23.220 [nioEventLoopGroup-1-6] DEBUG i.m.http.client.DefaultHttpClient - Chosen Server: localhost(19569)
+12:33:23.221 [nioEventLoopGroup-1-6] TRACE i.m.http.client.DefaultHttpClient - Link: </headers>
+12:33:23.221 [nioEventLoopGroup-1-6] TRACE i.m.http.client.DefaultHttpClient - Accept: application/json
+12:33:23.221 [nioEventLoopGroup-1-6] TRACE i.m.http.client.DefaultHttpClient - host: localhost:19569
+12:33:23.221 [nioEventLoopGroup-1-6] TRACE i.m.http.client.DefaultHttpClient - connection: close
+12:33:23.225 [nioEventLoopGroup-1-6] TRACE i.m.http.client.DefaultHttpClient - HTTP Client Response Received for Request: GET http://localhost:19569/api/headers/link
+12:33:23.225 [nioEventLoopGroup-1-6] TRACE i.m.http.client.DefaultHttpClient - Status Code: 200 Ok
+12:33:23.225 [nioEventLoopGroup-1-6] TRACE i.m.http.client.DefaultHttpClient - Link: </blah>; rel="friend"
+12:33:23.225 [nioEventLoopGroup-1-6] TRACE i.m.http.client.DefaultHttpClient - Date: Tue, 28 Jan 2020 11:33:23 GMT
+12:33:23.225 [nioEventLoopGroup-1-6] TRACE i.m.http.client.DefaultHttpClient - content-type: text/plain
+12:33:23.225 [nioEventLoopGroup-1-6] TRACE i.m.http.client.DefaultHttpClient - content-length: 10
+12:33:23.225 [nioEventLoopGroup-1-6] TRACE i.m.http.client.DefaultHttpClient - connection: close
+12:33:23.225 [nioEventLoopGroup-1-6] TRACE i.m.http.client.DefaultHttpClient - Response Body
+12:33:23.225 [nioEventLoopGroup-1-6] TRACE i.m.http.client.DefaultHttpClient - ----
+12:33:23.225 [nioEventLoopGroup-1-6] TRACE i.m.http.client.DefaultHttpClient - </headers>
+12:33:23.225 [nioEventLoopGroup-1-6] TRACE i.m.http.client.DefaultHttpClient - ----
+12:33:23.229 [nioEventLoopGroup-1-8] DEBUG i.m.http.client.DefaultHttpClient - Sending HTTP Request: POST /api/headers/content-type
+12:33:23.229 [nioEventLoopGroup-1-8] DEBUG i.m.http.client.DefaultHttpClient - Chosen Server: localhost(19569)
+12:33:23.229 [nioEventLoopGroup-1-8] TRACE i.m.http.client.DefaultHttpClient - Content-Type: application/json
+12:33:23.229 [nioEventLoopGroup-1-8] TRACE i.m.http.client.DefaultHttpClient - Accept: application/json
+12:33:23.229 [nioEventLoopGroup-1-8] TRACE i.m.http.client.DefaultHttpClient - host: localhost:19569
+12:33:23.229 [nioEventLoopGroup-1-8] TRACE i.m.http.client.DefaultHttpClient - connection: close
+12:33:23.229 [nioEventLoopGroup-1-8] TRACE i.m.http.client.DefaultHttpClient - content-length: 0
+12:33:23.232 [nioEventLoopGroup-1-8] TRACE i.m.http.client.DefaultHttpClient - HTTP Client Response Received for Request: POST http://localhost:19569/api/headers/content-type
+12:33:23.232 [nioEventLoopGroup-1-8] TRACE i.m.http.client.DefaultHttpClient - Status Code: 200 Ok
+12:33:23.232 [nioEventLoopGroup-1-8] TRACE i.m.http.client.DefaultHttpClient - Content-Type: text/plain
+12:33:23.232 [nioEventLoopGroup-1-8] TRACE i.m.http.client.DefaultHttpClient - Content-Type: application/json
+12:33:23.232 [nioEventLoopGroup-1-8] TRACE i.m.http.client.DefaultHttpClient - Date: Tue, 28 Jan 2020 11:33:23 GMT
+12:33:23.232 [nioEventLoopGroup-1-8] TRACE i.m.http.client.DefaultHttpClient - content-length: 16
+12:33:23.232 [nioEventLoopGroup-1-8] TRACE i.m.http.client.DefaultHttpClient - connection: close
+12:33:23.232 [nioEventLoopGroup-1-8] TRACE i.m.http.client.DefaultHttpClient - Response Body
+12:33:23.232 [nioEventLoopGroup-1-8] TRACE i.m.http.client.DefaultHttpClient - ----
+12:33:23.232 [nioEventLoopGroup-1-8] TRACE i.m.http.client.DefaultHttpClient - application/json
+12:33:23.232 [nioEventLoopGroup-1-8] TRACE i.m.http.client.DefaultHttpClient - ----
+12:33:23.235 [nioEventLoopGroup-1-10] DEBUG i.m.http.client.DefaultHttpClient - Sending HTTP Request: GET /api/headers
+12:33:23.235 [nioEventLoopGroup-1-10] DEBUG i.m.http.client.DefaultHttpClient - Chosen Server: localhost(19569)
+12:33:23.235 [nioEventLoopGroup-1-10] TRACE i.m.http.client.DefaultHttpClient - Accept-Language: fr;q=0.7,en;q=0.9
+12:33:23.235 [nioEventLoopGroup-1-10] TRACE i.m.http.client.DefaultHttpClient - host: localhost:19569
+12:33:23.235 [nioEventLoopGroup-1-10] TRACE i.m.http.client.DefaultHttpClient - connection: close
+12:33:23.238 [nioEventLoopGroup-1-10] TRACE i.m.http.client.DefaultHttpClient - HTTP Client Response Received for Request: GET http://localhost:19569/api/headers
+12:33:23.238 [nioEventLoopGroup-1-10] TRACE i.m.http.client.DefaultHttpClient - Status Code: 200 Ok
+12:33:23.238 [nioEventLoopGroup-1-10] TRACE i.m.http.client.DefaultHttpClient - host: localhost:19569
+12:33:23.238 [nioEventLoopGroup-1-10] TRACE i.m.http.client.DefaultHttpClient - Accept-Language: fr;q=0.7,en;q=0.9
+12:33:23.238 [nioEventLoopGroup-1-10] TRACE i.m.http.client.DefaultHttpClient - Date: Tue, 28 Jan 2020 11:33:23 GMT
+12:33:23.238 [nioEventLoopGroup-1-10] TRACE i.m.http.client.DefaultHttpClient - content-type: text/plain
+12:33:23.238 [nioEventLoopGroup-1-10] TRACE i.m.http.client.DefaultHttpClient - content-length: 4
+12:33:23.238 [nioEventLoopGroup-1-10] TRACE i.m.http.client.DefaultHttpClient - connection: close
+12:33:23.239 [nioEventLoopGroup-1-10] TRACE i.m.http.client.DefaultHttpClient - Response Body
+12:33:23.239 [nioEventLoopGroup-1-10] TRACE i.m.http.client.DefaultHttpClient - ----
+12:33:23.239 [nioEventLoopGroup-1-10] TRACE i.m.http.client.DefaultHttpClient - echo
+12:33:23.239 [nioEventLoopGroup-1-10] TRACE i.m.http.client.DefaultHttpClient - ----
+12:33:23.244 [nioEventLoopGroup-1-12] DEBUG i.m.http.client.DefaultHttpClient - Sending HTTP Request: GET /api/headers/cookie
+12:33:23.244 [nioEventLoopGroup-1-12] DEBUG i.m.http.client.DefaultHttpClient - Chosen Server: localhost(19569)
+12:33:23.244 [nioEventLoopGroup-1-12] TRACE i.m.http.client.DefaultHttpClient - cookie: foo=bar
+12:33:23.244 [nioEventLoopGroup-1-12] TRACE i.m.http.client.DefaultHttpClient - Accept: application/json
+12:33:23.244 [nioEventLoopGroup-1-12] TRACE i.m.http.client.DefaultHttpClient - host: localhost:19569
+12:33:23.244 [nioEventLoopGroup-1-12] TRACE i.m.http.client.DefaultHttpClient - connection: close
+12:33:23.250 [nioEventLoopGroup-1-12] TRACE i.m.http.client.DefaultHttpClient - HTTP Client Response Received for Request: GET http://localhost:19569/api/headers/cookie
+12:33:23.250 [nioEventLoopGroup-1-12] TRACE i.m.http.client.DefaultHttpClient - Status Code: 200 Ok
+12:33:23.250 [nioEventLoopGroup-1-12] TRACE i.m.http.client.DefaultHttpClient - set-cookie: foo=bar
+12:33:23.250 [nioEventLoopGroup-1-12] TRACE i.m.http.client.DefaultHttpClient - Date: Tue, 28 Jan 2020 11:33:23 GMT
+12:33:23.250 [nioEventLoopGroup-1-12] TRACE i.m.http.client.DefaultHttpClient - content-type: text/plain
+12:33:23.250 [nioEventLoopGroup-1-12] TRACE i.m.http.client.DefaultHttpClient - content-length: 3
+12:33:23.250 [nioEventLoopGroup-1-12] TRACE i.m.http.client.DefaultHttpClient - connection: close
+12:33:23.251 [nioEventLoopGroup-1-12] TRACE i.m.http.client.DefaultHttpClient - Response Body
+12:33:23.251 [nioEventLoopGroup-1-12] TRACE i.m.http.client.DefaultHttpClient - ----
+12:33:23.251 [nioEventLoopGroup-1-12] TRACE i.m.http.client.DefaultHttpClient - bar
+12:33:23.251 [nioEventLoopGroup-1-12] TRACE i.m.http.client.DefaultHttpClient - ----
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

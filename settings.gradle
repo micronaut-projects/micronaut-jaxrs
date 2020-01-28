@@ -1,0 +1,4 @@
+rootProject.name = 'jaxrs'
+
+include 'jaxrs-processor'
+include 'jaxrs-runtime'

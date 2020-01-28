@@ -1,0 +1,103 @@
+As of this writing Micronaut JAX-RS supports the annotations and types defined within the `javax.ws.rs` package and the `javax.ws.rs.core` subpackage only.
+
+All interfaces, annotations and types contained within the following packages are not supported:
+
+* `javax.ws.rs.client`
+* `javax.ws.rs.container`
+* `javax.ws.rs.ext`
+
+==== Supported Annotations
+
+Micronaut JAX-RS works by converting (at compilation time) a JAX-RS annotation definition into the equivalent Micronaut version.
+
+.Supported JAX-RS Annotations
+|===
+|JAX-RS Annotation|Target Annotation|Example
+
+|link:{jaxrsapi}/javax/ws/rs/Path.html[@Path]
+|link:{micronautapi}/io/micronaut/http/annotation/Controller.html[@Controller]
+|`@Path("/foo")` // on type
+
+|link:{jaxrsapi}/javax/ws/rs/Path.html[@Path]
+|link:{micronautapi}/io/micronaut/http/annotation/UriMapping.html[@UriMapping]
+|`@Path("/foo")` // on method
+
+|link:{jaxrsapi}/javax/ws/rs/HttpMethod.html[@HttpMethod]
+|link:{micronautapi}/io/micronaut/http/annotation/HttpMethodMapping.html[@HttpMethodMapping]
+|`@HttpMethod("TRACE")`
+
+|link:{jaxrsapi}/javax/ws/rs/GET.html[@GET]
+|link:{micronautapi}/io/micronaut/http/annotation/Get.html[@Get]
+|`@GET @Path("/foo/bar")`
+
+|link:{jaxrsapi}/javax/ws/rs/POST.html[@POST]
+|link:{micronautapi}/io/micronaut/http/annotation/Post.html[@Post]
+|`@POST @Path("/foo/bar")`
+
+|link:{jaxrsapi}/javax/ws/rs/DELETE.html[@DELETE]
+|link:{micronautapi}/io/micronaut/http/annotation/Delete.html[@Delete]
+|`@DELETE @Path("/foo/bar")`
+
+|link:{jaxrsapi}/javax/ws/rs/OPTIONS.html[@OPTIONS]
+|link:{micronautapi}/io/micronaut/http/annotation/Options.html[@Options]
+|`@OPTIONS @Path("/foo/bar")`
+
+|link:{jaxrsapi}/javax/ws/rs/HEAD.html[@HEAD]
+|link:{micronautapi}/io/micronaut/http/annotation/Head.html[@Head]
+|`@HEAD @Path("/foo/bar")`
+
+|link:{jaxrsapi}/javax/ws/rs/Consumes.html[@Consumes]
+|link:{micronautapi}/io/micronaut/http/annotation/Consumes.html[@Consumes]
+|`@Consumes("application/json")`
+
+|link:{jaxrsapi}/javax/ws/rs/Produces.html[@Produces]
+|link:{micronautapi}/io/micronaut/http/annotation/Produces.html[@Produces]
+|`@Produces("application/json")`
+
+|link:{jaxrsapi}/javax/ws/rs/PathParam.html[@PathParam]
+|link:{micronautapi}/io/micronaut/http/annotation/PathVariable.html[@PathVariable]
+|`@PathParam("foo")`
+
+|link:{jaxrsapi}/javax/ws/rs/CookieParam.html[@CookieParam]
+|link:{micronautapi}/io/micronaut/http/annotation/CookieValue.html[@CookieValue]
+|`@CookieParam("myCookie")`
+
+|link:{jaxrsapi}/javax/ws/rs/HeaderParam.html[@HeaderParam]
+|link:{micronautapi}/io/micronaut/http/annotation/Header.html[@Header]
+|`@HeaderParam("Content-Type")`
+
+|link:{jaxrsapi}/javax/ws/rs/QueryParam.html[@QueryParam]
+|link:{micronautapi}/io/micronaut/http/annotation/QueryValue.html[@QueryValue]
+|`@QueryParam("myParam")`
+
+|link:{jaxrsapi}/javax/ws/rs/DefaultValue.html[@DefaultValue]
+|link:{micronautapi}/io/micronaut/http/annotation/Bindable.html[@Bindable(defaultValue="..")]
+|`@DefaultValue("example")`
+
+|link:{jaxrsapi}/javax/ws/rs/core/Context.html[@Context]
+|No equivalent. Injects a bean in to a parameter.
+|`@Context`
+
+|===
+
+==== Injectable Parameter Types
+
+In addition to the supported JAX-RS annotations you can us the following JAX-RS types as parameter types to resources or client definitions:
+
+* link:{jaxrsapi}/javax/ws/rs/core/HttpHeaders.html[javax.ws.rs.core.HttpHeaders]
+* link:{jaxrsapi}/javax/ws/rs/core/CacheControl.html[javax.ws.rs.core.CacheControl]
+* link:{jaxrsapi}/javax/ws/rs/core/Cookie.html[javax.ws.rs.core.Cookie]
+* link:{jaxrsapi}/javax/ws/rs/core/EntityTag.html[javax.ws.rs.core.EntityTag]
+* link:{jaxrsapi}/javax/ws/rs/core/Link.html[javax.ws.rs.core.Link]
+* link:{jaxrsapi}/javax/ws/rs/core/MediaType.html[javax.ws.rs.core.MediaType]
+
+You can also use the link:{jaxrsapi}/javax/ws/rs/core/Context.html[@Context] annotation to inject any bean into a resource type's method parameter.
+
+NOTE: Parameter binding to constructor argument of resource types is not supported at this time.
+
+==== Supported Return Types
+
+You can also use the following return types from the JAX-RS API in your resource classes:
+
+* link:{jaxrsapi}/javax/ws/rs/core/Response.html[javax.ws.rs.core.Response]
+* link:{jaxrsapi}/javax/ws/rs/core/StreamingOutput.html[javax.ws.rs.core.StreamingOutput]

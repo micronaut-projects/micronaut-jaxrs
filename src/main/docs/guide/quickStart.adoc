@@ -1,0 +1,7 @@
+To use this project first add the following annotation processor:
+
+dependency:micronaut-jaxrs-processor[scope="annotationProcessor", version="{version}", groupId="io.micronaut.jaxrs"]
+
+Then the following compile time dependency:
+
+dependency:micronaut-jaxrs-runtime[scope="implementation", version="{version}", groupId="io.micronaut.jaxrs"]

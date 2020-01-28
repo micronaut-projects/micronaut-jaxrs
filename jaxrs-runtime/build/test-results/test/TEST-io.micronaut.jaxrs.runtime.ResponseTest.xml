@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.micronaut.jaxrs.runtime.ResponseTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2020-01-28T11:33:23" hostname="Graemes-iMac-Pro.local" time="0.237">
+  <properties/>
+  <testcase name="testValidation()" classname="io.micronaut.jaxrs.runtime.ResponseTest" time="0.168"/>
+  <testcase name="testDefaultValue()" classname="io.micronaut.jaxrs.runtime.ResponseTest" time="0.021"/>
+  <testcase name="testPostNotification()" classname="io.micronaut.jaxrs.runtime.ResponseTest" time="0.033"/>
+  <testcase name="testPingResponse()" classname="io.micronaut.jaxrs.runtime.ResponseTest" time="0.006"/>
+  <testcase name="testGetResponse()" classname="io.micronaut.jaxrs.runtime.ResponseTest" time="0.006"/>
+  <system-out><![CDATA[12:33:23.476 [Test worker] INFO  i.m.context.env.DefaultEnvironment - Established active environments: [test]
+12:33:23.494 [Test worker] DEBUG i.m.web.router.DefaultRouteBuilder - Created Route: GET /api/notifications/ping -> $NotificationsResourceDefinition$Intercepted#Response ping(Application application) (application/json )
+12:33:23.494 [Test worker] DEBUG i.m.web.router.DefaultRouteBuilder - Created Route: HEAD /api/notifications/ping -> $NotificationsResourceDefinition$Intercepted#Response ping(Application application) (application/json )
+12:33:23.495 [Test worker] DEBUG i.m.web.router.DefaultRouteBuilder - Created Route: GET /api/notifications/get/{id} -> $NotificationsResourceDefinition$Intercepted#Response getNotification(int id) (application/json )
+12:33:23.495 [Test worker] DEBUG i.m.web.router.DefaultRouteBuilder - Created Route: HEAD /api/notifications/get/{id} -> $NotificationsResourceDefinition$Intercepted#Response getNotification(int id) (application/json )
+12:33:23.495 [Test worker] DEBUG i.m.web.router.DefaultRouteBuilder - Created Route: GET /api/notifications/query -> $NotificationsResourceDefinition$Intercepted#Response getDefault(int id) (application/json )
+12:33:23.495 [Test worker] DEBUG i.m.web.router.DefaultRouteBuilder - Created Route: HEAD /api/notifications/query -> $NotificationsResourceDefinition$Intercepted#Response getDefault(int id) (application/json )
+12:33:23.496 [Test worker] DEBUG i.m.web.router.DefaultRouteBuilder - Created Route: POST /api/notifications -> $NotificationsResourceDefinition$Intercepted#Response postNotification(Notification notification) (application/json )
+12:33:23.496 [Test worker] DEBUG i.m.web.router.DefaultRouteBuilder - Created Route: POST /api/headers/content-type -> HeadersResource#Response contentType(MediaType mediaType) (application/json )
+12:33:23.496 [Test worker] DEBUG i.m.web.router.DefaultRouteBuilder - Created Route: GET /api/headers/cookie -> HeadersResource#Response cookie(Cookie cookie) (application/json )
+12:33:23.497 [Test worker] DEBUG i.m.web.router.DefaultRouteBuilder - Created Route: HEAD /api/headers/cookie -> HeadersResource#Response cookie(Cookie cookie) (application/json )
+12:33:23.497 [Test worker] DEBUG i.m.web.router.DefaultRouteBuilder - Created Route: GET /api/headers/etag -> HeadersResource#Response etag(EntityTag entityTag) (application/json )
+12:33:23.497 [Test worker] DEBUG i.m.web.router.DefaultRouteBuilder - Created Route: HEAD /api/headers/etag -> HeadersResource#Response etag(EntityTag entityTag) (application/json )
+12:33:23.497 [Test worker] DEBUG i.m.web.router.DefaultRouteBuilder - Created Route: GET /api/headers/link -> HeadersResource#Response link(Link link) (application/json )
+12:33:23.497 [Test worker] DEBUG i.m.web.router.DefaultRouteBuilder - Created Route: HEAD /api/headers/link -> HeadersResource#Response link(Link link) (application/json )
+12:33:23.497 [Test worker] DEBUG i.m.web.router.DefaultRouteBuilder - Created Route: GET /api/headers -> HeadersResource#Response headers(HttpHeaders httpHeaders) (application/json )
+12:33:23.497 [Test worker] DEBUG i.m.web.router.DefaultRouteBuilder - Created Route: HEAD /api/headers -> HeadersResource#Response headers(HttpHeaders httpHeaders) (application/json )
+12:33:23.521 [nioEventLoopGroup-3-2] DEBUG i.m.http.client.DefaultHttpClient - Sending HTTP Request: GET /api/notifications/get/-10
+12:33:23.521 [nioEventLoopGroup-3-2] DEBUG i.m.http.client.DefaultHttpClient - Chosen Server: localhost(1891)
+12:33:23.522 [nioEventLoopGroup-3-2] TRACE i.m.http.client.DefaultHttpClient - Accept: application/json
+12:33:23.522 [nioEventLoopGroup-3-2] TRACE i.m.http.client.DefaultHttpClient - host: localhost:1891
+12:33:23.522 [nioEventLoopGroup-3-2] TRACE i.m.http.client.DefaultHttpClient - connection: close
+12:33:23.643 [nioEventLoopGroup-3-2] TRACE i.m.http.client.DefaultHttpClient - HTTP Client Response Received for Request: GET http://localhost:1891/api/notifications/get/-10
+12:33:23.644 [nioEventLoopGroup-3-2] TRACE i.m.http.client.DefaultHttpClient - Status Code: 400 Bad Request
+12:33:23.644 [nioEventLoopGroup-3-2] TRACE i.m.http.client.DefaultHttpClient - Date: Tue, 28 Jan 2020 11:33:23 GMT
+12:33:23.644 [nioEventLoopGroup-3-2] TRACE i.m.http.client.DefaultHttpClient - content-type: application/json
+12:33:23.644 [nioEventLoopGroup-3-2] TRACE i.m.http.client.DefaultHttpClient - content-length: 126
+12:33:23.644 [nioEventLoopGroup-3-2] TRACE i.m.http.client.DefaultHttpClient - connection: close
+12:33:23.644 [nioEventLoopGroup-3-2] TRACE i.m.http.client.DefaultHttpClient - Response Body
+12:33:23.644 [nioEventLoopGroup-3-2] TRACE i.m.http.client.DefaultHttpClient - ----
+12:33:23.644 [nioEventLoopGroup-3-2] TRACE i.m.http.client.DefaultHttpClient - {"message":"id: must be greater than or equal to 1","_links":{"self":{"href":"/api/notifications/get/-10","templated":false}}}
+12:33:23.644 [nioEventLoopGroup-3-2] TRACE i.m.http.client.DefaultHttpClient - ----
+12:33:23.679 [Test worker] ERROR i.m.r.intercept.RecoveryInterceptor - Type [io.micronaut.jaxrs.runtime.NotificationClient$Intercepted] executed with error: id: must be greater than or equal to 1
+io.micronaut.http.client.exceptions.HttpClientResponseException: id: must be greater than or equal to 1
+	at io.micronaut.http.client.DefaultHttpClient$10.channelRead0(DefaultHttpClient.java:1789)
+	at io.micronaut.http.client.DefaultHttpClient$10.channelRead0(DefaultHttpClient.java:1707)
+	at io.netty.channel.SimpleChannelInboundHandler.channelRead(SimpleChannelInboundHandler.java:99)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:377)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:363)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:355)
+	at io.micronaut.http.netty.stream.HttpStreamsHandler.channelRead(HttpStreamsHandler.java:185)
+	at io.micronaut.http.netty.stream.HttpStreamsClientHandler.channelRead(HttpStreamsClientHandler.java:180)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:377)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:363)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:355)
+	at io.netty.handler.codec.MessageToMessageDecoder.channelRead(MessageToMessageDecoder.java:102)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:377)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:363)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:355)
+	at io.netty.handler.codec.MessageToMessageDecoder.channelRead(MessageToMessageDecoder.java:102)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:377)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:363)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:355)
+	at io.netty.channel.CombinedChannelDuplexHandler$DelegatingChannelHandlerContext.fireChannelRead(CombinedChannelDuplexHandler.java:436)
+	at io.netty.handler.codec.ByteToMessageDecoder.fireChannelRead(ByteToMessageDecoder.java:321)
+	at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:295)
+	at io.netty.channel.CombinedChannelDuplexHandler.channelRead(CombinedChannelDuplexHandler.java:251)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:377)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:363)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:355)
+	at io.netty.handler.timeout.IdleStateHandler.channelRead(IdleStateHandler.java:286)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:377)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:363)
+	at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:355)
+	at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1410)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:377)
+	at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:363)
+	at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:919)
+	at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:163)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:714)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:650)
+	at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:576)
+	at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:493)
+	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:989)
+	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)
+	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)
+	at java.lang.Thread.run(Thread.java:748)
+12:33:23.685 [nioEventLoopGroup-3-4] DEBUG i.m.http.client.DefaultHttpClient - Sending HTTP Request: GET /api/notifications/query
+12:33:23.685 [nioEventLoopGroup-3-4] DEBUG i.m.http.client.DefaultHttpClient - Chosen Server: localhost(1891)
+12:33:23.685 [nioEventLoopGroup-3-4] TRACE i.m.http.client.DefaultHttpClient - Accept: application/json
+12:33:23.685 [nioEventLoopGroup-3-4] TRACE i.m.http.client.DefaultHttpClient - host: localhost:1891
+12:33:23.685 [nioEventLoopGroup-3-4] TRACE i.m.http.client.DefaultHttpClient - connection: close
+12:33:23.693 [nioEventLoopGroup-3-4] TRACE i.m.http.client.DefaultHttpClient - HTTP Client Response Received for Request: GET http://localhost:1891/api/notifications/query
+12:33:23.694 [nioEventLoopGroup-3-4] TRACE i.m.http.client.DefaultHttpClient - Status Code: 200 Ok
+12:33:23.694 [nioEventLoopGroup-3-4] TRACE i.m.http.client.DefaultHttpClient - Date: Tue, 28 Jan 2020 11:33:23 GMT
+12:33:23.694 [nioEventLoopGroup-3-4] TRACE i.m.http.client.DefaultHttpClient - content-type: application/json
+12:33:23.694 [nioEventLoopGroup-3-4] TRACE i.m.http.client.DefaultHttpClient - content-length: 53
+12:33:23.694 [nioEventLoopGroup-3-4] TRACE i.m.http.client.DefaultHttpClient - connection: close
+12:33:23.694 [nioEventLoopGroup-3-4] TRACE i.m.http.client.DefaultHttpClient - Response Body
+12:33:23.694 [nioEventLoopGroup-3-4] TRACE i.m.http.client.DefaultHttpClient - ----
+12:33:23.694 [nioEventLoopGroup-3-4] TRACE i.m.http.client.DefaultHttpClient - {"id":10,"name":"john","message":"test notification"}
+12:33:23.694 [nioEventLoopGroup-3-4] TRACE i.m.http.client.DefaultHttpClient - ----
+12:33:23.700 [nioEventLoopGroup-3-6] DEBUG i.m.http.client.DefaultHttpClient - Sending HTTP Request: GET /api/notifications/query?id=10
+12:33:23.700 [nioEventLoopGroup-3-6] DEBUG i.m.http.client.DefaultHttpClient - Chosen Server: localhost(1891)
+12:33:23.700 [nioEventLoopGroup-3-6] TRACE i.m.http.client.DefaultHttpClient - Accept: application/json
+12:33:23.700 [nioEventLoopGroup-3-6] TRACE i.m.http.client.DefaultHttpClient - host: localhost:1891
+12:33:23.700 [nioEventLoopGroup-3-6] TRACE i.m.http.client.DefaultHttpClient - connection: close
+12:33:23.703 [nioEventLoopGroup-3-6] TRACE i.m.http.client.DefaultHttpClient - HTTP Client Response Received for Request: GET http://localhost:1891/api/notifications/query?id=10
+12:33:23.703 [nioEventLoopGroup-3-6] TRACE i.m.http.client.DefaultHttpClient - Status Code: 200 Ok
+12:33:23.703 [nioEventLoopGroup-3-6] TRACE i.m.http.client.DefaultHttpClient - Date: Tue, 28 Jan 2020 11:33:23 GMT
+12:33:23.703 [nioEventLoopGroup-3-6] TRACE i.m.http.client.DefaultHttpClient - content-type: application/json
+12:33:23.703 [nioEventLoopGroup-3-6] TRACE i.m.http.client.DefaultHttpClient - content-length: 53
+12:33:23.703 [nioEventLoopGroup-3-6] TRACE i.m.http.client.DefaultHttpClient - connection: close
+12:33:23.703 [nioEventLoopGroup-3-6] TRACE i.m.http.client.DefaultHttpClient - Response Body
+12:33:23.703 [nioEventLoopGroup-3-6] TRACE i.m.http.client.DefaultHttpClient - ----
+12:33:23.703 [nioEventLoopGroup-3-6] TRACE i.m.http.client.DefaultHttpClient - {"id":10,"name":"john","message":"test notification"}
+12:33:23.703 [nioEventLoopGroup-3-6] TRACE i.m.http.client.DefaultHttpClient - ----
+12:33:23.711 [nioEventLoopGroup-3-8] DEBUG i.m.http.client.DefaultHttpClient - Sending HTTP Request: POST /api/notifications
+12:33:23.711 [nioEventLoopGroup-3-8] DEBUG i.m.http.client.DefaultHttpClient - Chosen Server: localhost(1891)
+12:33:23.711 [nioEventLoopGroup-3-8] TRACE i.m.http.client.DefaultHttpClient - Content-Type: application/json
+12:33:23.711 [nioEventLoopGroup-3-8] TRACE i.m.http.client.DefaultHttpClient - Accept: application/json
+12:33:23.711 [nioEventLoopGroup-3-8] TRACE i.m.http.client.DefaultHttpClient - host: localhost:1891
+12:33:23.711 [nioEventLoopGroup-3-8] TRACE i.m.http.client.DefaultHttpClient - connection: close
+12:33:23.711 [nioEventLoopGroup-3-8] TRACE i.m.http.client.DefaultHttpClient - content-length: 64
+12:33:23.711 [nioEventLoopGroup-3-8] TRACE i.m.http.client.DefaultHttpClient - Request Body
+12:33:23.711 [nioEventLoopGroup-3-8] TRACE i.m.http.client.DefaultHttpClient - ----
+12:33:23.711 [nioEventLoopGroup-3-8] TRACE i.m.http.client.DefaultHttpClient - {"notification":{"id":5,"name":"test","message":"test message"}}
+12:33:23.711 [nioEventLoopGroup-3-8] TRACE i.m.http.client.DefaultHttpClient - ----
+12:33:23.736 [nioEventLoopGroup-3-8] TRACE i.m.http.client.DefaultHttpClient - HTTP Client Response Received for Request: POST http://localhost:1891/api/notifications
+12:33:23.737 [nioEventLoopGroup-3-8] TRACE i.m.http.client.DefaultHttpClient - Status Code: 201 Created
+12:33:23.737 [nioEventLoopGroup-3-8] TRACE i.m.http.client.DefaultHttpClient - Date: Tue, 28 Jan 2020 11:33:23 GMT
+12:33:23.737 [nioEventLoopGroup-3-8] TRACE i.m.http.client.DefaultHttpClient - content-type: application/json
+12:33:23.737 [nioEventLoopGroup-3-8] TRACE i.m.http.client.DefaultHttpClient - content-length: 47
+12:33:23.737 [nioEventLoopGroup-3-8] TRACE i.m.http.client.DefaultHttpClient - connection: close
+12:33:23.737 [nioEventLoopGroup-3-8] TRACE i.m.http.client.DefaultHttpClient - Response Body
+12:33:23.737 [nioEventLoopGroup-3-8] TRACE i.m.http.client.DefaultHttpClient - ----
+12:33:23.737 [nioEventLoopGroup-3-8] TRACE i.m.http.client.DefaultHttpClient - {"id":5,"name":"test","message":"test message"}
+12:33:23.737 [nioEventLoopGroup-3-8] TRACE i.m.http.client.DefaultHttpClient - ----
+12:33:23.740 [nioEventLoopGroup-3-10] DEBUG i.m.http.client.DefaultHttpClient - Sending HTTP Request: GET /api/notifications/ping
+12:33:23.740 [nioEventLoopGroup-3-10] DEBUG i.m.http.client.DefaultHttpClient - Chosen Server: localhost(1891)
+12:33:23.740 [nioEventLoopGroup-3-10] TRACE i.m.http.client.DefaultHttpClient - Accept: application/json
+12:33:23.740 [nioEventLoopGroup-3-10] TRACE i.m.http.client.DefaultHttpClient - host: localhost:1891
+12:33:23.740 [nioEventLoopGroup-3-10] TRACE i.m.http.client.DefaultHttpClient - connection: close
+12:33:23.743 [nioEventLoopGroup-3-10] TRACE i.m.http.client.DefaultHttpClient - HTTP Client Response Received for Request: GET http://localhost:1891/api/notifications/ping
+12:33:23.743 [nioEventLoopGroup-3-10] TRACE i.m.http.client.DefaultHttpClient - Status Code: 200 Ok
+12:33:23.743 [nioEventLoopGroup-3-10] TRACE i.m.http.client.DefaultHttpClient - Date: Tue, 28 Jan 2020 11:33:23 GMT
+12:33:23.743 [nioEventLoopGroup-3-10] TRACE i.m.http.client.DefaultHttpClient - content-type: application/json
+12:33:23.743 [nioEventLoopGroup-3-10] TRACE i.m.http.client.DefaultHttpClient - content-length: 29
+12:33:23.743 [nioEventLoopGroup-3-10] TRACE i.m.http.client.DefaultHttpClient - connection: close
+12:33:23.744 [nioEventLoopGroup-3-10] TRACE i.m.http.client.DefaultHttpClient - Response Body
+12:33:23.744 [nioEventLoopGroup-3-10] TRACE i.m.http.client.DefaultHttpClient - ----
+12:33:23.744 [nioEventLoopGroup-3-10] TRACE i.m.http.client.DefaultHttpClient - Service online: notifications
+12:33:23.744 [nioEventLoopGroup-3-10] TRACE i.m.http.client.DefaultHttpClient - ----
+12:33:23.747 [nioEventLoopGroup-3-12] DEBUG i.m.http.client.DefaultHttpClient - Sending HTTP Request: GET /api/notifications/get/10
+12:33:23.747 [nioEventLoopGroup-3-12] DEBUG i.m.http.client.DefaultHttpClient - Chosen Server: localhost(1891)
+12:33:23.747 [nioEventLoopGroup-3-12] TRACE i.m.http.client.DefaultHttpClient - Accept: application/json
+12:33:23.747 [nioEventLoopGroup-3-12] TRACE i.m.http.client.DefaultHttpClient - host: localhost:1891
+12:33:23.747 [nioEventLoopGroup-3-12] TRACE i.m.http.client.DefaultHttpClient - connection: close
+12:33:23.749 [nioEventLoopGroup-3-12] TRACE i.m.http.client.DefaultHttpClient - HTTP Client Response Received for Request: GET http://localhost:1891/api/notifications/get/10
+12:33:23.749 [nioEventLoopGroup-3-12] TRACE i.m.http.client.DefaultHttpClient - Status Code: 200 Ok
+12:33:23.750 [nioEventLoopGroup-3-12] TRACE i.m.http.client.DefaultHttpClient - Date: Tue, 28 Jan 2020 11:33:23 GMT
+12:33:23.750 [nioEventLoopGroup-3-12] TRACE i.m.http.client.DefaultHttpClient - content-type: application/json
+12:33:23.750 [nioEventLoopGroup-3-12] TRACE i.m.http.client.DefaultHttpClient - content-length: 53
+12:33:23.750 [nioEventLoopGroup-3-12] TRACE i.m.http.client.DefaultHttpClient - connection: close
+12:33:23.750 [nioEventLoopGroup-3-12] TRACE i.m.http.client.DefaultHttpClient - Response Body
+12:33:23.750 [nioEventLoopGroup-3-12] TRACE i.m.http.client.DefaultHttpClient - ----
+12:33:23.750 [nioEventLoopGroup-3-12] TRACE i.m.http.client.DefaultHttpClient - {"id":10,"name":"john","message":"test notification"}
+12:33:23.750 [nioEventLoopGroup-3-12] TRACE i.m.http.client.DefaultHttpClient - ----
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

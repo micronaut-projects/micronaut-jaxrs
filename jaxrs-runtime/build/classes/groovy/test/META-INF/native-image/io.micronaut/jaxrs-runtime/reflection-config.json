@@ -1,0 +1,6 @@
+[ {
+  "name" : "io.micronaut.jaxrs.runtime.Notification",
+  "allDeclaredFields" : true,
+  "allPublicMethods" : true,
+  "allDeclaredConstructors" : true
+} ]

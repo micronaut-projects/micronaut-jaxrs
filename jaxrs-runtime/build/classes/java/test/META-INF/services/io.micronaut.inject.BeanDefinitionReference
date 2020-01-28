@@ -1,0 +1,8 @@
+io.micronaut.jaxrs.runtime.$HeaderClient$InterceptedDefinitionClass
+io.micronaut.jaxrs.runtime.$NotificationsResourceDefinitionClass
+io.micronaut.jaxrs.runtime.$$NotificationsResourceDefinition$InterceptedDefinitionClass
+io.micronaut.jaxrs.runtime.$HeadersResourceDefinitionClass
+io.micronaut.jaxrs.runtime.$NotificationClient$InterceptedDefinitionClass
+io.micronaut.jaxrs.runtime.$ResponseTestDefinitionClass
+io.micronaut.jaxrs.runtime.$RestApplicationDefinitionClass
+io.micronaut.jaxrs.runtime.$HeadersTestDefinitionClass

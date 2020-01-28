@@ -1,0 +1,937 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ChangeListManager">
+    <list default="true" id="18b632a2-26fa-4f8f-a40e-1f2bb16b92e5" name="Default Changelist" comment="" />
+    <ignored path="$PROJECT_DIR$/classes/" />
+    <ignored path="$PROJECT_DIR$/.gradle/" />
+    <ignored path="$PROJECT_DIR$/build/" />
+    <ignored path="$PROJECT_DIR$/processor/.gradle/" />
+    <ignored path="$PROJECT_DIR$/processor/build/" />
+    <ignored path="$PROJECT_DIR$/runtime/.gradle/" />
+    <ignored path="$PROJECT_DIR$/runtime/build/" />
+    <ignored path="$PROJECT_DIR$/runtime/out/" />
+    <ignored path="$PROJECT_DIR$/client/.gradle/" />
+    <ignored path="$PROJECT_DIR$/client/build/" />
+    <ignored path="$PROJECT_DIR$/client/out/" />
+    <ignored path="$PROJECT_DIR$/jaxrs-processor/.gradle/" />
+    <ignored path="$PROJECT_DIR$/jaxrs-processor/build/" />
+    <ignored path="$PROJECT_DIR$/jaxrs-runtime/.gradle/" />
+    <ignored path="$PROJECT_DIR$/jaxrs-runtime/build/" />
+    <ignored path="$PROJECT_DIR$/jaxrs-runtime/out/" />
+    <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="DefaultGradleProjectSettings">
+    <option name="isMigrated" value="true" />
+  </component>
+  <component name="ExternalProjectsData">
+    <projectState path="$PROJECT_DIR$">
+      <ProjectState />
+    </projectState>
+  </component>
+  <component name="ExternalProjectsManager">
+    <system id="GRADLE">
+      <state>
+        <projects_view />
+      </state>
+    </system>
+  </component>
+  <component name="FileEditorManager">
+    <leaf>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/jaxrs-runtime/src/main/java/io/micronaut/jaxrs/runtime/core/JaxRsRuntime.java">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="644">
+              <caret line="30" selection-start-line="30" selection-end-line="30" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="true">
+        <entry file="file://$PROJECT_DIR$/jaxrs-runtime/src/main/java/io/micronaut/jaxrs/runtime/core/JaxRsApplicationUriNamingStrategy.java">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="252">
+              <caret line="22" column="13" selection-start-line="22" selection-start-column="13" selection-end-line="22" selection-end-column="13" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+    </leaf>
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Interface" />
+        <option value="package-info" />
+        <option value="AnnotationType" />
+        <option value="Class" />
+      </list>
+    </option>
+  </component>
+  <component name="FindInProjectRecents">
+    <findStrings>
+      <find>micronautResponse.response</find>
+      <find>AnnotationMeatda</find>
+      <find>throw</find>
+      <find>Accept</find>
+      <find>StringBuff</find>
+      <find>Writab</find>
+      <find>exam</find>
+      <find>micronaut-test-ju</find>
+      <find>org/springframework/web/bind/annotation</find>
+      <find>Example:</find>
+    </findStrings>
+    <replaceStrings>
+      <replace>response</replace>
+      <replace>javax/ws/rs</replace>
+    </replaceStrings>
+  </component>
+  <component name="IdeDocumentHistory">
+    <option name="CHANGED_PATHS">
+      <list>
+        <option value="$PROJECT_DIR$/runtime/src/main/java/io/micronaut/jaxrs/runtime/core/JaxRsResponseFilter.java" />
+        <option value="$PROJECT_DIR$/runtime/src/test/java/io/micronaut/jaxrs/runtime/HeadersResource.java" />
+        <option value="$PROJECT_DIR$/runtime/src/main/java/io/micronaut/jaxrs/runtime/ext/MicronautRuntimeDelegate.java" />
+        <option value="$PROJECT_DIR$/runtime/src/main/java/io/micronaut/jaxrs/runtime/core/JaxRsUriBuilder.java" />
+        <option value="$PROJECT_DIR$/runtime/src/main/java/io/micronaut/jaxrs/runtime/ext/impl/package-info.java" />
+        <option value="$PROJECT_DIR$/runtime/src/main/java/io/micronaut/jaxrs/runtime/core/ParameterParser.java" />
+        <option value="$PROJECT_DIR$/runtime/src/main/java/io/micronaut/jaxrs/runtime/ext/impl/MediaTypeHeaderDelegate.java" />
+        <option value="$PROJECT_DIR$/runtime/src/main/java/io/micronaut/jaxrs/runtime/ext/impl/NewCookieHeaderDelegate.java" />
+        <option value="$PROJECT_DIR$/runtime/src/main/java/io/micronaut/jaxrs/runtime/core/JaxRsResponseBuilder.java" />
+        <option value="$PROJECT_DIR$/runtime/src/main/java/io/micronaut/jaxrs/runtime/ext/impl/LinkImpl.java" />
+        <option value="$PROJECT_DIR$/runtime/src/main/java/io/micronaut/jaxrs/runtime/ext/impl/LinkBuilderImpl.java" />
+        <option value="$PROJECT_DIR$/runtime/src/main/java/io/micronaut/jaxrs/runtime/ext/impl/MicronautRuntimeDelegate.java" />
+        <option value="$PROJECT_DIR$/runtime/src/main/java/io/micronaut/jaxrs/runtime/ext/convert/JaxRsConverterRegistrar.java" />
+        <option value="$PROJECT_DIR$/runtime/src/main/java/io/micronaut/jaxrs/runtime/ext/impl/LinkDelegate.java" />
+        <option value="$PROJECT_DIR$/runtime/src/test/java/io/micronaut/jaxrs/runtime/HeaderClient.java" />
+        <option value="$PROJECT_DIR$/runtime/src/test/java/io/micronaut/jaxrs/runtime/HeadersTest.java" />
+        <option value="$PROJECT_DIR$/runtime/src/test/java/io/micronaut/jaxrs/runtime/RestApplication.java" />
+        <option value="$PROJECT_DIR$/runtime/src/main/java/io/micronaut/jaxrs/runtime/ext/bind/ContextAnnotationBinder.java" />
+        <option value="$PROJECT_DIR$/processor/src/main/java/io/micronaut/jaxrs/processor/ContextMapper.java" />
+        <option value="$PROJECT_DIR$/processor/src/main/resources/META-INF/services/io.micronaut.inject.annotation.AnnotationMapper" />
+        <option value="$PROJECT_DIR$/runtime/src/test/java/io/micronaut/jaxrs/runtime/NotificationsResource.java" />
+        <option value="$PROJECT_DIR$/runtime/src/main/java/io/micronaut/jaxrs/runtime/annotation/ContextBindable.java" />
+        <option value="$PROJECT_DIR$/runtime/src/test/java/io/micronaut/jaxrs/runtime/NotificationClient.java" />
+        <option value="$PROJECT_DIR$/runtime/src/test/java/io/micronaut/jaxrs/runtime/ResponseTest.java" />
+        <option value="$PROJECT_DIR$/runtime/src/main/java/io/micronaut/jaxrs/runtime/core/Weighted.java" />
+        <option value="$PROJECT_DIR$/examples/example-jdbc/build.gradle" />
+        <option value="$PROJECT_DIR$/settings.gradle" />
+        <option value="$PROJECT_DIR$/jaxrs-processor/src/test/groovy/io/micronaut/jaxrs/processor/HttpMethodAnnotationSpec.groovy" />
+        <option value="$PROJECT_DIR$/jaxrs-processor/build.gradle" />
+        <option value="$PROJECT_DIR$/jaxrs-runtime/build.gradle" />
+        <option value="$PROJECT_DIR$/build.gradle" />
+        <option value="$PROJECT_DIR$/jaxrs-runtime/src/test/resources/logback.xml" />
+        <option value="$PROJECT_DIR$/jaxrs-runtime/src/test/java/io/micronaut/jaxrs/runtime/NotificationsResource.java" />
+        <option value="$PROJECT_DIR$/jaxrs-runtime/src/test/java/io/micronaut/jaxrs/runtime/ResponseTest.java" />
+        <option value="$PROJECT_DIR$/gradle.properties" />
+        <option value="$PROJECT_DIR$/src/main/docs/guide/supportedApi.adoc" />
+        <option value="$PROJECT_DIR$/src/main/docs/guide/gettingStarted.adoc" />
+        <option value="$PROJECT_DIR$/src/main/docs/guide/toc.yml" />
+        <option value="$PROJECT_DIR$/src/main/docs/guide/quickStart.adoc" />
+        <option value="$PROJECT_DIR$/README.md" />
+        <option value="$PROJECT_DIR$/src/main/docs/guide/introduction.adoc" />
+        <option value="$PROJECT_DIR$/jaxrs-runtime/src/main/java/io/micronaut/jaxrs/runtime/ext/impl/CookieHeaderDelegate.java" />
+        <option value="$PROJECT_DIR$/jaxrs-runtime/src/main/java/io/micronaut/jaxrs/runtime/ext/impl/EntityTagDelegate.java" />
+        <option value="$PROJECT_DIR$/jaxrs-runtime/src/main/java/io/micronaut/jaxrs/runtime/ext/impl/LinkBuilderImpl.java" />
+        <option value="$PROJECT_DIR$/jaxrs-runtime/src/main/java/io/micronaut/jaxrs/runtime/ext/impl/LinkDelegate.java" />
+        <option value="$PROJECT_DIR$/jaxrs-runtime/src/main/java/io/micronaut/jaxrs/runtime/ext/impl/LinkImpl.java" />
+        <option value="$PROJECT_DIR$/jaxrs-runtime/src/main/java/io/micronaut/jaxrs/runtime/ext/impl/MediaTypeHeaderDelegate.java" />
+        <option value="$PROJECT_DIR$/jaxrs-runtime/src/main/java/io/micronaut/jaxrs/runtime/ext/impl/NewCookieHeaderDelegate.java" />
+        <option value="$PROJECT_DIR$/jaxrs-runtime/src/main/java/io/micronaut/jaxrs/runtime/ext/impl/ServerCookie.java" />
+        <option value="$PROJECT_DIR$/jaxrs-runtime/src/main/java/io/micronaut/jaxrs/runtime/core/Weighted.java" />
+        <option value="$PROJECT_DIR$/jaxrs-runtime/src/main/java/io/micronaut/jaxrs/runtime/core/JaxRsRuntime.java" />
+      </list>
+    </option>
+  </component>
+  <component name="ProjectFrameBounds">
+    <option name="y" value="23" />
+    <option name="width" value="2560" />
+    <option name="height" value="1417" />
+  </component>
+  <component name="ProjectView">
+    <navigator proportions="" version="1">
+      <foldersAlwaysOnTop value="true" />
+    </navigator>
+    <panes>
+      <pane id="PackagesPane" />
+      <pane id="ProjectPane">
+        <subPane>
+          <expand>
+            <path>
+              <item name="jaxrs" type="b2602c69:ProjectViewProjectNode" />
+              <item name="jaxrs" type="8a07ba80:GradleTreeStructureProvider$GradleModuleDirectoryNode" />
+            </path>
+          </expand>
+          <select />
+        </subPane>
+      </pane>
+      <pane id="Scope" />
+    </panes>
+  </component>
+  <component name="PropertiesComponent">
+    <property name="WebServerToolWindowFactoryState" value="false" />
+    <property name="aspect.path.notification.shown" value="true" />
+    <property name="extract.method.default.visibility" value="private" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/build.gradle" />
+    <property name="nodejs_interpreter_path.stuck_in_default_project" value="undefined stuck path" />
+    <property name="nodejs_npm_path_reset_for_default_project" value="true" />
+    <property name="project.structure.last.edited" value="Modules" />
+    <property name="project.structure.proportion" value="0.15" />
+    <property name="project.structure.side.proportion" value="0.2" />
+    <property name="settings.editor.selected.configurable" value="reference.projectsettings.compiler.annotationProcessors" />
+  </component>
+  <component name="RecentsManager">
+    <key name="MoveClassesOrPackagesDialog.RECENTS_KEY">
+      <recent name="io.micronaut.jaxrs.runtime.core" />
+    </key>
+    <key name="MoveInnerDialog.RECENTS_KEY">
+      <recent name="io.micronaut.jaxrs.runtime.core" />
+    </key>
+  </component>
+  <component name="RunDashboard">
+    <option name="ruleStates">
+      <list>
+        <RuleState>
+          <option name="name" value="ConfigurationTypeDashboardGroupingRule" />
+        </RuleState>
+        <RuleState>
+          <option name="name" value="StatusDashboardGroupingRule" />
+        </RuleState>
+      </list>
+    </option>
+  </component>
+  <component name="RunManager" selected="JUnit.ResponseTest.testValidation">
+    <configuration name="HttpMethodAnnotationSpec.test mapping with implicit validation" type="JUnit" factoryName="JUnit" temporary="true" nameIsGenerated="true">
+      <module name="jaxrs.jaxrs-processor.test" />
+      <extension name="coverage">
+        <pattern>
+          <option name="PATTERN" value="io.micronaut.jaxrs.processor.*" />
+          <option name="ENABLED" value="true" />
+        </pattern>
+      </extension>
+      <option name="PACKAGE_NAME" value="io.micronaut.jaxrs.processor" />
+      <option name="MAIN_CLASS_NAME" value="io.micronaut.jaxrs.processor.HttpMethodAnnotationSpec" />
+      <option name="METHOD_NAME" value="test mapping with implicit validation" />
+      <option name="TEST_OBJECT" value="method" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="HttpMethodAnnotationSpec.test mapping with validation" type="JUnit" factoryName="JUnit" temporary="true" nameIsGenerated="true">
+      <module name="jaxrs.jaxrs-processor.test" />
+      <extension name="coverage">
+        <pattern>
+          <option name="PATTERN" value="io.micronaut.jaxrs.processor.*" />
+          <option name="ENABLED" value="true" />
+        </pattern>
+      </extension>
+      <option name="PACKAGE_NAME" value="io.micronaut.jaxrs.processor" />
+      <option name="MAIN_CLASS_NAME" value="io.micronaut.jaxrs.processor.HttpMethodAnnotationSpec" />
+      <option name="METHOD_NAME" value="test mapping with validation" />
+      <option name="TEST_OBJECT" value="method" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="ResponseTest" type="JUnit" factoryName="JUnit" temporary="true" nameIsGenerated="true">
+      <module name="jaxrs.runtime.test" />
+      <extension name="coverage">
+        <pattern>
+          <option name="PATTERN" value="io.micronaut.jaxrs.runtime.*" />
+          <option name="ENABLED" value="true" />
+        </pattern>
+      </extension>
+      <option name="PACKAGE_NAME" value="io.micronaut.jaxrs.runtime" />
+      <option name="MAIN_CLASS_NAME" value="io.micronaut.jaxrs.runtime.ResponseTest" />
+      <option name="TEST_OBJECT" value="class" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="ResponseTest.testValidation" type="JUnit" factoryName="JUnit" temporary="true" nameIsGenerated="true">
+      <module name="jaxrs.jaxrs-runtime.test" />
+      <extension name="coverage">
+        <pattern>
+          <option name="PATTERN" value="io.micronaut.jaxrs.runtime.*" />
+          <option name="ENABLED" value="true" />
+        </pattern>
+      </extension>
+      <option name="PACKAGE_NAME" value="io.micronaut.jaxrs.runtime" />
+      <option name="MAIN_CLASS_NAME" value="io.micronaut.jaxrs.runtime.ResponseTest" />
+      <option name="METHOD_NAME" value="testValidation" />
+      <option name="TEST_OBJECT" value="method" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="runtime in jaxrs.jaxrs-runtime.test" type="JUnit" factoryName="JUnit" temporary="true" nameIsGenerated="true">
+      <module name="jaxrs.jaxrs-runtime.test" />
+      <option name="TEST_OBJECT" value="directory" />
+      <dir value="$PROJECT_DIR$/jaxrs-runtime/src/test/java/io/micronaut/jaxrs/runtime" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="JUnit.ResponseTest.testValidation" />
+        <item itemvalue="JUnit.runtime in jaxrs.jaxrs-runtime.test" />
+        <item itemvalue="JUnit.HttpMethodAnnotationSpec.test mapping with implicit validation" />
+        <item itemvalue="JUnit.HttpMethodAnnotationSpec.test mapping with validation" />
+        <item itemvalue="JUnit.ResponseTest" />
+      </list>
+    </recent_temporary>
+  </component>
+  <component name="SvnConfiguration">
+    <configuration />
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="18b632a2-26fa-4f8f-a40e-1f2bb16b92e5" name="Default Changelist" comment="" />
+      <created>1579854568223</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1579854568223</updated>
+      <workItem from="1579854570780" duration="61147000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TestHistory">
+    <history-entry file="HttpMethodAnnotationSpec_test_mapping_with_implicit_validation - 2020.01.28 at 11h 58m 16s.xml">
+      <configuration name="HttpMethodAnnotationSpec.test mapping with implicit validation" configurationId="JUnit" />
+    </history-entry>
+    <history-entry file="HttpMethodAnnotationSpec_test_mapping_with_implicit_validation - 2020.01.28 at 11h 58m 29s.xml">
+      <configuration name="HttpMethodAnnotationSpec.test mapping with implicit validation" configurationId="JUnit" />
+    </history-entry>
+    <history-entry file="runtime_in_jaxrs_jaxrs-runtime_test - 2020.01.28 at 12h 16m 46s.xml">
+      <configuration name="runtime in jaxrs.jaxrs-runtime.test" configurationId="JUnit" />
+    </history-entry>
+    <history-entry file="ResponseTest_testValidation - 2020.01.28 at 12h 29m 25s.xml">
+      <configuration name="ResponseTest.testValidation" configurationId="JUnit" />
+    </history-entry>
+    <history-entry file="ResponseTest_testValidation - 2020.01.28 at 12h 29m 53s.xml">
+      <configuration name="ResponseTest.testValidation" configurationId="JUnit" />
+    </history-entry>
+    <history-entry file="ResponseTest_testValidation - 2020.01.28 at 12h 30m 10s.xml">
+      <configuration name="ResponseTest.testValidation" configurationId="JUnit" />
+    </history-entry>
+    <history-entry file="ResponseTest_testValidation - 2020.01.28 at 12h 30m 35s.xml">
+      <configuration name="ResponseTest.testValidation" configurationId="JUnit" />
+    </history-entry>
+    <history-entry file="ResponseTest_testValidation - 2020.01.28 at 12h 30m 50s.xml">
+      <configuration name="ResponseTest.testValidation" configurationId="JUnit" />
+    </history-entry>
+    <history-entry file="ResponseTest_testValidation - 2020.01.28 at 12h 32m 35s.xml">
+      <configuration name="ResponseTest.testValidation" configurationId="JUnit" />
+    </history-entry>
+    <history-entry file="ResponseTest_testValidation - 2020.01.28 at 13h 55m 17s.xml">
+      <configuration name="ResponseTest.testValidation" configurationId="JUnit" />
+    </history-entry>
+  </component>
+  <component name="TimeTrackingManager">
+    <option name="totallyTimeSpent" value="61147000" />
+  </component>
+  <component name="ToolWindowManager">
+    <frame x="0" y="23" width="2560" height="1417" extended-state="0" />
+    <layout>
+      <window_info id="Designer" />
+      <window_info id="Image Layers" />
+      <window_info id="UI Designer" />
+      <window_info id="Favorites" side_tool="true" />
+      <window_info id="Capture Tool" />
+      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.24980143" />
+      <window_info id="Structure" order="1" side_tool="true" weight="0.25" />
+      <window_info anchor="bottom" id="Terminal" />
+      <window_info anchor="bottom" id="CheckStyle" />
+      <window_info anchor="bottom" id="Event Log" side_tool="true" />
+      <window_info anchor="bottom" id="Messages" weight="0.32981133" />
+      <window_info anchor="bottom" id="Build" weight="0.32981133" />
+      <window_info anchor="bottom" id="Java Enterprise" />
+      <window_info anchor="bottom" id="Database Changes" />
+      <window_info anchor="bottom" id="Version Control" />
+      <window_info anchor="bottom" id="Docker" show_stripe_button="false" />
+      <window_info anchor="bottom" id="Message" order="0" />
+      <window_info anchor="bottom" id="Find" order="1" weight="0.32679245" />
+      <window_info anchor="bottom" id="Run" order="2" weight="0.32981133" />
+      <window_info anchor="bottom" id="Debug" order="3" weight="0.4" />
+      <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
+      <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
+      <window_info anchor="bottom" id="TODO" order="6" />
+      <window_info anchor="right" id="Maven" />
+      <window_info anchor="right" id="Palette" />
+      <window_info anchor="right" id="Capture Analysis" />
+      <window_info anchor="right" id="Gradle" />
+      <window_info anchor="right" id="Database" />
+      <window_info anchor="right" id="Palette&#9;" />
+      <window_info anchor="right" id="Theme Preview" />
+      <window_info anchor="right" id="Bean Validation" />
+      <window_info anchor="right" id="ASMPlugin" />
+      <window_info anchor="right" id="Commander" internal_type="SLIDING" order="0" type="SLIDING" weight="0.4" />
+      <window_info anchor="right" id="Ant Build" order="1" weight="0.25" />
+      <window_info anchor="right" content_ui="combo" id="Hierarchy" order="2" weight="0.25" />
+    </layout>
+    <layout-to-restore>
+      <window_info id="Designer" order="0" />
+      <window_info id="Image Layers" order="1" />
+      <window_info id="Capture Tool" order="2" />
+      <window_info id="UI Designer" order="3" />
+      <window_info id="Favorites" order="4" side_tool="true" />
+      <window_info active="true" content_ui="combo" id="Project" order="5" visible="true" weight="0.24980143" />
+      <window_info id="Structure" order="6" side_tool="true" weight="0.25" />
+      <window_info anchor="bottom" id="Build" order="0" weight="0.32981133" />
+      <window_info anchor="bottom" id="Terminal" order="1" />
+      <window_info anchor="bottom" id="Docker" order="2" show_stripe_button="false" />
+      <window_info anchor="bottom" id="CheckStyle" order="3" />
+      <window_info anchor="bottom" id="Event Log" order="4" side_tool="true" />
+      <window_info anchor="bottom" id="Messages" order="5" weight="0.32981133" />
+      <window_info anchor="bottom" id="Java Enterprise" order="6" />
+      <window_info anchor="bottom" id="Database Changes" order="7" />
+      <window_info anchor="bottom" id="Version Control" order="8" />
+      <window_info anchor="bottom" id="Message" order="9" />
+      <window_info anchor="bottom" id="Find" order="10" weight="0.32679245" />
+      <window_info anchor="bottom" id="Run" order="11" visible="true" weight="0.32981133" />
+      <window_info anchor="bottom" id="Debug" order="12" weight="0.4" />
+      <window_info anchor="bottom" id="Cvs" order="13" weight="0.25" />
+      <window_info anchor="bottom" id="Inspection" order="14" weight="0.4" />
+      <window_info anchor="bottom" id="TODO" order="15" />
+      <window_info anchor="right" id="Maven" order="0" />
+      <window_info anchor="right" id="Palette" order="1" />
+      <window_info anchor="right" id="Capture Analysis" order="2" />
+      <window_info anchor="right" id="Gradle" order="3" />
+      <window_info anchor="right" id="Database" order="4" />
+      <window_info anchor="right" id="Palette&#9;" order="5" />
+      <window_info anchor="right" id="Theme Preview" order="6" />
+      <window_info anchor="right" id="Bean Validation" order="7" />
+      <window_info anchor="right" id="ASMPlugin" order="8" />
+      <window_info anchor="right" id="Commander" internal_type="SLIDING" order="9" type="SLIDING" weight="0.4" />
+      <window_info anchor="right" id="Ant Build" order="10" weight="0.25" />
+      <window_info anchor="right" content_ui="combo" id="Hierarchy" order="11" weight="0.25" />
+    </layout-to-restore>
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="1" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" type="java-line">
+          <url>file://$PROJECT_DIR$/processor/src/test/groovy/io/micronaut/jaxrs/processor/HttpMethodAnnotationSpec.groovy</url>
+          <line>79</line>
+          <properties />
+          <option name="timeStamp" value="9" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="java-line">
+          <url>jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/io.micronaut/micronaut-inject-java-test/1.3.0.BUILD-SNAPSHOT/4ce7ebc404eb21a1cb54a3794c399f858e3ddc02/micronaut-inject-java-test-1.3.0.BUILD-SNAPSHOT-sources.jar!/io/micronaut/annotation/processing/test/JavaParser.java</url>
+          <line>174</line>
+          <properties />
+          <option name="timeStamp" value="29" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
+    <watches-manager>
+      <configuration name="JUnit">
+        <watch expression="jaxRsResponse.getHeaders().getFirst(&quot;Content-Encoding&quot;)" language="JAVA" />
+        <watch expression="fileManager.getOutputFiles()" language="JAVA" />
+      </configuration>
+    </watches-manager>
+  </component>
+  <component name="debuggerHistoryManager">
+    <expressions id="watch">
+      <expression>
+        <expression-string>fileManager.getOutputFiles()</expression-string>
+        <language-id>JAVA</language-id>
+        <evaluation-mode>EXPRESSION</evaluation-mode>
+      </expression>
+      <expression>
+        <expression-string>jaxRsResponse.getHeaders().getFirst(&quot;Content-Encoding&quot;)</expression-string>
+        <language-id>JAVA</language-id>
+        <evaluation-mode>EXPRESSION</evaluation-mode>
+      </expression>
+      <expression>
+        <expression-string>jaxRsResponse.getHeaders().names()</expression-string>
+        <language-id>JAVA</language-id>
+        <evaluation-mode>EXPRESSION</evaluation-mode>
+      </expression>
+      <expression>
+        <expression-string>method.getAnnotationMetadata()</expression-string>
+        <language-id>Groovy</language-id>
+        <evaluation-mode>EXPRESSION</evaluation-mode>
+      </expression>
+      <expression>
+        <expression-string>element.getAnnotationMetadata()</expression-string>
+        <language-id>JAVA</language-id>
+        <evaluation-mode>EXPRESSION</evaluation-mode>
+      </expression>
+      <expression>
+        <expression-string>method.annotationMetadata</expression-string>
+        <language-id>Groovy</language-id>
+        <evaluation-mode>EXPRESSION</evaluation-mode>
+      </expression>
+      <expression>
+        <expression-string>meth</expression-string>
+        <language-id>Groovy</language-id>
+        <evaluation-mode>EXPRESSION</evaluation-mode>
+      </expression>
+    </expressions>
+  </component>
+  <component name="editorHistoryManager">
+    <entry file="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jboss.resteasy/jaxrs-api/3.0.12.Final/6d8a0eaef851bff7b627a8665cd9c04bb8846ca7/jaxrs-api-3.0.12.Final-sources.jar!/javax/ws/rs/client/Client.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="343">
+          <caret line="114" column="18" lean-forward="true" selection-start-line="114" selection-start-column="18" selection-end-line="114" selection-end-column="18" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jboss.resteasy/jaxrs-api/3.0.12.Final/6d8a0eaef851bff7b627a8665cd9c04bb8846ca7/jaxrs-api-3.0.12.Final-sources.jar!/javax/ws/rs/client/ClientBuilder.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="320">
+          <caret line="124" column="22" lean-forward="true" selection-start-line="124" selection-start-column="22" selection-end-line="124" selection-end-column="22" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/io.micronaut/micronaut-http-client/1.3.0.BUILD-SNAPSHOT/8a4075e5007ebea2f6624fccc9a10f82141ab61/micronaut-http-client-1.3.0.BUILD-SNAPSHOT-sources.jar!/io/micronaut/http/client/DefaultHttpClientConfiguration.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="364">
+          <caret line="33" column="62" lean-forward="true" selection-start-line="33" selection-start-column="62" selection-end-line="33" selection-end-column="62" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/io.micronaut/micronaut-inject/1.3.0.BUILD-SNAPSHOT/14e7fe0646a74306de55a4bafa63e4cb6ff05145/micronaut-inject-1.3.0.BUILD-SNAPSHOT-sources.jar!/io/micronaut/context/annotation/ConfigurationProperties.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="433">
+          <caret line="45" column="18" selection-start-line="45" selection-start-column="18" selection-end-line="45" selection-end-column="18" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="jar://$USER_HOME$/.sdkman/candidates/java/11.0.4.hs-adpt/lib/src.zip!/java.base/javax/net/ssl/SSLContext.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="-797">
+          <caret line="55" column="13" selection-start-line="55" selection-start-column="13" selection-end-line="55" selection-end-column="13" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/runtime/build/publications/maven/pom-default.xml">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/settings.gradle">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="112">
+          <caret line="4" selection-start-line="4" selection-end-line="4" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/io.micronaut/micronaut-inject-java-test/1.3.0.BUILD-SNAPSHOT/dd7a23360ee7272a0b236caa3c0d61fa4aceca2/micronaut-inject-java-test-1.3.0.BUILD-SNAPSHOT.jar!/io/micronaut/annotation/processing/test/AbstractTypeElementSpec.class">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="1062">
+          <caret line="479" selection-start-line="479" selection-end-line="479" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/io.micronaut/micronaut-inject/1.3.0.BUILD-SNAPSHOT/14e7fe0646a74306de55a4bafa63e4cb6ff05145/micronaut-inject-1.3.0.BUILD-SNAPSHOT-sources.jar!/io/micronaut/inject/annotation/AnnotationMetadataHierarchy.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="256">
+          <caret line="120" selection-start-line="120" selection-end-line="120" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/io.micronaut/micronaut-inject/1.3.0.BUILD-SNAPSHOT/14e7fe0646a74306de55a4bafa63e4cb6ff05145/micronaut-inject-1.3.0.BUILD-SNAPSHOT-sources.jar!/io/micronaut/inject/writer/ExecutableMethodWriter.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="256">
+          <caret line="90" selection-start-line="90" selection-end-line="90" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/io.micronaut/micronaut-inject-java-test/1.3.0.BUILD-SNAPSHOT/4ce7ebc404eb21a1cb54a3794c399f858e3ddc02/micronaut-inject-java-test-1.3.0.BUILD-SNAPSHOT-sources.jar!/io/micronaut/annotation/processing/test/JavaParser.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="587">
+          <caret line="174" selection-start-line="174" selection-end-line="174" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/jaxrs-processor/src/test/groovy/io/micronaut/jaxrs/processor/HttpMethodAnnotationSpec.groovy">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="848">
+          <caret line="142" selection-start-line="142" selection-end-line="142" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/build.gradle">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="560">
+          <caret line="111" column="70" selection-start-line="111" selection-start-column="70" selection-end-line="111" selection-end-column="70" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/jaxrs-runtime/src/test/groovy/io/micronaut/jaxrs/runtime/core/WeightedSpec.groovy">
+      <provider selected="true" editor-type-id="text-editor">
+        <state>
+          <caret column="39" selection-start-column="8" selection-end-column="39" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/jaxrs-processor/build.gradle">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="224">
+          <caret line="8" column="5" selection-start-line="8" selection-start-column="5" selection-end-line="8" selection-end-column="5" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/examples/example-jdbc/build.gradle">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="458">
+          <caret line="51" selection-start-line="50" selection-end-line="51" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/javax.validation/validation-api/2.0.1.Final/4b714a5167580122e46ead3317ffcdcdbd67c5f0/validation-api-2.0.1.Final-sources.jar!/javax/validation/constraints/Min.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="622">
+          <caret line="48" column="18" selection-start-line="48" selection-start-column="18" selection-end-line="48" selection-end-column="18" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/jaxrs-runtime/src/test/java/io/micronaut/jaxrs/runtime/NotificationClient.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="784">
+          <caret line="34" column="31" selection-start-line="34" selection-start-column="31" selection-end-line="34" selection-end-column="31" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/jaxrs-runtime/src/test/java/io/micronaut/jaxrs/runtime/NotificationsResource.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="308">
+          <caret line="11" column="33" lean-forward="true" selection-start-line="11" selection-start-column="33" selection-end-line="11" selection-end-column="33" />
+          <folding>
+            <element signature="imports" expanded="true" />
+            <element signature="e#556#557#0" expanded="true" />
+            <element signature="e#602#603#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/jaxrs-runtime/src/test/java/io/micronaut/jaxrs/runtime/HeadersResource.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="140">
+          <caret line="6" column="13" selection-start-line="6" selection-start-column="13" selection-end-line="6" selection-end-column="13" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/jaxrs-runtime/src/test/java/io/micronaut/jaxrs/runtime/ResponseTest.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="645">
+          <caret line="71" column="16" selection-start-line="71" selection-start-column="16" selection-end-line="71" selection-end-column="16" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/jaxrs-runtime/src/test/resources/logback.xml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="420">
+          <caret line="15" column="28" selection-start-line="15" selection-start-column="28" selection-end-line="15" selection-end-column="28" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/jaxrs-runtime/src/test/java/io/micronaut/jaxrs/runtime/HeadersTest.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="140">
+          <caret line="22" column="6" selection-start-line="22" selection-start-column="6" selection-end-line="22" selection-end-column="6" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jboss.resteasy/jaxrs-api/3.0.12.Final/6d8a0eaef851bff7b627a8665cd9c04bb8846ca7/jaxrs-api-3.0.12.Final-sources.jar!/javax/ws/rs/core/Form.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="-766">
+          <caret line="51" column="13" selection-start-line="51" selection-start-column="13" selection-end-line="51" selection-end-column="13" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/main/docs/guide/quickStart.adoc">
+      <provider selected="true" editor-type-id="split-provider[text-editor;AsciiDocPreviewEditor]">
+        <state split_layout="SPLIT">
+          <first_editor relative-caret-position="252">
+            <caret line="7" lean-forward="true" selection-start-line="7" selection-end-line="7" />
+          </first_editor>
+          <second_editor />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/main/docs/guide/toc.yml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="56">
+          <caret line="2" column="23" selection-start-line="2" selection-start-column="23" selection-end-line="2" selection-end-column="23" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/main/docs/guide/supportedApi.adoc">
+      <provider selected="true" editor-type-id="split-provider[text-editor;AsciiDocPreviewEditor]">
+        <state split_layout="SPLIT">
+          <first_editor relative-caret-position="3276">
+            <caret line="102" column="88" selection-start-line="102" selection-start-column="88" selection-end-line="102" selection-end-column="88" />
+          </first_editor>
+          <second_editor />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/jaxrs-processor/src/main/resources/META-INF/services/io.micronaut.inject.annotation.AnnotationMapper">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="448">
+          <caret line="16" column="45" selection-start-line="16" selection-start-column="29" selection-end-line="16" selection-end-column="45" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/io.micronaut/micronaut-http/1.3.0.BUILD-SNAPSHOT/b4bb8bc95c689ab2432c2e7cd648dcc84112e2fc/micronaut-http-1.3.0.BUILD-SNAPSHOT-sources.jar!/io/micronaut/http/annotation/UriMapping.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="392">
+          <caret line="33" column="28" selection-start-line="33" selection-start-column="18" selection-end-line="33" selection-end-column="28" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/gradle.properties">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="392">
+          <caret line="14" column="45" selection-start-line="14" selection-start-column="45" selection-end-line="14" selection-end-column="45" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jboss.resteasy/jaxrs-api/3.0.12.Final/6d8a0eaef851bff7b627a8665cd9c04bb8846ca7/jaxrs-api-3.0.12.Final-sources.jar!/javax/ws/rs/core/Configurable.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="608">
+          <caret line="173" column="29" selection-start-line="173" selection-start-column="29" selection-end-line="173" selection-end-column="29" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jboss.resteasy/jaxrs-api/3.0.12.Final/6d8a0eaef851bff7b627a8665cd9c04bb8846ca7/jaxrs-api-3.0.12.Final-sources.jar!/javax/ws/rs/core/Configuration.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="-2922">
+          <caret line="64" column="17" selection-start-line="64" selection-start-column="17" selection-end-line="64" selection-end-column="17" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/jaxrs-runtime/build.gradle">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="532">
+          <caret line="19" selection-start-line="19" selection-end-line="19" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/jaxrs-runtime/src/main/java/io/micronaut/jaxrs/runtime/ext/bind/ContextAnnotationBinder.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="140">
+          <caret line="11" column="13" selection-start-line="11" selection-start-column="13" selection-end-line="11" selection-end-column="13" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/README.md">
+      <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
+        <state split_layout="SPLIT">
+          <first_editor relative-caret-position="364">
+            <caret line="7" selection-start-line="7" selection-end-line="7" selection-end-column="213" />
+          </first_editor>
+          <second_editor />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/main/docs/guide/introduction.adoc">
+      <provider selected="true" editor-type-id="split-provider[text-editor;AsciiDocPreviewEditor]">
+        <state split_layout="SPLIT">
+          <first_editor relative-caret-position="168">
+            <caret line="2" column="212" selection-start-line="2" selection-start-column="212" selection-end-line="2" selection-end-column="212" />
+          </first_editor>
+          <second_editor />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/jaxrs-runtime/src/main/java/io/micronaut/jaxrs/runtime/ext/impl/ServerCookie.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="426">
+          <caret line="43" column="57" selection-start-line="43" selection-start-column="57" selection-end-line="43" selection-end-column="57" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/jaxrs-runtime/src/main/java/io/micronaut/jaxrs/runtime/ext/impl/NewCookieHeaderDelegate.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="454">
+          <caret line="63" column="29" selection-start-line="63" selection-start-column="29" selection-end-line="63" selection-end-column="29" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/jaxrs-runtime/src/main/java/io/micronaut/jaxrs/runtime/ext/impl/MicronautRuntimeDelegate.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="333">
+          <caret line="12" column="19" selection-start-line="12" selection-start-column="19" selection-end-line="12" selection-end-column="19" />
+          <folding>
+            <element signature="imports" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/jaxrs-runtime/src/main/java/io/micronaut/jaxrs/runtime/ext/impl/MediaTypeHeaderDelegate.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="662">
+          <caret line="237" column="21" selection-start-line="237" selection-start-column="21" selection-end-line="237" selection-end-column="21" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/jaxrs-runtime/src/main/java/io/micronaut/jaxrs/runtime/ext/impl/CookieHeaderDelegate.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="756">
+          <caret line="32" column="9" selection-start-line="32" selection-start-column="9" selection-end-line="32" selection-end-column="9" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/jaxrs-runtime/src/main/java/io/micronaut/jaxrs/runtime/ext/impl/EntityTagDelegate.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="364">
+          <caret line="17" column="6" selection-start-line="17" selection-start-column="6" selection-end-line="17" selection-end-column="6" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/jaxrs-runtime/src/main/java/io/micronaut/jaxrs/runtime/ext/impl/LinkImpl.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="102">
+          <caret line="63" column="21" selection-start-line="63" selection-start-column="21" selection-end-line="63" selection-end-column="21" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/jaxrs-runtime/src/main/java/io/micronaut/jaxrs/runtime/ext/impl/LinkDelegate.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="1596">
+          <caret line="67" column="16" selection-start-line="67" selection-start-column="16" selection-end-line="67" selection-end-column="16" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/jaxrs-runtime/src/main/java/io/micronaut/jaxrs/runtime/ext/impl/LinkBuilderImpl.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="476">
+          <caret line="27" column="4" selection-start-line="27" selection-start-column="4" selection-end-line="27" selection-end-column="4" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/jaxrs-runtime/src/main/java/io/micronaut/jaxrs/runtime/ext/convert/JaxRsConverterRegistrar.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="336">
+          <caret line="12" column="13" selection-start-line="12" selection-start-column="13" selection-end-line="12" selection-end-column="13" />
+          <folding>
+            <element signature="imports" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/jaxrs-runtime/src/main/java/io/micronaut/jaxrs/runtime/core/JaxRsUriBuilder.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="280">
+          <caret line="17" column="13" selection-start-line="17" selection-start-column="13" selection-end-line="17" selection-end-column="13" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/jaxrs-runtime/src/main/java/io/micronaut/jaxrs/runtime/core/Weighted.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="252">
+          <caret line="14" column="13" selection-start-line="14" selection-start-column="13" selection-end-line="14" selection-end-column="13" />
+          <folding>
+            <element signature="e#1546#1547#0" expanded="true" />
+            <element signature="e#1580#1581#0" expanded="true" />
+            <element signature="e#1663#1664#0" expanded="true" />
+            <element signature="e#1692#1693#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/jaxrs-runtime/src/main/java/io/micronaut/jaxrs/runtime/core/ParameterParser.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="504">
+          <caret line="19" column="13" selection-start-line="19" selection-start-column="13" selection-end-line="19" selection-end-column="13" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/jaxrs-runtime/src/main/java/io/micronaut/jaxrs/runtime/core/JaxRsRuntime.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="644">
+          <caret line="30" selection-start-line="30" selection-end-line="30" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/jaxrs-runtime/src/main/java/io/micronaut/jaxrs/runtime/core/JaxRsApplicationUriNamingStrategy.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="252">
+          <caret line="22" column="13" selection-start-line="22" selection-start-column="13" selection-end-line="22" selection-end-column="13" />
+        </state>
+      </provider>
+    </entry>
+  </component>
+  <component name="masterDetails">
+    <states>
+      <state key="ArtifactsStructureConfigurable.UI">
+        <settings>
+          <artifact-editor />
+          <splitter-proportions>
+            <option name="proportions">
+              <list>
+                <option value="0.2" />
+              </list>
+            </option>
+          </splitter-proportions>
+        </settings>
+      </state>
+      <state key="FacetStructureConfigurable.UI">
+        <settings>
+          <splitter-proportions>
+            <option name="proportions">
+              <list>
+                <option value="0.2" />
+              </list>
+            </option>
+          </splitter-proportions>
+        </settings>
+      </state>
+      <state key="GlobalLibrariesConfigurable.UI">
+        <settings>
+          <splitter-proportions>
+            <option name="proportions">
+              <list>
+                <option value="0.2" />
+              </list>
+            </option>
+          </splitter-proportions>
+        </settings>
+      </state>
+      <state key="JdkListConfigurable.UI">
+        <settings>
+          <splitter-proportions>
+            <option name="proportions">
+              <list>
+                <option value="0.2" />
+              </list>
+            </option>
+          </splitter-proportions>
+        </settings>
+      </state>
+      <state key="ModuleStructureConfigurable.UI">
+        <settings>
+          <last-edited>main|runtime|jaxrs</last-edited>
+          <splitter-proportions>
+            <option name="proportions">
+              <list>
+                <option value="0.2" />
+                <option value="0.6" />
+              </list>
+            </option>
+          </splitter-proportions>
+        </settings>
+      </state>
+      <state key="ProjectLibrariesConfigurable.UI">
+        <settings>
+          <splitter-proportions>
+            <option name="proportions">
+              <list>
+                <option value="0.2" />
+              </list>
+            </option>
+          </splitter-proportions>
+        </settings>
+      </state>
+    </states>
+  </component>
+</project>
