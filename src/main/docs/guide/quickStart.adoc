@@ -4,4 +4,4 @@ dependency:micronaut-jaxrs-processor[scope="annotationProcessor", version="{vers
 
 Then the following compile time dependency:
 
-dependency:micronaut-jaxrs-runtime[scope="implementation", version="{version}", groupId="io.micronaut.jaxrs"]
+dependency:micronaut-jaxrs-server[scope="implementation", version="{version}", groupId="io.micronaut.jaxrs"]
