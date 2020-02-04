@@ -1,6 +1,6 @@
 # Micronaut JAX-RS
 
-[![Maven Central](https://img.shields.io/maven-central/v/io.micronaut.jaxrs/micronaut-jaxrs-runtime.svg?label=Maven%20Central)](https://search.maven.org/search?q=g:%22io.micronaut.jaxrs%22%20AND%20a:%22micronaut-jaxrs-runtime%22)
+[![Maven Central](https://img.shields.io/maven-central/v/io.micronaut.jaxrs/micronaut-jaxrs-server.svg?label=Maven%20Central)](https://search.maven.org/search?q=g:%22io.micronaut.jaxrs%22%20AND%20a:%22micronaut-jaxrs-server%22)
 [![Build Status](https://github.com/micronaut-projects/micronaut-jaxrs/workflows/Java%20CI/badge.svg)](https://github.com/micronaut-projects/micronaut-jaxrs/actions)
 
 Micronaut JAX-RS adds the ability to use common JAX-RS types and annotations to a Micronaut application.
