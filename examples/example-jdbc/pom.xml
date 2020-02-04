@@ -6,8 +6,8 @@
     <artifactId>example-jdbc</artifactId>
     <version>0.1</version>
     <properties>
-        <micronaut.version>1.3.0.BUILD-SNAPSHOT</micronaut.version>
-        <micronaut.data.version>1.0.0.RC1</micronaut.data.version>
+        <micronaut.version>1.3.0</micronaut.version>
+        <micronaut.data.version>1.0.0</micronaut.data.version>
         <micronaut.jaxrs.version>1.0.0.BUILD-SNAPSHOT</micronaut.jaxrs.version>
         <jdk.version>1.8</jdk.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -45,6 +45,11 @@
             <groupId>io.micronaut.jaxrs</groupId>
             <artifactId>micronaut-jaxrs-runtime</artifactId>
             <version>${micronaut.jaxrs.version}</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>        
+            <groupId>io.swagger.core.v3</groupId>
+            <artifactId>swagger-annotations</artifactId>
             <scope>compile</scope>
         </dependency>
         <dependency>
