@@ -82,7 +82,7 @@ Micronaut JAX-RS works by converting (at compilation time) a JAX-RS annotation d
 
 ==== Injectable Parameter Types
 
-In addition to the supported JAX-RS annotations you can us the following JAX-RS types as parameter types to resources or client definitions:
+In addition to the supported JAX-RS annotations you can use the following JAX-RS types as parameter types to resources or client definitions:
 
 * link:{jaxrsapi}/javax/ws/rs/core/HttpHeaders.html[javax.ws.rs.core.HttpHeaders]
 * link:{jaxrsapi}/javax/ws/rs/core/CacheControl.html[javax.ws.rs.core.CacheControl]
