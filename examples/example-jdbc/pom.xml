@@ -8,7 +8,7 @@
     <properties>
         <micronaut.version>1.3.0</micronaut.version>
         <micronaut.data.version>1.0.0</micronaut.data.version>
-        <micronaut.jaxrs.version>1.0.0.BUILD-SNAPSHOT</micronaut.jaxrs.version>
+        <micronaut.jaxrs.version>1.0.0.M1</micronaut.jaxrs.version>
         <jdk.version>1.8</jdk.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <exec.mainClass>example.Application</exec.mainClass>
@@ -43,7 +43,7 @@
         </dependency>
         <dependency>
             <groupId>io.micronaut.jaxrs</groupId>
-            <artifactId>micronaut-jaxrs-runtime</artifactId>
+            <artifactId>micronaut-jaxrs-server</artifactId>
             <version>${micronaut.jaxrs.version}</version>
             <scope>compile</scope>
         </dependency>

@@ -19,7 +19,7 @@ configurations {
 
 ext {
     micronautVersion = "1.3.0"
-    micronautJaxRsVersion = "1.0.0.BUILD-SNAPSHOT"
+    micronautJaxRsVersion = "1.0.0.M1"
 }
 
 dependencies {
@@ -37,7 +37,7 @@ dependencies {
 
     compileOnly "com.oracle.substratevm:svm"
     implementation "io.swagger.core.v3:swagger-annotations"
-    implementation "io.micronaut.jaxrs:micronaut-jaxrs-runtime:$micronautJaxRsVersion"
+    implementation "io.micronaut.jaxrs:micronaut-jaxrs-server:$micronautJaxRsVersion"
     implementation "io.micronaut:micronaut-inject"
     implementation "io.micronaut:micronaut-validation"
     implementation "io.micronaut:micronaut-runtime"
