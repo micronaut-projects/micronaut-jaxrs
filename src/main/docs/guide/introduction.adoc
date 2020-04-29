@@ -1,4 +1,4 @@
-Micronaut JAX-RS adds support for using JAX-RS annotations and types in a Micronaut application with the aim of helping migrate existing JAX-RS applications or support teams her prefer the JAX-RS annotations.
+Micronaut JAX-RS adds support for using JAX-RS annotations and types in a Micronaut application with the aim of helping migrate existing JAX-RS applications or support teams who prefer the JAX-RS annotations.
 
 This project is not an implementation of the JAX-RS specification and is designed to allow users familiar with the JAX-RS API to use the most common parts of the API within the context of a Micronaut application.
 
