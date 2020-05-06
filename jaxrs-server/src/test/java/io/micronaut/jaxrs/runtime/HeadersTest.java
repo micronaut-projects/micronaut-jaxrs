@@ -6,6 +6,7 @@ import io.micronaut.http.HttpResponse;
 import io.micronaut.http.MutableHttpRequest;
 import io.micronaut.http.client.RxHttpClient;
 import io.micronaut.http.client.annotation.Client;
+import io.micronaut.http.client.exceptions.HttpClientResponseException;
 import io.micronaut.jaxrs.runtime.ext.bind.JaxRsHttpHeaders;
 import io.micronaut.test.annotation.MicronautTest;
 import org.junit.jupiter.api.Assertions;
@@ -103,20 +104,24 @@ class HeadersTest {
         request.accept(new io.micronaut.http.MediaType("application/json;q=0.7"), new io.micronaut.http.MediaType(
                 "application/xml;q=0.9"
         ));
-        final HttpResponse<String> response = httpClient.toBlocking().exchange(request, String.class);
 
-        JaxRsHttpHeaders jaxRsHttpHeaders = new JaxRsHttpHeaders(response.getHeaders());
+        try {
+            httpClient.toBlocking().exchange(request, String.class);
+        } catch (HttpClientResponseException e) {
+            JaxRsHttpHeaders jaxRsHttpHeaders = new JaxRsHttpHeaders(e.getResponse().getHeaders());
 
-        final List<MediaType> acceptableMediaTypes = jaxRsHttpHeaders.getAcceptableMediaTypes();
-        Assertions.assertEquals(
-                2,
-                acceptableMediaTypes.size()
-        );
+            final List<MediaType> acceptableMediaTypes = jaxRsHttpHeaders.getAcceptableMediaTypes();
+            Assertions.assertEquals(
+                    2,
+                    acceptableMediaTypes.size()
+            );
 
-        Assertions.assertEquals(
-                "xml",
-                acceptableMediaTypes.get(0).getSubtype()
-        );
+            Assertions.assertEquals(
+                    "xml",
+                    acceptableMediaTypes.get(0).getSubtype()
+            );
+        }
+
     }
 
     @Test
