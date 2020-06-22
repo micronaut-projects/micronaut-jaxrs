@@ -42,7 +42,7 @@ public class GetAnnotationMapper implements NamedAnnotationMapper {
     @Override
     public List<AnnotationValue<?>> map(AnnotationValue<Annotation> annotation, VisitorContext visitorContext) {
         return Collections.singletonList(
-                AnnotationValue.builder(Get.class).value(UriMapping.DEFAULT_URI).build()
+                AnnotationValue.builder(Get.class).build()
         );
     }
 }
