@@ -192,4 +192,45 @@ class Test {
         "OPTIONS" | Options          | "/test"
         "WATCH"   | CustomHttpMethod | "/test"
     }
+
+    void "test mapped annotation from interface"() {
+        given:
+        def definition = buildBeanDefinition('test.Test', """
+package test;
+
+interface TestService {
+    @${source.name}
+    @javax.ws.rs.Produces("text/plain")
+    @javax.ws.rs.Path("/foo")
+    public String test();
+}
+
+class Test implements TestService {
+    @Override
+    public String test() {
+        return "ok";
+    }
+
+    @javax.ws.rs.GET
+    void dummy() {}
+}
+""")
+        def method = definition.getRequiredMethod("test")
+
+        expect:
+        method.hasAnnotation(target)
+        method.stringValue(HttpMethodMapping)
+                .get() == '/foo'
+        method.stringValue(Produces)
+                .get() == 'text/plain'
+
+        where:
+        source  | target  | path
+        GET     | Get     | "/foo"
+        POST    | Post    | "/foo"
+        PUT     | Put     | "/foo"
+        DELETE  | Delete  | "/foo"
+        HEAD    | Head    | "/foo"
+        OPTIONS | Options | "/foo"
+    }
 }
