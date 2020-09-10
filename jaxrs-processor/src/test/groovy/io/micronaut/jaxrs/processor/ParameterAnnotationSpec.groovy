@@ -69,7 +69,6 @@ class Test {
         metadata.stringValue(Bindable, "defaultValue").get() == 'foo'
     }
 
-
     @Unroll
     void "test unsupported parameter annotation #source"() {
         when:
