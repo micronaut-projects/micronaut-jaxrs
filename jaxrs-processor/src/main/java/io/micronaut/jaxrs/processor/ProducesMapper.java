@@ -33,6 +33,9 @@ import java.util.List;
  * @since 1.0
  */
 public class ProducesMapper implements NamedAnnotationMapper {
+
+    private static final String[] JAX_RS_DEFAULT_VALUE = new String[] { "*/*" };
+
     @Nonnull
     @Override
     public String getName() {
@@ -43,7 +46,11 @@ public class ProducesMapper implements NamedAnnotationMapper {
     public List<AnnotationValue<?>> map(AnnotationValue<Annotation> annotation, VisitorContext visitorContext) {
 
         final AnnotationValueBuilder<Produces> builder = AnnotationValue.builder(Produces.class);
-        annotation.stringValue().ifPresent(builder::value);
+        if (annotation.stringValues().length > 0) {
+            builder.values(annotation.stringValues());
+        } else {
+            builder.values(JAX_RS_DEFAULT_VALUE);
+        }
         return Collections.singletonList(
                 builder.build()
         );
