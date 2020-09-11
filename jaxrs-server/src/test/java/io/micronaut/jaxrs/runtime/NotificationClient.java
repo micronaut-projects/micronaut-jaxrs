@@ -6,7 +6,6 @@ import io.micronaut.http.client.annotation.Client;
 
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
 
 @Client("/api/notifications")
 public interface NotificationClient {
@@ -18,6 +17,15 @@ public interface NotificationClient {
     @Path("/get/{id}")
     @Consumes(MediaType.APPLICATION_JSON)
     Notification getNotification(@PathParam("id") int id);
+
+    /**
+     * PathParam annotation has value `newId` equal to path variable `newId`,
+     * but variable `int id` is not equal to path variable `newId`
+     */
+    @GET
+    @Path("/get/v2/{newId}")
+    @Consumes(MediaType.APPLICATION_JSON)
+    Notification getNotificationV2(@PathParam("newId") int id);
 
     @GET
     @Path("/query")

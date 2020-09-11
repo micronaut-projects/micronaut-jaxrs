@@ -8,6 +8,7 @@ dependencies {
 
 	// for Java
 	testAnnotationProcessor "io.micronaut:micronaut-inject-java"
+	testAnnotationProcessor "io.micronaut:micronaut-validation"
 	testAnnotationProcessor project(":jaxrs-processor")
 
 	// for Groovy
