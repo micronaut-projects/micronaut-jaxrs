@@ -15,16 +15,19 @@
  */
 package io.micronaut.jaxrs.processor;
 
+import java.lang.annotation.Annotation;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+
+import javax.annotation.Nonnull;
+
 import io.micronaut.core.annotation.AnnotationValue;
-import io.micronaut.core.annotation.AnnotationValueBuilder;
+import io.micronaut.core.bind.annotation.Bindable;
 import io.micronaut.http.annotation.PathVariable;
 import io.micronaut.inject.annotation.NamedAnnotationMapper;
 import io.micronaut.inject.visitor.VisitorContext;
-
-import javax.annotation.Nonnull;
-import java.lang.annotation.Annotation;
-import java.util.Collections;
-import java.util.List;
 
 /**
  * Maps the JAX-RS {@code PathParam} annotation.
@@ -42,10 +45,17 @@ public class PathParamMapper implements NamedAnnotationMapper {
     @Override
     public List<AnnotationValue<?>> map(AnnotationValue<Annotation> annotation, VisitorContext visitorContext) {
 
-        final AnnotationValueBuilder<PathVariable> builder = AnnotationValue.builder(PathVariable.class);
-        annotation.stringValue().ifPresent(builder::value);
-        return Collections.singletonList(
-                builder.build()
+        final Optional<String> annotationValue = annotation.stringValue();
+        if (!annotationValue.isPresent()) {
+            return Collections.singletonList(
+                    AnnotationValue.builder(PathVariable.class).build()
+            );
+        }
+
+        final String value = annotationValue.get();
+        return Arrays.asList(
+                AnnotationValue.builder(PathVariable.class).value(value).build(),
+                AnnotationValue.builder(Bindable.class).value(value).build()
         );
     }
 }
