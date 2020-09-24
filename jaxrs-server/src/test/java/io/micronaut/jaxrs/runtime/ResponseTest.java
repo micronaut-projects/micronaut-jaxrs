@@ -41,7 +41,15 @@ public class ResponseTest {
         assertNotNull(notification);
 
         assertEquals("john", notification.getName());
+    }
 
+    @Test
+    void testGetResponseV2() {
+        final Notification notification = client.getNotificationV2(10);
+
+        assertNotNull(notification);
+
+        assertEquals("john", notification.getName());
     }
 
     @Test

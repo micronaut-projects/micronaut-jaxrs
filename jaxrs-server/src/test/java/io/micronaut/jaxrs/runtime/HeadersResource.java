@@ -9,7 +9,7 @@ public class HeadersResource {
     @POST
     @Path("/content-type")
     @Produces("text/plain")
-    Response contentType(@HeaderParam("Content-Type") MediaType mediaType) {
+    public Response contentType(@HeaderParam("Content-Type") MediaType mediaType) {
         return Response.ok()
                 .type(MediaType.valueOf("text/plain"))
                 .entity(mediaType.toString())
@@ -20,7 +20,7 @@ public class HeadersResource {
     @GET
     @Path("/cookie")
     @Produces("text/plain")
-    Response cookie(@CookieParam("foo") Cookie cookie) {
+    public Response cookie(@CookieParam("foo") Cookie cookie) {
         return Response.ok()
                 .entity(cookie.getValue())
                 .cookie(new NewCookie(cookie))
@@ -30,7 +30,7 @@ public class HeadersResource {
     @GET
     @Path("/etag")
     @Produces("text/plain")
-    Response etag(@HeaderParam(HttpHeaders.ETAG) EntityTag entityTag) {
+    public Response etag(@HeaderParam(HttpHeaders.ETAG) EntityTag entityTag) {
         return Response.ok()
                 .entity(entityTag.getValue())
                 .tag(entityTag)
@@ -40,7 +40,7 @@ public class HeadersResource {
     @GET
     @Path("/link")
     @Produces("text/plain")
-    Response link(@HeaderParam(HttpHeaders.LINK) Link link) {
+    public Response link(@HeaderParam(HttpHeaders.LINK) Link link) {
         return Response.ok()
                 .entity(link.toString())
                 .links(Link.fromUri("/blah").rel("friend").build())
@@ -50,7 +50,7 @@ public class HeadersResource {
     @GET
     @Path("/cache-control")
     @Produces("text/plain")
-    Response cacheControl(@HeaderParam(HttpHeaders.CACHE_CONTROL) CacheControl cacheControl) {
+    public Response cacheControl(@HeaderParam(HttpHeaders.CACHE_CONTROL) CacheControl cacheControl) {
         return Response.ok()
                 .entity(cacheControl.toString())
                 .cacheControl(cacheControl)
@@ -59,7 +59,7 @@ public class HeadersResource {
 
     @GET
     @Produces("text/plain")
-    Response headers(HttpHeaders httpHeaders) {
+    public Response headers(HttpHeaders httpHeaders) {
         final Response.ResponseBuilder ok = Response.ok();
         ok.entity("echo");
         httpHeaders.getRequestHeaders().forEach((s, strings) -> {

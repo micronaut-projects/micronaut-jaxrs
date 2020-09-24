@@ -38,6 +38,19 @@ public class NotificationsResource {
                 .build();
     }
 
+    /**
+     * PathParam annotation has value `newId` equal to path variable `newId`,
+     * but variable `int id` is not equal to path variable `newId`
+     */
+    @GET
+    @Path("/get/v2/{newId}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getNotificationV2(@Min(1) @PathParam("newId") int id) {
+        return Response.ok()
+                .entity(new Notification(id, "john", "test notification"))
+                .build();
+    }
+
     @GET
     @Path("/query")
     @Produces(MediaType.APPLICATION_JSON)

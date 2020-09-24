@@ -33,17 +33,24 @@ import java.util.List;
  * @since 1.0
  */
 public class ConsumesMapper implements NamedAnnotationMapper {
+
+    private static final String[] JAX_RS_DEFAULT_VALUE = new String[] { "*/*" };
+
     @Nonnull
     @Override
     public String getName() {
-        return "javax.ws.rs.ConsumesMapper";
+        return "javax.ws.rs.Consumes";
     }
 
     @Override
     public List<AnnotationValue<?>> map(AnnotationValue<Annotation> annotation, VisitorContext visitorContext) {
 
         final AnnotationValueBuilder<Consumes> builder = AnnotationValue.builder(Consumes.class);
-        annotation.stringValue().ifPresent(builder::value);
+        if (annotation.stringValues().length > 0) {
+            builder.values(annotation.stringValues());
+        } else {
+            builder.values(JAX_RS_DEFAULT_VALUE);
+        }
         return Collections.singletonList(
                 builder.build()
         );

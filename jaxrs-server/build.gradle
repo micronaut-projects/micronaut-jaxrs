@@ -6,9 +6,9 @@ dependencies {
 
     implementation "io.micronaut:micronaut-router:$micronautVersion"
 
-    // for Java
-    testAnnotationProcessor "io.micronaut:micronaut-inject-java"
-    testAnnotationProcessor project(":jaxrs-processor")
+	testAnnotationProcessor "io.micronaut:micronaut-inject-java"
+	testAnnotationProcessor "io.micronaut:micronaut-validation"
+	testAnnotationProcessor project(":jaxrs-processor")
 
     // for Groovy
     testImplementation "io.micronaut:micronaut-inject-groovy"

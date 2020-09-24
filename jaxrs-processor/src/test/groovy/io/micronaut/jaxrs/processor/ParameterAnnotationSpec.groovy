@@ -69,7 +69,6 @@ class Test {
         metadata.stringValue(Bindable, "defaultValue").get() == 'foo'
     }
 
-
     @Unroll
     void "test unsupported parameter annotation #source"() {
         when:
@@ -94,4 +93,48 @@ class Test {
         MatrixParam | "test"
         BeanParam   | null
     }
+
+    void "test javax.ws.rs.PathParam value"() {
+        when:
+        def definition =  buildBeanDefinition('test.Test', """
+package test;
+
+@javax.ws.rs.Path("/test/{user_id}/v1")
+class Test {
+
+    @javax.ws.rs.GET
+    void test(@javax.ws.rs.PathParam("user_id") String userId) {}
+}
+""")
+
+        def method = definition.getRequiredMethod("test", String)
+        def metadata = method.arguments[0].getAnnotationMetadata()
+
+
+        then:
+        metadata.stringValue(Bindable, "value").get() == 'user_id'
+    }
+
+    void "test javax.ws.rs.PathParam value with javax.ws.rs.DefaultValue"() {
+        when:
+        def definition =  buildBeanDefinition('test.Test', """
+package test;
+
+@javax.ws.rs.Path("/test/{user_id}")
+class Test {
+
+    @javax.ws.rs.GET
+    void test(@javax.ws.rs.DefaultValue("foo") @javax.ws.rs.PathParam("user_id") String userId) {}
+}
+""")
+
+        def method = definition.getRequiredMethod("test", String)
+        def metadata = method.arguments[0].getAnnotationMetadata()
+
+
+        then:
+        metadata.stringValue(Bindable, "value").get() == 'user_id'
+        metadata.stringValue(Bindable, "defaultValue").get() == 'foo'
+    }
+
 }
