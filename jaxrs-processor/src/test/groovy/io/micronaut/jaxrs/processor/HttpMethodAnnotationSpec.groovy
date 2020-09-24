@@ -10,7 +10,6 @@ import io.micronaut.http.annotation.Options
 import io.micronaut.http.annotation.Post
 import io.micronaut.http.annotation.Produces
 import io.micronaut.http.annotation.Put
-import io.micronaut.inject.BeanDefinition
 import spock.lang.Unroll
 
 import javax.ws.rs.DELETE
