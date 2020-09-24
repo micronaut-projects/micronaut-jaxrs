@@ -45,11 +45,13 @@
                                 
                                 <div class="toc-item" style="margin-left:0"><a href="#introduction"><strong>1</strong><span>Introduction</span></a></div>
                                 
-                                <div class="toc-item" style="margin-left:0"><a href="#quickStart"><strong>2</strong><span>Quick Start</span></a></div>
+                                <div class="toc-item" style="margin-left:0"><a href="#releaseHistory"><strong>2</strong><span>Release History</span></a></div>
                                 
-                                <div class="toc-item" style="margin-left:0"><a href="#supportedApi"><strong>3</strong><span>Supported API</span></a></div>
+                                <div class="toc-item" style="margin-left:0"><a href="#quickStart"><strong>3</strong><span>Quick Start</span></a></div>
                                 
-                                <div class="toc-item" style="margin-left:0"><a href="#repository"><strong>4</strong><span>Repository</span></a></div>
+                                <div class="toc-item" style="margin-left:0"><a href="#supportedApi"><strong>4</strong><span>Supported API</span></a></div>
+                                
+                                <div class="toc-item" style="margin-left:0"><a href="#repository"><strong>5</strong><span>Repository</span></a></div>
                                 
                             </div>
                         </div>
@@ -82,11 +84,13 @@
         
         <div class="toc-item" style="margin-left:0px" id="toc-item-introduction"><a href="#introduction"><strong>1</strong><span>Introduction</span></a></div>
         
-        <div class="toc-item" style="margin-left:0px" id="toc-item-quickStart"><a href="#quickStart"><strong>2</strong><span>Quick Start</span></a></div>
+        <div class="toc-item" style="margin-left:0px" id="toc-item-releaseHistory"><a href="#releaseHistory"><strong>2</strong><span>Release History</span></a></div>
         
-        <div class="toc-item" style="margin-left:0px" id="toc-item-supportedApi"><a href="#supportedApi"><strong>3</strong><span>Supported API</span></a></div>
+        <div class="toc-item" style="margin-left:0px" id="toc-item-quickStart"><a href="#quickStart"><strong>3</strong><span>Quick Start</span></a></div>
         
-        <div class="toc-item" style="margin-left:0px" id="toc-item-repository"><a href="#repository"><strong>4</strong><span>Repository</span></a></div>
+        <div class="toc-item" style="margin-left:0px" id="toc-item-supportedApi"><a href="#supportedApi"><strong>4</strong><span>Supported API</span></a></div>
+        
+        <div class="toc-item" style="margin-left:0px" id="toc-item-repository"><a href="#repository"><strong>5</strong><span>Repository</span></a></div>
         
         </div>
     </div>
@@ -96,7 +100,7 @@
         <h1>Micronaut JAX-RS</h1>
         <p></p>
         <p>JAX-RS Support for Micronaut</p>
-        <p><strong>Version:</strong> <select style='max-width: 200px' onChange='window.document.location.href=this.options[this.selectedIndex].value;'><option value='https://micronaut-projects.github.io/micronaut-jaxrs/snapshot/guide/index.html'>SNAPSHOT</option><option selected='selected' value='https://micronaut-projects.github.io/micronaut-jaxrs/1.0.1/guide/index.html'>1.0.1</option><option value='https://micronaut-projects.github.io/micronaut-jaxrs/1.0.0/guide/index.html'>1.0.0</option><option value='https://micronaut-projects.github.io/micronaut-jaxrs/1.0.0.M1/guide/index.html'>1.0.0.M1</option></select></p>
+        <p><strong>Version:</strong> <select style='max-width: 200px' onChange='window.document.location.href=this.options[this.selectedIndex].value;'><option value='https://micronaut-projects.github.io/micronaut-jaxrs/snapshot/guide/index.html'>SNAPSHOT</option><option selected='selected' value='https://micronaut-projects.github.io/micronaut-jaxrs/1.0.2/guide/index.html'>1.0.2</option><option value='https://micronaut-projects.github.io/micronaut-jaxrs/1.0.1/guide/index.html'>1.0.1</option><option value='https://micronaut-projects.github.io/micronaut-jaxrs/1.0.0/guide/index.html'>1.0.0</option><option value='https://micronaut-projects.github.io/micronaut-jaxrs/1.0.0.M1/guide/index.html'>1.0.0.M1</option></select></p>
     </div>
     
 <h1 id="introduction"><a class="anchor" href="#introduction"></a>1 Introduction</h1>
@@ -115,7 +119,23 @@
 <p>This project is not an implementation of the JAX-RS specification and is designed to allow users familiar with the JAX-RS API to use the most common parts of the API within the context of a Micronaut application.</p>
 </div>
 
-<h1 id="quickStart"><a class="anchor" href="#quickStart"></a>2 Quick Start</h1>
+<h1 id="releaseHistory"><a class="anchor" href="#releaseHistory"></a>2 Release History</h1>
+
+<div class='contribute-btn'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-jaxrs/edit/master/src/main/docs/guide/releaseHistory.adoc"'>
+        <i class='fa fa-pencil-square-o'></i> Improve this doc
+    </button>
+</div>
+
+
+<div class="paragraph">
+<p>For this project, you can find a list of releases (with release notes) here:</p>
+</div>
+<div class="paragraph">
+<p><a href="https://github.com/micronaut-projects/micronaut-jaxrs/releases">https://github.com/micronaut-projects/micronaut-jaxrs/releases</a></p>
+</div>
+
+<h1 id="quickStart"><a class="anchor" href="#quickStart"></a>3 Quick Start</h1>
 
 <div class='contribute-btn'>
     <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-jaxrs/edit/master/src/main/docs/guide/quickStart.adoc"'>
@@ -131,7 +151,7 @@
 <p>        <div class="listingblock multi-language-sample">
 <div class="title"></div>
 <div class="content">
-<pre class="highlightjs highlight"><code class="language-kotlin hljs" data-lang="gradle">annotationProcessor(<span class="hljs-string">"io.micronaut.jaxrs:micronaut-jaxrs-processor:1.0.1")</span></code></pre>
+<pre class="highlightjs highlight"><code class="language-kotlin hljs" data-lang="gradle">annotationProcessor(<span class="hljs-string">"io.micronaut.jaxrs:micronaut-jaxrs-processor:1.0.2")</span></code></pre>
 </div>
 </div>
 <div class="listingblock multi-language-sample">
@@ -141,7 +161,7 @@
     &lt;path&gt;
         &lt;groupId&gt;io.micronaut.jaxrs&lt;/groupId&gt;
         &lt;artifactId&gt;micronaut-jaxrs-processor&lt;/artifactId&gt;
-        &lt;version&gt;1.0.1&lt;/version&gt;
+        &lt;version&gt;1.0.2&lt;/version&gt;
     &lt;/path&gt;
 &lt;/annotationProcessorPaths&gt;</code></pre>
 </div>
@@ -155,7 +175,7 @@
 <p>        <div class="listingblock multi-language-sample">
 <div class="title"></div>
 <div class="content">
-<pre class="highlightjs highlight"><code class="language-kotlin hljs" data-lang="gradle">implementation(<span class="hljs-string">"io.micronaut.jaxrs:micronaut-jaxrs-server:1.0.1")</span></code></pre>
+<pre class="highlightjs highlight"><code class="language-kotlin hljs" data-lang="gradle">implementation(<span class="hljs-string">"io.micronaut.jaxrs:micronaut-jaxrs-server:1.0.2")</span></code></pre>
 </div>
 </div>
 <div class="listingblock multi-language-sample">
@@ -163,14 +183,14 @@
 <pre class="highlightjs highlight"><code class="language-xml hljs" data-lang="maven">&lt;dependency&gt;
     &lt;groupId&gt;io.micronaut.jaxrs&lt;/groupId&gt;
     &lt;artifactId&gt;micronaut-jaxrs-server&lt;/artifactId&gt;
-    &lt;version&gt;1.0.1&lt;/version&gt;
+    &lt;version&gt;1.0.2&lt;/version&gt;
 &lt;/dependency&gt;</code></pre>
 </div>
 </div>
 </p>
 </div>
 
-<h1 id="supportedApi"><a class="anchor" href="#supportedApi"></a>3 Supported API</h1>
+<h1 id="supportedApi"><a class="anchor" href="#supportedApi"></a>4 Supported API</h1>
 
 <div class='contribute-btn'>
     <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-jaxrs/edit/master/src/main/docs/guide/supportedApi.adoc"'>
@@ -220,77 +240,77 @@
 <tbody>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/Path.html">@Path</a></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/Controller.html">@Controller</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut//io/micronaut/http/annotation/Controller.html">@Controller</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>@Path("/foo")</code> // on type</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/Path.html">@Path</a></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/UriMapping.html">@UriMapping</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut//io/micronaut/http/annotation/UriMapping.html">@UriMapping</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>@Path("/foo")</code> // on method</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/HttpMethod.html">@HttpMethod</a></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/HttpMethodMapping.html">@HttpMethodMapping</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut//io/micronaut/http/annotation/HttpMethodMapping.html">@HttpMethodMapping</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>@HttpMethod("TRACE")</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/GET.html">@GET</a></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/Get.html">@Get</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut//io/micronaut/http/annotation/Get.html">@Get</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>@GET @Path("/foo/bar")</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/POST.html">@POST</a></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/Post.html">@Post</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut//io/micronaut/http/annotation/Post.html">@Post</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>@POST @Path("/foo/bar")</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/DELETE.html">@DELETE</a></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/Delete.html">@Delete</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut//io/micronaut/http/annotation/Delete.html">@Delete</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>@DELETE @Path("/foo/bar")</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/OPTIONS.html">@OPTIONS</a></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/Options.html">@Options</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut//io/micronaut/http/annotation/Options.html">@Options</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>@OPTIONS @Path("/foo/bar")</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/HEAD.html">@HEAD</a></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/Head.html">@Head</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut//io/micronaut/http/annotation/Head.html">@Head</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>@HEAD @Path("/foo/bar")</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/Consumes.html">@Consumes</a></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/Consumes.html">@Consumes</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut//io/micronaut/http/annotation/Consumes.html">@Consumes</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>@Consumes("application/json")</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/Produces.html">@Produces</a></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/Produces.html">@Produces</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut//io/micronaut/http/annotation/Produces.html">@Produces</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>@Produces("application/json")</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/PathParam.html">@PathParam</a></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/PathVariable.html">@PathVariable</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut//io/micronaut/http/annotation/PathVariable.html">@PathVariable</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>@PathParam("foo")</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/CookieParam.html">@CookieParam</a></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/CookieValue.html">@CookieValue</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut//io/micronaut/http/annotation/CookieValue.html">@CookieValue</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>@CookieParam("myCookie")</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/HeaderParam.html">@HeaderParam</a></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/Header.html">@Header</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut//io/micronaut/http/annotation/Header.html">@Header</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>@HeaderParam("Content-Type")</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/QueryParam.html">@QueryParam</a></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/QueryValue.html">@QueryValue</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut//io/micronaut/http/annotation/QueryValue.html">@QueryValue</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>@QueryParam("myParam")</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jax-rs.github.io/apidocs/2.0/javax/ws/rs/DefaultValue.html">@DefaultValue</a></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/Bindable.html">@Bindable(defaultValue="..")</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut//io/micronaut/http/annotation/Bindable.html">@Bindable(defaultValue="..")</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>@DefaultValue("example")</code></p></td>
 </tr>
 <tr>
@@ -361,7 +381,7 @@ Parameter binding to constructor argument of resource types is not supported at 
 </div>
 </div>
 
-<h1 id="repository"><a class="anchor" href="#repository"></a>4 Repository</h1>
+<h1 id="repository"><a class="anchor" href="#repository"></a>5 Repository</h1>
 
 <div class='contribute-btn'>
     <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-jaxrs/edit/master/src/main/docs/guide/repository.adoc"'>
