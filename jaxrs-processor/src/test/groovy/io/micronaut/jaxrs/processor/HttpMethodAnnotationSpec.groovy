@@ -58,6 +58,42 @@ interface Test {
     }
 
     @Unroll
+    void "test micronaut mapped annotation for #source"() {
+        given:
+        def definition = buildBeanDefinition('test.Test', """
+package test;
+
+@io.micronaut.http.annotation.Controller("/test")
+class Test {
+
+    @${source.name}("$path")
+    @io.micronaut.http.annotation.Produces("text/plain")
+    String test() {
+        return "ok";
+    }
+}
+""")
+
+        def method = definition.getRequiredMethod("test")
+
+        expect:
+        method.hasAnnotation(target)
+        method.stringValue(HttpMethodMapping)
+                .get() == '/foo'
+        method.stringValue(Produces)
+                .get() == 'text/plain'
+
+        where:
+        source  | target  | path
+        Get     | Get     | "/foo"
+        Post    | Post    | "/foo"
+        Put     | Put     | "/foo"
+        Delete  | Delete  | "/foo"
+        Head    | Head    | "/foo"
+        Options | Options | "/foo"
+    }
+
+    @Unroll
     void "test mapped annotation for #source"() {
         given:
         def definition = buildBeanDefinition('test.Test', """

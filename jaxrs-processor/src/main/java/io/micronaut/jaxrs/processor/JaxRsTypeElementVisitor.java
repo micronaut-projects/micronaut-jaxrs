@@ -44,6 +44,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     public static final int POSITION = 200;
 
     private ClassElement currentClassElement;
+    private boolean typeWasAnnotated = false;
 
     @Override
     public int getOrder() {
@@ -52,42 +53,45 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
 
     @Override
     public void visitClass(ClassElement element, VisitorContext context) {
+        currentClassElement = element;
         if (element.hasAnnotation(Path.class) && !element.isAbstract()) {
+            typeWasAnnotated = true;
             element.annotate(Controller.class, builder ->
                     element.stringValue(Path.class).ifPresent(builder::value)
             );
         } else {
-            currentClassElement = element;
+            typeWasAnnotated = false;
         }
     }
 
     @Override
     public void visitMethod(MethodElement element, VisitorContext context) {
-        if (element.hasStereotype(HttpMethod.class)) {
-            if (currentClassElement != null) {
-                currentClassElement.annotate(Controller.class);
-                currentClassElement = null;
-            }
-            final ParameterElement[] parameters = element.getParameters();
-            for (ParameterElement parameter : parameters) {
-                final List<Class<? extends Annotation>> unsupported = getUnsupportedParameterAnnotations();
-                for (Class<? extends Annotation> annType : unsupported) {
-                    if (parameter.hasAnnotation(annType)) {
-                        context.fail("Unsupported JAX-RS annotation used on method: " + annType.getName(), parameter);
+        if ((currentClassElement != null && !currentClassElement.hasAnnotation(Controller.class)) || typeWasAnnotated) {
+            if (element.hasStereotype(HttpMethod.class)) {
+                if (!typeWasAnnotated && !currentClassElement.isAbstract()) {
+                    currentClassElement.annotate(Controller.class);
+                }
+                final ParameterElement[] parameters = element.getParameters();
+                for (ParameterElement parameter : parameters) {
+                    final List<Class<? extends Annotation>> unsupported = getUnsupportedParameterAnnotations();
+                    for (Class<? extends Annotation> annType : unsupported) {
+                        if (parameter.hasAnnotation(annType)) {
+                            context.fail("Unsupported JAX-RS annotation used on method: " + annType.getName(), parameter);
+                        }
                     }
                 }
+
             }
 
-        }
-
-        if (element.hasDeclaredAnnotation(Path.class) || hasAnnotationOnDeclaredMetadata(element, Path.class)) {
-            element.annotate(HttpMethodMapping.class, builder ->
-                    builder.value(element.stringValue(Path.class).orElse(UriMapping.DEFAULT_URI))
-            );
-        } else {
-            element.annotate(HttpMethodMapping.class, builder ->
-                    builder.value(UriMapping.DEFAULT_URI)
-            );
+            if (element.hasDeclaredAnnotation(Path.class) || hasAnnotationOnDeclaredMetadata(element, Path.class)) {
+                element.annotate(HttpMethodMapping.class, builder ->
+                        builder.value(element.stringValue(Path.class).orElse(UriMapping.DEFAULT_URI))
+                );
+            } else {
+                element.annotate(HttpMethodMapping.class, builder ->
+                        builder.value(UriMapping.DEFAULT_URI)
+                );
+            }
         }
 
     }
