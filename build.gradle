@@ -21,7 +21,13 @@ subprojects { Project subproject ->
             exclude module:'groovy-all'
         }
         testImplementation "io.micronaut.test:micronaut-test-spock:$micronautTestVersion"                
-    }    
+    }
+
+    subproject.tasks.withType(Test) {
+        if (JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_15)) {
+            jvmArgs "--enable-preview"
+        }
+    }
 }
 
 apply plugin: "io.micronaut.build.docs"
