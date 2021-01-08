@@ -35,6 +35,12 @@ public class HttpHeadersBinder implements TypedRequestArgumentBinder<HttpHeaders
 
     public static final Argument<HttpHeaders> TYPE = Argument.of(HttpHeaders.class);
 
+    @SuppressWarnings("deprecation")
+    @Override
+    public boolean supportsSuperTypes() {
+        return false;
+    }
+
     @Override
     public Argument<HttpHeaders> argumentType() {
         return TYPE;

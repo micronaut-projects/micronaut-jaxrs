@@ -3,12 +3,8 @@ package io.micronaut.jaxrs.runtime;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.HttpStatus;
 import io.micronaut.http.client.exceptions.HttpClientResponseException;
-import io.micronaut.test.annotation.MicronautTest;
+import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.function.Executable;
-
-import javax.ws.rs.core.Response;
-
 import static org.junit.jupiter.api.Assertions.*;
 
 @MicronautTest
@@ -42,6 +38,7 @@ public class ResponseTest {
 
         assertEquals("john", notification.getName());
     }
+
 
     @Test
     void testGetResponseV2() {
