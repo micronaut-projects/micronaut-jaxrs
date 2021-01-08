@@ -43,6 +43,8 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
 
     public static final int POSITION = 200;
 
+    private ClassElement currentClassElement;
+
     @Override
     public int getOrder() {
         return POSITION; // higher priority to ensure mutations visible
@@ -54,12 +56,18 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             element.annotate(Controller.class, builder ->
                     element.stringValue(Path.class).ifPresent(builder::value)
             );
+        } else {
+            currentClassElement = element;
         }
     }
 
     @Override
     public void visitMethod(MethodElement element, VisitorContext context) {
         if (element.hasStereotype(HttpMethod.class)) {
+            if (currentClassElement != null) {
+                currentClassElement.annotate(Controller.class);
+                currentClassElement = null;
+            }
             final ParameterElement[] parameters = element.getParameters();
             for (ParameterElement parameter : parameters) {
                 final List<Class<? extends Annotation>> unsupported = getUnsupportedParameterAnnotations();

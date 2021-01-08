@@ -23,6 +23,41 @@ import javax.ws.rs.PUT
 class HttpMethodAnnotationSpec extends AbstractTypeElementSpec {
 
     @Unroll
+    void "test mapped annotation for client #source"() {
+        given:
+        def definition = buildBeanDefinition('test.Test$Intercepted', """
+package test;
+
+@io.micronaut.http.client.annotation.Client("/test")
+interface Test {
+
+    @${source.name}
+    @javax.ws.rs.Path("$path")
+    @javax.ws.rs.Produces("text/plain")
+    String test();
+}
+""")
+
+        def method = definition.getRequiredMethod("test")
+
+        expect:
+        method.hasAnnotation(target)
+        method.stringValue(HttpMethodMapping)
+                .get() == '/foo'
+        method.stringValue(Produces)
+                .get() == 'text/plain'
+
+        where:
+        source  | target  | path
+        GET     | Get     | "/foo"
+        POST    | Post    | "/foo"
+        PUT     | Put     | "/foo"
+        DELETE  | Delete  | "/foo"
+        HEAD    | Head    | "/foo"
+        OPTIONS | Options | "/foo"
+    }
+
+    @Unroll
     void "test mapped annotation for #source"() {
         given:
         def definition = buildBeanDefinition('test.Test', """

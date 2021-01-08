@@ -31,5 +31,6 @@ public interface HeaderClient {
     @GET
     @Path("/cache-control")
     @Produces("text/plain")
+    @Consumes("text/plain")
     HttpResponse<String> cacheControl(@HeaderParam(HttpHeaders.CACHE_CONTROL) CacheControl cacheControl);
 }

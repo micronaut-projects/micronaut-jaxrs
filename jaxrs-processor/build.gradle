@@ -7,4 +7,5 @@ dependencies {
 	if (!JavaVersion.current().isJava9Compatible()) {
 		testImplementation files(org.gradle.internal.jvm.Jvm.current().toolsJar)
 	}
+	testImplementation "io.micronaut:micronaut-http-client"
 }
