@@ -16,4 +16,9 @@ public interface InterfaceResource {
     @Consumes("text/plain")
     HttpResponse<String> ping(@PathParam("v") String value);
 
+    @GET
+    @Produces("text/plain")
+    @Consumes("text/plain")
+    HttpResponse<String> noPathPing();
+
 }

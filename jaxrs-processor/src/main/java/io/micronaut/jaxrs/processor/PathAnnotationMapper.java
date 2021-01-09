@@ -16,6 +16,8 @@
 package io.micronaut.jaxrs.processor;
 
 import io.micronaut.core.annotation.AnnotationValue;
+import io.micronaut.core.annotation.AnnotationValueBuilder;
+import io.micronaut.http.annotation.HttpMethodMapping;
 import io.micronaut.inject.annotation.NamedAnnotationMapper;
 import io.micronaut.inject.visitor.VisitorContext;
 
@@ -25,16 +27,13 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * This mapper is enabled just because we want to trigger bean definition writer
- * when only @javax.ws.rs.Path annotation is present on class.
- *
- * Actual mapping of JAX-RS {@code Path} annotation to Micronaut's version
- * is done in {@link JaxRsTypeElementVisitor}.
+ * Maps the JAX-RS {@code Path} annotation to Micronaut's version.
  *
  * @author graemerocher
  * @since 1.0.0
  */
 public class PathAnnotationMapper implements NamedAnnotationMapper {
+
     @Nonnull
     @Override
     public String getName() {
@@ -43,6 +42,8 @@ public class PathAnnotationMapper implements NamedAnnotationMapper {
 
     @Override
     public List<AnnotationValue<?>> map(AnnotationValue<Annotation> annotation, VisitorContext visitorContext) {
-        return Collections.emptyList();
+        final AnnotationValueBuilder<HttpMethodMapping> builder = AnnotationValue.builder(HttpMethodMapping.class);
+        annotation.stringValue().ifPresent(builder::value);
+        return Collections.singletonList(builder.build());
     }
 }

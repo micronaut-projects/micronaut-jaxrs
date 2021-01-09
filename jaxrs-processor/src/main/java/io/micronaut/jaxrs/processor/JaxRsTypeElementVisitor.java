@@ -17,9 +17,6 @@ package io.micronaut.jaxrs.processor;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.micronaut.http.annotation.Controller;
-import io.micronaut.http.annotation.HttpMethodMapping;
-import io.micronaut.http.annotation.UriMapping;
-import io.micronaut.inject.annotation.AnnotationMetadataHierarchy;
 import io.micronaut.inject.ast.ClassElement;
 import io.micronaut.inject.ast.MethodElement;
 import io.micronaut.inject.ast.ParameterElement;
@@ -87,30 +84,11 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
                         }
                     }
                 }
-
-            }
-
-            if (element.hasDeclaredAnnotation(Path.class) || hasAnnotationOnDeclaredMetadata(element, Path.class)) {
-                element.annotate(HttpMethodMapping.class, builder ->
-                        builder.value(element.stringValue(Path.class).orElse(UriMapping.DEFAULT_URI))
-                );
-            } else {
-                element.annotate(HttpMethodMapping.class, builder ->
-                        builder.value(UriMapping.DEFAULT_URI)
-                );
             }
         }
-
     }
 
     private List<Class<? extends Annotation>> getUnsupportedParameterAnnotations() {
         return Arrays.asList(MatrixParam.class, BeanParam.class);
-    }
-
-    private boolean hasAnnotationOnDeclaredMetadata(MethodElement element, Class<? extends Annotation> annotation) {
-        return (element.getAnnotationMetadata() instanceof AnnotationMetadataHierarchy &&
-                ((AnnotationMetadataHierarchy) element.getAnnotationMetadata())
-                        .getDeclaredMetadata()
-                        .hasAnnotation(annotation));
     }
 }

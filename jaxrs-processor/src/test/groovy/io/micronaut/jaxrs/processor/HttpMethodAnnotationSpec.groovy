@@ -11,7 +11,6 @@ import io.micronaut.http.annotation.Options
 import io.micronaut.http.annotation.Post
 import io.micronaut.http.annotation.Produces
 import io.micronaut.http.annotation.Put
-import io.micronaut.inject.BeanDefinition
 import spock.lang.Unroll
 
 import javax.ws.rs.DELETE
@@ -316,6 +315,9 @@ interface TestService {
     @javax.ws.rs.Produces("text/plain")
     @javax.ws.rs.Path("/foo")
     public String test();
+
+    @javax.ws.rs.GET
+    public String test2();
 }
 
 @javax.ws.rs.Path("/rest")
@@ -324,17 +326,70 @@ class Test implements TestService {
     public String test() {
         return "ok";
     }
+
+    @Override
+    public String test2() {
+        return "ok";
+    }
 }
 """)
-        def method = definition.getRequiredMethod("test")
+        def firstMethod = definition.getRequiredMethod("test")
+        def secondMethod = definition.getRequiredMethod("test2")
 
         expect:
         definition.stringValue(Controller.class)
                 .get() == "/rest"
-        method.hasAnnotation(Get)
-        method.stringValue(HttpMethodMapping)
+        firstMethod.hasAnnotation(Get)
+        firstMethod.stringValue(HttpMethodMapping)
                 .get() == '/foo'
-        method.stringValue(Produces)
+        firstMethod.stringValue(Produces)
                 .get() == 'text/plain'
+        secondMethod.hasAnnotation(Get)
+        secondMethod.stringValue(HttpMethodMapping)
+                .get() == '/'
+    }
+
+    void "test mapped annotation from interface for client"() {
+        given:
+            def definition = buildBeanDefinition('test.Test$Intercepted', """
+package test;
+
+interface TestService { 
+
+    @${source.name}
+    @javax.ws.rs.Path("/foo")
+    @javax.ws.rs.Produces("text/plain")
+    String test();
+    
+    @${source.name}
+    String test2();
+}
+
+@io.micronaut.http.client.annotation.Client("/test")
+interface Test extends TestService {
+}
+""")
+
+        def firstMethod = definition.getRequiredMethod("test")
+        def secondMethod = definition.getRequiredMethod("test2")
+
+        expect:
+        firstMethod.hasAnnotation(target)
+        firstMethod.stringValue(HttpMethodMapping)
+                .get() == '/foo'
+        firstMethod.stringValue(Produces)
+                .get() == 'text/plain'
+        secondMethod.hasAnnotation(target)
+        secondMethod.stringValue(HttpMethodMapping)
+                .get() == "/"
+
+        where:
+        source  | target  | path
+        GET     | Get     | "/foo"
+        POST    | Post    | "/foo"
+        PUT     | Put     | "/foo"
+        DELETE  | Delete  | "/foo"
+        HEAD    | Head    | "/foo"
+        OPTIONS | Options | "/foo"
     }
 }

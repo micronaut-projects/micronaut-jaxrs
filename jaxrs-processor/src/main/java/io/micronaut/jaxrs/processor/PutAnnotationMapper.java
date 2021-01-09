@@ -17,6 +17,7 @@ package io.micronaut.jaxrs.processor;
 
 import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.http.annotation.Put;
+import io.micronaut.http.annotation.UriMapping;
 import io.micronaut.inject.annotation.NamedAnnotationMapper;
 import io.micronaut.inject.visitor.VisitorContext;
 
@@ -41,7 +42,7 @@ public class PutAnnotationMapper implements NamedAnnotationMapper {
     @Override
     public List<AnnotationValue<?>> map(AnnotationValue<Annotation> annotation, VisitorContext visitorContext) {
         return Collections.singletonList(
-                AnnotationValue.builder(Put.class).build()
+                AnnotationValue.builder(Put.class).value(UriMapping.DEFAULT_URI).build()
         );
     }
 }

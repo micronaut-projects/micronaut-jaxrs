@@ -12,4 +12,9 @@ public class InterfaceResourceImpl implements InterfaceResource {
         return HttpResponse.ok(value);
     }
 
+    @Override
+    public HttpResponse<String> noPathPing() {
+        return HttpResponse.ok("noPath");
+    }
+
 }
