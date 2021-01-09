@@ -1,6 +1,7 @@
 package io.micronaut.jaxrs.processor
 
 import io.micronaut.annotation.processing.test.AbstractTypeElementSpec
+import io.micronaut.http.annotation.Controller
 import io.micronaut.http.annotation.CustomHttpMethod
 import io.micronaut.http.annotation.Delete
 import io.micronaut.http.annotation.Get
@@ -303,5 +304,37 @@ class Test implements TestService {
         DELETE  | Delete  | "/foo"
         HEAD    | Head    | "/foo"
         OPTIONS | Options | "/foo"
+    }
+
+    void "test bean definition is built when only @javax.ws.rs.Path is present on implementation class"() {
+        given:
+        def definition = buildBeanDefinition('test.Test', """
+package test;
+
+interface TestService {
+    @javax.ws.rs.GET
+    @javax.ws.rs.Produces("text/plain")
+    @javax.ws.rs.Path("/foo")
+    public String test();
+}
+
+@javax.ws.rs.Path("/rest")
+class Test implements TestService {
+    @Override
+    public String test() {
+        return "ok";
+    }
+}
+""")
+        def method = definition.getRequiredMethod("test")
+
+        expect:
+        definition.stringValue(Controller.class)
+                .get() == "/rest"
+        method.hasAnnotation(Get)
+        method.stringValue(HttpMethodMapping)
+                .get() == '/foo'
+        method.stringValue(Produces)
+                .get() == 'text/plain'
     }
 }

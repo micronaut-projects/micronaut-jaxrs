@@ -15,6 +15,7 @@
  */
 package io.micronaut.jaxrs.processor;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import io.micronaut.http.annotation.Controller;
 import io.micronaut.http.annotation.HttpMethodMapping;
 import io.micronaut.http.annotation.UriMapping;
@@ -49,6 +50,12 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     @Override
     public int getOrder() {
         return POSITION; // higher priority to ensure mutations visible
+    }
+
+    @NonNull
+    @Override
+    public VisitorKind getVisitorKind() {
+        return VisitorKind.ISOLATING;
     }
 
     @Override
