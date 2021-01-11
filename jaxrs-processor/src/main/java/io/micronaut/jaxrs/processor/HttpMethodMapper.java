@@ -81,7 +81,7 @@ public class HttpMethodMapper implements NamedAnnotationMapper {
             }
 
             return Collections.singletonList(
-                   builder.build()
+                   builder.value(UriMapping.DEFAULT_URI).build()
             );
         }
         return Collections.emptyList();

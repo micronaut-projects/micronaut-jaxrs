@@ -1,6 +1,7 @@
 package io.micronaut.jaxrs.processor
 
 import io.micronaut.annotation.processing.test.AbstractTypeElementSpec
+import io.micronaut.http.annotation.Controller
 import io.micronaut.http.annotation.CustomHttpMethod
 import io.micronaut.http.annotation.Delete
 import io.micronaut.http.annotation.Get
@@ -10,7 +11,6 @@ import io.micronaut.http.annotation.Options
 import io.micronaut.http.annotation.Post
 import io.micronaut.http.annotation.Produces
 import io.micronaut.http.annotation.Put
-import io.micronaut.inject.BeanDefinition
 import spock.lang.Unroll
 
 import javax.ws.rs.DELETE
@@ -294,6 +294,94 @@ class Test implements TestService {
                 .get() == '/foo'
         method.stringValue(Produces)
                 .get() == 'text/plain'
+
+        where:
+        source  | target  | path
+        GET     | Get     | "/foo"
+        POST    | Post    | "/foo"
+        PUT     | Put     | "/foo"
+        DELETE  | Delete  | "/foo"
+        HEAD    | Head    | "/foo"
+        OPTIONS | Options | "/foo"
+    }
+
+    void "test bean definition is built when only @javax.ws.rs.Path is present on implementation class"() {
+        given:
+        def definition = buildBeanDefinition('test.Test', """
+package test;
+
+interface TestService {
+    @javax.ws.rs.GET
+    @javax.ws.rs.Produces("text/plain")
+    @javax.ws.rs.Path("/foo")
+    public String test();
+
+    @javax.ws.rs.GET
+    public String test2();
+}
+
+@javax.ws.rs.Path("/rest")
+class Test implements TestService {
+    @Override
+    public String test() {
+        return "ok";
+    }
+
+    @Override
+    public String test2() {
+        return "ok";
+    }
+}
+""")
+        def firstMethod = definition.getRequiredMethod("test")
+        def secondMethod = definition.getRequiredMethod("test2")
+
+        expect:
+        definition.stringValue(Controller.class)
+                .get() == "/rest"
+        firstMethod.hasAnnotation(Get)
+        firstMethod.stringValue(HttpMethodMapping)
+                .get() == '/foo'
+        firstMethod.stringValue(Produces)
+                .get() == 'text/plain'
+        secondMethod.hasAnnotation(Get)
+        secondMethod.stringValue(HttpMethodMapping)
+                .get() == '/'
+    }
+
+    void "test mapped annotation from interface for client"() {
+        given:
+            def definition = buildBeanDefinition('test.Test$Intercepted', """
+package test;
+
+interface TestService { 
+
+    @${source.name}
+    @javax.ws.rs.Path("/foo")
+    @javax.ws.rs.Produces("text/plain")
+    String test();
+    
+    @${source.name}
+    String test2();
+}
+
+@io.micronaut.http.client.annotation.Client("/test")
+interface Test extends TestService {
+}
+""")
+
+        def firstMethod = definition.getRequiredMethod("test")
+        def secondMethod = definition.getRequiredMethod("test2")
+
+        expect:
+        firstMethod.hasAnnotation(target)
+        firstMethod.stringValue(HttpMethodMapping)
+                .get() == '/foo'
+        firstMethod.stringValue(Produces)
+                .get() == 'text/plain'
+        secondMethod.hasAnnotation(target)
+        secondMethod.stringValue(HttpMethodMapping)
+                .get() == "/"
 
         where:
         source  | target  | path
