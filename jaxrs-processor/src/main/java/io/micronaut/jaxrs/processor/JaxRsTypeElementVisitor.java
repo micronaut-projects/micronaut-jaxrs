@@ -15,6 +15,15 @@
  */
 package io.micronaut.jaxrs.processor;
 
+import java.lang.annotation.Annotation;
+import java.util.Arrays;
+import java.util.List;
+
+import javax.ws.rs.BeanParam;
+import javax.ws.rs.HttpMethod;
+import javax.ws.rs.MatrixParam;
+import javax.ws.rs.Path;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.micronaut.http.annotation.Controller;
 import io.micronaut.inject.ast.ClassElement;
@@ -22,14 +31,6 @@ import io.micronaut.inject.ast.MethodElement;
 import io.micronaut.inject.ast.ParameterElement;
 import io.micronaut.inject.visitor.TypeElementVisitor;
 import io.micronaut.inject.visitor.VisitorContext;
-
-import javax.ws.rs.BeanParam;
-import javax.ws.rs.HttpMethod;
-import javax.ws.rs.MatrixParam;
-import javax.ws.rs.Path;
-import java.lang.annotation.Annotation;
-import java.util.Arrays;
-import java.util.List;
 
 /**
  * A type element visitor that turns a JAX-RS path into a controller.
@@ -42,7 +43,6 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     public static final int POSITION = 200;
 
     private ClassElement currentClassElement;
-    private boolean typeWasAnnotated = false;
 
     @Override
     public int getOrder() {
@@ -59,29 +59,26 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     public void visitClass(ClassElement element, VisitorContext context) {
         currentClassElement = element;
         if (element.hasAnnotation(Path.class) && !element.isAbstract()) {
-            typeWasAnnotated = true;
             element.annotate(Controller.class, builder ->
                     element.stringValue(Path.class).ifPresent(builder::value)
             );
-        } else {
-            typeWasAnnotated = false;
         }
     }
 
     @Override
     public void visitMethod(MethodElement element, VisitorContext context) {
-        if ((currentClassElement != null && !currentClassElement.hasAnnotation(Controller.class)) || typeWasAnnotated) {
-            if (element.hasStereotype(HttpMethod.class)) {
-                if (!typeWasAnnotated && !currentClassElement.isAbstract()) {
+        if (element.hasStereotype(HttpMethod.class)) {
+            if (currentClassElement != null && !currentClassElement.hasAnnotation(Controller.class)) {
+                if (!currentClassElement.isAbstract()) {
                     currentClassElement.annotate(Controller.class);
                 }
-                final ParameterElement[] parameters = element.getParameters();
-                for (ParameterElement parameter : parameters) {
-                    final List<Class<? extends Annotation>> unsupported = getUnsupportedParameterAnnotations();
-                    for (Class<? extends Annotation> annType : unsupported) {
-                        if (parameter.hasAnnotation(annType)) {
-                            context.fail("Unsupported JAX-RS annotation used on method: " + annType.getName(), parameter);
-                        }
+            }
+            final ParameterElement[] parameters = element.getParameters();
+            for (ParameterElement parameter : parameters) {
+                final List<Class<? extends Annotation>> unsupported = getUnsupportedParameterAnnotations();
+                for (Class<? extends Annotation> annType : unsupported) {
+                    if (parameter.hasAnnotation(annType)) {
+                        context.fail("Unsupported JAX-RS annotation used on method: " + annType.getName(), parameter);
                     }
                 }
             }
@@ -91,4 +88,5 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     private List<Class<? extends Annotation>> getUnsupportedParameterAnnotations() {
         return Arrays.asList(MatrixParam.class, BeanParam.class);
     }
+
 }

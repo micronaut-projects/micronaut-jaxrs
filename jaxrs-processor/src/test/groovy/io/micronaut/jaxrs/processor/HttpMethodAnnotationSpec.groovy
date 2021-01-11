@@ -157,6 +157,33 @@ class Test {
 
     }
 
+    void "test mapping no path specified with @Controller"() {
+        given:
+        def definition = buildBeanDefinition('test.Test', """
+package test;
+
+@io.micronaut.http.annotation.Controller("/test")
+class Test {
+
+    @javax.ws.rs.GET
+    @javax.ws.rs.Produces("text/plain")
+    String test() {
+        return "ok";
+    }
+}
+""")
+
+        def method = definition.getRequiredMethod("test")
+
+        expect:
+        method.hasAnnotation(Get)
+        method.stringValue(HttpMethodMapping)
+                .get() == '/'
+        method.stringValue(Produces)
+                .get() == 'text/plain'
+
+    }
+
 
     void "test mapping with validation"() {
         given:

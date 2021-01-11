@@ -27,11 +27,9 @@ class InterfaceSpec extends Specification {
         then:
         response.status() == HttpStatus.OK
         response.body() == "hello"
-    }
 
-    void 'test JAX-RS controller works with interface and with no @Path on method'() {
         when:
-        def response = rootClient.toBlocking().exchange("/api/interface/test", String.class)
+        response = rootClient.toBlocking().exchange("/api/interface/test", String.class)
 
         then:
         response.status() == HttpStatus.OK
@@ -45,11 +43,9 @@ class InterfaceSpec extends Specification {
         then:
         response.status() == HttpStatus.OK
         response.body() == "hello"
-    }
 
-    void 'test JAX-RS client works with interface and with no @Path on method'() {
         when:
-        def response = interfaceClient.noPathPing()
+        response = interfaceClient.noPathPing()
 
         then:
         response.status() == HttpStatus.OK
