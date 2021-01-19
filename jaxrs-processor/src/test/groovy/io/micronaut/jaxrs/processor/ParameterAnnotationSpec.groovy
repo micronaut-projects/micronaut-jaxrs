@@ -94,6 +94,30 @@ class Test {
         BeanParam   | null
     }
 
+    @Unroll
+    void "test unsupported parameter annotation #source with @Controller"() {
+        when:
+        buildBeanDefinition('test.Test', """
+package test;
+
+@io.micronaut.http.annotation.Controller("/test")
+class Test {
+
+    @javax.ws.rs.GET
+    void test(@$source.name(${value ? "\"$value\"" : ""}) String test) {}
+}
+""")
+
+        then:
+        def e = thrown(RuntimeException)
+        e.message.contains("Unsupported JAX-RS annotation used on method: $source.name")
+
+        where:
+        source      | value
+        MatrixParam | "test"
+        BeanParam   | null
+    }
+
     void "test javax.ws.rs.PathParam value"() {
         when:
         def definition =  buildBeanDefinition('test.Test', """
@@ -133,7 +157,7 @@ class Test {
 
 
         then:
-        metadata.stringValue(Bindable, "value").get() == 'user_id'
+        metadata.stringValue(PathVariable, "value").get() == 'user_id'
         metadata.stringValue(Bindable, "defaultValue").get() == 'foo'
     }
 
