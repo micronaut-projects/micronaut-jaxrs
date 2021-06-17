@@ -26,6 +26,7 @@ import javax.ws.rs.Path;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.micronaut.http.annotation.Controller;
+import io.micronaut.http.annotation.UriMapping;
 import io.micronaut.inject.ast.ClassElement;
 import io.micronaut.inject.ast.MethodElement;
 import io.micronaut.inject.ast.ParameterElement;
@@ -59,9 +60,10 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     public void visitClass(ClassElement element, VisitorContext context) {
         currentClassElement = element;
         if (element.hasAnnotation(Path.class) && !element.isAbstract()) {
-            element.annotate(Controller.class, builder ->
-                    element.stringValue(Path.class).ifPresent(builder::value)
-            );
+            element.stringValue(Path.class).ifPresent(p -> {
+                element.annotate(Controller.class, builder -> builder.value(p));
+                element.annotate(UriMapping.class, builder -> builder.value(p));
+            });
         }
     }
 
