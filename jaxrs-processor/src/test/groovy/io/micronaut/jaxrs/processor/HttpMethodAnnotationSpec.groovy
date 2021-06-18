@@ -11,6 +11,7 @@ import io.micronaut.http.annotation.Options
 import io.micronaut.http.annotation.Post
 import io.micronaut.http.annotation.Produces
 import io.micronaut.http.annotation.Put
+import io.micronaut.http.annotation.UriMapping
 import spock.lang.Unroll
 
 import javax.ws.rs.DELETE
@@ -374,6 +375,29 @@ class Test implements TestService {
         secondMethod.hasAnnotation(Get)
         secondMethod.stringValue(HttpMethodMapping)
                 .get() == '/'
+    }
+
+    void "test mapping path specified with @Path"() {
+        given:
+            def definition = buildBeanDefinition('test.Test', '''
+package test;
+
+@javax.ws.rs.Path("/base-path")
+public class Test {
+
+    @javax.ws.rs.GET
+    @javax.ws.rs.Path("/method-path")
+    public String get() {
+        return "ok";
+    }
+}                
+''')
+        expect:
+            definition.stringValue(Controller).get() == '/base-path'
+            definition.stringValue(UriMapping).get() == '/base-path'
+        and:
+            def method = definition.getRequiredMethod('get')
+            method.stringValue(HttpMethodMapping).get() == '/method-path'
     }
 
     void "test mapped annotation from interface for client"() {
