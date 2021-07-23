@@ -44,12 +44,6 @@ public class CookieRequestArgumentBinder implements TypedRequestArgumentBinder<C
         return TYPE;
     }
 
-    @SuppressWarnings("deprecation")
-    @Override
-    public boolean supportsSuperTypes() {
-        return false;
-    }
-
     @Override
     public BindingResult<Cookie> bind(ArgumentConversionContext<Cookie> context, HttpRequest<?> source) {
         final io.micronaut.http.cookie.Cookie cookie = source.getCookies()
