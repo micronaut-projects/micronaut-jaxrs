@@ -21,7 +21,7 @@ import io.micronaut.http.annotation.Consumes;
 import io.micronaut.inject.annotation.NamedAnnotationMapper;
 import io.micronaut.inject.visitor.VisitorContext;
 
-import javax.annotation.Nonnull;
+import io.micronaut.core.annotation.NonNull;
 import java.lang.annotation.Annotation;
 import java.util.Collections;
 import java.util.List;
@@ -36,7 +36,7 @@ public class ConsumesMapper implements NamedAnnotationMapper {
 
     private static final String[] JAX_RS_DEFAULT_VALUE = new String[] { "*/*" };
 
-    @Nonnull
+    @NonNull
     @Override
     public String getName() {
         return "javax.ws.rs.Consumes";

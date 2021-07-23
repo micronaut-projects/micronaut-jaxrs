@@ -22,7 +22,7 @@ import io.micronaut.http.annotation.*;
 import io.micronaut.inject.annotation.NamedAnnotationMapper;
 import io.micronaut.inject.visitor.VisitorContext;
 
-import javax.annotation.Nonnull;
+import io.micronaut.core.annotation.NonNull;
 import java.lang.annotation.Annotation;
 import java.util.Collections;
 import java.util.List;
@@ -35,7 +35,7 @@ import java.util.Locale;
  * @since 1.0
  */
 public class HttpMethodMapper implements NamedAnnotationMapper {
-    @Nonnull
+    @NonNull
     @Override
     public String getName() {
         return "javax.ws.rs.HttpMethod";

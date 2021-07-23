@@ -21,7 +21,7 @@ import io.micronaut.http.annotation.UriMapping;
 import io.micronaut.inject.annotation.NamedAnnotationMapper;
 import io.micronaut.inject.visitor.VisitorContext;
 
-import javax.annotation.Nonnull;
+import io.micronaut.core.annotation.NonNull;
 import javax.inject.Singleton;
 import java.lang.annotation.Annotation;
 import java.util.Arrays;
@@ -34,7 +34,7 @@ import java.util.List;
  * @since 1.0.0
  */
 public class ApplicationPathAnnotationMapper implements NamedAnnotationMapper {
-    @Nonnull
+    @NonNull
     @Override
     public String getName() {
         return "javax.ws.rs.ApplicationPath";

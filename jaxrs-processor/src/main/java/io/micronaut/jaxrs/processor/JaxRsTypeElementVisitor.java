@@ -24,7 +24,7 @@ import javax.ws.rs.HttpMethod;
 import javax.ws.rs.MatrixParam;
 import javax.ws.rs.Path;
 
-import edu.umd.cs.findbugs.annotations.NonNull;
+import io.micronaut.core.annotation.NonNull;
 import io.micronaut.http.annotation.Controller;
 import io.micronaut.http.annotation.UriMapping;
 import io.micronaut.inject.ast.ClassElement;

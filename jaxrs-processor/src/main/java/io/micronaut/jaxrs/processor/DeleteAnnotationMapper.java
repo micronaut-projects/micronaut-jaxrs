@@ -21,7 +21,7 @@ import io.micronaut.http.annotation.UriMapping;
 import io.micronaut.inject.annotation.NamedAnnotationMapper;
 import io.micronaut.inject.visitor.VisitorContext;
 
-import javax.annotation.Nonnull;
+import io.micronaut.core.annotation.NonNull;
 import java.lang.annotation.Annotation;
 import java.util.Collections;
 import java.util.List;
@@ -34,7 +34,7 @@ import java.util.List;
  */
 public class DeleteAnnotationMapper implements NamedAnnotationMapper {
 
-    @Nonnull
+    @NonNull
     @Override
     public String getName() {
         return "javax.ws.rs.DELETE";

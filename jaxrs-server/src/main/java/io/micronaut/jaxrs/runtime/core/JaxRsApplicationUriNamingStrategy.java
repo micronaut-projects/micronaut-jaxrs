@@ -23,8 +23,7 @@ import io.micronaut.core.naming.conventions.PropertyConvention;
 import io.micronaut.inject.BeanDefinition;
 import io.micronaut.web.router.RouteBuilder;
 import io.micronaut.web.router.naming.HyphenatedUriNamingStrategy;
-
-import javax.annotation.Nonnull;
+import io.micronaut.core.annotation.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import javax.ws.rs.ApplicationPath;
@@ -66,17 +65,17 @@ public class JaxRsApplicationUriNamingStrategy extends HyphenatedUriNamingStrate
     }
 
     @Override
-    public @Nonnull String resolveUri(BeanDefinition<?> beanDefinition) {
+    public @NonNull String resolveUri(BeanDefinition<?> beanDefinition) {
         return contextPath + super.resolveUri(beanDefinition);
     }
 
     @Override
-    public @Nonnull String resolveUri(String property) {
+    public @NonNull String resolveUri(String property) {
         return contextPath + super.resolveUri(property);
     }
 
     @Override
-    public @Nonnull String resolveUri(Class type, PropertyConvention id) {
+    public @NonNull String resolveUri(Class type, PropertyConvention id) {
         return contextPath + super.resolveUri(type, id);
     }
 
