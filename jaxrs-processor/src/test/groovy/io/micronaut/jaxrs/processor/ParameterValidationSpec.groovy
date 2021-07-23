@@ -1,11 +1,9 @@
 package io.micronaut.jaxrs.processor
 
 import io.micronaut.annotation.processing.test.AbstractTypeElementSpec
-import spock.lang.PendingFeature
 
 class ParameterValidationSpec extends AbstractTypeElementSpec {
 
-    @PendingFeature
     void "test javax.ws.rs.PathParam path compile-time validation fails"() {
         when:
         buildBeanDefinition('test.Test', """
