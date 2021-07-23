@@ -19,7 +19,7 @@ import java.lang.annotation.Annotation;
 import java.util.Collections;
 import java.util.List;
 
-import javax.annotation.Nonnull;
+import io.micronaut.core.annotation.NonNull;
 
 import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.AnnotationValueBuilder;
@@ -35,7 +35,7 @@ import io.micronaut.inject.visitor.VisitorContext;
  */
 public class PathParamMapper implements NamedAnnotationMapper {
 
-    @Nonnull
+    @NonNull
     @Override
     public String getName() {
         return "javax.ws.rs.PathParam";
