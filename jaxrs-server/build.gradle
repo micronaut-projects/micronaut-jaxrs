@@ -2,7 +2,7 @@ dependencies {
 	annotationProcessor "io.micronaut:micronaut-inject-java"
 	annotationProcessor "io.micronaut:micronaut-graal"
 	api "io.micronaut:micronaut-http"
-	api 'org.jboss.resteasy:jaxrs-api:3.0.12.Final'
+	api "org.jboss.resteasy:jaxrs-api:$jaxrsApiVersion"
 
 	implementation "io.micronaut:micronaut-router"
 

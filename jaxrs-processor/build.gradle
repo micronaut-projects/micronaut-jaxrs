@@ -1,6 +1,6 @@
 dependencies {
 	implementation "io.micronaut:micronaut-http"
-	implementation 'org.jboss.resteasy:jaxrs-api:3.0.12.Final'
+	implementation "org.jboss.resteasy:jaxrs-api:$jaxrsApiVersion"
 
 	testImplementation "io.micronaut:micronaut-inject-java-test"
 	testAnnotationProcessor "io.micronaut:micronaut-validation"
