@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 import example.domain.Owner;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpRequest;
-import io.micronaut.http.client.RxHttpClient;
+import io.micronaut.http.client.HttpClient;
 import io.micronaut.http.client.annotation.Client;
 import io.micronaut.test.annotation.MicronautTest;
 
@@ -19,12 +19,12 @@ class OwnerControllerTest {
 
     @Inject
     @Client("/owners")
-    RxHttpClient client;
+    HttpClient client;
 
     @Test
     void testListInitialOwners() {
 
-        List<Owner> results = client.retrieve(HttpRequest.GET("/"), Argument.listOf(Owner.class)).blockingFirst();
+        List<Owner> results = client.toBlocking().retrieve(HttpRequest.GET("/"), Argument.listOf(Owner.class));
 
         Assertions.assertEquals(
                 2,
