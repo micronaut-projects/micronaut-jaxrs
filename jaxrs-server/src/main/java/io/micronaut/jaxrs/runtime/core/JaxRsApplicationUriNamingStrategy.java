@@ -24,8 +24,8 @@ import io.micronaut.inject.BeanDefinition;
 import io.micronaut.web.router.RouteBuilder;
 import io.micronaut.web.router.naming.HyphenatedUriNamingStrategy;
 import io.micronaut.core.annotation.NonNull;
-import javax.inject.Inject;
-import javax.inject.Singleton;
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 import javax.ws.rs.ApplicationPath;
 import javax.ws.rs.core.Application;
 

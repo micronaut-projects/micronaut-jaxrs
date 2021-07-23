@@ -23,7 +23,7 @@ import io.micronaut.http.annotation.CookieValue;
 import io.micronaut.http.bind.binders.AnnotatedRequestArgumentBinder;
 import io.micronaut.http.bind.binders.TypedRequestArgumentBinder;
 
-import javax.inject.Singleton;
+import jakarta.inject.Singleton;
 import javax.ws.rs.core.Cookie;
 import java.util.Optional;
 

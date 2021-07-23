@@ -21,7 +21,7 @@ import io.micronaut.http.HttpRequest;
 import io.micronaut.http.bind.binders.AnnotatedRequestArgumentBinder;
 import io.micronaut.jaxrs.runtime.annotation.ContextBindable;
 
-import javax.inject.Singleton;
+import jakarta.inject.Singleton;
 
 /**
  * Handles the JAX-RS {@code Context} annotation binding.
