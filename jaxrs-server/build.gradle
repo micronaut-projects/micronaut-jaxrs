@@ -1,10 +1,10 @@
 dependencies {
 	annotationProcessor "io.micronaut:micronaut-inject-java"
 	annotationProcessor "io.micronaut:micronaut-graal"
-	api "io.micronaut:micronaut-http:$micronautVersion"
+	api "io.micronaut:micronaut-http"
 	api 'org.jboss.resteasy:jaxrs-api:3.0.12.Final'
 
-	implementation "io.micronaut:micronaut-router:$micronautVersion"
+	implementation "io.micronaut:micronaut-router"
 
 	// for Java
 	testAnnotationProcessor "io.micronaut:micronaut-inject-java"
