@@ -2,7 +2,7 @@ package io.micronaut.jaxrs.runtime.core
 
 
 import io.micronaut.http.HttpStatus
-import io.micronaut.http.client.RxHttpClient
+import io.micronaut.http.client.HttpClient
 import io.micronaut.http.client.annotation.Client
 import io.micronaut.jaxrs.runtime.InterfaceResourceClient
 import io.micronaut.test.extensions.spock.annotation.MicronautTest
@@ -15,7 +15,7 @@ class InterfaceSpec extends Specification {
 
     @Inject
     @Client("/")
-    RxHttpClient rootClient
+    HttpClient rootClient
 
     @Inject
     InterfaceResourceClient interfaceClient
