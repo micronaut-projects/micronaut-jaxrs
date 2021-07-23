@@ -19,7 +19,7 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.convert.TypeConverterRegistrar;
 
-import javax.inject.Singleton;
+import jakarta.inject.Singleton;
 import javax.ws.rs.core.*;
 
 /**
