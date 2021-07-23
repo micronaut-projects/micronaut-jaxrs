@@ -4,7 +4,7 @@ import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.MutableHttpRequest;
-import io.micronaut.http.client.RxHttpClient;
+import io.micronaut.http.client.HttpClient;
 import io.micronaut.http.client.annotation.Client;
 import io.micronaut.jaxrs.runtime.ext.bind.JaxRsHttpHeaders;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
@@ -25,14 +25,14 @@ class HeadersTest {
     @Inject HeaderClient headerClient;
 
     @Inject @Client("/api")
-    RxHttpClient httpClient;
+    HttpClient httpClient;
 
     @Inject @Client("/")
-    RxHttpClient rootClient;
+    HttpClient rootClient;
 
     @Test
     void testMicronautResponse() {
-        String result = rootClient.retrieve("/api/micronaut/test").blockingFirst();
+        String result = rootClient.toBlocking().retrieve("/api/micronaut/test");
         assertEquals(
                 "ok",
                 result
