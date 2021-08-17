@@ -47,6 +47,13 @@ public class JaxRsResponseFilter implements HttpServerFilter {
             final Object body = mutableHttpResponse.getBody().orElse(null);
             if (body instanceof JaxRsResponse) {
                 final MutableHttpResponse<Object> jaxRsResponse = ((JaxRsResponse) body).getResponse();
+                mutableHttpResponse.getAttributes().forEach(jaxRsResponse::setAttribute);
+                mutableHttpResponse.getHeaders().forEach((name, value) -> {
+                    for (String val: value) {
+                        jaxRsResponse.header(name, val);
+                    }
+                });
+
                 final Object b = jaxRsResponse.body();
                 if (b instanceof StreamingOutput) {
                     StreamingOutput s = (StreamingOutput) b;
