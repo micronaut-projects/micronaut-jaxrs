@@ -15,6 +15,8 @@
  */
 package io.micronaut.jaxrs.runtime.ext.bind;
 
+import javax.ws.rs.core.Context;
+
 import io.micronaut.context.BeanContext;
 import io.micronaut.context.Qualifier;
 import io.micronaut.core.convert.ArgumentConversionContext;
@@ -22,7 +24,6 @@ import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.bind.binders.AnnotatedRequestArgumentBinder;
 import io.micronaut.inject.qualifiers.Qualifiers;
-import io.micronaut.jaxrs.runtime.annotation.ContextBindable;
 
 import jakarta.inject.Singleton;
 
@@ -34,7 +35,7 @@ import jakarta.inject.Singleton;
  * @since 1.0
  */
 @Singleton
-public class ContextAnnotationBinder<T> implements AnnotatedRequestArgumentBinder<ContextBindable, T> {
+public class ContextAnnotationBinder<T> implements AnnotatedRequestArgumentBinder<Context, T> {
 
     private final BeanContext beanContext;
 
@@ -47,8 +48,8 @@ public class ContextAnnotationBinder<T> implements AnnotatedRequestArgumentBinde
     }
 
     @Override
-    public Class<ContextBindable> getAnnotationType() {
-        return ContextBindable.class;
+    public Class<Context> getAnnotationType() {
+        return Context.class;
     }
 
     @Override
