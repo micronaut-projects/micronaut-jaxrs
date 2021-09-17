@@ -73,6 +73,6 @@ public class ContextAnnotationBinder<T> implements AnnotatedRequestArgumentBinde
             //noinspection unchecked
             return (BindingResult<T>) securityBinder.bind((ArgumentConversionContext<SecurityContext>) context, source);
         }
-        return () -> beanContext.findBean(argument);
+        return () -> beanContext.findBean(argument.getType());
     }
 }
