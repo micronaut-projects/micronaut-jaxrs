@@ -1,5 +1,6 @@
 io.micronaut.jaxrs.processor.PathAnnotationMapper
 io.micronaut.jaxrs.processor.GetAnnotationMapper
+io.micronaut.jaxrs.processor.ContextAnnotationMapper
 io.micronaut.jaxrs.processor.PostAnnotationMapper
 io.micronaut.jaxrs.processor.PutAnnotationMapper
 io.micronaut.jaxrs.processor.HeadAnnotationMapper
