@@ -15,18 +15,17 @@
  */
 package io.micronaut.jaxrs.runtime.ext.bind;
 
-import javax.ws.rs.core.Context;
-import javax.ws.rs.core.SecurityContext;
-
 import io.micronaut.context.BeanContext;
-import io.micronaut.context.Qualifier;
 import io.micronaut.core.convert.ArgumentConversionContext;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.bind.binders.AnnotatedRequestArgumentBinder;
-import io.micronaut.inject.qualifiers.Qualifiers;
+import io.micronaut.jaxrs.runtime.annotation.ContextBindable;
 
+import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
+
+import javax.ws.rs.core.SecurityContext;
 
 /**
  * Handles the JAX-RS {@code Context} annotation binding.
@@ -36,7 +35,7 @@ import jakarta.inject.Singleton;
  * @since 1.0
  */
 @Singleton
-public class ContextAnnotationBinder<T> implements AnnotatedRequestArgumentBinder<Context, T> {
+public class ContextAnnotationBinder<T> implements AnnotatedRequestArgumentBinder<ContextBindable, T> {
 
     private final BeanContext beanContext;
     private final SimpleSecurityContextBinder securityBinder;
@@ -44,18 +43,23 @@ public class ContextAnnotationBinder<T> implements AnnotatedRequestArgumentBinde
     /**
      * Default constructor.
      * @param beanContext The bean context
-     * @param simpleSecurityContextBinder The security context binder
+     * @deprecated Use
      */
-    protected ContextAnnotationBinder(
-            BeanContext beanContext,
-            SimpleSecurityContextBinder simpleSecurityContextBinder) {
+    @Deprecated
+    protected ContextAnnotationBinder(BeanContext beanContext) {
+        this(beanContext, new SimpleSecurityContextBinder());
+    }
+
+    @Inject
+    protected ContextAnnotationBinder(BeanContext beanContext,
+                                      SimpleSecurityContextBinder simpleSecurityContextBinder) {
         this.beanContext = beanContext;
         this.securityBinder = simpleSecurityContextBinder;
     }
 
     @Override
-    public Class<Context> getAnnotationType() {
-        return Context.class;
+    public Class<ContextBindable> getAnnotationType() {
+        return ContextBindable.class;
     }
 
     @Override
@@ -64,9 +68,7 @@ public class ContextAnnotationBinder<T> implements AnnotatedRequestArgumentBinde
         if (argument.getType() == SecurityContext.class) {
             //noinspection unchecked
             return (BindingResult<T>) securityBinder.bind((ArgumentConversionContext<SecurityContext>) context, source);
-        } else {
-            Qualifier<T> qualifier = Qualifiers.forArgument(argument);
-            return () -> beanContext.findBean(argument, qualifier);
         }
+        return () -> beanContext.findBean(argument.getType());
     }
 }
