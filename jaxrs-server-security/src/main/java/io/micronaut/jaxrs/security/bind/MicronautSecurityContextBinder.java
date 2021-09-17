@@ -29,7 +29,7 @@ import java.util.Optional;
  *
  *
  * @author graemerocher
- * @since 3.0.1
+ * @since 3.1.0
  */
 @Singleton 
 @Replaces(SimpleSecurityContextBinder.class)

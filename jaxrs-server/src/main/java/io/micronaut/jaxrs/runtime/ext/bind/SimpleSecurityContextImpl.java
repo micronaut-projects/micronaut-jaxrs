@@ -28,7 +28,7 @@ import javax.ws.rs.core.SecurityContext;
  * Implementation of the JAX-RS {@code SecurityContext} interface.
  * 
  * @author graemerocher
- * @since 3.0.1
+ * @since 3.1.0
  */
 public class SimpleSecurityContextImpl implements SecurityContext {
 
