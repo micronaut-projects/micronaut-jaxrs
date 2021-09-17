@@ -1,0 +1,16 @@
+dependencies {
+	annotationProcessor "io.micronaut:micronaut-inject-java"
+	annotationProcessor "io.micronaut:micronaut-graal"
+
+	implementation project(":jaxrs-server")
+    implementation "io.micronaut.security:micronaut-security"
+	testAnnotationProcessor "io.micronaut:micronaut-validation"
+	testAnnotationProcessor "io.micronaut:micronaut-inject-java"
+	testAnnotationProcessor project(":jaxrs-processor")
+	testAnnotationProcessor "io.micronaut.security:micronaut-security-annotations"
+	testImplementation "io.micronaut:micronaut-validation"
+	testImplementation "io.micronaut:micronaut-http-client"
+	testImplementation "io.micronaut:micronaut-http-server-netty"
+	testImplementation "io.micronaut.test:micronaut-test-junit5:$micronautTestVersion"        
+	testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine")
+}

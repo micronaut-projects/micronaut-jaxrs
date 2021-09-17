@@ -90,10 +90,21 @@ In addition to the supported JAX-RS annotations you can use the following JAX-RS
 * link:{jaxrsapi}/javax/ws/rs/core/EntityTag.html[javax.ws.rs.core.EntityTag]
 * link:{jaxrsapi}/javax/ws/rs/core/Link.html[javax.ws.rs.core.Link]
 * link:{jaxrsapi}/javax/ws/rs/core/MediaType.html[javax.ws.rs.core.MediaType]
+* link:{jaxrsapi}/javax/ws/rs/core/SecurityContext.html[javax.ws.rs.core.SecurityContext]
 
 You can also use the link:{jaxrsapi}/javax/ws/rs/core/Context.html[@Context] annotation to inject any bean into a resource type's method parameter.
 
 NOTE: Parameter binding to constructor argument of resource types is not supported at this time.
+
+==== SecurityContext and Micronaut Security
+
+When injecting the link:{jaxrsapi}/javax/ws/rs/core/SecurityContext.html[SecurityContext] by default the injected instance is not aware of https://micronaut-projects.github.io/micronaut-security/latest/guide/[Micronaut Security] and methods like `isUserInRole` always return `false`.
+
+To integrate the JAX-RS support with Micronaut Security add the following dependency:
+
+dependency:micronaut-jaxrs-server-security[scope="implementation", version="{version}", groupId="io.micronaut.jaxrs"]
+
+With the above dependency in place the `SecurityContext.isUserInRole` method will return `true` if the role is found within Micronaut Security's https://micronaut-projects.github.io/micronaut-security/latest/api/io/micronaut/security/authentication/Authentication.html#getRoles--[Authentication.getRoles()] method. See https://micronaut-projects.github.io/micronaut-security/latest/guide/#retrievingAuthenticatedUser[Retrieving the authenticated user] for more information.
 
 ==== Supported Return Types
 

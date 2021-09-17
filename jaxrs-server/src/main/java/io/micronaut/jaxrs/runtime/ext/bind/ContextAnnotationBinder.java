@@ -17,11 +17,15 @@ package io.micronaut.jaxrs.runtime.ext.bind;
 
 import io.micronaut.context.BeanContext;
 import io.micronaut.core.convert.ArgumentConversionContext;
+import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.bind.binders.AnnotatedRequestArgumentBinder;
 import io.micronaut.jaxrs.runtime.annotation.ContextBindable;
 
+import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
+
+import javax.ws.rs.core.SecurityContext;
 
 /**
  * Handles the JAX-RS {@code Context} annotation binding.
@@ -34,13 +38,23 @@ import jakarta.inject.Singleton;
 public class ContextAnnotationBinder<T> implements AnnotatedRequestArgumentBinder<ContextBindable, T> {
 
     private final BeanContext beanContext;
+    private final SimpleSecurityContextBinder securityBinder;
 
     /**
      * Default constructor.
      * @param beanContext The bean context
+     * @deprecated Use {@link ContextAnnotationBinder#ContextAnnotationBinder(BeanContext, SimpleSecurityContextBinder)} instead.
      */
+    @Deprecated
     protected ContextAnnotationBinder(BeanContext beanContext) {
+        this(beanContext, new SimpleSecurityContextBinder());
+    }
+
+    @Inject
+    protected ContextAnnotationBinder(BeanContext beanContext,
+                                      SimpleSecurityContextBinder simpleSecurityContextBinder) {
         this.beanContext = beanContext;
+        this.securityBinder = simpleSecurityContextBinder;
     }
 
     @Override
@@ -50,6 +64,11 @@ public class ContextAnnotationBinder<T> implements AnnotatedRequestArgumentBinde
 
     @Override
     public BindingResult<T> bind(ArgumentConversionContext<T> context, HttpRequest<?> source) {
-        return () -> beanContext.findBean(context.getArgument().getType());
+        Argument<T> argument = context.getArgument();
+        if (argument.getType() == SecurityContext.class) {
+            //noinspection unchecked
+            return (BindingResult<T>) securityBinder.bind((ArgumentConversionContext<SecurityContext>) context, source);
+        }
+        return () -> beanContext.findBean(argument.getType());
     }
 }

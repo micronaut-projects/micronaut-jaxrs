@@ -2,3 +2,4 @@ rootProject.name = 'jaxrs'
 
 include 'jaxrs-processor'
 include 'jaxrs-server'
+include 'jaxrs-server-security'
