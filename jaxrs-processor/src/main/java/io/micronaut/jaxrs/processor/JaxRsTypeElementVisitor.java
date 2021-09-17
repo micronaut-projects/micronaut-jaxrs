@@ -17,7 +17,9 @@ package io.micronaut.jaxrs.processor;
 
 import java.lang.annotation.Annotation;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import javax.ws.rs.BeanParam;
 import javax.ws.rs.HttpMethod;
@@ -54,6 +56,11 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     @Override
     public VisitorKind getVisitorKind() {
         return VisitorKind.ISOLATING;
+    }
+
+    @Override
+    public Set<String> getSupportedAnnotationNames() {
+        return Collections.singleton("javax.ws.rs.*");
     }
 
     @Override
