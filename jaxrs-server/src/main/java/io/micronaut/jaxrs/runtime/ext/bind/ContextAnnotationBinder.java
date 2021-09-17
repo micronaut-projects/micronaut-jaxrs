@@ -43,7 +43,7 @@ public class ContextAnnotationBinder<T> implements AnnotatedRequestArgumentBinde
     /**
      * Default constructor.
      * @param beanContext The bean context
-     * @deprecated Use
+     * @deprecated Use {@link ContextAnnotationBinder#ContextAnnotationBinder(BeanContext, SimpleSecurityContextBinder)} instead.
      */
     @Deprecated
     protected ContextAnnotationBinder(BeanContext beanContext) {
