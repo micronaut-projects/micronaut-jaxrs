@@ -28,7 +28,7 @@ import javax.ws.rs.core.SecurityContext;
  * support for roles.
  *
  * @author graemerocher
- * @since 3.0.1
+ * @since 3.1.0
  */
 @Singleton
 public class SimpleSecurityContextBinder implements TypedRequestArgumentBinder<SecurityContext> {
