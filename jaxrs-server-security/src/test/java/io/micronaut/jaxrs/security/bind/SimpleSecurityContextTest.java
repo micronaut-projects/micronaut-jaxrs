@@ -1,19 +1,15 @@
 package io.micronaut.jaxrs.security.bind;
 
-import io.micronaut.context.annotation.Bean;
 import io.micronaut.core.async.publisher.Publishers;
 import io.micronaut.core.type.Argument;
 import io.micronaut.core.util.CollectionUtils;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.MutableHttpRequest;
-import io.micronaut.http.annotation.Controller;
-import io.micronaut.http.annotation.Get;
 import io.micronaut.http.client.HttpClient;
 import io.micronaut.http.client.annotation.Client;
 import io.micronaut.security.authentication.AuthenticationProvider;
 import io.micronaut.security.authentication.AuthenticationRequest;
 import io.micronaut.security.authentication.AuthenticationResponse;
-import io.micronaut.test.annotation.MockBean;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import io.micronaut.test.support.TestPropertyProvider;
 import jakarta.inject.Singleton;
