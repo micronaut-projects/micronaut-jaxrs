@@ -41,7 +41,7 @@ public class ContextAnnotationBinder<T> implements AnnotatedRequestArgumentBinde
     private final SimpleSecurityContextBinder securityBinder;
 
     /**
-     * Default constructor.
+     * Constructor.
      * @param beanContext The bean context
      * @deprecated Use {@link ContextAnnotationBinder#ContextAnnotationBinder(BeanContext, SimpleSecurityContextBinder)} instead.
      */
@@ -50,6 +50,11 @@ public class ContextAnnotationBinder<T> implements AnnotatedRequestArgumentBinde
         this(beanContext, new SimpleSecurityContextBinder());
     }
 
+    /**
+     * Default constructor.
+     * @param beanContext The bean context
+     * @param simpleSecurityContextBinder The security context binder
+     */
     @Inject
     protected ContextAnnotationBinder(BeanContext beanContext,
                                       SimpleSecurityContextBinder simpleSecurityContextBinder) {
