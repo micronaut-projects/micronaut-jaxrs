@@ -15,6 +15,9 @@
  */
 package io.micronaut.jaxrs.runtime.ext.bind;
 
+import javax.ws.rs.core.Context;
+import javax.ws.rs.core.SecurityContext;
+
 import io.micronaut.context.BeanContext;
 import io.micronaut.context.Qualifier;
 import io.micronaut.core.convert.ArgumentConversionContext;
@@ -35,13 +38,13 @@ import javax.ws.rs.core.SecurityContext;
  * @since 1.0
  */
 @Singleton
-public class ContextAnnotationBinder<T> implements AnnotatedRequestArgumentBinder<ContextBindable, T> {
+public class ContextAnnotationBinder<T> implements AnnotatedRequestArgumentBinder<Context, T> {
 
     private final BeanContext beanContext;
     private final SimpleSecurityContextBinder securityBinder;
 
     /**
-     * Default constructor.
+     * Constructor.
      * @param beanContext The bean context
      * @deprecated Use {@link ContextAnnotationBinder#ContextAnnotationBinder(BeanContext, SimpleSecurityContextBinder)} instead.
      */
@@ -50,6 +53,11 @@ public class ContextAnnotationBinder<T> implements AnnotatedRequestArgumentBinde
         this(beanContext, new SimpleSecurityContextBinder());
     }
 
+    /**
+     * Default constructor.
+     * @param beanContext The bean context
+     * @param simpleSecurityContextBinder The security context binder
+     */
     @Inject
     protected ContextAnnotationBinder(BeanContext beanContext,
                                       SimpleSecurityContextBinder simpleSecurityContextBinder) {
@@ -58,8 +66,8 @@ public class ContextAnnotationBinder<T> implements AnnotatedRequestArgumentBinde
     }
 
     @Override
-    public Class<ContextBindable> getAnnotationType() {
-        return ContextBindable.class;
+    public Class<Context> getAnnotationType() {
+        return Context.class;
     }
 
     @Override
