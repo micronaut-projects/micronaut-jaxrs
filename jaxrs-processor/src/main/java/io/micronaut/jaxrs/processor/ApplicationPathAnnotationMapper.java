@@ -17,6 +17,7 @@ package io.micronaut.jaxrs.processor;
 
 import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.AnnotationValueBuilder;
+import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.annotation.UriMapping;
 import io.micronaut.inject.annotation.NamedAnnotationMapper;
 import io.micronaut.inject.visitor.VisitorContext;
@@ -33,6 +34,7 @@ import java.util.List;
  * @author graemerocher
  * @since 1.0.0
  */
+@Internal
 public class ApplicationPathAnnotationMapper implements NamedAnnotationMapper {
     @NonNull
     @Override

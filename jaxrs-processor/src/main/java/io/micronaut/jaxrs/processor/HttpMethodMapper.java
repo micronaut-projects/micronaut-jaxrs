@@ -17,6 +17,7 @@ package io.micronaut.jaxrs.processor;
 
 import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.AnnotationValueBuilder;
+import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.HttpMethod;
 import io.micronaut.http.annotation.*;
 import io.micronaut.inject.annotation.NamedAnnotationMapper;
@@ -34,6 +35,7 @@ import java.util.Locale;
  * @author graemerocher
  * @since 1.0
  */
+@Internal
 public class HttpMethodMapper implements NamedAnnotationMapper {
     @NonNull
     @Override

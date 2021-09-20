@@ -26,6 +26,7 @@ import javax.ws.rs.HttpMethod;
 import javax.ws.rs.MatrixParam;
 import javax.ws.rs.Path;
 
+import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.NonNull;
 import io.micronaut.core.bind.annotation.Bindable;
 import io.micronaut.http.annotation.Controller;
@@ -45,6 +46,7 @@ import javax.ws.rs.core.SecurityContext;
  * @author graemerocher
  * @since 1.0
  */
+@Internal
 public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Object> {
 
     public static final int POSITION = 200;
