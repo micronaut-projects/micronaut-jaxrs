@@ -2,6 +2,9 @@ package io.micronaut.jaxrs.runtime;
 
 import io.micronaut.context.annotation.Value;
 import io.micronaut.http.annotation.QueryValue;
+import io.micronaut.scheduling.TaskExecutors;
+import jakarta.inject.Named;
+import java.util.concurrent.ExecutorService;
 import org.junit.jupiter.api.Assertions;
 
 import javax.validation.constraints.Min;
@@ -23,7 +26,10 @@ public class NotificationsResource {
 
     @GET
     @Path("/ping")
-    public Response ping(@Context Application application) {
+    public Response ping(
+        @Context Application application,
+        // tests named injection
+        @Context @Named(TaskExecutors.IO) ExecutorService executorService) {
         final Object o = application.getProperties().get("service.name");
         Assertions.assertEquals(serviceName, o);
         return Response.ok().entity("Service online: " + o).build();
