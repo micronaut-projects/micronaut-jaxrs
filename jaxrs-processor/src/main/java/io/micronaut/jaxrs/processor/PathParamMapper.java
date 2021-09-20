@@ -19,6 +19,7 @@ import java.lang.annotation.Annotation;
 import java.util.Collections;
 import java.util.List;
 
+import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.NonNull;
 
 import io.micronaut.core.annotation.AnnotationValue;
@@ -33,6 +34,7 @@ import io.micronaut.inject.visitor.VisitorContext;
  * @author graemerocher
  * @since 1.0
  */
+@Internal
 public class PathParamMapper implements NamedAnnotationMapper {
 
     @NonNull

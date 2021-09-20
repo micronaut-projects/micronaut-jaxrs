@@ -17,6 +17,7 @@ package io.micronaut.jaxrs.processor;
 
 import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.AnnotationValueBuilder;
+import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.annotation.Produces;
 import io.micronaut.inject.annotation.NamedAnnotationMapper;
 import io.micronaut.inject.visitor.VisitorContext;
@@ -32,6 +33,7 @@ import java.util.List;
  * @author graemerocher
  * @since 1.0
  */
+@Internal
 public class ProducesMapper implements NamedAnnotationMapper {
 
     private static final String[] JAX_RS_DEFAULT_VALUE = new String[] { "*/*" };

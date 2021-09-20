@@ -16,6 +16,7 @@
 package io.micronaut.jaxrs.processor;
 
 import io.micronaut.core.annotation.AnnotationValue;
+import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.annotation.Post;
 import io.micronaut.http.annotation.UriMapping;
 import io.micronaut.inject.annotation.NamedAnnotationMapper;
@@ -32,6 +33,7 @@ import java.util.List;
  * @author graemerocher
  * @since 1.0.0
  */
+@Internal
 public class PostAnnotationMapper implements NamedAnnotationMapper {
     @NonNull
     @Override
