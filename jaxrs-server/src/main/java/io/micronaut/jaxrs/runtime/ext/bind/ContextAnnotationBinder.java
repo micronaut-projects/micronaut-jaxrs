@@ -15,17 +15,16 @@
  */
 package io.micronaut.jaxrs.runtime.ext.bind;
 
+import javax.ws.rs.core.Context;
+import javax.ws.rs.core.SecurityContext;
+
 import io.micronaut.context.BeanContext;
 import io.micronaut.core.convert.ArgumentConversionContext;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.bind.binders.AnnotatedRequestArgumentBinder;
-import io.micronaut.jaxrs.runtime.annotation.ContextBindable;
-
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
-
-import javax.ws.rs.core.SecurityContext;
 
 /**
  * Handles the JAX-RS {@code Context} annotation binding.
@@ -35,7 +34,7 @@ import javax.ws.rs.core.SecurityContext;
  * @since 1.0
  */
 @Singleton
-public class ContextAnnotationBinder<T> implements AnnotatedRequestArgumentBinder<ContextBindable, T> {
+public class ContextAnnotationBinder<T> implements AnnotatedRequestArgumentBinder<Context, T> {
 
     private final BeanContext beanContext;
     private final SimpleSecurityContextBinder securityBinder;
@@ -63,8 +62,8 @@ public class ContextAnnotationBinder<T> implements AnnotatedRequestArgumentBinde
     }
 
     @Override
-    public Class<ContextBindable> getAnnotationType() {
-        return ContextBindable.class;
+    public Class<Context> getAnnotationType() {
+        return Context.class;
     }
 
     @Override

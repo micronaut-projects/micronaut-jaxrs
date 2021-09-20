@@ -25,6 +25,7 @@ import javax.ws.rs.MatrixParam;
 import javax.ws.rs.Path;
 
 import io.micronaut.core.annotation.NonNull;
+import io.micronaut.core.bind.annotation.Bindable;
 import io.micronaut.http.annotation.Controller;
 import io.micronaut.http.annotation.UriMapping;
 import io.micronaut.inject.ast.ClassElement;
@@ -32,6 +33,9 @@ import io.micronaut.inject.ast.MethodElement;
 import io.micronaut.inject.ast.ParameterElement;
 import io.micronaut.inject.visitor.TypeElementVisitor;
 import io.micronaut.inject.visitor.VisitorContext;
+
+import javax.ws.rs.core.Context;
+import javax.ws.rs.core.SecurityContext;
 
 /**
  * A type element visitor that turns a JAX-RS path into a controller.
@@ -89,6 +93,14 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
 
     private List<Class<? extends Annotation>> getUnsupportedParameterAnnotations() {
         return Arrays.asList(MatrixParam.class, BeanParam.class);
+    }
+
+    @Override
+    public void start(VisitorContext visitorContext) {
+        visitorContext.getClassElement(SecurityContext.class)
+            .ifPresent((securityContext) -> securityContext.annotate(Bindable.class));
+        visitorContext.getClassElement(Context.class)
+            .ifPresent((ann) -> ann.annotate(Bindable.class));
     }
 
 }

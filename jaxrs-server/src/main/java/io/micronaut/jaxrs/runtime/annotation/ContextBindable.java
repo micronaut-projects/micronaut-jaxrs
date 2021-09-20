@@ -30,12 +30,14 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
  *
  * @author graemerocher
  * @since 1.0
+ * @deprecated No longer needed since Micronaut 3
  */
 @Documented
 @Retention(RUNTIME)
 @Target({ElementType.PARAMETER, ElementType.ANNOTATION_TYPE})
 @Bindable
 @Internal
+@Deprecated
 public @interface ContextBindable {
 
 }
