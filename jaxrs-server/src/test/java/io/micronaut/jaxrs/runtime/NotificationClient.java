@@ -41,4 +41,39 @@ public interface NotificationClient {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     HttpResponse<Notification> postNotification(Notification notification);
+
+    @GET
+    @Path("/bad-request")
+    @Produces(MediaType.APPLICATION_JSON)
+    HttpResponse<Notification> badRequest();
+
+    @GET
+    @Path("/forbidden")
+    @Produces(MediaType.APPLICATION_JSON)
+    HttpResponse<Notification> forbidden();
+
+    @GET
+    @Path("/not-acceptable")
+    @Produces(MediaType.APPLICATION_JSON)
+    HttpResponse<Notification> notAcceptable();
+
+    @GET
+    @Path("/not-allowed")
+    @Produces(MediaType.APPLICATION_JSON)
+    HttpResponse<Notification> notAllowed();
+
+    @GET
+    @Path("/not-authorized")
+    @Produces(MediaType.APPLICATION_JSON)
+    HttpResponse<Notification> notAuthorized();
+
+    @GET
+    @Path("/not-found")
+    @Produces(MediaType.APPLICATION_JSON)
+    HttpResponse<Notification> notFound();
+
+    @GET
+    @Path("/not-supported")
+    @Produces(MediaType.APPLICATION_JSON)
+    HttpResponse<Notification> notSupported();
 }
