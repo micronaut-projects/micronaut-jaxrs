@@ -41,4 +41,60 @@ public interface NotificationClient {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     HttpResponse<Notification> postNotification(Notification notification);
+
+    @GET
+    @Path("/bad-request")
+    HttpResponse<Notification> badRequest();
+
+    @GET
+    @Path("/forbidden")
+    HttpResponse<Notification> forbidden();
+
+    @GET
+    @Path("/not-acceptable")
+    HttpResponse<Notification> notAcceptable();
+
+    @GET
+    @Path("/not-allowed")
+    HttpResponse<Notification> notAllowed();
+
+    @GET
+    @Path("/not-authorized")
+    HttpResponse<Notification> notAuthorized();
+
+    @GET
+    @Path("/not-found")
+    HttpResponse<Notification> notFound();
+
+    @GET
+    @Path("/not-supported")
+    HttpResponse<Notification> notSupported();
+
+    @GET
+    @Path("/bad-request-without-response")
+    HttpResponse<Notification> badRequestWithoutResponse();
+
+    @GET
+    @Path("/forbidden-without-response")
+    HttpResponse<Notification> forbiddenWithoutResponse();
+
+    @GET
+    @Path("/not-acceptable-without-response")
+    HttpResponse<Notification> notAcceptableWithoutResponse();
+
+    @GET
+    @Path("/not-allowed-without-response")
+    HttpResponse<Notification> notAllowedWithoutResponse();
+
+    @GET
+    @Path("/not-authorized-without-response")
+    HttpResponse<Notification> notAuthorizedWithoutResponse();
+
+    @GET
+    @Path("/not-found-without-response")
+    HttpResponse<Notification> notFoundWithoutResponse();
+
+    @GET
+    @Path("/not-supported-without-response")
+    HttpResponse<Notification> notSupportedWithoutResponse();
 }

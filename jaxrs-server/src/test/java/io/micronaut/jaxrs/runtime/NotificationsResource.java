@@ -2,6 +2,7 @@ package io.micronaut.jaxrs.runtime;
 
 import io.micronaut.context.annotation.Value;
 import io.micronaut.http.annotation.QueryValue;
+import io.micronaut.http.hateoas.JsonError;
 import io.micronaut.scheduling.TaskExecutors;
 import jakarta.inject.Named;
 import java.util.concurrent.ExecutorService;
@@ -71,5 +72,89 @@ public class NotificationsResource {
     @Produces(MediaType.APPLICATION_JSON)
     public Response postNotification(Notification notification) {
         return Response.status(201).entity(notification).build();
+    }
+
+    @GET
+    @Path("/bad-request")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response badRequest(){
+        throw new BadRequestException("Testing bad-request", Response.status(Response.Status.BAD_REQUEST).build());
+    }
+
+    @GET
+    @Path("/forbidden")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response forbidden() {
+        throw new ForbiddenException("Testing forbidden", Response.status(Response.Status.FORBIDDEN).build());
+    }
+
+    @GET
+    @Path("/not-acceptable")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response notAcceptable() {
+        throw new NotAcceptableException("Testing not-acceptable", Response.status(Response.Status.NOT_ACCEPTABLE).build());
+    }
+
+    @GET
+    @Path("/not-allowed")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response notAllowed(){
+        throw new NotAllowedException("Testing not-allowed", Response.status(Response.Status.METHOD_NOT_ALLOWED).build());
+    }
+
+    @GET
+    @Path("/not-authorized")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response notAuthorized(){
+        throw new NotAuthorizedException("Testing not-authorized", Response.status(Response.Status.UNAUTHORIZED).build());
+    }
+
+    @GET
+    @Path("/not-found")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response notFound() {
+        throw new NotFoundException("Testing not-found", Response.status(Response.Status.NOT_FOUND).build());
+    }
+
+    @GET
+    @Path("/not-supported")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response notSupported() {
+        throw new NotSupportedException("Testing not-supported", Response.status(Response.Status.UNSUPPORTED_MEDIA_TYPE).build());
+    }
+
+    @GET
+    @Path("/bad-request-without-response")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response badRequestWithoutResponse() {
+        throw new BadRequestException();
+    }
+
+    @GET
+    @Path("/forbidden-without-response")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response forbiddenWithoutResponse() {
+        throw new ForbiddenException();
+    }
+
+    @GET
+    @Path("/not-acceptable-without-response")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response notAcceptableWithoutResponse() {
+        throw new NotAcceptableException();
+    }
+
+    @GET
+    @Path("/not-found-without-response")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response notFoundWithoutResponse() {
+        throw new NotFoundException();
+    }
+
+    @GET
+    @Path("/not-supported-without-response")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response notSupportedWithoutResponse() {
+        throw new NotSupportedException();
     }
 }
