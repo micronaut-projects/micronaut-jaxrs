@@ -128,5 +128,38 @@ public class NotificationsResource {
     public Response notSupported() {
         throw new NotSupportedException(Response.status(Response.Status.UNSUPPORTED_MEDIA_TYPE)
                 .entity(new JsonError("Testing not-supported")).build());
+    @GET
+    @Path("/bad-request-without-response")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response badRequestWithoutResponse() {
+        throw new BadRequestException();
+    }
+
+    @GET
+    @Path("/forbidden-without-response")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response forbiddenWithoutResponse() {
+        throw new ForbiddenException();
+    }
+
+    @GET
+    @Path("/not-acceptable-without-response")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response notAcceptableWithoutResponse() {
+        throw new NotAcceptableException();
+    }
+
+    @GET
+    @Path("/not-found-without-response")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response notFoundWithoutResponse() {
+        throw new NotFoundException();
+    }
+
+    @GET
+    @Path("/not-supported-without-response")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response notSupportedWithoutResponse() {
+        throw new NotSupportedException();
     }
 }

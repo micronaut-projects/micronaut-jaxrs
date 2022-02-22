@@ -69,4 +69,32 @@ public interface NotificationClient {
     @GET
     @Path("/not-supported")
     HttpResponse<Notification> notSupported();
+
+    @GET
+    @Path("/bad-request-without-response")
+    HttpResponse<Notification> badRequestWithoutResponse();
+
+    @GET
+    @Path("/forbidden-without-response")
+    HttpResponse<Notification> forbiddenWithoutResponse();
+
+    @GET
+    @Path("/not-acceptable-without-response")
+    HttpResponse<Notification> notAcceptableWithoutResponse();
+
+    @GET
+    @Path("/not-allowed-without-response")
+    HttpResponse<Notification> notAllowedWithoutResponse();
+
+    @GET
+    @Path("/not-authorized-without-response")
+    HttpResponse<Notification> notAuthorizedWithoutResponse();
+
+    @GET
+    @Path("/not-found-without-response")
+    HttpResponse<Notification> notFoundWithoutResponse();
+
+    @GET
+    @Path("/not-supported-without-response")
+    HttpResponse<Notification> notSupportedWithoutResponse();
 }
