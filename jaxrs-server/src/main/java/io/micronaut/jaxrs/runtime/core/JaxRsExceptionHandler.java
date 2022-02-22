@@ -15,13 +15,16 @@
  */
 package io.micronaut.jaxrs.runtime.core;
 
-import io.micronaut.context.annotation.Primary;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
+import io.micronaut.http.HttpStatus;
+import io.micronaut.http.MutableHttpResponse;
+import io.micronaut.http.annotation.Produces;
 import io.micronaut.http.server.exceptions.ExceptionHandler;
+import io.micronaut.http.server.exceptions.response.ErrorContext;
+import io.micronaut.http.server.exceptions.response.ErrorResponseProcessor;
 import jakarta.inject.Singleton;
 import javax.ws.rs.WebApplicationException;
-import javax.ws.rs.core.Response;
 
 /**
  * Handles JAX-RS exceptions that occur during the execution of an HTTP request.
@@ -29,16 +32,24 @@ import javax.ws.rs.core.Response;
  * @author guillermocalvo
  */
 @Singleton
-@Primary
-public class JaxRsExceptionHandler
-    implements ExceptionHandler<WebApplicationException, HttpResponse<?>> {
+@Produces
+public class JaxRsExceptionHandler implements ExceptionHandler<WebApplicationException, HttpResponse<?>> {
+    private final ErrorResponseProcessor<?> responseProcessor;
+
+    /**
+     * Constructor.
+     * @param responseProcessor Error Response Processor
+     */
+    public JaxRsExceptionHandler(ErrorResponseProcessor<?> responseProcessor) {
+        this.responseProcessor = responseProcessor;
+    }
 
     @Override
     public HttpResponse<?> handle(HttpRequest request, WebApplicationException exception) {
-        final Response body = exception.getResponse();
-        if (body instanceof JaxRsResponse) {
-            return ((JaxRsResponse) body).getResponse();
-        }
-        throw exception;
+        MutableHttpResponse<?> response = HttpResponse.status(HttpStatus.valueOf(exception.getResponse().getStatus()));
+        return responseProcessor.processResponse(ErrorContext.builder(request)
+                .errorMessage(exception.getMessage())
+                .cause(exception)
+                .build(), response);
     }
 }

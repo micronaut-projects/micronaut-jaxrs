@@ -4,7 +4,6 @@ import io.micronaut.core.annotation.Nullable;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.HttpStatus;
 import io.micronaut.http.client.exceptions.HttpClientResponseException;
-import io.micronaut.http.hateoas.JsonError;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import org.junit.jupiter.api.Test;
 
@@ -85,99 +84,53 @@ public class ResponseTest {
 
     @Test
     void testBadRequest() {
-        HttpClientResponseException exception = assertThrows(HttpClientResponseException.class,
-            () -> client.badRequest());
-        assertEquals(
-            HttpStatus.BAD_REQUEST,
-            exception.getStatus()
-        );
-        assertEquals(
-            "Testing bad-request",
-            exception.getResponse().getBody(JsonError.class).map(JsonError::getMessage).orElse(null)
-        );
+        HttpClientResponseException exception = assertThrows(HttpClientResponseException.class, client::badRequest);
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+        assertEquals("Testing bad-request", errorsMessage(exception));
     }
 
     @Test
     void testForbidden(){
-        HttpClientResponseException exception = assertThrows(HttpClientResponseException.class,
-            () -> client.forbidden());
-        assertEquals(
-            HttpStatus.FORBIDDEN,
-            exception.getStatus()
-        );
-        assertEquals(
-            "Testing forbidden",
-            exception.getResponse().getBody(JsonError.class).map(JsonError::getMessage).orElse(null)
-        );
+        HttpClientResponseException exception = assertThrows(HttpClientResponseException.class, client::forbidden);
+        assertEquals(HttpStatus.FORBIDDEN, exception.getStatus());
+        assertEquals("Testing forbidden", errorsMessage(exception));
     }
 
     @Test
     void testNotAcceptable(){
-        HttpClientResponseException exception = assertThrows(HttpClientResponseException.class,
-            () -> client.notAcceptable());
-        assertEquals(
-            HttpStatus.NOT_ACCEPTABLE,
-            exception.getStatus()
-        );
-        assertEquals(
-            "Testing not-acceptable",
-            exception.getResponse().getBody(JsonError.class).map(JsonError::getMessage).orElse(null)
-        );
+        HttpClientResponseException exception = assertThrows(HttpClientResponseException.class, client::notAcceptable);
+        assertEquals(HttpStatus.NOT_ACCEPTABLE, exception.getStatus());
+        assertEquals("Testing not-acceptable", errorsMessage(exception));
     }
 
     @Test
     void testNotAllowed() {
-        HttpClientResponseException exception = assertThrows(HttpClientResponseException.class,
-            () -> client.notAllowed());
-        assertEquals(
-            HttpStatus.METHOD_NOT_ALLOWED,
-            exception.getStatus()
-        );
-        assertEquals(
-            "Testing not-allowed",
-            exception.getResponse().getBody(JsonError.class).map(JsonError::getMessage).orElse(null)
-        );
+        HttpClientResponseException exception = assertThrows(HttpClientResponseException.class, client::notAllowed);
+        assertEquals(HttpStatus.METHOD_NOT_ALLOWED, exception.getStatus());
+        assertEquals("Testing not-allowed", errorsMessage(exception));
     }
 
     @Test
     void testNotAuthorized() {
-        HttpClientResponseException exception = assertThrows(HttpClientResponseException.class,
-            () -> client.notAuthorized());
-        assertEquals(
-            HttpStatus.UNAUTHORIZED,
-            exception.getStatus()
-        );
-        assertEquals(
-            "Testing not-authorized",
-            exception.getResponse().getBody(JsonError.class).map(JsonError::getMessage).orElse(null)
-        );
+        HttpClientResponseException exception = assertThrows(HttpClientResponseException.class, client::notAuthorized);
+        assertEquals(HttpStatus.UNAUTHORIZED, exception.getStatus());
+        assertEquals("Testing not-authorized", errorsMessage(exception));
     }
 
     @Test
     void testNotFound() {
         final HttpResponse<?> response = client.notFound();
-        assertEquals(
-            HttpStatus.NOT_FOUND,
-            response.getStatus()
-        );
-        assertEquals(
-            "Testing not-found",
-            response.getBody(JsonError.class).map(JsonError::getMessage).orElse(null)
-        );
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatus());
+        assertEquals("Testing not-found", errorsMessage(response));
     }
 
     @Test
     void testNotSupported() {
-        HttpClientResponseException exception = assertThrows(HttpClientResponseException.class,
-            () -> client.notSupported());
-        assertEquals(
-            HttpStatus.UNSUPPORTED_MEDIA_TYPE,
-            exception.getStatus()
-        );
-        assertEquals(
-            "Testing not-supported",
-            exception.getResponse().getBody(JsonError.class).map(JsonError::getMessage).orElse(null)
-        );
+        HttpClientResponseException exception = assertThrows(HttpClientResponseException.class, client::notSupported);
+        assertEquals(HttpStatus.UNSUPPORTED_MEDIA_TYPE, exception.getStatus());
+        assertEquals("Testing not-supported", errorsMessage(exception));
+    }
+
     @Test
     void testBadRequestWithoutResponse() {
         HttpClientResponseException exception = assertThrows(HttpClientResponseException.class, client::badRequestWithoutResponse);

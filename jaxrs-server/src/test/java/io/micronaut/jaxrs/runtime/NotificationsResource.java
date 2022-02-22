@@ -78,56 +78,51 @@ public class NotificationsResource {
     @Path("/bad-request")
     @Produces(MediaType.APPLICATION_JSON)
     public Response badRequest(){
-        throw new BadRequestException(Response.status(Response.Status.BAD_REQUEST)
-                .entity(new JsonError("Testing bad-request")).build());
+        throw new BadRequestException("Testing bad-request", Response.status(Response.Status.BAD_REQUEST).build());
     }
 
     @GET
     @Path("/forbidden")
     @Produces(MediaType.APPLICATION_JSON)
-    public Response forbidden(){
-        throw new ForbiddenException(Response.status(Response.Status.FORBIDDEN)
-                .entity(new JsonError("Testing forbidden")).build());
+    public Response forbidden() {
+        throw new ForbiddenException("Testing forbidden", Response.status(Response.Status.FORBIDDEN).build());
     }
 
     @GET
     @Path("/not-acceptable")
     @Produces(MediaType.APPLICATION_JSON)
-    public Response notAcceptable(){
-        throw new NotAcceptableException(Response.status(Response.Status.NOT_ACCEPTABLE)
-                .entity(new JsonError("Testing not-acceptable")).build());
+    public Response notAcceptable() {
+        throw new NotAcceptableException("Testing not-acceptable", Response.status(Response.Status.NOT_ACCEPTABLE).build());
     }
 
     @GET
     @Path("/not-allowed")
     @Produces(MediaType.APPLICATION_JSON)
     public Response notAllowed(){
-        throw new NotAllowedException(Response.status(Response.Status.METHOD_NOT_ALLOWED)
-                .entity(new JsonError("Testing not-allowed")).build());
+        throw new NotAllowedException("Testing not-allowed", Response.status(Response.Status.METHOD_NOT_ALLOWED).build());
     }
 
     @GET
     @Path("/not-authorized")
     @Produces(MediaType.APPLICATION_JSON)
     public Response notAuthorized(){
-        throw new NotAuthorizedException(Response.status(Response.Status.UNAUTHORIZED)
-                .entity(new JsonError("Testing not-authorized")).build());
+        throw new NotAuthorizedException("Testing not-authorized", Response.status(Response.Status.UNAUTHORIZED).build());
     }
 
     @GET
     @Path("/not-found")
     @Produces(MediaType.APPLICATION_JSON)
     public Response notFound() {
-        throw new NotFoundException(Response.status(Response.Status.NOT_FOUND)
-                .entity(new JsonError("Testing not-found")).build());
+        throw new NotFoundException("Testing not-found", Response.status(Response.Status.NOT_FOUND).build());
     }
 
     @GET
     @Path("/not-supported")
     @Produces(MediaType.APPLICATION_JSON)
     public Response notSupported() {
-        throw new NotSupportedException(Response.status(Response.Status.UNSUPPORTED_MEDIA_TYPE)
-                .entity(new JsonError("Testing not-supported")).build());
+        throw new NotSupportedException("Testing not-supported", Response.status(Response.Status.UNSUPPORTED_MEDIA_TYPE).build());
+    }
+
     @GET
     @Path("/bad-request-without-response")
     @Produces(MediaType.APPLICATION_JSON)
