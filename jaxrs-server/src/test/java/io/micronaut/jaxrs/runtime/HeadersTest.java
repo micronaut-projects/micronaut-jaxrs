@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @MicronautTest
 class HeadersTest {
@@ -72,6 +73,12 @@ class HeadersTest {
                 "application/json",
                 result
         );
+    }
+
+    @Test
+    void testNullMediaType() {
+        NullPointerException npe = assertThrows(NullPointerException.class, () -> MediaType.valueOf(null));
+        assertEquals("Argument [type] cannot be null", npe.getMessage());
     }
 
     @Test
