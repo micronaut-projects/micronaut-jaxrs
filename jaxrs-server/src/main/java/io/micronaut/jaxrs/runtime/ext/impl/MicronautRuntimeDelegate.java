@@ -33,7 +33,7 @@ import java.util.Map;
 @Internal
 public final class MicronautRuntimeDelegate extends RuntimeDelegate {
 
-    private static final Map<Class, HeaderDelegate> HEADER_DELEGATES = new HashMap<>();
+    private static final Map<Class<?>, HeaderDelegate<?>> HEADER_DELEGATES = new HashMap<>();
 
     static {
         HEADER_DELEGATES.put(MediaType.class, new MediaTypeHeaderDelegate());
@@ -65,8 +65,8 @@ public final class MicronautRuntimeDelegate extends RuntimeDelegate {
     }
 
     @Override
-    public <T> HeaderDelegate<T> createHeaderDelegate(Class<T> type) throws IllegalArgumentException {
-        final HeaderDelegate headerDelegate = HEADER_DELEGATES.get(type);
+    public <T> HeaderDelegate createHeaderDelegate(Class<T> type) throws IllegalArgumentException {
+        final HeaderDelegate<?> headerDelegate = HEADER_DELEGATES.get(type);
         if (headerDelegate != null) {
             return headerDelegate;
         }

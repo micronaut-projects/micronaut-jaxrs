@@ -50,6 +50,7 @@ public final class CookieHeaderDelegate implements RuntimeDelegate.HeaderDelegat
      * @param cookieHeader The header
      * @return The list of cookies
      */
+    @SuppressWarnings("java:S3776")
     public static List<Cookie> parseCookies(String cookieHeader) {
         ArgumentUtils.requireNonNull("cookieHeader", cookieHeader);
         try {

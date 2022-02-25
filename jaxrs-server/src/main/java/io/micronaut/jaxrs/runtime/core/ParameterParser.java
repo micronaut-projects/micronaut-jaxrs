@@ -99,13 +99,12 @@ public class ParameterParser {
             i2--;
         }
         // Strip away quotation marks if necessary
-        if (quoted) {
-            if (((i2 - i1) >= 2)
-                    && (chars[i1] == '"')
-                    && (chars[i2 - 1] == '"')) {
+        if (quoted
+            && ((i2 - i1) >= 2)
+            && (chars[i1] == '"')
+            && (chars[i2 - 1] == '"')) {
                 i1++;
                 i2--;
-            }
         }
         String result = null;
         if (i2 > i1) {
@@ -315,25 +314,20 @@ public class ParameterParser {
         this.len = length;
 
         String paramName = null;
-        String paramValue = null;
 
         int start = offset;
 
-        StringBuffer newChars = new StringBuffer();
+        StringBuilder newChars = new StringBuilder();
 
         while (hasChar()) {
             paramName = parseToken(new char[]{'=', separator});
-            paramValue = null;
-            int index = -1;
-            if (paramName.equals(name)) {
+            if (name.equals(paramName)) {
                 newChars.append(new String(chars, start, pos - start));
             }
             if (hasChar() && (chars[pos] == '=')) {
                 pos++; // skip '='
-                paramValue = parseQuotedToken(new char[]{
-                        separator});
             }
-            if (paramName.equals(name)) {
+            if (name.equals(paramName)) {
                 newChars.append("=").append(value);
                 start = pos;
             } else {

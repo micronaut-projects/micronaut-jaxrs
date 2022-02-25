@@ -17,7 +17,7 @@ package io.micronaut.jaxrs.runtime.ext.impl;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.util.ArgumentUtils;
-
+import java.util.Map.Entry;
 import javax.ws.rs.core.Link;
 import javax.ws.rs.core.MultivaluedHashMap;
 import javax.ws.rs.core.MultivaluedMap;
@@ -58,6 +58,9 @@ final class LinkDelegate implements RuntimeDelegate.HeaderDelegate<Link> {
      * Parser impl.
      */
     private static final class Parser {
+
+        public static final String PARSE_ERROR_MESSAGE = "Unable to parse Link header.  No end to parameter: ";
+
         private int curr;
         private String value;
         private Link.Builder builder;
@@ -95,9 +98,9 @@ final class LinkDelegate implements RuntimeDelegate.HeaderDelegate<Link> {
 
         void populateLink(String href, MultivaluedMap<String, String> attributes) {
             builder.uri(href);
-            for (String name : attributes.keySet()) {
-                List<String> values = attributes.get(name);
-                switch (name) {
+            for (Entry<String, List<String>> entry : attributes.entrySet()) {
+                List<String> values = entry.getValue();
+                switch (entry.getKey()) {
                     case "rel":
                         for (String val : values) {
                             builder.rel(val);
@@ -117,7 +120,7 @@ final class LinkDelegate implements RuntimeDelegate.HeaderDelegate<Link> {
                         break;
                     default:
                         for (String val : values) {
-                            builder.param(name, val);
+                            builder.param(entry.getKey(), val);
                         }
 
                         break;
@@ -135,10 +138,11 @@ final class LinkDelegate implements RuntimeDelegate.HeaderDelegate<Link> {
             return href;
         }
 
+        @SuppressWarnings("java:S3776")
         void parseAttribute(MultivaluedMap<String, String> attributes) {
             int end = value.indexOf('=', curr);
             if (end == -1 || end + 1 >= value.length()) {
-                throw new IllegalArgumentException("Unable to parse Link header.  No end to parameter: " + value);
+                throw new IllegalArgumentException(PARSE_ERROR_MESSAGE + value);
             }
             String name = value.substring(curr, end);
             name = name.trim();
@@ -150,12 +154,12 @@ final class LinkDelegate implements RuntimeDelegate.HeaderDelegate<Link> {
 
                 if (value.charAt(curr) == '"') {
                     if (curr + 1 >= value.length()) {
-                        throw new IllegalArgumentException("Unable to parse Link header.  No end to parameter: " + value);
+                        throw new IllegalArgumentException(PARSE_ERROR_MESSAGE + value);
                     }
                     curr++;
                     end = value.indexOf('"', curr);
                     if (end == -1) {
-                        throw new IllegalArgumentException("Unable to parse Link header.  No end to parameter: " + value);
+                        throw new IllegalArgumentException(PARSE_ERROR_MESSAGE + value);
                     }
                     val = value.substring(curr, end);
                     curr = end + 1;

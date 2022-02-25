@@ -18,7 +18,7 @@ package io.micronaut.jaxrs.runtime.ext.impl;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.util.ArgumentUtils;
 import io.micronaut.jaxrs.runtime.core.ParameterParser;
-
+import javax.ws.rs.core.Cookie;
 import javax.ws.rs.core.NewCookie;
 import javax.ws.rs.ext.RuntimeDelegate;
 
@@ -35,7 +35,7 @@ import java.util.Map;
  * @version $Revision: 1 $
  */
 @Internal
-class NewCookieHeaderDelegate implements RuntimeDelegate.HeaderDelegate {
+class NewCookieHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Object> {
     private static final String OLD_COOKIE_PATTERN = "EEE, dd-MMM-yyyy HH:mm:ss z";
 
     @Override
@@ -48,7 +48,7 @@ class NewCookieHeaderDelegate implements RuntimeDelegate.HeaderDelegate {
         int maxAge = NewCookie.DEFAULT_MAX_AGE;
         String path = null;
         boolean secure = false;
-        int version = NewCookie.DEFAULT_VERSION;
+        int version = Cookie.DEFAULT_VERSION;
         boolean httpOnly = false;
         Date expiry = null;
 
