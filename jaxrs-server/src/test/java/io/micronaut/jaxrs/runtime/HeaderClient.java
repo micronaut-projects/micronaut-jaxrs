@@ -19,6 +19,12 @@ public interface HeaderClient {
     String cookie(@CookieParam("foo") Cookie cookie);
 
     @GET
+    @Path("/cookie-response")
+    @Consumes("text/plain")
+    @Produces("text/plain")
+    HttpResponse<String> cookieResponse(@CookieParam("foo") NewCookie cookie);
+
+    @GET
     @Path("/etag")
     @Consumes("text/plain")
     String etag(@HeaderParam(HttpHeaders.ETAG) EntityTag entityTag);

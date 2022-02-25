@@ -28,6 +28,16 @@ public class HeadersResource {
     }
 
     @GET
+    @Path("/cookie-response")
+    @Produces("text/plain")
+    public Response cookieResponse(@CookieParam("foo") NewCookie cookie) {
+        return Response.ok()
+            .entity(cookie.getValue())
+            .cookie(cookie)
+            .build();
+    }
+
+    @GET
     @Path("/etag")
     @Produces("text/plain")
     public Response etag(@HeaderParam(HttpHeaders.ETAG) EntityTag entityTag) {

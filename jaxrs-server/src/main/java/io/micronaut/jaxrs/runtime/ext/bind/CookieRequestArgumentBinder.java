@@ -26,6 +26,7 @@ import io.micronaut.http.bind.binders.TypedRequestArgumentBinder;
 import jakarta.inject.Singleton;
 import javax.ws.rs.core.Cookie;
 import java.util.Optional;
+import javax.ws.rs.core.NewCookie;
 
 /**
  * Argument binder for handling cookies.
@@ -50,7 +51,7 @@ public class CookieRequestArgumentBinder implements TypedRequestArgumentBinder<C
                 .findCookie(context.getAnnotationMetadata().stringValue(CookieValue.class)
                         .orElse(context.getArgument().getName())).orElse(null);
         if (cookie != null) {
-            Cookie c = new Cookie(cookie.getName(), cookie.getValue(), cookie.getPath(), cookie.getDomain());
+            Cookie c = new NewCookie(cookie.getName(), cookie.getValue(), cookie.getPath(), cookie.getDomain(), null, (int) cookie.getMaxAge(), cookie.isSecure(), cookie.isHttpOnly());
             return () -> Optional.of(c);
         } else {
             return BindingResult.EMPTY;

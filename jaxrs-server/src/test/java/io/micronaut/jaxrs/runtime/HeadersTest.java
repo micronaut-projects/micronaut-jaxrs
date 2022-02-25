@@ -19,6 +19,7 @@ import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @MicronautTest
 class HeadersTest {
@@ -113,6 +114,20 @@ class HeadersTest {
         assertEquals(
                 "bar",
                 result
+        );
+    }
+
+    @Test
+    void testSecureCookie() {
+        final HttpResponse<String> result = headerClient.cookieResponse(new NewCookie("foo", "bar", "/", "example.com", "", 0, true));
+
+        assertEquals(
+            "bar",
+            result.body()
+        );
+
+        assertTrue(
+            result.getCookie("foo").get().isSecure()
         );
     }
 
