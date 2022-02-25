@@ -53,7 +53,7 @@ public class MicronautSecurityContextBinder extends SimpleSecurityContextBinder 
     /**
      * Extended security context implementation that takes into account Micronaut security roles.
      */
-    class MicronautSecurityContext extends SimpleSecurityContextImpl {
+    final class MicronautSecurityContext extends SimpleSecurityContextImpl {
 
         private final Authentication authentication;
 

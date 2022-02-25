@@ -21,7 +21,6 @@ import java.text.FieldPosition;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
-import java.util.TimeZone;
 
 
 /**
@@ -36,14 +35,11 @@ final class ServerCookie implements Serializable {
     private static final Locale LOCALE_US = Locale.US;
 
     /**
-     * GMT timezone - all HTTP dates are on GMT.
-     */
-    private static final TimeZone GMT_ZONE = TimeZone.getTimeZone("GMT");
-    /**
      * Pattern used for old cookies.
      */
     private static final String OLD_COOKIE_PATTERN = "EEE, dd-MMM-yyyy HH:mm:ss z";
 
+    @SuppressWarnings("java:S2885")
     private static final DateFormat OLD_COOKIE_FORMAT = new SimpleDateFormat(OLD_COOKIE_PATTERN, LOCALE_US);
     private static final String ANCIENT_DATE = formatOldCookie(new Date(10000));
 
@@ -72,7 +68,7 @@ final class ServerCookie implements Serializable {
         return true;
     }
 
-    private static boolean containsCTL(String value, int version) {
+    private static boolean containsCTL(String value) {
         if (value == null) {
             return false;
         }
@@ -109,6 +105,7 @@ final class ServerCookie implements Serializable {
      * @return boolean flag
      * @deprecated Not used: Deprecated in the original org.apache.tomcat.util.http.ServerCookie class.
      */
+    @Deprecated
     public static boolean checkName(String name) {
         if (!isToken(name)
                 || name.equalsIgnoreCase("Comment")     // rfc2019
@@ -133,6 +130,7 @@ final class ServerCookie implements Serializable {
      * @param version cookie version
      * @return cookie header name
      */
+    @SuppressWarnings({"java:S125", "java:S3923"})
     public static String getCookieHeaderName(int version) {
         // TODO Re-enable logging when RFC2965 is implemented
         // log( (version==1) ? "Set-Cookie2" : "Set-Cookie");
@@ -179,6 +177,7 @@ final class ServerCookie implements Serializable {
      * @param maxAge the max age
      * @param isSecure Whether it is secure
      */
+    @SuppressWarnings("java:S107")
     static void appendCookieValue(StringBuilder headerBuf,
                                   int version,
                                   String name,
@@ -264,10 +263,11 @@ final class ServerCookie implements Serializable {
      * @param buf     buffer
      * @param value   value
      */
+    @SuppressWarnings("java:S1871")
     private static void maybeQuote2(int version, StringBuffer buf, String value) {
         if (value == null || value.length() == 0) {
             buf.append("\"\"");
-        } else if (containsCTL(value, version)) {
+        } else if (containsCTL(value)) {
             throw new IllegalArgumentException("Invalid control character in cookie value: " + value);
         } else if (alreadyQuoted(value)) {
             buf.append('"');
@@ -306,7 +306,7 @@ final class ServerCookie implements Serializable {
             if (c == '\\') {
                 b.append(c);
                 //ignore the character after an escape, just append it
-                if (++i >= endIndex) {
+                if (++i >= endIndex) { //NOSONAR
                     throw new IllegalArgumentException("Invalid character in cookie: " + s);
                 }
                 b.append(s.charAt(i));

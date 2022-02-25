@@ -16,6 +16,7 @@
 package io.micronaut.jaxrs.runtime.core;
 
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.annotation.Nullable;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.MutableHttpHeaders;
 import io.micronaut.http.MutableHttpResponse;
@@ -90,7 +91,7 @@ class JaxRsResponse extends Response {
 
     @Override
     public void close() {
-
+        //no op
     }
 
     @Override
@@ -115,6 +116,7 @@ class JaxRsResponse extends Response {
     }
 
     @Override
+    @Nullable
     public Map<String, NewCookie> getCookies() {
         return null;
     }

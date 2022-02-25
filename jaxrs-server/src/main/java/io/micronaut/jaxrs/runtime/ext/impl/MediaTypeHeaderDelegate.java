@@ -31,7 +31,8 @@ import java.util.Map;
  * @version $Revision: 1 $
  */
 @Internal
-final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate {
+final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Object> {
+
     private static final Map<String, MediaType> MAP = new ConcurrentLinkedHashMap.Builder<String, MediaType>()
             .maximumWeightedCapacity(200)
             .build();
@@ -39,6 +40,8 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate {
             .maximumWeightedCapacity(200)
             .build();
     private static final char[] QUOTED_CHARS = "()<>@,;:\\\"/[]?= \t\r\n".toCharArray();
+
+    public static final String INVALID_MEDIA_TYPE = "Invalid media type: ";
 
     @Override
     public Object fromString(String type) throws IllegalArgumentException {
@@ -50,9 +53,8 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate {
 
     @Override
     public String toString(Object o) {
-        if (o == null) {
-            ArgumentUtils.requireNonNull("o", o);
-        }
+        ArgumentUtils.requireNonNull("o", o);
+
         MediaType type = (MediaType) o;
         String result = REVERSE_MAP.get(type);
         if (result == null) {
@@ -90,6 +92,7 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate {
         return false;
     }
 
+    @SuppressWarnings("java:S3776")
     private static MediaType internalParse(String type) {
         int typeIndex = type.indexOf('/');
         int paramIndex = type.indexOf(';');
@@ -102,7 +105,7 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate {
                 major = major.substring(0, paramIndex);
             }
             if (!MediaType.MEDIA_TYPE_WILDCARD.equals(major)) {
-                throw new IllegalArgumentException("Invalid media type: " + type);
+                throw new IllegalArgumentException(INVALID_MEDIA_TYPE + type);
             }
             subtype = MediaType.MEDIA_TYPE_WILDCARD;
         } else {
@@ -114,10 +117,10 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate {
             }
         }
         if (major.length() < 1 || subtype.length() < 1) {
-            throw new IllegalArgumentException("Invalid media type: " + type);
+            throw new IllegalArgumentException(INVALID_MEDIA_TYPE + type);
         }
         if (!isValid(major) || !isValid(subtype)) {
-            throw new IllegalArgumentException("Invalid media type: " + type);
+            throw new IllegalArgumentException(INVALID_MEDIA_TYPE + type);
         }
         String params = null;
         if (paramIndex > -1) {

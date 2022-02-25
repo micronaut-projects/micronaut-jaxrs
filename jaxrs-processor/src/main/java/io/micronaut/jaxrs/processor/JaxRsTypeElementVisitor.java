@@ -83,10 +83,8 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     @Override
     public void visitMethod(MethodElement element, VisitorContext context) {
         if (element.hasStereotype(HttpMethod.class)) {
-            if (currentClassElement != null && !currentClassElement.hasAnnotation(Controller.class)) {
-                if (!currentClassElement.isAbstract()) {
-                    currentClassElement.annotate(Controller.class);
-                }
+            if (currentClassElement != null && !currentClassElement.hasAnnotation(Controller.class) && !currentClassElement.isAbstract()) {
+                currentClassElement.annotate(Controller.class);
             }
             final ParameterElement[] parameters = element.getParameters();
             for (ParameterElement parameter : parameters) {
