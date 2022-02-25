@@ -87,6 +87,24 @@ class HeadersTest {
         assertEquals("foo/*", mediaType.toString());
     }
 
+    @Test
+    void testToStringCacheControl() {
+        CacheControl cacheControl = new CacheControl();
+        cacheControl.setMustRevalidate(true);
+        cacheControl.setNoCache(true);
+        cacheControl.setNoTransform(true);
+        cacheControl.setProxyRevalidate(true);
+        cacheControl.setPrivate(true);
+        cacheControl.setMaxAge(0);
+        cacheControl.setSMaxAge(0);
+        cacheControl.getCacheExtension().put("foo", "bar");
+
+        assertEquals(
+            "no-cache, must-revalidate, no-transform, proxy-revalidate, s-maxage=0, max-age=0, private, foo=\"bar\"",
+            cacheControl.toString()
+        );
+    }
+
 
     @Test
     void testCookie() {
