@@ -82,6 +82,13 @@ class HeadersTest {
     }
 
     @Test
+    void testToStringNewMediaType() {
+        MediaType mediaType = MediaType.valueOf("foo/*");
+        assertEquals("foo/*", mediaType.toString());
+    }
+
+
+    @Test
     void testCookie() {
         final String result = headerClient.cookie(new Cookie("foo", "bar"));
 
