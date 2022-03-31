@@ -15,10 +15,6 @@ See the [Documentation](https://micronaut-projects.github.io/micronaut-jaxrs/lat
 
 See the [Snapshot Documentation](https://micronaut-projects.github.io/micronaut-jaxrs/snapshot/guide/) for the current development docs.
 
-## Examples
-
-Examples can be found in the [examples](https://github.com/micronaut-projects/micronaut-jaxrs/tree/master/examples) directory.
-
 ## Snapshots and Releases
 
 Snaphots are automatically published to [JFrog OSS](https://oss.jfrog.org/artifactory/oss-snapshot-local/) using [Github Actions](https://github.com/micronaut-projects/micronaut-jaxrs/actions).
