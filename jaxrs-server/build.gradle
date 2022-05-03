@@ -2,28 +2,28 @@ plugins {
     id "io.micronaut.build.internal.module"
 }
 dependencies {
-	annotationProcessor "io.micronaut:micronaut-inject-java"
-	annotationProcessor "io.micronaut:micronaut-graal"
-	api "io.micronaut:micronaut-http"
-	api 'org.jboss.resteasy:jaxrs-api:3.0.12.Final'
+	annotationProcessor(libs.micronaut.inject.java)
+	annotationProcessor(libs.micronaut.graal)
+	api(libs.micronaut.http)
+	api(libs.jaxrs.api)
 
-	implementation "io.micronaut:micronaut-router"
-	implementation "io.micronaut:micronaut-http-server"
+	implementation(libs.micronaut.router)
+	implementation(libs.micronaut.http.server)
 
 	// for Java
-	testAnnotationProcessor "io.micronaut:micronaut-inject-java"
-	testAnnotationProcessor "io.micronaut:micronaut-validation"
+	testAnnotationProcessor(libs.micronaut.inject.java)
+	testAnnotationProcessor(libs.micronaut.validation)
 	testAnnotationProcessor project(":jaxrs-processor")
 
 	// for Groovy
-	testImplementation "io.micronaut:micronaut-inject-groovy"
+	testImplementation(libs.micronaut.inject.groovy)
 	testImplementation project(":jaxrs-processor")
 
-	testImplementation "io.micronaut:micronaut-http-server-netty"
-	testImplementation "io.micronaut:micronaut-http-client"
-	testImplementation "io.micronaut:micronaut-validation"	
-	testImplementation "io.micronaut.test:micronaut-test-junit5:$micronautTestVersion"        
-	testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine")
+	testImplementation(libs.micronaut.http.server.netty)
+	testImplementation(libs.micronaut.http.client)
+	testImplementation(libs.micronaut.validation)
+	testImplementation(libs.micronaut.test.junit5)
+	testRuntimeOnly(libs.junit.jupiter.engine)
 //	testRuntimeOnly("org.junit.vintage:junit-vintage-engine")
 }
 test {
