@@ -2,18 +2,20 @@ plugins {
     id "io.micronaut.build.internal.module"
 }
 dependencies {
-	annotationProcessor(libs.micronaut.inject.java)
 	annotationProcessor(libs.micronaut.graal)
 
 	implementation project(":jaxrs-server")
     implementation(libs.micronaut.security)
+
 	testAnnotationProcessor(libs.micronaut.validation)
 	testAnnotationProcessor(libs.micronaut.inject.java)
 	testAnnotationProcessor project(":jaxrs-processor")
 	testAnnotationProcessor(libs.micronaut.security.annotations)
+
 	testImplementation(libs.micronaut.validation)
 	testImplementation(libs.micronaut.http.client)
 	testImplementation(libs.micronaut.http.server.netty)
 	testImplementation(libs.micronaut.test.junit5)
+
 	testRuntimeOnly(libs.junit.jupiter.engine)
 }

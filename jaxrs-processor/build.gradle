@@ -3,11 +3,12 @@ plugins {
 }
 dependencies {
 	implementation(libs.micronaut.http)
-	implementation(libs.jaxrs.api)
+	implementation(libs.managed.jaxrs.api)
+
+	testAnnotationProcessor(libs.micronaut.validation)
 	testImplementation(libs.micronaut.http.validation)
 	testImplementation(libs.micronaut.http.server)
 	testImplementation(libs.micronaut.inject.java.test)
-	testAnnotationProcessor(libs.micronaut.validation)
 	testImplementation(libs.micronaut.validation)
 	if (!JavaVersion.current().isJava9Compatible()) {
 		testImplementation files(org.gradle.internal.jvm.Jvm.current().toolsJar)
