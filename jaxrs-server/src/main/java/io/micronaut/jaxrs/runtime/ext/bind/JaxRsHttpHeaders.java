@@ -71,7 +71,7 @@ public class JaxRsHttpHeaders implements HttpHeaders {
     @Override
     public List<MediaType> getAcceptableMediaTypes() {
         final List<MediaType> mediaTypes = httpHeaders.findFirst(io.micronaut.http.HttpHeaders.ACCEPT)
-                .map((text) -> {
+                .map(text -> {
                     int len = text.length();
                     if (len == 0) {
                         return Collections.singletonList(MediaType.valueOf(io.micronaut.http.MediaType.ALL));
@@ -101,7 +101,7 @@ public class JaxRsHttpHeaders implements HttpHeaders {
     @Override
     public List<Locale> getAcceptableLanguages() {
         final List<Locale> locales = httpHeaders.findFirst(io.micronaut.http.HttpHeaders.ACCEPT_LANGUAGE)
-                .map((text) -> {
+                .map(text -> {
                     int len = text.length();
                     if (len == 0 || (len == 1 && text.charAt(0) == '*')) {
                         return Collections.<Locale>emptyList();
