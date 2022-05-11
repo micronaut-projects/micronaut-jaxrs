@@ -25,6 +25,8 @@ import javax.ws.rs.core.UriInfo;
 import java.util.Optional;
 
 /**
+ * Binds the {@link  UriInfo} of the {@link javax.ws.rs.core.Context}.
+ *
  * @author Dan Hollingsworth
  * @since 3.3.0
  */
