@@ -81,7 +81,7 @@ public class UriInfoImpl implements UriInfo {
                     String[] segmentTokens = token.split(";");
                     MultivaluedMap<String, String> params = new MultiMapNullPermitted<>();
                     for (int i = 1; i < segmentTokens.length; ++i) {
-                        String[] keyVal = segmentTokens[i].split("=");
+                        String[] keyVal = segmentTokens[i].split("=", 2);
                         String key = keyVal[0];
                         String val = keyVal.length > 1 ? keyVal[1] : null;
                         params.add(string(key, decode), string(val, decode));
