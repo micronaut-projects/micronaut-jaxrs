@@ -11,6 +11,7 @@ plugins {
 
 rootProject.name = 'jaxrs-parent'
 
+include 'jaxrs-bom'
 include 'jaxrs-processor'
 include 'jaxrs-server'
 include 'jaxrs-server-security'

@@ -2,15 +2,16 @@ plugins {
     id "io.micronaut.build.internal.module"
 }
 dependencies {
-	implementation "io.micronaut:micronaut-http"
-	implementation 'org.jboss.resteasy:jaxrs-api:3.0.12.Final'
-	testImplementation "io.micronaut:micronaut-http-validation"
-	testImplementation "io.micronaut:micronaut-http-server"
-	testImplementation "io.micronaut:micronaut-inject-java-test"
-	testAnnotationProcessor "io.micronaut:micronaut-validation"
-	testImplementation "io.micronaut:micronaut-validation"
+	implementation(libs.micronaut.http)
+	implementation(libs.managed.jaxrs.api)
+
+	testAnnotationProcessor(libs.micronaut.validation)
+	testImplementation(libs.micronaut.http.validation)
+	testImplementation(libs.micronaut.http.server)
+	testImplementation(libs.micronaut.inject.java.test)
+	testImplementation(libs.micronaut.validation)
 	if (!JavaVersion.current().isJava9Compatible()) {
 		testImplementation files(org.gradle.internal.jvm.Jvm.current().toolsJar)
 	}
-	testImplementation "io.micronaut:micronaut-http-client"
+	testImplementation(libs.micronaut.http.client)
 }
