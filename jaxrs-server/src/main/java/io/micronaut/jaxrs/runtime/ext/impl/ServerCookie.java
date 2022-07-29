@@ -100,29 +100,6 @@ final class ServerCookie implements Serializable {
         return true;
     }
 
-    /**
-     * @param name name
-     * @return boolean flag
-     * @deprecated Not used: Deprecated in the original org.apache.tomcat.util.http.ServerCookie class.
-     */
-    @Deprecated
-    public static boolean checkName(String name) {
-        if (!isToken(name)
-                || name.equalsIgnoreCase("Comment")     // rfc2019
-                || name.equalsIgnoreCase("Discard")     // rfc2965
-                || name.equalsIgnoreCase("Domain")      // rfc2019
-                || name.equalsIgnoreCase("Expires")     // Netscape
-                || name.equalsIgnoreCase("Max-Age")     // rfc2019
-                || name.equalsIgnoreCase("Path")        // rfc2019
-                || name.equalsIgnoreCase("Secure")      // rfc2019
-                || name.equalsIgnoreCase("Version")     // rfc2019
-            // TODO remaining RFC2965 attributes
-        ) {
-            return false;
-        }
-        return true;
-    }
-
     // -------------------- Cookie parsing tools
     /**
      * Return the header name to set the cookie, based on cookie version.
