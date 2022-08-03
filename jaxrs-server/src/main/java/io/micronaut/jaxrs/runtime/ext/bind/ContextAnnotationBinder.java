@@ -46,7 +46,6 @@ public class ContextAnnotationBinder<T> implements AnnotatedRequestArgumentBinde
      * @param beanContext The bean context
      * @param simpleSecurityContextBinder The security context binder
      */
-    @Inject
     protected ContextAnnotationBinder(BeanContext beanContext,
                                       SimpleSecurityContextBinder simpleSecurityContextBinder) {
         this.beanContext = beanContext;
