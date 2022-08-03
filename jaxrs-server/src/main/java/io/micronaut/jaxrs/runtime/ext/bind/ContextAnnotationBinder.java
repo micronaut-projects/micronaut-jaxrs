@@ -22,7 +22,6 @@ import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.bind.binders.AnnotatedRequestArgumentBinder;
 import io.micronaut.inject.qualifiers.Qualifiers;
-import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 
 import javax.ws.rs.core.Context;
