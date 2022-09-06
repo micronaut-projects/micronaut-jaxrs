@@ -15,8 +15,6 @@
  */
 package io.micronaut.jaxrs.runtime.ext.bind;
 
-import javax.ws.rs.core.Context;
-
 import io.micronaut.context.BeanContext;
 import io.micronaut.context.Qualifier;
 import io.micronaut.core.convert.ArgumentConversionContext;
@@ -24,8 +22,9 @@ import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.bind.binders.AnnotatedRequestArgumentBinder;
 import io.micronaut.inject.qualifiers.Qualifiers;
-import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
+
+import javax.ws.rs.core.Context;
 import javax.ws.rs.core.SecurityContext;
 
 /**
@@ -42,21 +41,10 @@ public class ContextAnnotationBinder<T> implements AnnotatedRequestArgumentBinde
     private final SimpleSecurityContextBinder securityBinder;
 
     /**
-     * Constructor.
-     * @param beanContext The bean context
-     * @deprecated Use {@link ContextAnnotationBinder#ContextAnnotationBinder(BeanContext, SimpleSecurityContextBinder)} instead.
-     */
-    @Deprecated
-    protected ContextAnnotationBinder(BeanContext beanContext) {
-        this(beanContext, new SimpleSecurityContextBinder());
-    }
-
-    /**
      * Default constructor.
      * @param beanContext The bean context
      * @param simpleSecurityContextBinder The security context binder
      */
-    @Inject
     protected ContextAnnotationBinder(BeanContext beanContext,
                                       SimpleSecurityContextBinder simpleSecurityContextBinder) {
         this.beanContext = beanContext;

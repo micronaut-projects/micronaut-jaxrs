@@ -1,0 +1,17 @@
+[
+  {
+    "type": "io.micronaut.jaxrs.runtime.annotation.ContextBindable",
+    "member": "Implemented interface java.lang.annotation.Annotation",
+    "reason": "removed deprecated annotation for Micronaut 4.0.x"
+  },
+  {
+    "type": "io.micronaut.jaxrs.runtime.ext.bind.ContextAnnotationBinder",
+    "member": "Class io.micronaut.jaxrs.runtime.ext.bind.ContextAnnotationBinder",
+    "reason": "removed deprecated constructor for Micronaut 4.0.x"
+  },
+  {
+    "type": "io.micronaut.jaxrs.runtime.ext.bind.ContextAnnotationBinder",
+    "member": "Constructor io.micronaut.jaxrs.runtime.ext.bind.ContextAnnotationBinder(io.micronaut.context.BeanContext)",
+    "reason": "removed deprecated constructor for Micronaut 4.0.x"
+  }
+]
