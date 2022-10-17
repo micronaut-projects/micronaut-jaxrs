@@ -23,7 +23,8 @@ import io.micronaut.jaxrs.runtime.ext.bind.SimpleSecurityContextImpl;
 import io.micronaut.security.authentication.Authentication;
 import io.micronaut.security.filters.SecurityFilter;
 import jakarta.inject.Singleton;
-import javax.ws.rs.core.SecurityContext;
+import jakarta.ws.rs.core.SecurityContext;
+
 import java.util.Optional;
 /**
  *
@@ -31,13 +32,13 @@ import java.util.Optional;
  * @author graemerocher
  * @since 3.1.0
  */
-@Singleton 
+@Singleton
 @Replaces(SimpleSecurityContextBinder.class)
 public class MicronautSecurityContextBinder extends SimpleSecurityContextBinder {
 
     @Override
     public BindingResult<SecurityContext> bind(
-        ArgumentConversionContext<SecurityContext> context, 
+        ArgumentConversionContext<SecurityContext> context,
         HttpRequest<?> source) {
         if (source.getAttributes().contains(SecurityFilter.KEY)) {
             Authentication auth = source.getAttribute(SecurityFilter.AUTHENTICATION, Authentication.class)
@@ -58,7 +59,7 @@ public class MicronautSecurityContextBinder extends SimpleSecurityContextBinder 
         private final Authentication authentication;
 
         private MicronautSecurityContext(
-            Authentication authentication, 
+            Authentication authentication,
             HttpRequest<?> request) {
             super(request);
             this.authentication = authentication;
@@ -68,6 +69,6 @@ public class MicronautSecurityContextBinder extends SimpleSecurityContextBinder 
         public boolean isUserInRole(String role) {
             return authentication.getRoles().contains(role);
         }
-                
+
     }
 }

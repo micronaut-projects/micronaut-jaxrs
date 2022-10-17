@@ -18,9 +18,9 @@ package io.micronaut.jaxrs.runtime.ext.impl;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.util.ArgumentUtils;
 import io.micronaut.jaxrs.runtime.core.ParameterParser;
-import javax.ws.rs.core.Cookie;
-import javax.ws.rs.core.NewCookie;
-import javax.ws.rs.ext.RuntimeDelegate;
+import jakarta.ws.rs.core.Cookie;
+import jakarta.ws.rs.core.NewCookie;
+import jakarta.ws.rs.ext.RuntimeDelegate;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;

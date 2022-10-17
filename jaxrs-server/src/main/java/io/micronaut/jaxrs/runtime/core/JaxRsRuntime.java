@@ -20,8 +20,8 @@ import io.micronaut.context.annotation.Context;
 import io.micronaut.context.annotation.Requires;
 import io.micronaut.context.env.PropertySource;
 import io.micronaut.core.annotation.Internal;
+import jakarta.ws.rs.core.Application;
 
-import javax.ws.rs.core.Application;
 import java.util.Set;
 
 /**

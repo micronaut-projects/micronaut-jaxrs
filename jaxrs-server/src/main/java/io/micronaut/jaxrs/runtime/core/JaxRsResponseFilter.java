@@ -16,6 +16,7 @@
 package io.micronaut.jaxrs.runtime.core;
 
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.annotation.Nullable;
 import io.micronaut.core.async.publisher.Publishers;
 import io.micronaut.core.io.Writable;
 import io.micronaut.http.HttpRequest;
@@ -23,10 +24,9 @@ import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.http.annotation.Filter;
 import io.micronaut.http.filter.HttpServerFilter;
 import io.micronaut.http.filter.ServerFilterChain;
+import jakarta.ws.rs.core.StreamingOutput;
 import org.reactivestreams.Publisher;
 
-import io.micronaut.core.annotation.Nullable;
-import javax.ws.rs.core.StreamingOutput;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.Writer;

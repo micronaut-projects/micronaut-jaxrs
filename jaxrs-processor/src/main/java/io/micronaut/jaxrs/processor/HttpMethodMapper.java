@@ -18,12 +18,21 @@ package io.micronaut.jaxrs.processor;
 import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.AnnotationValueBuilder;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.annotation.NonNull;
 import io.micronaut.http.HttpMethod;
-import io.micronaut.http.annotation.*;
+import io.micronaut.http.annotation.CustomHttpMethod;
+import io.micronaut.http.annotation.Delete;
+import io.micronaut.http.annotation.Get;
+import io.micronaut.http.annotation.Head;
+import io.micronaut.http.annotation.Options;
+import io.micronaut.http.annotation.Patch;
+import io.micronaut.http.annotation.Post;
+import io.micronaut.http.annotation.Put;
+import io.micronaut.http.annotation.Trace;
+import io.micronaut.http.annotation.UriMapping;
 import io.micronaut.inject.annotation.NamedAnnotationMapper;
 import io.micronaut.inject.visitor.VisitorContext;
 
-import io.micronaut.core.annotation.NonNull;
 import java.lang.annotation.Annotation;
 import java.util.Collections;
 import java.util.List;
@@ -40,7 +49,7 @@ public class HttpMethodMapper implements NamedAnnotationMapper {
     @NonNull
     @Override
     public String getName() {
-        return "javax.ws.rs.HttpMethod";
+        return "jakarta.ws.rs.HttpMethod";
     }
 
     @Override

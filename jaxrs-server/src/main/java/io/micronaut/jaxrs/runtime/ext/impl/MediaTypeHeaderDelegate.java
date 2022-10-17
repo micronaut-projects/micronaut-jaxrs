@@ -19,9 +19,9 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.util.ArgumentUtils;
 import io.micronaut.core.util.clhm.ConcurrentLinkedHashMap;
 import io.micronaut.jaxrs.runtime.core.ParameterParser;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.ext.RuntimeDelegate;
 
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.ext.RuntimeDelegate;
 import java.util.Map;
 
 /**

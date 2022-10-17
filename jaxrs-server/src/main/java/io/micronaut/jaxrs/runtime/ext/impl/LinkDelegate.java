@@ -17,14 +17,14 @@ package io.micronaut.jaxrs.runtime.ext.impl;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.util.ArgumentUtils;
-import java.util.Map.Entry;
-import javax.ws.rs.core.Link;
-import javax.ws.rs.core.MultivaluedHashMap;
-import javax.ws.rs.core.MultivaluedMap;
-import javax.ws.rs.ext.RuntimeDelegate;
+import jakarta.ws.rs.core.Link;
+import jakarta.ws.rs.core.MultivaluedHashMap;
+import jakarta.ws.rs.core.MultivaluedMap;
+import jakarta.ws.rs.ext.RuntimeDelegate;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 /**
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>

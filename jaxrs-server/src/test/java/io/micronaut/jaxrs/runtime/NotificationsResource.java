@@ -2,18 +2,30 @@ package io.micronaut.jaxrs.runtime;
 
 import io.micronaut.context.annotation.Value;
 import io.micronaut.http.annotation.QueryValue;
-import io.micronaut.http.hateoas.JsonError;
 import io.micronaut.scheduling.TaskExecutors;
 import jakarta.inject.Named;
-import java.util.concurrent.ExecutorService;
+import jakarta.ws.rs.BadRequestException;
+import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DefaultValue;
+import jakarta.ws.rs.ForbiddenException;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.NotAcceptableException;
+import jakarta.ws.rs.NotAllowedException;
+import jakarta.ws.rs.NotAuthorizedException;
+import jakarta.ws.rs.NotFoundException;
+import jakarta.ws.rs.NotSupportedException;
+import jakarta.ws.rs.POST;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.Application;
+import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 import org.junit.jupiter.api.Assertions;
 
 import javax.validation.constraints.Min;
-import javax.ws.rs.*;
-import javax.ws.rs.core.Application;
-import javax.ws.rs.core.Context;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
+import java.util.concurrent.ExecutorService;
 
 @Path("/notifications")
 public class NotificationsResource {

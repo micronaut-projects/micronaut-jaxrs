@@ -13,5 +13,10 @@
     "type": "io.micronaut.jaxrs.runtime.ext.bind.ContextAnnotationBinder",
     "member": "Constructor io.micronaut.jaxrs.runtime.ext.bind.ContextAnnotationBinder(io.micronaut.context.BeanContext)",
     "reason": "removed deprecated constructor for Micronaut 4.0.x"
+  },
+  {
+    "type": "io.micronaut.jaxrs.runtime.ext.bind.SimpleSecurityContextImpl",
+    "member": "Implemented interface javax.ws.rs.core.SecurityContext",
+    "reason": "Migrate to jakarta.ws.rs for Micronaut 4.0.x"
   }
 ]

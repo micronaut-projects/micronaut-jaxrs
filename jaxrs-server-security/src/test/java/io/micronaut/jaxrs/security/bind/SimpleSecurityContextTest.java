@@ -13,15 +13,17 @@ import io.micronaut.security.authentication.AuthenticationProvider;
 import io.micronaut.security.authentication.AuthenticationRequest;
 import io.micronaut.security.authentication.AuthenticationResponse;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
+import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Singleton;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.SecurityContext;
+import org.junit.jupiter.api.Test;
+
 import java.util.Collections;
 import java.util.Map;
-import javax.annotation.security.RolesAllowed;
-import javax.ws.rs.GET;
-import javax.ws.rs.Path;
-import javax.ws.rs.core.Context;
-import javax.ws.rs.core.SecurityContext;
-import org.junit.jupiter.api.Test;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 

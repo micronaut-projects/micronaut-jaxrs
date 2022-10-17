@@ -18,15 +18,16 @@ package io.micronaut.jaxrs.runtime.ext.bind;
 import io.micronaut.http.HttpHeaderValues;
 import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpRequest;
+import jakarta.ws.rs.core.SecurityContext;
+
 import java.security.Principal;
 import java.security.cert.Certificate;
 import java.util.Objects;
-import javax.ws.rs.core.SecurityContext;
 
 /**
  *
  * Implementation of the JAX-RS {@code SecurityContext} interface.
- * 
+ *
  * @author graemerocher
  * @since 3.1.0
  */
@@ -67,7 +68,7 @@ public class SimpleSecurityContextImpl implements SecurityContext {
         String authorization = request.getHeaders().get(HttpHeaders.AUTHORIZATION);
         if (authorization != null && authorization.startsWith(HttpHeaderValues.AUTHORIZATION_PREFIX_BASIC)) {
             return BASIC_AUTH;
-        }  
+        }
         return null;
     }
 

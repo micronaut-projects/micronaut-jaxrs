@@ -18,9 +18,9 @@ package io.micronaut.jaxrs.runtime.ext.impl;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.util.ArgumentUtils;
+import jakarta.ws.rs.core.Cookie;
+import jakarta.ws.rs.ext.RuntimeDelegate;
 
-import javax.ws.rs.core.Cookie;
-import javax.ws.rs.ext.RuntimeDelegate;
 import java.util.ArrayList;
 import java.util.List;
 

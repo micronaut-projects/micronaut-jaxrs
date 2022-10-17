@@ -1,8 +1,8 @@
 [versions]
-managed-jaxrs-api = "3.0.12.Final"
+managed-jaxrs-api = "3.1.0"
 
 [libraries]
-managed-jaxrs-api = { module = "org.jboss.resteasy:jaxrs-api", version.ref = "managed-jaxrs-api" }
+managed-jaxrs-api = { module = "jakarta.ws.rs:jakarta.ws.rs-api", version.ref = "managed-jaxrs-api" }
 
 # Micronaut
 micronaut-graal = { module = "io.micronaut:micronaut-graal" }

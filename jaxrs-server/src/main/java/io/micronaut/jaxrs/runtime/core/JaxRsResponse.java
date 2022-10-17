@@ -20,11 +20,24 @@ import io.micronaut.core.annotation.Nullable;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.MutableHttpHeaders;
 import io.micronaut.http.MutableHttpResponse;
+import jakarta.ws.rs.core.EntityTag;
+import jakarta.ws.rs.core.GenericType;
+import jakarta.ws.rs.core.Link;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.MultivaluedHashMap;
+import jakarta.ws.rs.core.MultivaluedMap;
+import jakarta.ws.rs.core.NewCookie;
+import jakarta.ws.rs.core.Response;
 
-import javax.ws.rs.core.*;
 import java.lang.annotation.Annotation;
 import java.net.URI;
-import java.util.*;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Adapter for JAX-RS and final Micronaut response.

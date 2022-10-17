@@ -18,9 +18,12 @@ package io.micronaut.jaxrs.runtime.ext.convert;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.convert.TypeConverterRegistrar;
-
 import jakarta.inject.Singleton;
-import javax.ws.rs.core.*;
+import jakarta.ws.rs.core.CacheControl;
+import jakarta.ws.rs.core.Cookie;
+import jakarta.ws.rs.core.EntityTag;
+import jakarta.ws.rs.core.Link;
+import jakarta.ws.rs.core.MediaType;
 
 /**
  * Registers JAX-RS converters.

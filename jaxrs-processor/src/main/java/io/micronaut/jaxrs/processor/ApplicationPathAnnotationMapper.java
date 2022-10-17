@@ -18,12 +18,12 @@ package io.micronaut.jaxrs.processor;
 import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.AnnotationValueBuilder;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.annotation.NonNull;
 import io.micronaut.http.annotation.UriMapping;
 import io.micronaut.inject.annotation.NamedAnnotationMapper;
 import io.micronaut.inject.visitor.VisitorContext;
-
-import io.micronaut.core.annotation.NonNull;
 import jakarta.inject.Singleton;
+
 import java.lang.annotation.Annotation;
 import java.util.Arrays;
 import java.util.List;
@@ -39,7 +39,7 @@ public class ApplicationPathAnnotationMapper implements NamedAnnotationMapper {
     @NonNull
     @Override
     public String getName() {
-        return "javax.ws.rs.ApplicationPath";
+        return "jakarta.ws.rs.ApplicationPath";
     }
 
     @Override

@@ -15,17 +15,6 @@
  */
 package io.micronaut.jaxrs.processor;
 
-import java.lang.annotation.Annotation;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
-
-import javax.ws.rs.BeanParam;
-import javax.ws.rs.HttpMethod;
-import javax.ws.rs.MatrixParam;
-import javax.ws.rs.Path;
-
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.NonNull;
 import io.micronaut.core.bind.annotation.Bindable;
@@ -36,9 +25,18 @@ import io.micronaut.inject.ast.MethodElement;
 import io.micronaut.inject.ast.ParameterElement;
 import io.micronaut.inject.visitor.TypeElementVisitor;
 import io.micronaut.inject.visitor.VisitorContext;
+import jakarta.ws.rs.BeanParam;
+import jakarta.ws.rs.HttpMethod;
+import jakarta.ws.rs.MatrixParam;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.SecurityContext;
 
-import javax.ws.rs.core.Context;
-import javax.ws.rs.core.SecurityContext;
+import java.lang.annotation.Annotation;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
 
 /**
  * A type element visitor that turns a JAX-RS path into a controller.
@@ -66,7 +64,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
 
     @Override
     public Set<String> getSupportedAnnotationNames() {
-        return Collections.singleton("javax.ws.rs.*");
+        return Collections.singleton("jakarta.ws.rs.*");
     }
 
     @Override

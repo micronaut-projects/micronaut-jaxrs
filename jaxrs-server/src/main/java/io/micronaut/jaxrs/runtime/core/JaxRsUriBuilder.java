@@ -16,10 +16,10 @@
 package io.micronaut.jaxrs.runtime.core;
 
 import io.micronaut.core.util.ArgumentUtils;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.core.UriBuilder;
+import jakarta.ws.rs.core.UriBuilderException;
 
-import javax.ws.rs.Path;
-import javax.ws.rs.core.UriBuilder;
-import javax.ws.rs.core.UriBuilderException;
 import java.lang.reflect.Method;
 import java.net.URI;
 import java.util.Map;

@@ -1,10 +1,10 @@
-As of this writing Micronaut JAX-RS supports the annotations and types defined within the `javax.ws.rs` package and the `javax.ws.rs.core` subpackage only.
+As of this writing Micronaut JAX-RS supports the annotations and types defined within the `jakarta.ws.rs` package and the `jakarta.ws.rs.core` subpackage only.
 
 All interfaces, annotations and types contained within the following packages are not supported:
 
-* `javax.ws.rs.client`
-* `javax.ws.rs.container`
-* `javax.ws.rs.ext`
+* `jakarta.ws.rs.client`
+* `jakarta.ws.rs.container`
+* `jakarta.ws.rs.ext`
 
 ==== Supported Annotations
 
@@ -14,67 +14,67 @@ Micronaut JAX-RS works by converting (at compilation time) a JAX-RS annotation d
 |===
 |JAX-RS Annotation|Target Annotation|Example
 
-|link:{jaxrsapi}javax/ws/rs/Path.html[@Path]
+|link:{jaxrsapi}jakarta/ws/rs/Path.html[@Path]
 |link:{micronautapi}http/annotation/Controller.html[@Controller]
 |`@Path("/foo")` // on type
 
-|link:{jaxrsapi}javax/ws/rs/Path.html[@Path]
+|link:{jaxrsapi}jakarta/ws/rs/Path.html[@Path]
 |link:{micronautapi}http/annotation/UriMapping.html[@UriMapping]
 |`@Path("/foo")` // on method
 
-|link:{jaxrsapi}javax/ws/rs/HttpMethod.html[@HttpMethod]
+|link:{jaxrsapi}jakarta/ws/rs/HttpMethod.html[@HttpMethod]
 |link:{micronautapi}http/annotation/HttpMethodMapping.html[@HttpMethodMapping]
 |`@HttpMethod("TRACE")`
 
-|link:{jaxrsapi}javax/ws/rs/GET.html[@GET]
+|link:{jaxrsapi}jakarta/ws/rs/GET.html[@GET]
 |link:{micronautapi}http/annotation/Get.html[@Get]
 |`@GET @Path("/foo/bar")`
 
-|link:{jaxrsapi}javax/ws/rs/POST.html[@POST]
+|link:{jaxrsapi}jakarta/ws/rs/POST.html[@POST]
 |link:{micronautapi}http/annotation/Post.html[@Post]
 |`@POST @Path("/foo/bar")`
 
-|link:{jaxrsapi}javax/ws/rs/DELETE.html[@DELETE]
+|link:{jaxrsapi}jakarta/ws/rs/DELETE.html[@DELETE]
 |link:{micronautapi}http/annotation/Delete.html[@Delete]
 |`@DELETE @Path("/foo/bar")`
 
-|link:{jaxrsapi}javax/ws/rs/OPTIONS.html[@OPTIONS]
+|link:{jaxrsapi}jakarta/ws/rs/OPTIONS.html[@OPTIONS]
 |link:{micronautapi}http/annotation/Options.html[@Options]
 |`@OPTIONS @Path("/foo/bar")`
 
-|link:{jaxrsapi}javax/ws/rs/HEAD.html[@HEAD]
+|link:{jaxrsapi}jakarta/ws/rs/HEAD.html[@HEAD]
 |link:{micronautapi}http/annotation/Head.html[@Head]
 |`@HEAD @Path("/foo/bar")`
 
-|link:{jaxrsapi}javax/ws/rs/Consumes.html[@Consumes]
+|link:{jaxrsapi}jakarta/ws/rs/Consumes.html[@Consumes]
 |link:{micronautapi}http/annotation/Consumes.html[@Consumes]
 |`@Consumes("application/json")`
 
-|link:{jaxrsapi}javax/ws/rs/Produces.html[@Produces]
+|link:{jaxrsapi}jakarta/ws/rs/Produces.html[@Produces]
 |link:{micronautapi}http/annotation/Produces.html[@Produces]
 |`@Produces("application/json")`
 
-|link:{jaxrsapi}javax/ws/rs/PathParam.html[@PathParam]
+|link:{jaxrsapi}jakarta/ws/rs/PathParam.html[@PathParam]
 |link:{micronautapi}http/annotation/PathVariable.html[@PathVariable]
 |`@PathParam("foo")`
 
-|link:{jaxrsapi}javax/ws/rs/CookieParam.html[@CookieParam]
+|link:{jaxrsapi}jakarta/ws/rs/CookieParam.html[@CookieParam]
 |link:{micronautapi}http/annotation/CookieValue.html[@CookieValue]
 |`@CookieParam("myCookie")`
 
-|link:{jaxrsapi}javax/ws/rs/HeaderParam.html[@HeaderParam]
+|link:{jaxrsapi}jakarta/ws/rs/HeaderParam.html[@HeaderParam]
 |link:{micronautapi}http/annotation/Header.html[@Header]
 |`@HeaderParam("Content-Type")`
 
-|link:{jaxrsapi}javax/ws/rs/QueryParam.html[@QueryParam]
+|link:{jaxrsapi}jakarta/ws/rs/QueryParam.html[@QueryParam]
 |link:{micronautapi}http/annotation/QueryValue.html[@QueryValue]
 |`@QueryParam("myParam")`
 
-|link:{jaxrsapi}javax/ws/rs/DefaultValue.html[@DefaultValue]
+|link:{jaxrsapi}jakarta/ws/rs/DefaultValue.html[@DefaultValue]
 |link:{micronautapi}http/annotation/Bindable.html[@Bindable(defaultValue="..")]
 |`@DefaultValue("example")`
 
-|link:{jaxrsapi}javax/ws/rs/core/Context.html[@Context]
+|link:{jaxrsapi}jakarta/ws/rs/core/Context.html[@Context]
 |No equivalent. Injects a bean in to a parameter.
 |`@Context`
 
@@ -84,21 +84,21 @@ Micronaut JAX-RS works by converting (at compilation time) a JAX-RS annotation d
 
 In addition to the supported JAX-RS annotations you can use the following JAX-RS types as parameter types to resources or client definitions:
 
-* link:{jaxrsapi}/javax/ws/rs/core/HttpHeaders.html[javax.ws.rs.core.HttpHeaders]
-* link:{jaxrsapi}/javax/ws/rs/core/CacheControl.html[javax.ws.rs.core.CacheControl]
-* link:{jaxrsapi}/javax/ws/rs/core/Cookie.html[javax.ws.rs.core.Cookie]
-* link:{jaxrsapi}/javax/ws/rs/core/EntityTag.html[javax.ws.rs.core.EntityTag]
-* link:{jaxrsapi}/javax/ws/rs/core/Link.html[javax.ws.rs.core.Link]
-* link:{jaxrsapi}/javax/ws/rs/core/MediaType.html[javax.ws.rs.core.MediaType]
-* link:{jaxrsapi}/javax/ws/rs/core/SecurityContext.html[javax.ws.rs.core.SecurityContext]
+* link:{jaxrsapi}/jakarta/ws/rs/core/HttpHeaders.html[jakarta.ws.rs.core.HttpHeaders]
+* link:{jaxrsapi}/jakarta/ws/rs/core/CacheControl.html[jakarta.ws.rs.core.CacheControl]
+* link:{jaxrsapi}/jakarta/ws/rs/core/Cookie.html[jakarta.ws.rs.core.Cookie]
+* link:{jaxrsapi}/jakarta/ws/rs/core/EntityTag.html[jakarta.ws.rs.core.EntityTag]
+* link:{jaxrsapi}/jakarta/ws/rs/core/Link.html[jakarta.ws.rs.core.Link]
+* link:{jaxrsapi}/jakarta/ws/rs/core/MediaType.html[jakarta.ws.rs.core.MediaType]
+* link:{jaxrsapi}/jakarta/ws/rs/core/SecurityContext.html[jakarta.ws.rs.core.SecurityContext]
 
-You can also use the link:{jaxrsapi}/javax/ws/rs/core/Context.html[@Context] annotation to inject any bean into a resource type's method parameter.
+You can also use the link:{jaxrsapi}/jakarta/ws/rs/core/Context.html[@Context] annotation to inject any bean into a resource type's method parameter.
 
 NOTE: Parameter binding to constructor argument of resource types is not supported at this time.
 
 ==== SecurityContext and Micronaut Security
 
-When injecting the link:{jaxrsapi}/javax/ws/rs/core/SecurityContext.html[SecurityContext] by default the injected instance is not aware of https://micronaut-projects.github.io/micronaut-security/latest/guide/[Micronaut Security] and methods like `isUserInRole` always return `false`.
+When injecting the link:{jaxrsapi}/jakarta/ws/rs/core/SecurityContext.html[SecurityContext] by default the injected instance is not aware of https://micronaut-projects.github.io/micronaut-security/latest/guide/[Micronaut Security] and methods like `isUserInRole` always return `false`.
 
 To integrate the JAX-RS support with Micronaut Security add the following dependency:
 
@@ -110,5 +110,5 @@ With the above dependency in place the `SecurityContext.isUserInRole` method wil
 
 You can also use the following return types from the JAX-RS API in your resource classes:
 
-* link:{jaxrsapi}/javax/ws/rs/core/Response.html[javax.ws.rs.core.Response]
-* link:{jaxrsapi}/javax/ws/rs/core/StreamingOutput.html[javax.ws.rs.core.StreamingOutput]
+* link:{jaxrsapi}/jakarta/ws/rs/core/Response.html[jakarta.ws.rs.core.Response]
+* link:{jaxrsapi}/jakarta/ws/rs/core/StreamingOutput.html[jakarta.ws.rs.core.StreamingOutput]

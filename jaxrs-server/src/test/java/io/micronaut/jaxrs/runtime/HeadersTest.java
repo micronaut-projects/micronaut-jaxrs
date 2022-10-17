@@ -8,12 +8,15 @@ import io.micronaut.http.client.HttpClient;
 import io.micronaut.http.client.annotation.Client;
 import io.micronaut.jaxrs.runtime.ext.bind.JaxRsHttpHeaders;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
-import org.junit.Assert;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.core.CacheControl;
+import jakarta.ws.rs.core.Cookie;
+import jakarta.ws.rs.core.EntityTag;
+import jakarta.ws.rs.core.Link;
+import jakarta.ws.rs.core.MediaType;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-import jakarta.inject.Inject;
-import javax.ws.rs.core.*;
 import java.util.List;
 import java.util.Locale;
 
@@ -55,7 +58,7 @@ class HeadersTest {
 
 
         final CacheControl cc = response.getHeaders()
-                .getFirst(javax.ws.rs.core.HttpHeaders.CACHE_CONTROL, CacheControl.class)
+                .getFirst(jakarta.ws.rs.core.HttpHeaders.CACHE_CONTROL, CacheControl.class)
                 .get();
         Assertions.assertTrue(
                 cc.isNoCache()
@@ -139,7 +142,7 @@ class HeadersTest {
 
         assertEquals(
                 "/blah",
-                response.getHeaders().getFirst(javax.ws.rs.core.HttpHeaders.LINK, Link.class)
+                response.getHeaders().getFirst(jakarta.ws.rs.core.HttpHeaders.LINK, Link.class)
                     .get().getUri().toString()
         );
     }
