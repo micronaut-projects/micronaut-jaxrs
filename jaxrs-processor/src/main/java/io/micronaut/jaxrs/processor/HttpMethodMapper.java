@@ -84,8 +84,7 @@ public class HttpMethodMapper implements NamedAnnotationMapper {
                 case HEAD:
                     builder = AnnotationValue.builder(Head.class);
                 break;
-                case CUSTOM:
-                case CONNECT:
+                case CUSTOM, CONNECT:
                 default:
                     builder = AnnotationValue.builder(CustomHttpMethod.class);
                     builder.member("method", name);
