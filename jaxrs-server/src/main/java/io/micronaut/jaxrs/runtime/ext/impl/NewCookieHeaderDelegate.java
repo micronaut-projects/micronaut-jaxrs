@@ -89,8 +89,17 @@ class NewCookieHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Object> 
             cookieValue = "";
         }
 
-        return new NewCookie(cookieName, cookieValue, path, domain, version, comment, maxAge, expiry, secure, httpOnly);
-
+        return new NewCookie.Builder(cookieName)
+            .value(cookieValue)
+            .path(path)
+            .domain(domain)
+            .version(version)
+            .comment(comment)
+            .maxAge(maxAge)
+            .expiry(expiry)
+            .secure(secure)
+            .httpOnly(httpOnly)
+            .build();
     }
 
     @Override

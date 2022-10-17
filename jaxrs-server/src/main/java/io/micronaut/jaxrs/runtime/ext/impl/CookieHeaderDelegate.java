@@ -72,7 +72,12 @@ public final class CookieHeaderDelegate implements RuntimeDelegate.HeaderDelegat
                 }
                 if (!name.startsWith("$")) {
                     if (cookieName != null) {
-                        cookies.add(new Cookie(cookieName, cookieValue, path, domain, version));
+                        cookies.add(new Cookie.Builder(cookieName)
+                            .value(cookieValue)
+                            .path(path)
+                            .domain(domain)
+                            .version(version)
+                            .build());
                     }
 
                     cookieName = name;
@@ -86,8 +91,12 @@ public final class CookieHeaderDelegate implements RuntimeDelegate.HeaderDelegat
                 }
             }
             if (cookieName != null) {
-                cookies.add(new Cookie(cookieName, cookieValue, path, domain, version));
-
+                cookies.add(new Cookie.Builder(cookieName)
+                    .value(cookieValue)
+                    .path(path)
+                    .domain(domain)
+                    .version(version)
+                    .build());
             }
             return cookies;
         } catch (Exception ex) {

@@ -39,6 +39,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import static jakarta.ws.rs.ext.RuntimeDelegate.getInstance;
+
 /**
  * Implementation of {@link jakarta.ws.rs.core.Response.ResponseBuilder} for Micronaut.
  *
@@ -100,8 +102,10 @@ public class JaxRsResponseBuilder extends Response.ResponseBuilder {
     @Override
     public Response.ResponseBuilder cacheControl(CacheControl cacheControl) {
         if (cacheControl != null) {
+
             response.getHeaders().add(
-                    io.micronaut.http.HttpHeaders.CACHE_CONTROL, cacheControl.toString()
+                io.micronaut.http.HttpHeaders.CACHE_CONTROL,
+                getInstance().createHeaderDelegate(CacheControl.class).toString(cacheControl)
             );
         }
         return this;
@@ -243,7 +247,8 @@ public class JaxRsResponseBuilder extends Response.ResponseBuilder {
     @Override
     public Response.ResponseBuilder tag(EntityTag tag) {
         if (tag != null) {
-            response.getHeaders().add(io.micronaut.http.HttpHeaders.ETAG, tag.toString());
+            response.getHeaders().add(io.micronaut.http.HttpHeaders.ETAG,
+                getInstance().createHeaderDelegate(EntityTag.class).toString(tag));
         }
         return this;
     }

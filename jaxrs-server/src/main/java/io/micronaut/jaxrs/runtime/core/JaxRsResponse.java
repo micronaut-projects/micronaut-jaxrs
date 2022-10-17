@@ -39,6 +39,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static jakarta.ws.rs.ext.RuntimeDelegate.getInstance;
+
 /**
  * Adapter for JAX-RS and final Micronaut response.
  *
@@ -137,8 +139,9 @@ class JaxRsResponse extends Response {
     @Override
     public EntityTag getEntityTag() {
         return response.getHeaders()
-                .getFirst(io.micronaut.http.HttpHeaders.ETAG)
-                .map(EntityTag::valueOf).orElse(null);
+            .getFirst(io.micronaut.http.HttpHeaders.ETAG)
+            .map(entityTag -> getInstance().createHeaderDelegate(EntityTag.class).fromString(entityTag))
+            .orElse(null);
     }
 
     @Override

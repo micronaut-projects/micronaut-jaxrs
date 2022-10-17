@@ -22,8 +22,6 @@ import io.micronaut.context.env.PropertySource;
 import io.micronaut.core.annotation.Internal;
 import jakarta.ws.rs.core.Application;
 
-import java.util.Set;
-
 /**
  * Registers runtime singletons and adds {@link Application} as a property source.
  *
@@ -40,12 +38,6 @@ public class JaxRsRuntime {
      * @param application The application
      */
     protected JaxRsRuntime(ApplicationContext applicationContext, Application application) {
-        final Set<Object> singletons = application.getSingletons();
-        for (Object singleton : singletons) {
-            if (singleton != null) {
-                applicationContext.registerSingleton(singleton);
-            }
-        }
         applicationContext.getEnvironment().addPropertySource(
                 PropertySource.of(
                         application.getClass().getName(),

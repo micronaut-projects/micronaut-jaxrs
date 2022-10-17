@@ -106,8 +106,7 @@ class LinkImpl extends Link {
         if (this == other) {
             return true;
         }
-        if (other instanceof LinkImpl) {
-            final LinkImpl otherLink = (LinkImpl) other;
+        if (other instanceof LinkImpl otherLink) {
             return uri.equals(otherLink.uri) && map.equals(otherLink.map);
         }
         return false;

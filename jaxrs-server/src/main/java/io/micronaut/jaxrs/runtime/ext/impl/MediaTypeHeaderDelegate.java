@@ -140,20 +140,20 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Ob
         }
         for (int i = 0; i < str.length(); i++) {
             switch (str.charAt(i)) {
-                case '/':
-                case '\\':
-                case '?':
-                case ':':
-                case '<':
-                case '>':
-                case ';':
-                case '(':
-                case ')':
-                case '@':
-                case ',':
-                case '[':
-                case ']':
-                case '=':
+                case '/',
+                    '\\',
+                    '?',
+                    ':',
+                    '<',
+                    '>',
+                    ';',
+                    '(',
+                    ')',
+                    '@',
+                    ',',
+                    '[',
+                    ']',
+                    '=':
                     return false;
                 default:
                     break;

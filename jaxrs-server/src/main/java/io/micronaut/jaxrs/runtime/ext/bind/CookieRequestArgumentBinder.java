@@ -50,7 +50,11 @@ public class CookieRequestArgumentBinder implements TypedRequestArgumentBinder<C
                 .findCookie(context.getAnnotationMetadata().stringValue(CookieValue.class)
                         .orElse(context.getArgument().getName())).orElse(null);
         if (cookie != null) {
-            Cookie c = new Cookie(cookie.getName(), cookie.getValue(), cookie.getPath(), cookie.getDomain());
+            Cookie c = new Cookie.Builder(cookie.getName())
+                .value(cookie.getValue())
+                .path(cookie.getPath())
+                .domain(cookie.getDomain())
+                .build();
             return () -> Optional.of(c);
         } else {
             return BindingResult.EMPTY;

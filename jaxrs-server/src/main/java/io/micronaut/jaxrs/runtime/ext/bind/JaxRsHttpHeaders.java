@@ -31,7 +31,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Adapter class for JAR-RS headers.
@@ -90,7 +89,7 @@ public class JaxRsHttpHeaders implements HttpHeaders {
                                 })
                                 .sorted()
                                 .map(Weighted::getObject)
-                                .collect(Collectors.toList());
+                                .toList();
                     }
                     return Collections.singletonList(
                             MediaType.valueOf(text)
@@ -121,7 +120,7 @@ public class JaxRsHttpHeaders implements HttpHeaders {
                                 })
                                 .sorted()
                                 .map(Weighted::getObject)
-                                .collect(Collectors.toList());
+                                .toList();
                     }
                     return Collections.singletonList(
                             Locale.forLanguageTag(text)
