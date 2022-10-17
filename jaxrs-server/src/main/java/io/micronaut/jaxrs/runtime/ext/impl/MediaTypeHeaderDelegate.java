@@ -22,6 +22,8 @@ import io.micronaut.jaxrs.runtime.core.ParameterParser;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.ext.RuntimeDelegate;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -138,25 +140,12 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Ob
         if (str == null || str.length() == 0) {
             return false;
         }
+        // sonarcloud doesn't like this as the switch it was
+        char[] chars = {'/', '\\', '?', ':', '<', '>', ';', '(', ')', '@', ',', '[', ']', '='};
+        Arrays.sort(chars);
         for (int i = 0; i < str.length(); i++) {
-            switch (str.charAt(i)) {
-                case '/',
-                    '\\',
-                    '?',
-                    ':',
-                    '<',
-                    '>',
-                    ';',
-                    '(',
-                    ')',
-                    '@',
-                    ',',
-                    '[',
-                    ']',
-                    '=':
-                    return false;
-                default:
-                    break;
+            if (Arrays.binarySearch(chars, str.charAt(i)) < 0) {
+                return false;
             }
         }
         return true;
