@@ -7,6 +7,7 @@ managed-jaxrs-api = { module = "org.jboss.resteasy:jaxrs-api", version.ref = "ma
 # Micronaut
 micronaut-graal = { module = "io.micronaut:micronaut-graal" }
 micronaut-http = { module = "io.micronaut:micronaut-http" }
+micronaut-core-processor = { module = "io.micronaut:micronaut-core-processor" }
 micronaut-http-client = { module = "io.micronaut:micronaut-http-client" }
 micronaut-http-server = { module = "io.micronaut:micronaut-http-server" }
 micronaut-http-server-netty = { module = "io.micronaut:micronaut-http-server-netty" }

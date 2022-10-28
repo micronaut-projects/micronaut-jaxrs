@@ -3,6 +3,7 @@ plugins {
 }
 
 dependencies {
+	implementation(libs.micronaut.core.processor)
 	implementation(libs.micronaut.http)
 	implementation(libs.managed.jaxrs.api)
 
