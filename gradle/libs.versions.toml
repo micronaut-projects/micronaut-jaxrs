@@ -4,20 +4,4 @@ managed-jaxrs-api = "3.0.12.Final"
 [libraries]
 managed-jaxrs-api = { module = "org.jboss.resteasy:jaxrs-api", version.ref = "managed-jaxrs-api" }
 
-# Micronaut
-micronaut-graal = { module = "io.micronaut:micronaut-graal" }
-micronaut-http = { module = "io.micronaut:micronaut-http" }
-micronaut-http-client = { module = "io.micronaut:micronaut-http-client" }
-micronaut-http-server = { module = "io.micronaut:micronaut-http-server" }
-micronaut-http-server-netty = { module = "io.micronaut:micronaut-http-server-netty" }
-micronaut-http-validation = { module = "io.micronaut:micronaut-http-validation" }
-micronaut-inject-groovy = { module = "io.micronaut:micronaut-inject-groovy" }
-micronaut-inject-java = { module = "io.micronaut:micronaut-inject-java" }
-micronaut-inject-java-test = { module = "io.micronaut:micronaut-inject-java-test" }
-micronaut-router = { module = "io.micronaut:micronaut-router" }
-micronaut-security = { module = "io.micronaut.security:micronaut-security" }
-micronaut-security-annotations = { module = "io.micronaut.security:micronaut-security-annotations" }
-micronaut-test-junit5 = { module = "io.micronaut.test:micronaut-test-junit5" }
-micronaut-validation = { module = "io.micronaut:micronaut-validation" }
-
 junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine" }

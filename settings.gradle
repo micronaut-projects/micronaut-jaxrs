@@ -15,3 +15,16 @@ include 'jaxrs-bom'
 include 'jaxrs-processor'
 include 'jaxrs-server'
 include 'jaxrs-server-security'
+
+enableFeaturePreview 'TYPESAFE_PROJECT_ACCESSORS'
+
+dependencyResolutionManagement {
+    repositories {
+        mavenCentral()
+        maven { url "https://s01.oss.sonatype.org/content/repositories/snapshots/" }
+    }
+}
+micronautBuild {
+    importMicronautCatalog()
+}
+
