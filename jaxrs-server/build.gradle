@@ -3,25 +3,25 @@ plugins {
 }
 
 dependencies {
-	annotationProcessor(libs.micronaut.graal)
+	annotationProcessor(mn.micronaut.graal)
 
-	api(libs.micronaut.http)
+	api(mn.micronaut.http)
 	api(libs.managed.jaxrs.api)
 
-	implementation(libs.micronaut.router)
-	implementation(libs.micronaut.http.server)
+	implementation(mn.micronaut.router)
+	implementation(mn.micronaut.http.server)
 
 	// for Java
-	testAnnotationProcessor(libs.micronaut.inject.java)
-	testAnnotationProcessor(libs.micronaut.validation)
-	testAnnotationProcessor project(":jaxrs-processor")
+	testAnnotationProcessor(mn.micronaut.inject.java)
+	testAnnotationProcessor(mn.micronaut.validation)
+	testAnnotationProcessor projects.jaxrsProcessor
 
 	// for Groovy
-	testImplementation project(":jaxrs-processor")
+	testImplementation projects.jaxrsProcessor
 
-	testImplementation(libs.micronaut.http.server.netty)
-	testImplementation(libs.micronaut.http.client)
-	testImplementation(libs.micronaut.validation)
-	testImplementation(libs.micronaut.test.junit5)
+	testImplementation(mn.micronaut.http.server.netty)
+	testImplementation(mn.micronaut.http.client)
+	testImplementation(mn.micronaut.validation)
+	testImplementation(mn.micronaut.test.junit5)
 	testRuntimeOnly(libs.junit.jupiter.engine)
 }
