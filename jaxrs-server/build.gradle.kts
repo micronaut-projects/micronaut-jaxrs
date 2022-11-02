@@ -1,5 +1,5 @@
 plugins {
-    id "io.micronaut.build.internal.jaxrs-module"
+    id("io.micronaut.build.internal.jaxrs-module")
 }
 
 dependencies {
@@ -14,10 +14,10 @@ dependencies {
 	// for Java
 	testAnnotationProcessor(mn.micronaut.inject.java)
 	testAnnotationProcessor(mn.micronaut.validation)
-	testAnnotationProcessor projects.jaxrsProcessor
+	testAnnotationProcessor(projects.jaxrsProcessor)
 
 	// for Groovy
-	testImplementation projects.jaxrsProcessor
+	testImplementation(projects.jaxrsProcessor)
 
 	testImplementation(mn.micronaut.http.server.netty)
 	testImplementation(mn.micronaut.http.client)
