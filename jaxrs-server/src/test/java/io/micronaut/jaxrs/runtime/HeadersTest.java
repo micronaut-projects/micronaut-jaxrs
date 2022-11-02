@@ -111,7 +111,7 @@ class HeadersTest {
 
     @Test
     void testCookie() {
-        final String result = headerClient.cookie(new Cookie("foo", "bar"));
+        final String result = headerClient.cookie(new Cookie.Builder("foo").value("bar").build());
 
         assertEquals(
                 "bar",

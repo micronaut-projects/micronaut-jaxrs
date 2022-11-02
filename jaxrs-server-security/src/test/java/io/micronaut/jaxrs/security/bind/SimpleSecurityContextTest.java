@@ -4,7 +4,6 @@ import io.micronaut.context.annotation.Property;
 import io.micronaut.context.annotation.Requires;
 import io.micronaut.core.async.publisher.Publishers;
 import io.micronaut.core.type.Argument;
-import io.micronaut.core.util.CollectionUtils;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.MutableHttpRequest;
 import io.micronaut.http.client.HttpClient;
@@ -23,7 +22,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Collections;
 import java.util.Map;
-import jakarta.annotation.security.RolesAllowed;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
@@ -69,16 +68,16 @@ public class SimpleSecurityContextTest {
 class SecureResource {
     @GET
     @Path("/")
-    Map<String, String> test(
-            @Context SecurityContext context,
-            SecurityContext context2 // test with and without @Context
+    public Map<String, String> test(
+        @Context SecurityContext context,
+        SecurityContext context2 // test with and without @Context
     ) {
-        return CollectionUtils.mapOf(
-                "secure", context.isSecure(),
-                "hasRole", context.isUserInRole("admin"),
+        return Map.of(
+                "secure", String.valueOf(context.isSecure()),
+                "hasRole", String.valueOf(context.isUserInRole("admin")),
                 "principal", context.getUserPrincipal().getName(),
-                "context2.secure", context2.isSecure(),
-                "context2.hasRole", context2.isUserInRole("admin"),
+                "context2.secure", String.valueOf(context2.isSecure()),
+                "context2.hasRole", String.valueOf(context2.isUserInRole("admin")),
                 "context2.principal", context2.getUserPrincipal().getName()
         );
     }

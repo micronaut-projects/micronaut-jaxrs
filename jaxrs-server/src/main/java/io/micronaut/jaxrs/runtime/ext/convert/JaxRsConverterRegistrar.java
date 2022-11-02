@@ -16,9 +16,8 @@
 package io.micronaut.jaxrs.runtime.ext.convert;
 
 import io.micronaut.core.annotation.Internal;
-import io.micronaut.core.convert.ConversionService;
+import io.micronaut.core.convert.MutableConversionService;
 import io.micronaut.core.convert.TypeConverterRegistrar;
-import jakarta.inject.Singleton;
 import jakarta.ws.rs.core.CacheControl;
 import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.EntityTag;
@@ -33,11 +32,10 @@ import static jakarta.ws.rs.ext.RuntimeDelegate.getInstance;
  * @author graemerocher
  * @since 1.0
  */
-@Singleton
 @Internal
-public class JaxRsConverterRegistrar implements TypeConverterRegistrar {
+public final class JaxRsConverterRegistrar implements TypeConverterRegistrar {
     @Override
-    public void register(ConversionService<?> conversionService) {
+    public void register(MutableConversionService conversionService) {
         conversionService.addConverter(MediaType.class, String.class, MediaType::toString);
         conversionService.addConverter(String.class, MediaType.class, MediaType::valueOf);
         conversionService.addConverter(EntityTag.class, String.class,
