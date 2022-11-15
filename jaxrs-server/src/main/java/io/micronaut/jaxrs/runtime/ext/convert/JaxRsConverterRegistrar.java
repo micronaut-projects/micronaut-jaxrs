@@ -16,10 +16,9 @@
 package io.micronaut.jaxrs.runtime.ext.convert;
 
 import io.micronaut.core.annotation.Internal;
-import io.micronaut.core.convert.ConversionService;
+import io.micronaut.core.convert.MutableConversionService;
 import io.micronaut.core.convert.TypeConverterRegistrar;
 
-import jakarta.inject.Singleton;
 import javax.ws.rs.core.*;
 
 /**
@@ -28,11 +27,10 @@ import javax.ws.rs.core.*;
  * @author graemerocher
  * @since 1.0
  */
-@Singleton
 @Internal
-public class JaxRsConverterRegistrar implements TypeConverterRegistrar {
+public final class JaxRsConverterRegistrar implements TypeConverterRegistrar {
     @Override
-    public void register(ConversionService<?> conversionService) {
+    public void register(MutableConversionService conversionService) {
         conversionService.addConverter(MediaType.class, String.class, MediaType::toString);
         conversionService.addConverter(String.class, MediaType.class, MediaType::valueOf);
         conversionService.addConverter(EntityTag.class, String.class, EntityTag::toString);
