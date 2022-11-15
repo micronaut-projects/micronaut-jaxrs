@@ -18,5 +18,45 @@
     "type": "io.micronaut.jaxrs.runtime.ext.bind.SimpleSecurityContextImpl",
     "member": "Implemented interface javax.ws.rs.core.SecurityContext",
     "reason": "Migrate to jakarta.ws.rs for Micronaut 4.0.x"
+  },
+  {
+    "type": "io.micronaut.jaxrs.runtime.ext.convert.$JaxRsConverterRegistrar$Definition$Reference",
+    "member": "Implemented interface io.micronaut.inject.BeanDefinitionReference",
+    "reason": "JaxRsConverterRegistrar is now loaded via a service loader and not register as a Singleton"
+  },
+  {
+    "type": "io.micronaut.jaxrs.runtime.ext.convert.$JaxRsConverterRegistrar$Definition$Reference",
+    "member": "Implemented interface io.micronaut.inject.BeanDefinitionReference",
+    "reason": "JaxRsConverterRegistrar is now loaded via a service loader and not register as a Singleton"
+  },
+  {
+    "type": "io.micronaut.jaxrs.runtime.ext.convert.$JaxRsConverterRegistrar$Definition$Reference",
+    "member": "Implemented interface io.micronaut.inject.BeanType",
+    "reason": "JaxRsConverterRegistrar is now loaded via a service loader and not register as a Singleton"
+  },
+  {
+    "type": "io.micronaut.jaxrs.runtime.ext.convert.$JaxRsConverterRegistrar$Definition$Reference",
+    "member": "Implemented interface io.micronaut.core.annotation.AnnotationMetadataProvider",
+    "reason": "JaxRsConverterRegistrar is now loaded via a service loader and not register as a Singleton"
+  },
+  {
+    "type": "io.micronaut.jaxrs.runtime.ext.convert.$JaxRsConverterRegistrar$Definition$Reference",
+    "member": "Implemented interface io.micronaut.inject.BeanContextConditional",
+    "reason": "JaxRsConverterRegistrar is now loaded via a service loader and not register as a Singleton"
+  },
+  {
+    "type": "io.micronaut.jaxrs.runtime.ext.convert.$JaxRsConverterRegistrar$Definition$Reference",
+    "member": "Implemented interface io.micronaut.core.annotation.AnnotationSource",
+    "reason": "JaxRsConverterRegistrar is now loaded via a service loader and not register as a Singleton"
+  },
+  {
+    "type": "io.micronaut.jaxrs.runtime.ext.convert.$JaxRsConverterRegistrar$Definition$Reference",
+    "member": "Constructor io.micronaut.jaxrs.runtime.ext.convert.$JaxRsConverterRegistrar$Definition$Reference()",
+    "reason": "JaxRsConverterRegistrar is now loaded via a service loader and not register as a Singleton"
+  },
+  {
+    "type": "io.micronaut.jaxrs.runtime.ext.convert.$JaxRsConverterRegistrar$Definition$Reference",
+    "member": "Field $ANNOTATION_METADATA",
+    "reason": "JaxRsConverterRegistrar is now loaded via a service loader and not register as a Singleton"
   }
 ]

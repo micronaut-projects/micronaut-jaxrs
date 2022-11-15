@@ -34,6 +34,8 @@ import java.util.Map;
 @Internal
 final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Object> {
 
+    public static final String INVALID_MEDIA_TYPE = "Invalid media type: ";
+
     private static final Map<String, MediaType> MAP = new ConcurrentLinkedHashMap.Builder<String, MediaType>()
             .maximumWeightedCapacity(200)
             .build();
@@ -41,8 +43,6 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Ob
             .maximumWeightedCapacity(200)
             .build();
     private static final char[] QUOTED_CHARS = "()<>@,;:\\\"/[]?= \t\r\n".toCharArray();
-
-    public static final String INVALID_MEDIA_TYPE = "Invalid media type: ";
 
     @Override
     public Object fromString(String type) throws IllegalArgumentException {
