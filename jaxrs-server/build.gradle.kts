@@ -16,12 +16,7 @@ dependencies {
 	testAnnotationProcessor(mn.micronaut.validation)
 	testAnnotationProcessor(projects.jaxrsProcessor)
 
-	// for Groovy
-<<<<<<< HEAD:jaxrs-server/build.gradle
-	testImplementation projects.jaxrsProcessor
-=======
 	testImplementation(projects.jaxrsProcessor)
->>>>>>> master:jaxrs-server/build.gradle.kts
     testImplementation(mn.micronaut.serde.jackson)
 	testImplementation(mn.micronaut.http.server.netty)
 	testImplementation(mn.micronaut.http.client)
