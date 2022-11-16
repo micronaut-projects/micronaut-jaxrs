@@ -18,8 +18,12 @@ package io.micronaut.jaxrs.runtime.ext.convert;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.convert.MutableConversionService;
 import io.micronaut.core.convert.TypeConverterRegistrar;
-
-import javax.ws.rs.core.*;
+import jakarta.ws.rs.core.CacheControl;
+import jakarta.ws.rs.core.Cookie;
+import jakarta.ws.rs.core.EntityTag;
+import jakarta.ws.rs.core.Link;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.ext.RuntimeDelegate;
 
 /**
  * Registers JAX-RS converters.
@@ -29,16 +33,22 @@ import javax.ws.rs.core.*;
  */
 @Internal
 public final class JaxRsConverterRegistrar implements TypeConverterRegistrar {
+
     @Override
     public void register(MutableConversionService conversionService) {
+        RuntimeDelegate instance = RuntimeDelegate.getInstance();
+
+        var entityTagHeaderDelegate = instance.createHeaderDelegate(EntityTag.class);
+        var cacheControlHeaderDelegate = instance.createHeaderDelegate(CacheControl.class);
+
         conversionService.addConverter(MediaType.class, String.class, MediaType::toString);
         conversionService.addConverter(String.class, MediaType.class, MediaType::valueOf);
-        conversionService.addConverter(EntityTag.class, String.class, EntityTag::toString);
-        conversionService.addConverter(String.class, EntityTag.class, EntityTag::valueOf);
+        conversionService.addConverter(EntityTag.class, String.class, entityTagHeaderDelegate::toString);
+        conversionService.addConverter(String.class, EntityTag.class, entityTagHeaderDelegate::fromString);
         conversionService.addConverter(Link.class, String.class, Link::toString);
         conversionService.addConverter(String.class, Link.class, Link::valueOf);
-        conversionService.addConverter(CacheControl.class, String.class, CacheControl::toString);
-        conversionService.addConverter(String.class, CacheControl.class, CacheControl::valueOf);
+        conversionService.addConverter(CacheControl.class, String.class, cacheControlHeaderDelegate::toString);
+        conversionService.addConverter(String.class, CacheControl.class, cacheControlHeaderDelegate::fromString);
         conversionService.addConverter(Cookie.class, String.class, Cookie::getValue);
     }
 }
