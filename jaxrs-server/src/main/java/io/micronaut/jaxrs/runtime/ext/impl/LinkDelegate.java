@@ -62,8 +62,8 @@ final class LinkDelegate implements RuntimeDelegate.HeaderDelegate<Link> {
         public static final String PARSE_ERROR_MESSAGE = "Unable to parse Link header.  No end to parameter: ";
 
         private int curr;
-        private String value;
-        private Link.Builder builder;
+        private final String value;
+        private final Link.Builder builder;
 
         Parser(final String value) {
             this.value = value;

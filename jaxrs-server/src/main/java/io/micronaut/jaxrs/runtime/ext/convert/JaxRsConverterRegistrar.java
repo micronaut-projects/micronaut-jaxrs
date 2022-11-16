@@ -24,6 +24,7 @@ import jakarta.ws.rs.core.EntityTag;
 import jakarta.ws.rs.core.Link;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.ext.RuntimeDelegate;
+import jakarta.ws.rs.ext.RuntimeDelegate.HeaderDelegate;
 
 /**
  * Registers JAX-RS converters.
@@ -38,8 +39,8 @@ public final class JaxRsConverterRegistrar implements TypeConverterRegistrar {
     public void register(MutableConversionService conversionService) {
         RuntimeDelegate instance = RuntimeDelegate.getInstance();
 
-        var entityTagHeaderDelegate = instance.createHeaderDelegate(EntityTag.class);
-        var cacheControlHeaderDelegate = instance.createHeaderDelegate(CacheControl.class);
+        HeaderDelegate<EntityTag> entityTagHeaderDelegate = instance.createHeaderDelegate(EntityTag.class);
+        HeaderDelegate<CacheControl> cacheControlHeaderDelegate = instance.createHeaderDelegate(CacheControl.class);
 
         conversionService.addConverter(MediaType.class, String.class, MediaType::toString);
         conversionService.addConverter(String.class, MediaType.class, MediaType::valueOf);

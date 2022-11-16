@@ -32,13 +32,13 @@ import java.util.Map;
  */
 public class JaxRsUriBuilder extends UriBuilder {
 
-    private io.micronaut.http.uri.UriBuilder uriBuilder;
+    private final io.micronaut.http.uri.UriBuilder uriBuilder;
 
     /**
      * Default constructor.
      */
     public JaxRsUriBuilder() {
-        this.uriBuilder = io.micronaut.http.uri.UriBuilder.of("/");
+        this(io.micronaut.http.uri.UriBuilder.of("/"));
     }
 
     /**
