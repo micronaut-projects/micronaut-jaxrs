@@ -18,13 +18,10 @@ include 'jaxrs-server-security'
 
 enableFeaturePreview 'TYPESAFE_PROJECT_ACCESSORS'
 
-dependencyResolutionManagement {
-    repositories {
-        mavenCentral()
-        maven { url "https://s01.oss.sonatype.org/content/repositories/snapshots/" }
-    }
-}
 micronautBuild {
     importMicronautCatalog()
+    addSnapshotRepository()
+    importMicronautCatalog("micronaut-security")
+    importMicronautCatalog("micronaut-serde")
 }
 
