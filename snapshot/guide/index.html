@@ -46,13 +46,15 @@
                                 
                                 <div class="toc-item" style="margin-left:0"><a href="#introduction"><strong>1</strong><span>Introduction</span></a></div>
                                 
-                                <div class="toc-item" style="margin-left:0"><a href="#releaseHistory"><strong>2</strong><span>Release History</span></a></div>
+                                <div class="toc-item" style="margin-left:0"><a href="#breaks"><strong>2</strong><span>Breaking Changes</span></a></div>
                                 
-                                <div class="toc-item" style="margin-left:0"><a href="#quickStart"><strong>3</strong><span>Quick Start</span></a></div>
+                                <div class="toc-item" style="margin-left:0"><a href="#releaseHistory"><strong>3</strong><span>Release History</span></a></div>
                                 
-                                <div class="toc-item" style="margin-left:0"><a href="#supportedApi"><strong>4</strong><span>Supported API</span></a></div>
+                                <div class="toc-item" style="margin-left:0"><a href="#quickStart"><strong>4</strong><span>Quick Start</span></a></div>
                                 
-                                <div class="toc-item" style="margin-left:0"><a href="#repository"><strong>5</strong><span>Repository</span></a></div>
+                                <div class="toc-item" style="margin-left:0"><a href="#supportedApi"><strong>5</strong><span>Supported API</span></a></div>
+                                
+                                <div class="toc-item" style="margin-left:0"><a href="#repository"><strong>6</strong><span>Repository</span></a></div>
                                 
                             </div>
                         </div>
@@ -85,13 +87,15 @@
         
         <div class="toc-item" style="margin-left:0px" id="toc-item-introduction"><a href="#introduction"><strong>1</strong><span>Introduction</span></a></div>
         
-        <div class="toc-item" style="margin-left:0px" id="toc-item-releaseHistory"><a href="#releaseHistory"><strong>2</strong><span>Release History</span></a></div>
+        <div class="toc-item" style="margin-left:0px" id="toc-item-breaks"><a href="#breaks"><strong>2</strong><span>Breaking Changes</span></a></div>
         
-        <div class="toc-item" style="margin-left:0px" id="toc-item-quickStart"><a href="#quickStart"><strong>3</strong><span>Quick Start</span></a></div>
+        <div class="toc-item" style="margin-left:0px" id="toc-item-releaseHistory"><a href="#releaseHistory"><strong>3</strong><span>Release History</span></a></div>
         
-        <div class="toc-item" style="margin-left:0px" id="toc-item-supportedApi"><a href="#supportedApi"><strong>4</strong><span>Supported API</span></a></div>
+        <div class="toc-item" style="margin-left:0px" id="toc-item-quickStart"><a href="#quickStart"><strong>4</strong><span>Quick Start</span></a></div>
         
-        <div class="toc-item" style="margin-left:0px" id="toc-item-repository"><a href="#repository"><strong>5</strong><span>Repository</span></a></div>
+        <div class="toc-item" style="margin-left:0px" id="toc-item-supportedApi"><a href="#supportedApi"><strong>5</strong><span>Supported API</span></a></div>
+        
+        <div class="toc-item" style="margin-left:0px" id="toc-item-repository"><a href="#repository"><strong>6</strong><span>Repository</span></a></div>
         
         </div>
     </div>
@@ -120,7 +124,26 @@
 <p>This project is not an implementation of the JAX-RS specification and is designed to allow users familiar with the JAX-RS API to use the most common parts of the API within the context of a Micronaut application.</p>
 </div>
 
-<h1 id="releaseHistory"><a class="anchor" href="#releaseHistory"></a>2 Release History</h1>
+<h1 id="breaks"><a class="anchor" href="#breaks"></a>2 Breaking Changes</h1>
+
+<div class='contribute-btn'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-jaxrs/edit/master/src/main/docs/guide/breaks.adoc"'>
+        <i class='fa fa-pencil-square-o'></i> Improve this doc
+    </button>
+</div>
+
+
+<div class="sect2">
+<h3 id="_micronaut_jaxrs_4">Micronaut Jaxrs 4</h3>
+<div class="paragraph">
+<p>Micronaut Jaxrs 4 migrates to <a href="https://jakarta.ee/specifications/restful-ws/3.0//">Jakarta RESTful Web Services 3.0</a>. Package namespaces are moved from <code>javax.ws.rs</code> to <code>jakarta.ws.rs</code>. Moreover, it uses transitive dependency <code>jakarta.ws.rs:jakarta.ws.rs-api</code> instead of <code>org.jboss.resteasy:jaxrs-api</code>.</p>
+</div>
+<div class="paragraph">
+<p>As a consequence, annotation mappers found in the <code>io.micronaut.jaxrs.processor</code> package are changed to support <code>jakarta.ws.rs</code> annotations only. Support for the older <code>javax.ws.rs</code> annotations is dropped with this version, and users will need to migrate to the Jakarta versions.</p>
+</div>
+</div>
+
+<h1 id="releaseHistory"><a class="anchor" href="#releaseHistory"></a>3 Release History</h1>
 
 <div class='contribute-btn'>
     <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-jaxrs/edit/master/src/main/docs/guide/releaseHistory.adoc"'>
@@ -136,7 +159,7 @@
 <p><a href="https://github.com/micronaut-projects/micronaut-jaxrs/releases">https://github.com/micronaut-projects/micronaut-jaxrs/releases</a></p>
 </div>
 
-<h1 id="quickStart"><a class="anchor" href="#quickStart"></a>3 Quick Start</h1>
+<h1 id="quickStart"><a class="anchor" href="#quickStart"></a>4 Quick Start</h1>
 
 <div class='contribute-btn'>
     <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-jaxrs/edit/master/src/main/docs/guide/quickStart.adoc"'>
@@ -189,7 +212,7 @@
 </div></p>
 </div>
 
-<h1 id="supportedApi"><a class="anchor" href="#supportedApi"></a>4 Supported API</h1>
+<h1 id="supportedApi"><a class="anchor" href="#supportedApi"></a>5 Supported API</h1>
 
 <div class='contribute-btn'>
     <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-jaxrs/edit/master/src/main/docs/guide/supportedApi.adoc"'>
@@ -199,7 +222,7 @@
 
 
 <div class="paragraph">
-<p>As of this writing Micronaut JAX-RS supports the annotations and types defined within the <code>javax.ws.rs</code> package and the <code>javax.ws.rs.core</code> subpackage only.</p>
+<p>As of this writing Micronaut JAX-RS supports the annotations and types defined within the <code>jakarta.ws.rs</code> package and the <code>jakarta.ws.rs.core</code> subpackage only.</p>
 </div>
 <div class="paragraph">
 <p>All interfaces, annotations and types contained within the following packages are not supported:</p>
@@ -207,13 +230,13 @@
 <div class="ulist">
 <ul>
 <li>
-<p><code>javax.ws.rs.client</code></p>
+<p><code>jakarta.ws.rs.client</code></p>
 </li>
 <li>
-<p><code>javax.ws.rs.container</code></p>
+<p><code>jakarta.ws.rs.container</code></p>
 </li>
 <li>
-<p><code>javax.ws.rs.ext</code></p>
+<p><code>jakarta.ws.rs.ext</code></p>
 </li>
 </ul>
 </div>
@@ -238,82 +261,82 @@
 </thead>
 <tbody>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jakartaee.github.io/rest/apidocs/2.1.6/javax/ws/rs/Path.html">@Path</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/Path.html">@Path</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/Controller.html">@Controller</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>@Path("/foo")</code> // on type</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jakartaee.github.io/rest/apidocs/2.1.6/javax/ws/rs/Path.html">@Path</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/Path.html">@Path</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/UriMapping.html">@UriMapping</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>@Path("/foo")</code> // on method</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jakartaee.github.io/rest/apidocs/2.1.6/javax/ws/rs/HttpMethod.html">@HttpMethod</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/HttpMethod.html">@HttpMethod</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/HttpMethodMapping.html">@HttpMethodMapping</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>@HttpMethod("TRACE")</code></p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jakartaee.github.io/rest/apidocs/2.1.6/javax/ws/rs/GET.html">@GET</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/GET.html">@GET</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/Get.html">@Get</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>@GET @Path("/foo/bar")</code></p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jakartaee.github.io/rest/apidocs/2.1.6/javax/ws/rs/POST.html">@POST</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/POST.html">@POST</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/Post.html">@Post</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>@POST @Path("/foo/bar")</code></p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jakartaee.github.io/rest/apidocs/2.1.6/javax/ws/rs/DELETE.html">@DELETE</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/DELETE.html">@DELETE</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/Delete.html">@Delete</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>@DELETE @Path("/foo/bar")</code></p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jakartaee.github.io/rest/apidocs/2.1.6/javax/ws/rs/OPTIONS.html">@OPTIONS</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/OPTIONS.html">@OPTIONS</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/Options.html">@Options</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>@OPTIONS @Path("/foo/bar")</code></p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jakartaee.github.io/rest/apidocs/2.1.6/javax/ws/rs/HEAD.html">@HEAD</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/HEAD.html">@HEAD</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/Head.html">@Head</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>@HEAD @Path("/foo/bar")</code></p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jakartaee.github.io/rest/apidocs/2.1.6/javax/ws/rs/Consumes.html">@Consumes</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/Consumes.html">@Consumes</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/Consumes.html">@Consumes</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>@Consumes("application/json")</code></p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jakartaee.github.io/rest/apidocs/2.1.6/javax/ws/rs/Produces.html">@Produces</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/Produces.html">@Produces</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/Produces.html">@Produces</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>@Produces("application/json")</code></p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jakartaee.github.io/rest/apidocs/2.1.6/javax/ws/rs/PathParam.html">@PathParam</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/PathParam.html">@PathParam</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/PathVariable.html">@PathVariable</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>@PathParam("foo")</code></p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jakartaee.github.io/rest/apidocs/2.1.6/javax/ws/rs/CookieParam.html">@CookieParam</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/CookieParam.html">@CookieParam</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/CookieValue.html">@CookieValue</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>@CookieParam("myCookie")</code></p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jakartaee.github.io/rest/apidocs/2.1.6/javax/ws/rs/HeaderParam.html">@HeaderParam</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/HeaderParam.html">@HeaderParam</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/Header.html">@Header</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>@HeaderParam("Content-Type")</code></p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jakartaee.github.io/rest/apidocs/2.1.6/javax/ws/rs/QueryParam.html">@QueryParam</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/QueryParam.html">@QueryParam</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/QueryValue.html">@QueryValue</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>@QueryParam("myParam")</code></p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jakartaee.github.io/rest/apidocs/2.1.6/javax/ws/rs/DefaultValue.html">@DefaultValue</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/DefaultValue.html">@DefaultValue</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://docs.micronaut.io/latest/api/io/micronaut/http/annotation/Bindable.html">@Bindable(defaultValue="..")</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>@DefaultValue("example")</code></p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jakartaee.github.io/rest/apidocs/2.1.6/javax/ws/rs/core/Context.html">@Context</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/core/Context.html">@Context</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">No equivalent. Injects a bean in to a parameter.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>@Context</code></p></td>
 </tr>
@@ -328,30 +351,30 @@
 <div class="ulist">
 <ul>
 <li>
-<p><a href="https://jakartaee.github.io/rest/apidocs/2.1.6//javax/ws/rs/core/HttpHeaders.html">javax.ws.rs.core.HttpHeaders</a></p>
+<p><a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs//jakarta/ws/rs/core/HttpHeaders.html">jakarta.ws.rs.core.HttpHeaders</a></p>
 </li>
 <li>
-<p><a href="https://jakartaee.github.io/rest/apidocs/2.1.6//javax/ws/rs/core/CacheControl.html">javax.ws.rs.core.CacheControl</a></p>
+<p><a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs//jakarta/ws/rs/core/CacheControl.html">jakarta.ws.rs.core.CacheControl</a></p>
 </li>
 <li>
-<p><a href="https://jakartaee.github.io/rest/apidocs/2.1.6//javax/ws/rs/core/Cookie.html">javax.ws.rs.core.Cookie</a></p>
+<p><a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs//jakarta/ws/rs/core/Cookie.html">jakarta.ws.rs.core.Cookie</a></p>
 </li>
 <li>
-<p><a href="https://jakartaee.github.io/rest/apidocs/2.1.6//javax/ws/rs/core/EntityTag.html">javax.ws.rs.core.EntityTag</a></p>
+<p><a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs//jakarta/ws/rs/core/EntityTag.html">jakarta.ws.rs.core.EntityTag</a></p>
 </li>
 <li>
-<p><a href="https://jakartaee.github.io/rest/apidocs/2.1.6//javax/ws/rs/core/Link.html">javax.ws.rs.core.Link</a></p>
+<p><a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs//jakarta/ws/rs/core/Link.html">jakarta.ws.rs.core.Link</a></p>
 </li>
 <li>
-<p><a href="https://jakartaee.github.io/rest/apidocs/2.1.6//javax/ws/rs/core/MediaType.html">javax.ws.rs.core.MediaType</a></p>
+<p><a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs//jakarta/ws/rs/core/MediaType.html">jakarta.ws.rs.core.MediaType</a></p>
 </li>
 <li>
-<p><a href="https://jakartaee.github.io/rest/apidocs/2.1.6//javax/ws/rs/core/SecurityContext.html">javax.ws.rs.core.SecurityContext</a></p>
+<p><a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs//jakarta/ws/rs/core/SecurityContext.html">jakarta.ws.rs.core.SecurityContext</a></p>
 </li>
 </ul>
 </div>
 <div class="paragraph">
-<p>You can also use the <a href="https://jakartaee.github.io/rest/apidocs/2.1.6//javax/ws/rs/core/Context.html">@Context</a> annotation to inject any bean into a resource type&#8217;s method parameter.</p>
+<p>You can also use the <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs//jakarta/ws/rs/core/Context.html">@Context</a> annotation to inject any bean into a resource type&#8217;s method parameter.</p>
 </div>
 <div class="admonitionblock note">
 <table>
@@ -369,7 +392,7 @@ Parameter binding to constructor argument of resource types is not supported at 
 <div class="sect3">
 <h4 id="_securitycontext_and_micronaut_security">SecurityContext and Micronaut Security</h4>
 <div class="paragraph">
-<p>When injecting the <a href="https://jakartaee.github.io/rest/apidocs/2.1.6//javax/ws/rs/core/SecurityContext.html">SecurityContext</a> by default the injected instance is not aware of <a href="https://micronaut-projects.github.io/micronaut-security/latest/guide/">Micronaut Security</a> and methods like <code>isUserInRole</code> always return <code>false</code>.</p>
+<p>When injecting the <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs//jakarta/ws/rs/core/SecurityContext.html">SecurityContext</a> by default the injected instance is not aware of <a href="https://micronaut-projects.github.io/micronaut-security/latest/guide/">Micronaut Security</a> and methods like <code>isUserInRole</code> always return <code>false</code>.</p>
 </div>
 <div class="paragraph">
 <p>To integrate the JAX-RS support with Micronaut Security add the following dependency:</p>
@@ -403,16 +426,16 @@ Parameter binding to constructor argument of resource types is not supported at 
 <div class="ulist">
 <ul>
 <li>
-<p><a href="https://jakartaee.github.io/rest/apidocs/2.1.6//javax/ws/rs/core/Response.html">javax.ws.rs.core.Response</a></p>
+<p><a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs//jakarta/ws/rs/core/Response.html">jakarta.ws.rs.core.Response</a></p>
 </li>
 <li>
-<p><a href="https://jakartaee.github.io/rest/apidocs/2.1.6//javax/ws/rs/core/StreamingOutput.html">javax.ws.rs.core.StreamingOutput</a></p>
+<p><a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs//jakarta/ws/rs/core/StreamingOutput.html">jakarta.ws.rs.core.StreamingOutput</a></p>
 </li>
 </ul>
 </div>
 </div>
 
-<h1 id="repository"><a class="anchor" href="#repository"></a>5 Repository</h1>
+<h1 id="repository"><a class="anchor" href="#repository"></a>6 Repository</h1>
 
 <div class='contribute-btn'>
     <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-jaxrs/edit/master/src/main/docs/guide/repository.adoc"'>
