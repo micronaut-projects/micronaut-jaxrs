@@ -12,14 +12,13 @@ import io.micronaut.http.annotation.Post
 import io.micronaut.http.annotation.Produces
 import io.micronaut.http.annotation.Put
 import io.micronaut.http.annotation.UriMapping
+import jakarta.ws.rs.DELETE
+import jakarta.ws.rs.GET
+import jakarta.ws.rs.HEAD
+import jakarta.ws.rs.OPTIONS
+import jakarta.ws.rs.POST
+import jakarta.ws.rs.PUT
 import spock.lang.Unroll
-
-import javax.ws.rs.DELETE
-import javax.ws.rs.GET
-import javax.ws.rs.HEAD
-import javax.ws.rs.OPTIONS
-import javax.ws.rs.POST
-import javax.ws.rs.PUT
 
 class HttpMethodAnnotationSpec extends AbstractTypeElementSpec {
 
@@ -33,8 +32,8 @@ package test;
 interface Test {
 
     @${source.name}
-    @javax.ws.rs.Path("$path")
-    @javax.ws.rs.Produces("text/plain")
+    @jakarta.ws.rs.Path("$path")
+    @jakarta.ws.rs.Produces("text/plain")
     String test();
 }
 """)
@@ -100,12 +99,12 @@ class Test {
         def definition = buildBeanDefinition('test.Test', """
 package test;
 
-@javax.ws.rs.Path("/test")
+@jakarta.ws.rs.Path("/test")
 class Test {
 
     @${source.name}
-    @javax.ws.rs.Path("$path")
-    @javax.ws.rs.Produces("text/plain")
+    @jakarta.ws.rs.Path("$path")
+    @jakarta.ws.rs.Produces("text/plain")
     String test() {
         return "ok";
     }
@@ -136,11 +135,11 @@ class Test {
         def definition = buildBeanDefinition('test.Test', """
 package test;
 
-@javax.ws.rs.Path("/test")
+@jakarta.ws.rs.Path("/test")
 class Test {
 
-    @javax.ws.rs.GET
-    @javax.ws.rs.Produces("text/plain")
+    @jakarta.ws.rs.GET
+    @jakarta.ws.rs.Produces("text/plain")
     String test() {
         return "ok";
     }
@@ -166,8 +165,8 @@ package test;
 @io.micronaut.http.annotation.Controller("/test")
 class Test {
 
-    @javax.ws.rs.GET
-    @javax.ws.rs.Produces("text/plain")
+    @jakarta.ws.rs.GET
+    @jakarta.ws.rs.Produces("text/plain")
     String test() {
         return "ok";
     }
@@ -191,12 +190,12 @@ class Test {
         def context = buildContext('test.Test', """
 package test;
 
-@javax.ws.rs.Path("/test")
+@jakarta.ws.rs.Path("/test")
 @io.micronaut.validation.Validated
 class Test {
 
-    @javax.ws.rs.GET
-    @javax.ws.rs.Produces("text/plain")
+    @jakarta.ws.rs.GET
+    @jakarta.ws.rs.Produces("text/plain")
     String test(@javax.validation.constraints.NotBlank String val) {
         return "ok";
     }
@@ -221,10 +220,10 @@ class Test {
         def context = buildContext('test.Test', """
 package test;
 
-@javax.ws.rs.Path("/test")
+@jakarta.ws.rs.Path("/test")
 class Test {
 
-    @javax.ws.rs.GET
+    @jakarta.ws.rs.GET
     String test(@javax.validation.constraints.NotBlank String val) {
         return "ok";
     }
@@ -250,12 +249,12 @@ package test;
 
 import java.lang.annotation.*;
 
-@javax.ws.rs.Path("/test")
+@jakarta.ws.rs.Path("/test")
 class Test {
 
     @${method.toUpperCase()}
-    @javax.ws.rs.Path("$path")
-    @javax.ws.rs.Produces("text/plain")
+    @jakarta.ws.rs.Path("$path")
+    @jakarta.ws.rs.Produces("text/plain")
     String test() {
         return "ok";
     }
@@ -263,7 +262,7 @@ class Test {
 
 @Target({ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
-@javax.ws.rs.HttpMethod("$method")
+@jakarta.ws.rs.HttpMethod("$method")
 @Documented
 @interface ${method.toUpperCase()} {
 }
@@ -299,8 +298,8 @@ package test;
 
 interface TestService {
     @${source.name}
-    @javax.ws.rs.Produces("text/plain")
-    @javax.ws.rs.Path("/foo")
+    @jakarta.ws.rs.Produces("text/plain")
+    @jakarta.ws.rs.Path("/foo")
     public String test();
 }
 
@@ -310,7 +309,7 @@ class Test implements TestService {
         return "ok";
     }
 
-    @javax.ws.rs.GET
+    @jakarta.ws.rs.GET
     void dummy() {}
 }
 """)
@@ -333,22 +332,22 @@ class Test implements TestService {
         OPTIONS | Options | "/foo"
     }
 
-    void "test bean definition is built when only @javax.ws.rs.Path is present on implementation class"() {
+    void "test bean definition is built when only @jakarta.ws.rs.Path is present on implementation class"() {
         given:
         def definition = buildBeanDefinition('test.Test', """
 package test;
 
 interface TestService {
-    @javax.ws.rs.GET
-    @javax.ws.rs.Produces("text/plain")
-    @javax.ws.rs.Path("/foo")
+    @jakarta.ws.rs.GET
+    @jakarta.ws.rs.Produces("text/plain")
+    @jakarta.ws.rs.Path("/foo")
     public String test();
 
-    @javax.ws.rs.GET
+    @jakarta.ws.rs.GET
     public String test2();
 }
 
-@javax.ws.rs.Path("/rest")
+@jakarta.ws.rs.Path("/rest")
 class Test implements TestService {
     @Override
     public String test() {
@@ -382,15 +381,15 @@ class Test implements TestService {
             def definition = buildBeanDefinition('test.Test', '''
 package test;
 
-@javax.ws.rs.Path("/base-path")
+@jakarta.ws.rs.Path("/base-path")
 public class Test {
 
-    @javax.ws.rs.GET
-    @javax.ws.rs.Path("/method-path")
+    @jakarta.ws.rs.GET
+    @jakarta.ws.rs.Path("/method-path")
     public String get() {
         return "ok";
     }
-}                
+}
 ''')
         expect:
             definition.stringValue(Controller).get() == '/base-path'
@@ -405,13 +404,13 @@ public class Test {
             def definition = buildBeanDefinition('test.Test$Intercepted', """
 package test;
 
-interface TestService { 
+interface TestService {
 
     @${source.name}
-    @javax.ws.rs.Path("/foo")
-    @javax.ws.rs.Produces("text/plain")
+    @jakarta.ws.rs.Path("/foo")
+    @jakarta.ws.rs.Produces("text/plain")
     String test();
-    
+
     @${source.name}
     String test2();
 }

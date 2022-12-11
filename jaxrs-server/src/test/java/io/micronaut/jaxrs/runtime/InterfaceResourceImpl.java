@@ -1,8 +1,7 @@
 package io.micronaut.jaxrs.runtime;
 
-import javax.ws.rs.Path;
-
 import io.micronaut.http.HttpResponse;
+import jakarta.ws.rs.Path;
 
 @Path("/interface/test")
 public class InterfaceResourceImpl implements InterfaceResource {

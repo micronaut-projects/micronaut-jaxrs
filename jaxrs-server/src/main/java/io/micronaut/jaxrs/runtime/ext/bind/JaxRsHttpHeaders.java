@@ -18,10 +18,19 @@ package io.micronaut.jaxrs.runtime.ext.bind;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.jaxrs.runtime.core.Weighted;
 import io.micronaut.jaxrs.runtime.ext.impl.CookieHeaderDelegate;
+import jakarta.ws.rs.core.Cookie;
+import jakarta.ws.rs.core.HttpHeaders;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.MultivaluedHashMap;
+import jakarta.ws.rs.core.MultivaluedMap;
 
-import javax.ws.rs.core.*;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Date;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 /**
  * Adapter class for JAR-RS headers.
@@ -80,7 +89,7 @@ public class JaxRsHttpHeaders implements HttpHeaders {
                                 })
                                 .sorted()
                                 .map(Weighted::getObject)
-                                .collect(Collectors.toList());
+                                .toList();
                     }
                     return Collections.singletonList(
                             MediaType.valueOf(text)
@@ -111,7 +120,7 @@ public class JaxRsHttpHeaders implements HttpHeaders {
                                 })
                                 .sorted()
                                 .map(Weighted::getObject)
-                                .collect(Collectors.toList());
+                                .toList();
                     }
                     return Collections.singletonList(
                             Locale.forLanguageTag(text)

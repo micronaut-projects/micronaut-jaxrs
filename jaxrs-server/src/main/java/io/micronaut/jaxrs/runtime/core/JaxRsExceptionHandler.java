@@ -24,7 +24,7 @@ import io.micronaut.http.server.exceptions.ExceptionHandler;
 import io.micronaut.http.server.exceptions.response.ErrorContext;
 import io.micronaut.http.server.exceptions.response.ErrorResponseProcessor;
 import jakarta.inject.Singleton;
-import javax.ws.rs.WebApplicationException;
+import jakarta.ws.rs.WebApplicationException;
 
 /**
  * Handles JAX-RS exceptions that occur during the execution of an HTTP request.

@@ -17,17 +17,32 @@ package io.micronaut.jaxrs.runtime.core;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.util.ArgumentUtils;
+import io.micronaut.http.HttpStatus;
 import io.micronaut.http.MutableHttpHeaders;
 import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.http.cookie.Cookie;
+import jakarta.ws.rs.core.CacheControl;
+import jakarta.ws.rs.core.EntityTag;
+import jakarta.ws.rs.core.HttpHeaders;
+import jakarta.ws.rs.core.Link;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.MultivaluedMap;
+import jakarta.ws.rs.core.NewCookie;
+import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.Variant;
 
-import javax.ws.rs.core.*;
 import java.lang.annotation.Annotation;
 import java.net.URI;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+
+import static jakarta.ws.rs.ext.RuntimeDelegate.getInstance;
 
 /**
- * Implementation of {@link javax.ws.rs.core.Response.ResponseBuilder} for Micronaut.
+ * Implementation of {@link jakarta.ws.rs.core.Response.ResponseBuilder} for Micronaut.
  *
  * @author graemerocher
  * @since 1.0.0
@@ -51,6 +66,12 @@ public class JaxRsResponseBuilder extends Response.ResponseBuilder {
     @Override
     public Response.ResponseBuilder status(int status) {
         response.status(status);
+        return this;
+    }
+
+    @Override
+    public Response.ResponseBuilder status(int status, String reasonPhrase) {
+        response.status(HttpStatus.valueOf(status), reasonPhrase);
         return this;
     }
 
@@ -81,8 +102,10 @@ public class JaxRsResponseBuilder extends Response.ResponseBuilder {
     @Override
     public Response.ResponseBuilder cacheControl(CacheControl cacheControl) {
         if (cacheControl != null) {
+
             response.getHeaders().add(
-                    io.micronaut.http.HttpHeaders.CACHE_CONTROL, cacheControl.toString()
+                io.micronaut.http.HttpHeaders.CACHE_CONTROL,
+                getInstance().createHeaderDelegate(CacheControl.class).toString(cacheControl)
             );
         }
         return this;
@@ -224,7 +247,8 @@ public class JaxRsResponseBuilder extends Response.ResponseBuilder {
     @Override
     public Response.ResponseBuilder tag(EntityTag tag) {
         if (tag != null) {
-            response.getHeaders().add(io.micronaut.http.HttpHeaders.ETAG, tag.toString());
+            response.getHeaders().add(io.micronaut.http.HttpHeaders.ETAG,
+                getInstance().createHeaderDelegate(EntityTag.class).toString(tag));
         }
         return this;
     }

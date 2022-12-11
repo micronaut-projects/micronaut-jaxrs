@@ -18,9 +18,9 @@ package io.micronaut.jaxrs.runtime.ext.impl;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.util.ArgumentUtils;
 import io.micronaut.jaxrs.runtime.core.ParameterParser;
-import javax.ws.rs.core.Cookie;
-import javax.ws.rs.core.NewCookie;
-import javax.ws.rs.ext.RuntimeDelegate;
+import jakarta.ws.rs.core.Cookie;
+import jakarta.ws.rs.core.NewCookie;
+import jakarta.ws.rs.ext.RuntimeDelegate;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -89,8 +89,17 @@ class NewCookieHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Object> 
             cookieValue = "";
         }
 
-        return new NewCookie(cookieName, cookieValue, path, domain, version, comment, maxAge, expiry, secure, httpOnly);
-
+        return new NewCookie.Builder(cookieName)
+            .value(cookieValue)
+            .path(path)
+            .domain(domain)
+            .version(version)
+            .comment(comment)
+            .maxAge(maxAge)
+            .expiry(expiry)
+            .secure(secure)
+            .httpOnly(httpOnly)
+            .build();
     }
 
     @Override

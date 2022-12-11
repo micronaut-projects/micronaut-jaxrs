@@ -18,9 +18,8 @@ package io.micronaut.jaxrs.runtime.ext.impl;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.util.ArgumentUtils;
-
-import javax.ws.rs.core.EntityTag;
-import javax.ws.rs.ext.RuntimeDelegate;
+import jakarta.ws.rs.core.EntityTag;
+import jakarta.ws.rs.ext.RuntimeDelegate;
 
 
 /**

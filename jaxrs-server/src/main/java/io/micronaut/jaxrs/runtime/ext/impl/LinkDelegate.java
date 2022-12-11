@@ -17,14 +17,14 @@ package io.micronaut.jaxrs.runtime.ext.impl;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.util.ArgumentUtils;
-import java.util.Map.Entry;
-import javax.ws.rs.core.Link;
-import javax.ws.rs.core.MultivaluedHashMap;
-import javax.ws.rs.core.MultivaluedMap;
-import javax.ws.rs.ext.RuntimeDelegate;
+import jakarta.ws.rs.core.Link;
+import jakarta.ws.rs.core.MultivaluedHashMap;
+import jakarta.ws.rs.core.MultivaluedMap;
+import jakarta.ws.rs.ext.RuntimeDelegate;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 /**
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
@@ -62,8 +62,8 @@ final class LinkDelegate implements RuntimeDelegate.HeaderDelegate<Link> {
         public static final String PARSE_ERROR_MESSAGE = "Unable to parse Link header.  No end to parameter: ";
 
         private int curr;
-        private String value;
-        private Link.Builder builder;
+        private final String value;
+        private final Link.Builder builder;
 
         Parser(final String value) {
             this.value = value;
