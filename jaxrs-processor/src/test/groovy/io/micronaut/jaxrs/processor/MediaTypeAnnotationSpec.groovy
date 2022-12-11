@@ -11,13 +11,13 @@ class MediaTypeAnnotationSpec extends AbstractTypeElementSpec {
             def definition = buildBeanDefinition('test.Test', """
 package test;
 
-@javax.ws.rs.Path("/test")
+@jakarta.ws.rs.Path("/test")
 class Test {
 
-    @javax.ws.rs.GET
-    @javax.ws.rs.Consumes($source)
-    @javax.ws.rs.Produces($source)
-    void test(@javax.ws.rs.PathParam("test") String test) {}
+    @jakarta.ws.rs.GET
+    @jakarta.ws.rs.Consumes($source)
+    @jakarta.ws.rs.Produces($source)
+    void test(@jakarta.ws.rs.PathParam("test") String test) {}
 }
 """)
 

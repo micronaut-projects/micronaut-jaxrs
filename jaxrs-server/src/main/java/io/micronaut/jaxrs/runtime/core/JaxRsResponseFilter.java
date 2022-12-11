@@ -16,6 +16,7 @@
 package io.micronaut.jaxrs.runtime.core;
 
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.annotation.Nullable;
 import io.micronaut.core.async.publisher.Publishers;
 import io.micronaut.core.io.Writable;
 import io.micronaut.http.HttpRequest;
@@ -23,10 +24,9 @@ import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.http.annotation.Filter;
 import io.micronaut.http.filter.HttpServerFilter;
 import io.micronaut.http.filter.ServerFilterChain;
+import jakarta.ws.rs.core.StreamingOutput;
 import org.reactivestreams.Publisher;
 
-import io.micronaut.core.annotation.Nullable;
-import javax.ws.rs.core.StreamingOutput;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.Writer;
@@ -45,8 +45,8 @@ public class JaxRsResponseFilter implements HttpServerFilter {
     public Publisher<MutableHttpResponse<?>> doFilter(HttpRequest<?> request, ServerFilterChain chain) {
         return Publishers.map(chain.proceed(request), mutableHttpResponse -> {
             final Object body = mutableHttpResponse.getBody().orElse(null);
-            if (body instanceof JaxRsResponse) {
-                final MutableHttpResponse<Object> jaxRsResponse = ((JaxRsResponse) body).getResponse();
+            if (body instanceof JaxRsResponse jrs) {
+                final MutableHttpResponse<Object> jaxRsResponse = jrs.getResponse();
                 mutableHttpResponse.getAttributes().forEach(jaxRsResponse::setAttribute);
                 mutableHttpResponse.getHeaders().forEach((name, value) -> {
                     for (String val: value) {
@@ -55,8 +55,7 @@ public class JaxRsResponseFilter implements HttpServerFilter {
                 });
 
                 final Object b = jaxRsResponse.body();
-                if (b instanceof StreamingOutput) {
-                    StreamingOutput s = (StreamingOutput) b;
+                if (b instanceof StreamingOutput s) {
                     jaxRsResponse.body(new Writable() {
                         @Override
                         public void writeTo(OutputStream outputStream, @Nullable Charset charset) throws IOException {

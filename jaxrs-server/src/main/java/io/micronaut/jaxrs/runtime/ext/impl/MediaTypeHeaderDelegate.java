@@ -19,9 +19,10 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.util.ArgumentUtils;
 import io.micronaut.core.util.clhm.ConcurrentLinkedHashMap;
 import io.micronaut.jaxrs.runtime.core.ParameterParser;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.ext.RuntimeDelegate;
 
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.ext.RuntimeDelegate;
+import java.util.Arrays;
 import java.util.Map;
 
 /**
@@ -138,28 +139,8 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Ob
         if (str == null || str.length() == 0) {
             return false;
         }
-        for (int i = 0; i < str.length(); i++) {
-            switch (str.charAt(i)) {
-                case '/':
-                case '\\':
-                case '?':
-                case ':':
-                case '<':
-                case '>':
-                case ';':
-                case '(':
-                case ')':
-                case '@':
-                case ',':
-                case '[':
-                case ']':
-                case '=':
-                    return false;
-                default:
-                    break;
-            }
-        }
-        return true;
+        char[] notValid = { '/', '\\', '?', ':', '<', '>', ';', '(', ')', '@', ',', '[', ']', '=' };
+        return str.chars().noneMatch(c -> Arrays.binarySearch(notValid, (char) c) >= 0);
     }
 
     private String internalToString(MediaType type) {

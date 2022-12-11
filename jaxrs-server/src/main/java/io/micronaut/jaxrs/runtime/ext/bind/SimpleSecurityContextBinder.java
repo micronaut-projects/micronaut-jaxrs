@@ -20,11 +20,12 @@ import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.bind.binders.TypedRequestArgumentBinder;
 import jakarta.inject.Singleton;
+import jakarta.ws.rs.core.SecurityContext;
+
 import java.util.Optional;
-import javax.ws.rs.core.SecurityContext;
 
 /**
- * A simple implementation the binds the JAX-RS {@code SecurityContext} without 
+ * A simple implementation the binds the JAX-RS {@code SecurityContext} without
  * support for roles.
  *
  * @author graemerocher

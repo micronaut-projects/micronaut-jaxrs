@@ -16,10 +16,10 @@
 package io.micronaut.jaxrs.runtime.core;
 
 import io.micronaut.core.util.ArgumentUtils;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.core.UriBuilder;
+import jakarta.ws.rs.core.UriBuilderException;
 
-import javax.ws.rs.Path;
-import javax.ws.rs.core.UriBuilder;
-import javax.ws.rs.core.UriBuilderException;
 import java.lang.reflect.Method;
 import java.net.URI;
 import java.util.Map;
@@ -32,13 +32,13 @@ import java.util.Map;
  */
 public class JaxRsUriBuilder extends UriBuilder {
 
-    private io.micronaut.http.uri.UriBuilder uriBuilder;
+    private final io.micronaut.http.uri.UriBuilder uriBuilder;
 
     /**
      * Default constructor.
      */
     public JaxRsUriBuilder() {
-        this.uriBuilder = io.micronaut.http.uri.UriBuilder.of("/");
+        this(io.micronaut.http.uri.UriBuilder.of("/"));
     }
 
     /**

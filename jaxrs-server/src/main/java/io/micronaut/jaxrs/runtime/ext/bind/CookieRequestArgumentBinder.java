@@ -22,9 +22,9 @@ import io.micronaut.http.HttpRequest;
 import io.micronaut.http.annotation.CookieValue;
 import io.micronaut.http.bind.binders.AnnotatedRequestArgumentBinder;
 import io.micronaut.http.bind.binders.TypedRequestArgumentBinder;
-
 import jakarta.inject.Singleton;
-import javax.ws.rs.core.Cookie;
+import jakarta.ws.rs.core.Cookie;
+
 import java.util.Optional;
 
 /**
@@ -50,7 +50,11 @@ public class CookieRequestArgumentBinder implements TypedRequestArgumentBinder<C
                 .findCookie(context.getAnnotationMetadata().stringValue(CookieValue.class)
                         .orElse(context.getArgument().getName())).orElse(null);
         if (cookie != null) {
-            Cookie c = new Cookie(cookie.getName(), cookie.getValue(), cookie.getPath(), cookie.getDomain());
+            Cookie c = new Cookie.Builder(cookie.getName())
+                .value(cookie.getValue())
+                .path(cookie.getPath())
+                .domain(cookie.getDomain())
+                .build();
             return () -> Optional.of(c);
         } else {
             return BindingResult.EMPTY;

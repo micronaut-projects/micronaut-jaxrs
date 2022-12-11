@@ -18,11 +18,11 @@ package io.micronaut.jaxrs.processor;
 import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.AnnotationValueBuilder;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.annotation.NonNull;
 import io.micronaut.http.annotation.Consumes;
 import io.micronaut.inject.annotation.NamedAnnotationMapper;
 import io.micronaut.inject.visitor.VisitorContext;
 
-import io.micronaut.core.annotation.NonNull;
 import java.lang.annotation.Annotation;
 import java.util.Collections;
 import java.util.List;
@@ -41,7 +41,7 @@ public class ConsumesMapper implements NamedAnnotationMapper {
     @NonNull
     @Override
     public String getName() {
-        return "javax.ws.rs.Consumes";
+        return "jakarta.ws.rs.Consumes";
     }
 
     @Override

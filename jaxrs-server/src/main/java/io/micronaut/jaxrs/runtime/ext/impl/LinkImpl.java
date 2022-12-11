@@ -16,14 +16,13 @@
 package io.micronaut.jaxrs.runtime.ext.impl;
 
 import io.micronaut.core.annotation.Internal;
+import jakarta.ws.rs.core.Link;
+import jakarta.ws.rs.core.UriBuilder;
+import jakarta.ws.rs.ext.RuntimeDelegate;
 
-import javax.ws.rs.core.Link;
-import javax.ws.rs.core.UriBuilder;
-import javax.ws.rs.ext.RuntimeDelegate;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -52,8 +51,7 @@ class LinkImpl extends Link {
      */
     LinkImpl(final URI uri, final Map<String, String> map) {
         this.uri = uri;
-        this.map = map.isEmpty() ? Collections.emptyMap() : Collections
-                .unmodifiableMap(new HashMap<>(map));
+        this.map = map.isEmpty() ? Collections.emptyMap() : Map.copyOf(map);
     }
 
     /**
@@ -106,8 +104,7 @@ class LinkImpl extends Link {
         if (this == other) {
             return true;
         }
-        if (other instanceof LinkImpl) {
-            final LinkImpl otherLink = (LinkImpl) other;
+        if (other instanceof LinkImpl otherLink) {
             return uri.equals(otherLink.uri) && map.equals(otherLink.map);
         }
         return false;

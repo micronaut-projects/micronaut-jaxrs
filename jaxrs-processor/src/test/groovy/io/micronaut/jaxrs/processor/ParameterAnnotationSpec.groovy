@@ -6,15 +6,14 @@ import io.micronaut.http.annotation.CookieValue
 import io.micronaut.http.annotation.Header
 import io.micronaut.http.annotation.PathVariable
 import io.micronaut.http.annotation.QueryValue
+import jakarta.ws.rs.BeanParam
+import jakarta.ws.rs.CookieParam
+import jakarta.ws.rs.FormParam
+import jakarta.ws.rs.HeaderParam
+import jakarta.ws.rs.MatrixParam
+import jakarta.ws.rs.PathParam
+import jakarta.ws.rs.QueryParam
 import spock.lang.Unroll
-
-import javax.ws.rs.BeanParam
-import javax.ws.rs.CookieParam
-import javax.ws.rs.FormParam
-import javax.ws.rs.HeaderParam
-import javax.ws.rs.MatrixParam
-import javax.ws.rs.PathParam
-import javax.ws.rs.QueryParam
 
 class ParameterAnnotationSpec extends AbstractTypeElementSpec {
 
@@ -24,10 +23,10 @@ class ParameterAnnotationSpec extends AbstractTypeElementSpec {
         def definition = buildBeanDefinition('test.Test', """
 package test;
 
-@javax.ws.rs.Path("/test")
+@jakarta.ws.rs.Path("/test")
 class Test {
 
-    @javax.ws.rs.GET
+    @jakarta.ws.rs.GET
     void test(@$source.name("$value") String test) {}
 }
 """)
@@ -54,11 +53,11 @@ class Test {
         def definition = buildBeanDefinition('test.Test', """
 package test;
 
-@javax.ws.rs.Path("/test")
+@jakarta.ws.rs.Path("/test")
 class Test {
 
-    @javax.ws.rs.GET
-    void test(@javax.ws.rs.DefaultValue("foo") @javax.ws.rs.PathParam("test") String test) {}
+    @jakarta.ws.rs.GET
+    void test(@jakarta.ws.rs.DefaultValue("foo") @jakarta.ws.rs.PathParam("test") String test) {}
 }
 """)
 
@@ -75,10 +74,10 @@ class Test {
         buildBeanDefinition('test.Test', """
 package test;
 
-@javax.ws.rs.Path("/test")
+@jakarta.ws.rs.Path("/test")
 class Test {
 
-    @javax.ws.rs.GET
+    @jakarta.ws.rs.GET
     void test(@$source.name(${value ? "\"$value\"" : ""}) String test) {}
 }
 """)
@@ -103,7 +102,7 @@ package test;
 @io.micronaut.http.annotation.Controller("/test")
 class Test {
 
-    @javax.ws.rs.GET
+    @jakarta.ws.rs.GET
     void test(@$source.name(${value ? "\"$value\"" : ""}) String test) {}
 }
 """)
@@ -118,16 +117,16 @@ class Test {
         BeanParam   | null
     }
 
-    void "test javax.ws.rs.PathParam value"() {
+    void "test jakarta.ws.rs.PathParam value"() {
         when:
         def definition =  buildBeanDefinition('test.Test', """
 package test;
 
-@javax.ws.rs.Path("/test/{user_id}/v1")
+@jakarta.ws.rs.Path("/test/{user_id}/v1")
 class Test {
 
-    @javax.ws.rs.GET
-    void test(@javax.ws.rs.PathParam("user_id") String userId) {}
+    @jakarta.ws.rs.GET
+    void test(@jakarta.ws.rs.PathParam("user_id") String userId) {}
 }
 """)
 
@@ -139,16 +138,16 @@ class Test {
         metadata.stringValue(Bindable, "value").get() == 'user_id'
     }
 
-    void "test javax.ws.rs.PathParam value with javax.ws.rs.DefaultValue"() {
+    void "test jakarta.ws.rs.PathParam value with jakarta.ws.rs.DefaultValue"() {
         when:
         def definition =  buildBeanDefinition('test.Test', """
 package test;
 
-@javax.ws.rs.Path("/test/{user_id}")
+@jakarta.ws.rs.Path("/test/{user_id}")
 class Test {
 
-    @javax.ws.rs.GET
-    void test(@javax.ws.rs.DefaultValue("foo") @javax.ws.rs.PathParam("user_id") String userId) {}
+    @jakarta.ws.rs.GET
+    void test(@jakarta.ws.rs.DefaultValue("foo") @jakarta.ws.rs.PathParam("user_id") String userId) {}
 }
 """)
 

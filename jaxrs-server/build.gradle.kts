@@ -16,12 +16,11 @@ dependencies {
 	testAnnotationProcessor(mn.micronaut.validation)
 	testAnnotationProcessor(projects.jaxrsProcessor)
 
-	// for Groovy
 	testImplementation(projects.jaxrsProcessor)
-    testImplementation(mn.micronaut.serde.jackson)
+    testImplementation(mnSerde.micronaut.serde.jackson)
 	testImplementation(mn.micronaut.http.server.netty)
 	testImplementation(mn.micronaut.http.client)
 	testImplementation(mn.micronaut.validation)
-	testImplementation(mn.micronaut.test.junit5)
+	testImplementation(mnTest.micronaut.test.junit5)
 	testRuntimeOnly(libs.junit.jupiter.engine)
 }

@@ -15,18 +15,17 @@
  */
 package io.micronaut.jaxrs.processor;
 
-import java.lang.annotation.Annotation;
-import java.util.Collections;
-import java.util.List;
-
-import io.micronaut.core.annotation.Internal;
-import io.micronaut.core.annotation.NonNull;
-
 import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.AnnotationValueBuilder;
+import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.annotation.NonNull;
 import io.micronaut.http.annotation.PathVariable;
 import io.micronaut.inject.annotation.NamedAnnotationMapper;
 import io.micronaut.inject.visitor.VisitorContext;
+
+import java.lang.annotation.Annotation;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Maps the JAX-RS {@code PathParam} annotation.
@@ -40,7 +39,7 @@ public class PathParamMapper implements NamedAnnotationMapper {
     @NonNull
     @Override
     public String getName() {
-        return "javax.ws.rs.PathParam";
+        return "jakarta.ws.rs.PathParam";
     }
 
     @Override

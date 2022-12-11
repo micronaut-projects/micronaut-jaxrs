@@ -4,17 +4,17 @@ import io.micronaut.annotation.processing.test.AbstractTypeElementSpec
 
 class ParameterValidationSpec extends AbstractTypeElementSpec {
 
-    void "test javax.ws.rs.PathParam path compile-time validation fails"() {
+    void "test jakarta.ws.rs.PathParam path compile-time validation fails"() {
         when:
         buildBeanDefinition('test.Test', """
 package test;
 
-@javax.ws.rs.Path("/test")
+@jakarta.ws.rs.Path("/test")
 class Test {
 
-    @javax.ws.rs.Path("/{user_id}")
-    @javax.ws.rs.GET
-    void test(@javax.ws.rs.PathParam("u") String userId) {}
+    @jakarta.ws.rs.Path("/{user_id}")
+    @jakarta.ws.rs.GET
+    void test(@jakarta.ws.rs.PathParam("u") String userId) {}
 }
 """)
 
@@ -29,9 +29,9 @@ package test;
 @io.micronaut.http.annotation.Controller("/test")
 class Test {
 
-    @javax.ws.rs.Path("/{user_id}")
-    @javax.ws.rs.GET
-    void test(@javax.ws.rs.PathParam("u") String userId) {}
+    @jakarta.ws.rs.Path("/{user_id}")
+    @jakarta.ws.rs.GET
+    void test(@jakarta.ws.rs.PathParam("u") String userId) {}
 }
 """)
 
@@ -40,17 +40,17 @@ class Test {
         ex.message.contains("The route declares a uri variable named [user_id], but no corresponding method argument is present")
     }
 
-    void "test javax.ws.rs.PathParam path compile-time validation passes"() {
+    void "test jakarta.ws.rs.PathParam path compile-time validation passes"() {
         when:
         buildBeanDefinition('test.Test', """
 package test;
 
-@javax.ws.rs.Path("/test")
+@jakarta.ws.rs.Path("/test")
 class Test {
 
-    @javax.ws.rs.Path("/{user_id}")
-    @javax.ws.rs.GET
-    void test(@javax.ws.rs.PathParam("user_id") String userId) {}
+    @jakarta.ws.rs.Path("/{user_id}")
+    @jakarta.ws.rs.GET
+    void test(@jakarta.ws.rs.PathParam("user_id") String userId) {}
 }
 """)
 
@@ -64,9 +64,9 @@ package test;
 @io.micronaut.http.annotation.Controller("/test")
 class Test {
 
-    @javax.ws.rs.Path("/{user_id}")
-    @javax.ws.rs.GET
-    void test(@javax.ws.rs.PathParam("user_id") String userId) {}
+    @jakarta.ws.rs.Path("/{user_id}")
+    @jakarta.ws.rs.GET
+    void test(@jakarta.ws.rs.PathParam("user_id") String userId) {}
 }
 """)
 
