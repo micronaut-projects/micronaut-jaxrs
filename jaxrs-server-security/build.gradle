@@ -8,13 +8,13 @@ dependencies {
 	implementation projects.jaxrsServer
     implementation(mnSecurity.micronaut.security)
 
-	testAnnotationProcessor(mn.micronaut.validation)
+	testAnnotationProcessor(mnValidation.micronaut.validation.processor)
+	testImplementation(mnValidation.micronaut.validation)
 	testAnnotationProcessor(mn.micronaut.inject.java)
 	testAnnotationProcessor projects.jaxrsProcessor
 	testAnnotationProcessor(mnSecurity.micronaut.security.annotations)
 
 	testImplementation(libs.managed.jaxrs.api)
-	testImplementation(mn.micronaut.validation)
 	testImplementation(mn.micronaut.http.client)
 	testImplementation(mn.micronaut.http.server.netty)
 	testImplementation(mnTest.micronaut.test.junit5)
