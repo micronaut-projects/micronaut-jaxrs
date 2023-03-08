@@ -14,9 +14,9 @@ dependencies {
 	// for Java
 	testAnnotationProcessor(mn.micronaut.inject.java)
 	testAnnotationProcessor(mnValidation.micronaut.validation.processor)
-	testAnnotationProcessor(projects.jaxrsProcessor)
+	testAnnotationProcessor(projects.micronautJaxrsProcessor)
 
-	testImplementation(projects.jaxrsProcessor)
+	testImplementation(projects.micronautJaxrsProcessor)
     testImplementation(mnSerde.micronaut.serde.jackson)
 	testImplementation(mn.micronaut.http.server.netty)
 	testImplementation(mn.micronaut.http.client)

@@ -5,13 +5,13 @@ plugins {
 dependencies {
 	annotationProcessor(mn.micronaut.graal)
 
-	implementation projects.jaxrsServer
+	implementation projects.micronautJaxrsServer
     implementation(mnSecurity.micronaut.security)
 
 	testAnnotationProcessor(mnValidation.micronaut.validation.processor)
 	testImplementation(mnValidation.micronaut.validation)
 	testAnnotationProcessor(mn.micronaut.inject.java)
-	testAnnotationProcessor projects.jaxrsProcessor
+	testAnnotationProcessor projects.micronautJaxrsProcessor
 	testAnnotationProcessor(mnSecurity.micronaut.security.annotations)
 
 	testImplementation(libs.managed.jaxrs.api)
