@@ -58,24 +58,19 @@ public class HttpMethodMapper implements NamedAnnotationMapper {
         if (name != null) {
             name = name.toUpperCase(Locale.ENGLISH);
             HttpMethod httpMethod = HttpMethod.parse(name);
-            AnnotationValueBuilder<?> builder = null;
-            switch (httpMethod) {
-                case GET -> builder = AnnotationValue.builder(Get.class);
-                case POST -> builder = AnnotationValue.builder(Post.class);
-                case PUT -> builder = AnnotationValue.builder(Put.class);
-                case PATCH -> builder = AnnotationValue.builder(Patch.class);
-                case DELETE -> builder = AnnotationValue.builder(Delete.class);
-                case TRACE -> builder = AnnotationValue.builder(Trace.class);
-                case OPTIONS -> builder = AnnotationValue.builder(Options.class);
-                case HEAD -> builder = AnnotationValue.builder(Head.class);
-                case CUSTOM, CONNECT -> {
-                    builder = AnnotationValue.builder(CustomHttpMethod.class);
-                    builder.member("method", name);
-                }
-            }
-
+            AnnotationValueBuilder<?> builder = switch (httpMethod) {
+                case GET -> AnnotationValue.builder(Get.class);
+                case POST -> AnnotationValue.builder(Post.class);
+                case PUT -> AnnotationValue.builder(Put.class);
+                case PATCH -> AnnotationValue.builder(Patch.class);
+                case DELETE -> AnnotationValue.builder(Delete.class);
+                case TRACE -> AnnotationValue.builder(Trace.class);
+                case OPTIONS -> AnnotationValue.builder(Options.class);
+                case HEAD -> AnnotationValue.builder(Head.class);
+                case CUSTOM, CONNECT -> AnnotationValue.builder(CustomHttpMethod.class).member("method", name);
+            };
             return Collections.singletonList(
-                   builder.value(UriMapping.DEFAULT_URI).build()
+                builder.value(UriMapping.DEFAULT_URI).build()
             );
         }
         return Collections.emptyList();
