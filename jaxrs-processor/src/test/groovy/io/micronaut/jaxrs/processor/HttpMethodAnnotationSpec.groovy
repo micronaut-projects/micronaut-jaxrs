@@ -191,12 +191,11 @@ class Test {
 package test;
 
 @jakarta.ws.rs.Path("/test")
-@io.micronaut.validation.Validated
 class Test {
 
     @jakarta.ws.rs.GET
     @jakarta.ws.rs.Produces("text/plain")
-    String test(@javax.validation.constraints.NotBlank String val) {
+    String test(@jakarta.validation.constraints.NotBlank String val) {
         return "ok";
     }
 }
@@ -224,9 +223,10 @@ package test;
 class Test {
 
     @jakarta.ws.rs.GET
-    String test(@javax.validation.constraints.NotBlank String val) {
+    String test(@jakarta.validation.constraints.NotBlank String val) {
         return "ok";
     }
+
 }
 """)
         def definition = context.getBeanDefinition(context.getClassLoader().loadClass('test.Test'))
@@ -273,7 +273,7 @@ class Test {
         def executableMethod = definition.getRequiredMethod("test")
 
         expect:
-        executableMethod.hasAnnotation(target)
+        executableMethod.hasStereotype(target)
         executableMethod.stringValue(HttpMethodMapping)
                 .get() == '/test'
         executableMethod.stringValue(Produces)

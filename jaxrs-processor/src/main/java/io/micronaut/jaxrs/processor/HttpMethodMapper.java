@@ -60,34 +60,18 @@ public class HttpMethodMapper implements NamedAnnotationMapper {
             HttpMethod httpMethod = HttpMethod.parse(name);
             AnnotationValueBuilder<?> builder = null;
             switch (httpMethod) {
-                case GET:
-                    builder = AnnotationValue.builder(Get.class);
-                break;
-                case POST:
-                    builder = AnnotationValue.builder(Post.class);
-                break;
-                case PUT:
-                    builder = AnnotationValue.builder(Put.class);
-                break;
-                case PATCH:
-                    builder = AnnotationValue.builder(Patch.class);
-                break;
-                case DELETE:
-                    builder = AnnotationValue.builder(Delete.class);
-                break;
-                case TRACE:
-                    builder = AnnotationValue.builder(Trace.class);
-                break;
-                case OPTIONS:
-                    builder = AnnotationValue.builder(Options.class);
-                break;
-                case HEAD:
-                    builder = AnnotationValue.builder(Head.class);
-                break;
-                case CUSTOM, CONNECT:
-                default:
+                case GET -> builder = AnnotationValue.builder(Get.class);
+                case POST -> builder = AnnotationValue.builder(Post.class);
+                case PUT -> builder = AnnotationValue.builder(Put.class);
+                case PATCH -> builder = AnnotationValue.builder(Patch.class);
+                case DELETE -> builder = AnnotationValue.builder(Delete.class);
+                case TRACE -> builder = AnnotationValue.builder(Trace.class);
+                case OPTIONS -> builder = AnnotationValue.builder(Options.class);
+                case HEAD -> builder = AnnotationValue.builder(Head.class);
+                case CUSTOM, CONNECT -> {
                     builder = AnnotationValue.builder(CustomHttpMethod.class);
                     builder.member("method", name);
+                }
             }
 
             return Collections.singletonList(

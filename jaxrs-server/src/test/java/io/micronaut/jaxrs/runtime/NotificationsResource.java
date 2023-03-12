@@ -24,7 +24,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.junit.jupiter.api.Assertions;
 
-import javax.validation.constraints.Min;
+import jakarta.validation.constraints.Min;
 import java.util.concurrent.ExecutorService;
 
 @Path("/notifications")

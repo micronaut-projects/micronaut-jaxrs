@@ -8,6 +8,7 @@ dependencies {
 	implementation(libs.managed.jaxrs.api)
 
 	testAnnotationProcessor(mnValidation.micronaut.validation.processor)
+    testImplementation(mnValidation.micronaut.validation.processor)
 	testImplementation(mn.micronaut.http.validation)
 	testImplementation(mn.micronaut.http.server)
 	testImplementation(mn.micronaut.inject.java.test)
