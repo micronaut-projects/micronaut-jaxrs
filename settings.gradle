@@ -21,7 +21,6 @@ enableFeaturePreview 'TYPESAFE_PROJECT_ACCESSORS'
 micronautBuild {
     importMicronautCatalog()
     useStandardizedProjectNames = true
-    addSnapshotRepository()
     importMicronautCatalog("micronaut-security")
     importMicronautCatalog("micronaut-serde")
     importMicronautCatalog("micronaut-validation")
