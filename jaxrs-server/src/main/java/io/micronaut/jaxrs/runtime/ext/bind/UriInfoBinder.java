@@ -15,23 +15,25 @@
  */
 package io.micronaut.jaxrs.runtime.ext.bind;
 
+import java.util.Optional;
+
+import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.convert.ArgumentConversionContext;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.bind.binders.TypedRequestArgumentBinder;
 import jakarta.inject.Singleton;
-
-import javax.ws.rs.core.UriInfo;
-import java.util.Optional;
+import jakarta.ws.rs.core.UriInfo;
 
 /**
- * Binds the {@link  UriInfo} of the {@link javax.ws.rs.core.Context}.
+ * Binds the {@link  UriInfo} of the {@link jakarta.ws.rs.core.Context}.
  *
  * @author Dan Hollingsworth
  * @since 3.3.0
  */
 @Singleton
-public class UriInfoBinder implements TypedRequestArgumentBinder<UriInfo> {
+@Internal
+public final class UriInfoBinder implements TypedRequestArgumentBinder<UriInfo> {
 
     private static final Argument<UriInfo> ARGUMENT = Argument.of(UriInfo.class);
 

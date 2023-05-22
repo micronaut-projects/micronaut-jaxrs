@@ -15,15 +15,15 @@
  */
 package io.micronaut.jaxrs.runtime.ext.bind;
 
+import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.util.StringUtils;
 import io.micronaut.http.HttpRequest;
+import jakarta.ws.rs.core.MultivaluedHashMap;
+import jakarta.ws.rs.core.MultivaluedMap;
+import jakarta.ws.rs.core.PathSegment;
+import jakarta.ws.rs.core.UriBuilder;
+import jakarta.ws.rs.core.UriInfo;
 
-import javax.ws.rs.core.MultivaluedHashMap;
-import javax.ws.rs.core.MultivaluedMap;
-import javax.ws.rs.core.PathSegment;
-import javax.ws.rs.core.UriBuilder;
-import javax.ws.rs.core.UriInfo;
-import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLDecoder;
@@ -33,12 +33,13 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * The JAX-RS {@link UriInfo} injected through {@link javax.ws.rs.core.Context} annotation.
+ * The JAX-RS {@link UriInfo} injected through {@link jakarta.ws.rs.core.Context} annotation.
  *
  * @author Dan Hollingsworth
  * @since 3.3.0
  */
-public class UriInfoImpl implements UriInfo {
+@Internal
+public final class UriInfoImpl implements UriInfo {
     private final HttpRequest<?> request;
 
     /**
@@ -51,11 +52,7 @@ public class UriInfoImpl implements UriInfo {
     }
 
     private String string(String str, boolean decode) {
-        try {
-            return decode ? URLDecoder.decode(str, StandardCharsets.UTF_8.toString()) : str;
-        } catch (UnsupportedEncodingException e) {
-            throw new IllegalStateException("Charset not found");
-        }
+        return decode ? URLDecoder.decode(str, StandardCharsets.UTF_8) : str;
     }
 
     @Override
@@ -223,16 +220,7 @@ public class UriInfoImpl implements UriInfo {
         return request.getUri().relativize(uri);
     }
 
-    private static class UriPathSegment implements PathSegment {
-
-        final String path;
-        final MultivaluedMap<String, String> params;
-
-        UriPathSegment(String path, MultivaluedMap<String, String> params) {
-            this.path = path;
-            this.params = params;
-        }
-
+    private record UriPathSegment(String path, MultivaluedMap<String, String> params) implements PathSegment {
         @Override
         public String getPath() {
             return path;
@@ -248,7 +236,7 @@ public class UriInfoImpl implements UriInfo {
      * Users may want to know when an empty value is passed as originally described by
      * Tim Berners-Lee: https://www.w3.org/DesignIssues/MatrixURIs.html
      */
-    private static class MultiMapNullPermitted<K, V> extends MultivaluedHashMap<K, V> {
+    private static final class MultiMapNullPermitted<K, V> extends MultivaluedHashMap<K, V> {
         public MultiMapNullPermitted() {
             super();
         }

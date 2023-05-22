@@ -6,12 +6,10 @@ import io.micronaut.http.client.annotation.Client;
 import io.micronaut.jaxrs.runtime.ext.bind.UriInfoImpl;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
-import org.jboss.resteasy.specimpl.ResteasyUriInfo;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-import javax.ws.rs.core.UriInfo;
-import java.net.URI;
+import jakarta.ws.rs.core.UriInfo;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
@@ -34,7 +32,7 @@ class UriInfoTest {
 
     @Test
     void testAbsolutePath() {
-        jakarta.ws.rs.core.UriInfo expectedUri = new ResteasyUriInfo(URI.create("http://example.com/foo/?bar=baz&bar=bam"));
+        jakarta.ws.rs.core.UriInfo expectedUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo/?bar=baz&bar=bam"));
 
         UriInfo actualUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo/?bar=baz&bar=bam"));
         Assertions.assertEquals(expectedUri.getAbsolutePath(), actualUri.getAbsolutePath());
@@ -42,7 +40,7 @@ class UriInfoTest {
 
     @Test
     void testBaseUri() {
-        jakarta.ws.rs.core.UriInfo expectedUri = new ResteasyUriInfo(URI.create("http://example.com/foo/?bar=baz&bar=bam"));
+        jakarta.ws.rs.core.UriInfo expectedUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo/?bar=baz&bar=bam"));
 
         UriInfo actualUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo/?bar=baz&bar=bam"));
         Assertions.assertEquals(expectedUri.getBaseUri(), actualUri.getBaseUri());
@@ -50,7 +48,7 @@ class UriInfoTest {
 
     @Test
     void testPath() {
-        jakarta.ws.rs.core.UriInfo expectedUri = new ResteasyUriInfo(URI.create("http://example.com/foo/?bar=baz&bar=bam"));
+        jakarta.ws.rs.core.UriInfo expectedUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo/?bar=baz&bar=bam"));
 
         UriInfo actualUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo/?bar=baz&bar=bam"));
         Assertions.assertEquals(expectedUri.getPath(), actualUri.getPath());
@@ -59,7 +57,7 @@ class UriInfoTest {
 
     @Test
     void testEncodedPath() {
-        jakarta.ws.rs.core.UriInfo expectedUri = new ResteasyUriInfo(URI.create("http://example.com/foo/?bar=baz&bar=bam"));
+        jakarta.ws.rs.core.UriInfo expectedUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo/?bar=baz&bar=bam"));
 
         UriInfo actualUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo/?bar=baz&bar=bam"));
         Assertions.assertEquals(expectedUri.getPath(false), actualUri.getPath(false));
@@ -67,7 +65,7 @@ class UriInfoTest {
 
     @Test
     void testPathSegments() {
-        jakarta.ws.rs.core.UriInfo expectedUri = new ResteasyUriInfo(URI.create("http://example.com/foo;color=red/bar;color=green/?baz=bam"));
+        jakarta.ws.rs.core.UriInfo expectedUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo;color=red/bar;color=green/?baz=bam"));
 
         UriInfo actualUri =
                 new UriInfoImpl(HttpRequest.GET("http://example.com/foo;color=red/bar;color=green?baz=bam"));
@@ -79,7 +77,7 @@ class UriInfoTest {
 
     @Test
     void testEncodedPathSegments() {
-        jakarta.ws.rs.core.UriInfo expectedUri = new ResteasyUriInfo(URI.create("http://example.com/foo;color=red/bar;color=green/?baz=bam"));
+        jakarta.ws.rs.core.UriInfo expectedUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo;color=red/bar;color=green/?baz=bam"));
 
         UriInfo actualUri =
                 new UriInfoImpl(HttpRequest.GET("http://example.com/foo;color=red/bar;color=green/?baz=bam"));
@@ -89,7 +87,7 @@ class UriInfoTest {
 
     @Test
     void testPathMatrixParameters() {
-        jakarta.ws.rs.core.UriInfo expectedUri = new ResteasyUriInfo(URI.create("http://example.com/foo;color=red;color=green/bar;color=blue/?baz=bam"));
+        jakarta.ws.rs.core.UriInfo expectedUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo;color=red;color=green/bar;color=blue/?baz=bam"));
 
         UriInfo actualUri =
                 new UriInfoImpl(HttpRequest.GET("http://example.com/foo;color=red;color=green/bar;color=blue/?baz=bam"));
@@ -113,7 +111,7 @@ class UriInfoTest {
 
     @Test
     void testEncodedPathMatrixParameters() {
-        jakarta.ws.rs.core.UriInfo expectedUri = new ResteasyUriInfo(URI.create("http://example.com/foo;color=red/bar;color=green/?baz=bam"));
+        jakarta.ws.rs.core.UriInfo expectedUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo;color=red/bar;color=green/?baz=bam"));
 
         System.out.println(expectedUri.getPathSegments().get(0).getMatrixParameters().get("color"));
         UriInfo actualUri =
@@ -128,7 +126,7 @@ class UriInfoTest {
 
     @Test
     void testQueryParams() {
-        jakarta.ws.rs.core.UriInfo expectedUri = new ResteasyUriInfo(URI.create("http://example.com/foo/?bar=baz&bar=bam"));
+        jakarta.ws.rs.core.UriInfo expectedUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo/?bar=baz&bar=bam"));
 
         UriInfo actualUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo/?bar=baz&bar=bam"));
         Assertions.assertEquals(expectedUri.getQueryParameters().get("bar"), actualUri.getQueryParameters().get("bar"));
@@ -137,7 +135,7 @@ class UriInfoTest {
 
     @Test
     void testEncodedQueryParams() {
-        jakarta.ws.rs.core.UriInfo expectedUri = new ResteasyUriInfo(URI.create("http://example.com/foo/?bar=baz&bar=bam"));
+        jakarta.ws.rs.core.UriInfo expectedUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo/?bar=baz&bar=bam"));
 
         UriInfo actualUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo/?bar=baz&bar=bam"));
         Assertions.assertEquals(expectedUri.getQueryParameters(false).get("bar"), actualUri.getQueryParameters(false).get("bar"));
@@ -145,7 +143,7 @@ class UriInfoTest {
 
     @Test
     void testRequestUri() {
-        jakarta.ws.rs.core.UriInfo expectedUri = new ResteasyUriInfo(URI.create("http://example.com/foo/?bar=baz&bar=bam"));
+        jakarta.ws.rs.core.UriInfo expectedUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo/?bar=baz&bar=bam"));
 
         UriInfo actualUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo/?bar=baz&bar=bam"));
         Assertions.assertEquals(expectedUri.getRequestUri(), actualUri.getRequestUri());
