@@ -15,16 +15,22 @@
  */
 package io.micronaut.jaxrs.runtime.ext.bind;
 
+import java.util.Collection;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
 import io.micronaut.context.BeanContext;
 import io.micronaut.context.Qualifier;
 import io.micronaut.core.convert.ArgumentConversionContext;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.bind.binders.AnnotatedRequestArgumentBinder;
+import io.micronaut.http.bind.binders.TypedRequestArgumentBinder;
 import io.micronaut.inject.qualifiers.Qualifiers;
+import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.core.Context;
-import jakarta.ws.rs.core.SecurityContext;
 
 /**
  * Handles the JAX-RS {@code Context} annotation binding.
@@ -37,17 +43,22 @@ import jakarta.ws.rs.core.SecurityContext;
 public class ContextAnnotationBinder<T> implements AnnotatedRequestArgumentBinder<Context, T> {
 
     private final BeanContext beanContext;
-    private final SimpleSecurityContextBinder securityBinder;
+    private final Map<Class<?>, TypedRequestArgumentBinder<?>> argBinders;
 
     /**
-     * Default constructor.
-     * @param beanContext The bean context
-     * @param simpleSecurityContextBinder The security context binder
+     * Constructor to create a Context binder using all passed in argument binders.
+     *
+     * @param beanContext     The bean context
+     * @param argumentBinders The argument binders
+     * @since 3.3.0
      */
-    protected ContextAnnotationBinder(BeanContext beanContext,
-                                      SimpleSecurityContextBinder simpleSecurityContextBinder) {
+    @Inject
+    protected ContextAnnotationBinder(BeanContext beanContext, Collection<TypedRequestArgumentBinder<?>> argumentBinders) {
         this.beanContext = beanContext;
-        this.securityBinder = simpleSecurityContextBinder;
+        this.argBinders = argumentBinders.stream().collect(Collectors.toMap(
+                argBinder -> argBinder.argumentType().getType(),
+                Function.identity(),
+                (dup1, dup2) -> dup1));
     }
 
     @Override
@@ -58,10 +69,13 @@ public class ContextAnnotationBinder<T> implements AnnotatedRequestArgumentBinde
     @Override
     public BindingResult<T> bind(ArgumentConversionContext<T> context, HttpRequest<?> source) {
         Argument<T> argument = context.getArgument();
-        if (argument.getType() == SecurityContext.class) {
-            //noinspection unchecked
-            return (BindingResult<T>) securityBinder.bind((ArgumentConversionContext<SecurityContext>) context, source);
+
+        //noinspection unchecked
+        TypedRequestArgumentBinder<T> binder = (TypedRequestArgumentBinder<T>) argBinders.get(argument.getType());
+        if (binder != null) {
+            return binder.bind(context, source);
         }
+
         Qualifier<T> qualifier = Qualifiers.forArgument(argument);
         return () -> beanContext.findBean(argument, qualifier);
     }

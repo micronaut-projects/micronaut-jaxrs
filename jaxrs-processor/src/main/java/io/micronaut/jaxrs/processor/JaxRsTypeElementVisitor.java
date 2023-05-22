@@ -31,6 +31,7 @@ import jakarta.ws.rs.MatrixParam;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.SecurityContext;
+import jakarta.ws.rs.core.UriInfo;
 
 import java.lang.annotation.Annotation;
 import java.util.Arrays;
@@ -48,7 +49,7 @@ import java.util.Set;
 public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Object> {
 
     public static final int POSITION = 200;
-
+    private static final Class<?>[] BINDABLE_TYPES = new Class<?>[]{Context.class, SecurityContext.class, UriInfo.class};
     private ClassElement currentClassElement;
 
     @Override
@@ -102,10 +103,8 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
 
     @Override
     public void start(VisitorContext visitorContext) {
-        visitorContext.getClassElement(SecurityContext.class)
-            .ifPresent((securityContext) -> securityContext.annotate(Bindable.class));
-        visitorContext.getClassElement(Context.class)
-            .ifPresent((ann) -> ann.annotate(Bindable.class));
+        for (Class<?> type : BINDABLE_TYPES) {
+            visitorContext.getClassElement(type).ifPresent(bindable -> bindable.annotate(Bindable.class));
+        }
     }
-
 }

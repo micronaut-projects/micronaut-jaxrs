@@ -78,6 +78,7 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Ob
 
     /**
      * Checks whether a string is quoted.
+     *
      * @param str The str
      * @return True if it is
      */
