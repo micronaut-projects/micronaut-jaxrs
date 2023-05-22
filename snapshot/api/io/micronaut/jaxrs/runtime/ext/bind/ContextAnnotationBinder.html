@@ -116,10 +116,10 @@ implements <a href="https://docs.micronaut.io/latest/api/io/micronaut/http/bind/
 <div class="table-header col-second">Constructor</div>
 <div class="table-header col-last">Description</div>
 <div class="col-first even-row-color"><code>protected </code></div>
-<div class="col-constructor-name even-row-color"><code><a href="#%3Cinit%3E(io.micronaut.context.BeanContext,io.micronaut.jaxrs.runtime.ext.bind.SimpleSecurityContextBinder)" class="member-name-link">ContextAnnotationBinder</a><wbr>(<a href="https://docs.micronaut.io/latest/api/io/micronaut/context/BeanContext.html" title="class or interface in io.micronaut.context" class="external-link">BeanContext</a>&nbsp;beanContext,
- <a href="SimpleSecurityContextBinder.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">SimpleSecurityContextBinder</a>&nbsp;simpleSecurityContextBinder)</code></div>
+<div class="col-constructor-name even-row-color"><code><a href="#%3Cinit%3E(io.micronaut.context.BeanContext,java.util.Collection)" class="member-name-link">ContextAnnotationBinder</a><wbr>(<a href="https://docs.micronaut.io/latest/api/io/micronaut/context/BeanContext.html" title="class or interface in io.micronaut.context" class="external-link">BeanContext</a>&nbsp;beanContext,
+ <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Collection.html" title="class or interface in java.util" class="external-link">Collection</a>&lt;<a href="https://docs.micronaut.io/latest/api/io/micronaut/http/bind/binders/TypedRequestArgumentBinder.html" title="class or interface in io.micronaut.http.bind.binders" class="external-link">TypedRequestArgumentBinder</a>&lt;?&gt;&gt;&nbsp;argumentBinders)</code></div>
 <div class="col-last even-row-color">
-<div class="block">Default constructor.</div>
+<div class="block">Constructor to create a Context binder using all passed in argument binders.</div>
 </div>
 </div>
 </section>
@@ -160,15 +160,18 @@ implements <a href="https://docs.micronaut.io/latest/api/io/micronaut/http/bind/
 <h2>Constructor Details</h2>
 <ul class="member-list">
 <li>
-<section class="detail" id="&lt;init&gt;(io.micronaut.context.BeanContext,io.micronaut.jaxrs.runtime.ext.bind.SimpleSecurityContextBinder)">
+<section class="detail" id="&lt;init&gt;(io.micronaut.context.BeanContext,java.util.Collection)">
 <h3>ContextAnnotationBinder</h3>
-<div class="member-signature"><span class="modifiers">protected</span>&nbsp;<span class="element-name">ContextAnnotationBinder</span><wbr><span class="parameters">(<a href="https://docs.micronaut.io/latest/api/io/micronaut/context/BeanContext.html" title="class or interface in io.micronaut.context" class="external-link">BeanContext</a>&nbsp;beanContext,
- <a href="SimpleSecurityContextBinder.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">SimpleSecurityContextBinder</a>&nbsp;simpleSecurityContextBinder)</span></div>
-<div class="block">Default constructor.</div>
+<div class="member-signature"><span class="annotations">@Inject
+</span><span class="modifiers">protected</span>&nbsp;<span class="element-name">ContextAnnotationBinder</span><wbr><span class="parameters">(<a href="https://docs.micronaut.io/latest/api/io/micronaut/context/BeanContext.html" title="class or interface in io.micronaut.context" class="external-link">BeanContext</a>&nbsp;beanContext,
+ <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Collection.html" title="class or interface in java.util" class="external-link">Collection</a>&lt;<a href="https://docs.micronaut.io/latest/api/io/micronaut/http/bind/binders/TypedRequestArgumentBinder.html" title="class or interface in io.micronaut.http.bind.binders" class="external-link">TypedRequestArgumentBinder</a>&lt;?&gt;&gt;&nbsp;argumentBinders)</span></div>
+<div class="block">Constructor to create a Context binder using all passed in argument binders.</div>
 <dl class="notes">
 <dt>Parameters:</dt>
 <dd><code>beanContext</code> - The bean context</dd>
-<dd><code>simpleSecurityContextBinder</code> - The security context binder</dd>
+<dd><code>argumentBinders</code> - The argument binders</dd>
+<dt>Since:</dt>
+<dd>3.3.0</dd>
 </dl>
 </section>
 </li>

@@ -68,6 +68,8 @@ loadScripts(document, 'script');</script>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/ext/bind/SimpleSecurityContextBinder.html#argumentType()" class="member-name-link">argumentType()</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/SimpleSecurityContextBinder.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">SimpleSecurityContextBinder</a></dt>
 <dd>&nbsp;</dd>
+<dt><a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoBinder.html#argumentType()" class="member-name-link">argumentType()</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoBinder.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">UriInfoBinder</a></dt>
+<dd>&nbsp;</dd>
 </dl>
 <h2 class="title" id="I:B">B</h2>
 <dl class="index">
@@ -78,6 +80,8 @@ loadScripts(document, 'script');</script>
 <dt><a href="io/micronaut/jaxrs/runtime/ext/bind/SimpleSecurityContextBinder.html#bind(io.micronaut.core.convert.ArgumentConversionContext,io.micronaut.http.HttpRequest)" class="member-name-link">bind(ArgumentConversionContext&lt;SecurityContext&gt;, HttpRequest&lt;?&gt;)</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/SimpleSecurityContextBinder.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">SimpleSecurityContextBinder</a></dt>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/security/bind/MicronautSecurityContextBinder.html#bind(io.micronaut.core.convert.ArgumentConversionContext,io.micronaut.http.HttpRequest)" class="member-name-link">bind(ArgumentConversionContext&lt;SecurityContext&gt;, HttpRequest&lt;?&gt;)</a> - Method in class io.micronaut.jaxrs.security.bind.<a href="io/micronaut/jaxrs/security/bind/MicronautSecurityContextBinder.html" title="class in io.micronaut.jaxrs.security.bind">MicronautSecurityContextBinder</a></dt>
+<dd>&nbsp;</dd>
+<dt><a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoBinder.html#bind(io.micronaut.core.convert.ArgumentConversionContext,io.micronaut.http.HttpRequest)" class="member-name-link">bind(ArgumentConversionContext&lt;UriInfo&gt;, HttpRequest&lt;?&gt;)</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoBinder.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">UriInfoBinder</a></dt>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/ext/bind/ContextAnnotationBinder.html#bind(io.micronaut.core.convert.ArgumentConversionContext,io.micronaut.http.HttpRequest)" class="member-name-link">bind(ArgumentConversionContext&lt;T&gt;, HttpRequest&lt;?&gt;)</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/ContextAnnotationBinder.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">ContextAnnotationBinder</a></dt>
 <dd>&nbsp;</dd>
@@ -122,9 +126,9 @@ loadScripts(document, 'script');</script>
 <dd>
 <div class="block">Handles the JAX-RS <code>Context</code> annotation binding.</div>
 </dd>
-<dt><a href="io/micronaut/jaxrs/runtime/ext/bind/ContextAnnotationBinder.html#%3Cinit%3E(io.micronaut.context.BeanContext,io.micronaut.jaxrs.runtime.ext.bind.SimpleSecurityContextBinder)" class="member-name-link">ContextAnnotationBinder(BeanContext, SimpleSecurityContextBinder)</a> - Constructor for class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/ContextAnnotationBinder.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">ContextAnnotationBinder</a></dt>
+<dt><a href="io/micronaut/jaxrs/runtime/ext/bind/ContextAnnotationBinder.html#%3Cinit%3E(io.micronaut.context.BeanContext,java.util.Collection)" class="member-name-link">ContextAnnotationBinder(BeanContext, Collection&lt;TypedRequestArgumentBinder&lt;?&gt;&gt;)</a> - Constructor for class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/ContextAnnotationBinder.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">ContextAnnotationBinder</a></dt>
 <dd>
-<div class="block">Default constructor.</div>
+<div class="block">Constructor to create a Context binder using all passed in argument binders.</div>
 </dd>
 <dt><a href="io/micronaut/jaxrs/runtime/core/JaxRsResponseBuilder.html#cookie(jakarta.ws.rs.core.NewCookie...)" class="member-name-link">cookie(NewCookie...)</a> - Method in class io.micronaut.jaxrs.runtime.core.<a href="io/micronaut/jaxrs/runtime/core/JaxRsResponseBuilder.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsResponseBuilder</a></dt>
 <dd>&nbsp;</dd>
@@ -206,6 +210,13 @@ loadScripts(document, 'script');</script>
 </dl>
 <h2 class="title" id="I:G">G</h2>
 <dl class="index">
+<dt><a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html#getAbsolutePath()" class="member-name-link">getAbsolutePath()</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">UriInfoImpl</a></dt>
+<dd>&nbsp;</dd>
+<dt><a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html#getAbsolutePathBuilder()" class="member-name-link">getAbsolutePathBuilder()</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">UriInfoImpl</a></dt>
+<dd>
+<div class="block">This operation is not supported currently,
+ so <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/UnsupportedOperationException.html" title="class or interface in java.lang" class="external-link"><code>UnsupportedOperationException</code></a> is thrown for all invocations.</div>
+</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/ext/bind/JaxRsHttpHeaders.html#getAcceptableLanguages()" class="member-name-link">getAcceptableLanguages()</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/JaxRsHttpHeaders.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">JaxRsHttpHeaders</a></dt>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/ext/bind/JaxRsHttpHeaders.html#getAcceptableMediaTypes()" class="member-name-link">getAcceptableMediaTypes()</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/JaxRsHttpHeaders.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">JaxRsHttpHeaders</a></dt>
@@ -222,6 +233,13 @@ loadScripts(document, 'script');</script>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/ext/bind/SimpleSecurityContextImpl.html#getAuthenticationScheme()" class="member-name-link">getAuthenticationScheme()</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/SimpleSecurityContextImpl.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">SimpleSecurityContextImpl</a></dt>
 <dd>&nbsp;</dd>
+<dt><a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html#getBaseUri()" class="member-name-link">getBaseUri()</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">UriInfoImpl</a></dt>
+<dd>&nbsp;</dd>
+<dt><a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html#getBaseUriBuilder()" class="member-name-link">getBaseUriBuilder()</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">UriInfoImpl</a></dt>
+<dd>
+<div class="block">This operation is not supported currently,
+ so <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/UnsupportedOperationException.html" title="class or interface in java.lang" class="external-link"><code>UnsupportedOperationException</code></a> is thrown for all invocations.</div>
+</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/ext/bind/JaxRsHttpHeaders.html#getCookies()" class="member-name-link">getCookies()</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/JaxRsHttpHeaders.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">JaxRsHttpHeaders</a></dt>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/ext/bind/JaxRsHttpHeaders.html#getDate()" class="member-name-link">getDate()</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/JaxRsHttpHeaders.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">JaxRsHttpHeaders</a></dt>
@@ -232,6 +250,21 @@ loadScripts(document, 'script');</script>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/ext/bind/JaxRsHttpHeaders.html#getLength()" class="member-name-link">getLength()</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/JaxRsHttpHeaders.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">JaxRsHttpHeaders</a></dt>
 <dd>&nbsp;</dd>
+<dt><a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html#getMatchedResources()" class="member-name-link">getMatchedResources()</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">UriInfoImpl</a></dt>
+<dd>
+<div class="block">This operation is not supported currently,
+ so <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/UnsupportedOperationException.html" title="class or interface in java.lang" class="external-link"><code>UnsupportedOperationException</code></a> is thrown for all invocations.</div>
+</dd>
+<dt><a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html#getMatchedURIs()" class="member-name-link">getMatchedURIs()</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">UriInfoImpl</a></dt>
+<dd>
+<div class="block">This operation is not supported currently,
+ so <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/UnsupportedOperationException.html" title="class or interface in java.lang" class="external-link"><code>UnsupportedOperationException</code></a> is thrown for all invocations.</div>
+</dd>
+<dt><a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html#getMatchedURIs(boolean)" class="member-name-link">getMatchedURIs(boolean)</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">UriInfoImpl</a></dt>
+<dd>
+<div class="block">This operation is not supported currently,
+ so <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/UnsupportedOperationException.html" title="class or interface in java.lang" class="external-link"><code>UnsupportedOperationException</code></a> is thrown for all invocations.</div>
+</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/ext/bind/JaxRsHttpHeaders.html#getMediaType()" class="member-name-link">getMediaType()</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/JaxRsHttpHeaders.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">JaxRsHttpHeaders</a></dt>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/processor/ApplicationPathAnnotationMapper.html#getName()" class="member-name-link">getName()</a> - Method in class io.micronaut.jaxrs.processor.<a href="io/micronaut/jaxrs/processor/ApplicationPathAnnotationMapper.html" title="class in io.micronaut.jaxrs.processor">ApplicationPathAnnotationMapper</a></dt>
@@ -272,10 +305,39 @@ loadScripts(document, 'script');</script>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/processor/JaxRsTypeElementVisitor.html#getOrder()" class="member-name-link">getOrder()</a> - Method in class io.micronaut.jaxrs.processor.<a href="io/micronaut/jaxrs/processor/JaxRsTypeElementVisitor.html" title="class in io.micronaut.jaxrs.processor">JaxRsTypeElementVisitor</a></dt>
 <dd>&nbsp;</dd>
+<dt><a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html#getPath()" class="member-name-link">getPath()</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">UriInfoImpl</a></dt>
+<dd>&nbsp;</dd>
+<dt><a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html#getPath(boolean)" class="member-name-link">getPath(boolean)</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">UriInfoImpl</a></dt>
+<dd>&nbsp;</dd>
+<dt><a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html#getPathParameters()" class="member-name-link">getPathParameters()</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">UriInfoImpl</a></dt>
+<dd>
+<div class="block">This operation is not supported currently,
+ so <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/UnsupportedOperationException.html" title="class or interface in java.lang" class="external-link"><code>UnsupportedOperationException</code></a> is thrown for all invocations.</div>
+</dd>
+<dt><a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html#getPathParameters(boolean)" class="member-name-link">getPathParameters(boolean)</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">UriInfoImpl</a></dt>
+<dd>
+<div class="block">This operation is not supported currently,
+ so <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/UnsupportedOperationException.html" title="class or interface in java.lang" class="external-link"><code>UnsupportedOperationException</code></a> is thrown for all invocations.</div>
+</dd>
+<dt><a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html#getPathSegments()" class="member-name-link">getPathSegments()</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">UriInfoImpl</a></dt>
+<dd>&nbsp;</dd>
+<dt><a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html#getPathSegments(boolean)" class="member-name-link">getPathSegments(boolean)</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">UriInfoImpl</a></dt>
+<dd>&nbsp;</dd>
+<dt><a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html#getQueryParameters()" class="member-name-link">getQueryParameters()</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">UriInfoImpl</a></dt>
+<dd>&nbsp;</dd>
+<dt><a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html#getQueryParameters(boolean)" class="member-name-link">getQueryParameters(boolean)</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">UriInfoImpl</a></dt>
+<dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/ext/bind/JaxRsHttpHeaders.html#getRequestHeader(java.lang.String)" class="member-name-link">getRequestHeader(String)</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/JaxRsHttpHeaders.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">JaxRsHttpHeaders</a></dt>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/ext/bind/JaxRsHttpHeaders.html#getRequestHeaders()" class="member-name-link">getRequestHeaders()</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/JaxRsHttpHeaders.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">JaxRsHttpHeaders</a></dt>
 <dd>&nbsp;</dd>
+<dt><a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html#getRequestUri()" class="member-name-link">getRequestUri()</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">UriInfoImpl</a></dt>
+<dd>&nbsp;</dd>
+<dt><a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html#getRequestUriBuilder()" class="member-name-link">getRequestUriBuilder()</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">UriInfoImpl</a></dt>
+<dd>
+<div class="block">This operation is not supported currently,
+ so <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/UnsupportedOperationException.html" title="class or interface in java.lang" class="external-link"><code>UnsupportedOperationException</code></a> is thrown for all invocations.</div>
+</dd>
 <dt><a href="io/micronaut/jaxrs/processor/JaxRsTypeElementVisitor.html#getSupportedAnnotationNames()" class="member-name-link">getSupportedAnnotationNames()</a> - Method in class io.micronaut.jaxrs.processor.<a href="io/micronaut/jaxrs/processor/JaxRsTypeElementVisitor.html" title="class in io.micronaut.jaxrs.processor">JaxRsTypeElementVisitor</a></dt>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/ext/bind/SimpleSecurityContextImpl.html#getUserPrincipal()" class="member-name-link">getUserPrincipal()</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/SimpleSecurityContextImpl.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">SimpleSecurityContextImpl</a></dt>
@@ -576,6 +638,8 @@ loadScripts(document, 'script');</script>
 <dl class="index">
 <dt><a href="io/micronaut/jaxrs/runtime/ext/convert/JaxRsConverterRegistrar.html#register(io.micronaut.core.convert.MutableConversionService)" class="member-name-link">register(MutableConversionService)</a> - Method in class io.micronaut.jaxrs.runtime.ext.convert.<a href="io/micronaut/jaxrs/runtime/ext/convert/JaxRsConverterRegistrar.html" title="class in io.micronaut.jaxrs.runtime.ext.convert">JaxRsConverterRegistrar</a></dt>
 <dd>&nbsp;</dd>
+<dt><a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html#relativize(java.net.URI)" class="member-name-link">relativize(URI)</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">UriInfoImpl</a></dt>
+<dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/core/JaxRsResponseBuilder.html#replaceAll(jakarta.ws.rs.core.MultivaluedMap)" class="member-name-link">replaceAll(MultivaluedMap&lt;String, Object&gt;)</a> - Method in class io.micronaut.jaxrs.runtime.core.<a href="io/micronaut/jaxrs/runtime/core/JaxRsResponseBuilder.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsResponseBuilder</a></dt>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/core/JaxRsUriBuilder.html#replaceMatrix(java.lang.String)" class="member-name-link">replaceMatrix(String)</a> - Method in class io.micronaut.jaxrs.runtime.core.<a href="io/micronaut/jaxrs/runtime/core/JaxRsUriBuilder.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsUriBuilder</a></dt>
@@ -587,6 +651,8 @@ loadScripts(document, 'script');</script>
 <dt><a href="io/micronaut/jaxrs/runtime/core/JaxRsUriBuilder.html#replaceQuery(java.lang.String)" class="member-name-link">replaceQuery(String)</a> - Method in class io.micronaut.jaxrs.runtime.core.<a href="io/micronaut/jaxrs/runtime/core/JaxRsUriBuilder.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsUriBuilder</a></dt>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/core/JaxRsUriBuilder.html#replaceQueryParam(java.lang.String,java.lang.Object...)" class="member-name-link">replaceQueryParam(String, Object...)</a> - Method in class io.micronaut.jaxrs.runtime.core.<a href="io/micronaut/jaxrs/runtime/core/JaxRsUriBuilder.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsUriBuilder</a></dt>
+<dd>&nbsp;</dd>
+<dt><a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html#resolve(java.net.URI)" class="member-name-link">resolve(URI)</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">UriInfoImpl</a></dt>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/core/JaxRsUriBuilder.html#resolveTemplate(java.lang.String,java.lang.Object)" class="member-name-link">resolveTemplate(String, Object)</a> - Method in class io.micronaut.jaxrs.runtime.core.<a href="io/micronaut/jaxrs/runtime/core/JaxRsUriBuilder.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsUriBuilder</a></dt>
 <dd>&nbsp;</dd>
@@ -673,6 +739,20 @@ loadScripts(document, 'script');</script>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/core/JaxRsUriBuilder.html#uri(java.net.URI)" class="member-name-link">uri(URI)</a> - Method in class io.micronaut.jaxrs.runtime.core.<a href="io/micronaut/jaxrs/runtime/core/JaxRsUriBuilder.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsUriBuilder</a></dt>
 <dd>&nbsp;</dd>
+<dt><a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoBinder.html" class="type-name-link" title="class in io.micronaut.jaxrs.runtime.ext.bind">UriInfoBinder</a> - Class in <a href="io/micronaut/jaxrs/runtime/ext/bind/package-summary.html">io.micronaut.jaxrs.runtime.ext.bind</a></dt>
+<dd>
+<div class="block">Binds the <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/core/UriInfo.html" title="class or interface in jakarta.ws.rs.core" class="external-link"><code>UriInfo</code></a> of the <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/core/Context.html" title="class or interface in jakarta.ws.rs.core" class="external-link"><code>Context</code></a>.</div>
+</dd>
+<dt><a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoBinder.html#%3Cinit%3E()" class="member-name-link">UriInfoBinder()</a> - Constructor for class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoBinder.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">UriInfoBinder</a></dt>
+<dd>&nbsp;</dd>
+<dt><a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html" class="type-name-link" title="class in io.micronaut.jaxrs.runtime.ext.bind">UriInfoImpl</a> - Class in <a href="io/micronaut/jaxrs/runtime/ext/bind/package-summary.html">io.micronaut.jaxrs.runtime.ext.bind</a></dt>
+<dd>
+<div class="block">The JAX-RS <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/core/UriInfo.html" title="class or interface in jakarta.ws.rs.core" class="external-link"><code>UriInfo</code></a> injected through <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/core/Context.html" title="class or interface in jakarta.ws.rs.core" class="external-link"><code>Context</code></a> annotation.</div>
+</dd>
+<dt><a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html#%3Cinit%3E(io.micronaut.http.HttpRequest)" class="member-name-link">UriInfoImpl(HttpRequest&lt;?&gt;)</a> - Constructor for class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">UriInfoImpl</a></dt>
+<dd>
+<div class="block">Construct from an HTTP request.</div>
+</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/core/JaxRsUriBuilder.html#userInfo(java.lang.String)" class="member-name-link">userInfo(String)</a> - Method in class io.micronaut.jaxrs.runtime.core.<a href="io/micronaut/jaxrs/runtime/core/JaxRsUriBuilder.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsUriBuilder</a></dt>
 <dd>&nbsp;</dd>
 </dl>
