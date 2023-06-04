@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
  */
 @Property(name = "spec.name", value = "SimpleSecurityContextTest")
 @MicronautTest
-public class SimpleSecurityContextTest {
+class SimpleSecurityContextTest {
 
     @Test
     void testSecurityContext(@Client("/") HttpClient client) {
