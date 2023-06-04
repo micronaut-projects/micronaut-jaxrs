@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
  */
 @Property(name = "spec.name", value = "SimpleSecurityContextTest")
 @MicronautTest
-public class SimpleSecurityContextTest {
+class SimpleSecurityContextTest {
 
     @Test
     void testSecurityContext(@Client("/") HttpClient client) {
@@ -53,7 +53,7 @@ public class SimpleSecurityContextTest {
 
     @Requires(property = "spec.name", value = "SimpleSecurityContextTest")
     @Singleton
-    AuthenticationProvider authenticationProvider() {
+    AuthenticationProvider<HttpRequest<?>> authenticationProvider() {
         return (HttpRequest<?> httpRequest, AuthenticationRequest<?, ?> authenticationRequest) -> {
             AuthenticationResponse response = AuthenticationResponse
                     .success("fred", Collections.singleton("admin"));

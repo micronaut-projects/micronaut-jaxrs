@@ -58,5 +58,10 @@
     "type": "io.micronaut.jaxrs.runtime.ext.convert.$JaxRsConverterRegistrar$Definition$Reference",
     "member": "Field $ANNOTATION_METADATA",
     "reason": "JaxRsConverterRegistrar is now loaded via a service loader and not register as a Singleton"
+  },
+  {
+    "type": "io.micronaut.jaxrs.runtime.ext.bind.ContextAnnotationBinder",
+    "member": "Constructor io.micronaut.jaxrs.runtime.ext.bind.ContextAnnotationBinder(io.micronaut.context.BeanContext,io.micronaut.jaxrs.runtime.ext.bind.SimpleSecurityContextBinder)",
+    "reason": "Micronaut Framework 4.0 major upgrade"
   }
 ]
