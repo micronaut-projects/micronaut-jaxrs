@@ -1,7 +1,7 @@
 To use this project you need Micronaut 1.3 or above then add the following annotation processor to any Micronaut project:
 
-dependency:micronaut-jaxrs-processor[scope="annotationProcessor", version="{version}", groupId="io.micronaut.jaxrs"]
+dependency:micronaut-jaxrs-processor[scope="annotationProcessor", groupId="io.micronaut.jaxrs"]
 
 Then the following compile time dependency:
 
-dependency:micronaut-jaxrs-server[scope="implementation", version="{version}", groupId="io.micronaut.jaxrs"]
+dependency:micronaut-jaxrs-server[scope="implementation", groupId="io.micronaut.jaxrs"]
