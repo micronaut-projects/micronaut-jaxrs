@@ -58,7 +58,12 @@ public class JaxRsHttpHeaders implements HttpHeaders {
 
     @Override
     public String getHeaderString(String name) {
-        return String.join(",", httpHeaders.getAll(name));
+        List<String> all = httpHeaders.getAll(name);
+        if (all.isEmpty()) {
+            return null;
+        } else {
+            return String.join(",", all);
+        }
     }
 
     @Override

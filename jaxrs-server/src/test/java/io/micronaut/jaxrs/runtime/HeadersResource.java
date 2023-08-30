@@ -5,6 +5,7 @@ import jakarta.ws.rs.GET;
 import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.CacheControl;
 import jakarta.ws.rs.core.Cookie;
@@ -79,6 +80,16 @@ public class HeadersResource {
                 ok.header(s, string);
             }
         });
+        return ok.build();
+    }
+
+    @GET
+    @Path("/header")
+    @Produces("text/plain")
+    public Response header(HttpHeaders httpHeaders) {
+        final Response.ResponseBuilder ok = Response.ok();
+        String headerString = httpHeaders.getHeaderString("non-existent");
+        ok.entity(headerString == null ? "null" : "not-null");
         return ok.build();
     }
 }

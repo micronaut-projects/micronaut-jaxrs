@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @MicronautTest
@@ -187,5 +188,14 @@ class HeadersTest {
                 "en",
                 acceptableLanguages.get(0).getLanguage()
         );
+    }
+
+    @Test
+    void testUnknownHeaderValueIsNull() {
+        final MutableHttpRequest<Object> request = HttpRequest.GET("/headers/header");
+        request.header(HttpHeaders.ACCEPT_LANGUAGE, "fr;q=0.7,en;q=0.9");
+        final HttpResponse<String> response = httpClient.toBlocking().exchange(request, String.class);
+
+        assertEquals("null", response.body());
     }
 }
