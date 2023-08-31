@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2020 original authors
+ * Copyright 2017-2023 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ import java.util.Map;
  */
 public class JaxRsUriBuilder extends UriBuilder {
 
-    private final io.micronaut.http.uri.UriBuilder uriBuilder;
+    private io.micronaut.http.uri.UriBuilder uriBuilder;
 
     /**
      * Default constructor.
@@ -180,7 +180,8 @@ public class JaxRsUriBuilder extends UriBuilder {
 
     @Override
     public UriBuilder resolveTemplate(String name, Object value) {
-        throw new UnsupportedOperationException("Method resolveTemplate(..) not supported by implementation");
+        uriBuilder = io.micronaut.http.uri.UriBuilder.of(uriBuilder.expand(Map.of(name, value)));
+        return this;
     }
 
     @Override
@@ -195,7 +196,8 @@ public class JaxRsUriBuilder extends UriBuilder {
 
     @Override
     public UriBuilder resolveTemplates(Map<String, Object> templateValues) {
-        throw new UnsupportedOperationException("Method resolveTemplates(..) not supported by implementation");
+        uriBuilder = io.micronaut.http.uri.UriBuilder.of(uriBuilder.expand(templateValues));
+        return this;
     }
 
     @Override
