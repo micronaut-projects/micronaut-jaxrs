@@ -194,8 +194,19 @@ class HeadersTest {
     void testUnknownHeaderValueIsNull() {
         final MutableHttpRequest<Object> request = HttpRequest.GET("/headers/header");
         request.header(HttpHeaders.ACCEPT_LANGUAGE, "fr;q=0.7,en;q=0.9");
-        final HttpResponse<String> response = httpClient.toBlocking().exchange(request, String.class);
 
+        final HttpResponse<String> response = httpClient.toBlocking().exchange(request, String.class);
         assertEquals("null", response.body());
+    }
+
+    @Test
+    void testKnownHeaderValueString() {
+        final MutableHttpRequest<Object> request = HttpRequest.GET("/headers/header");
+        request.header(HttpHeaders.ACCEPT_LANGUAGE, "fr;q=0.7,en;q=0.9");
+        request.header("test-value", "one");
+        request.header("test-value", "two");
+
+        final HttpResponse<String> response = httpClient.toBlocking().exchange(request, String.class);
+        assertEquals("one,two", response.body());
     }
 }

@@ -88,8 +88,8 @@ public class HeadersResource {
     @Produces("text/plain")
     public Response header(HttpHeaders httpHeaders) {
         final Response.ResponseBuilder ok = Response.ok();
-        String headerString = httpHeaders.getHeaderString("non-existent");
-        ok.entity(headerString == null ? "null" : "not-null");
+        String headerString = httpHeaders.getHeaderString("test-value");
+        ok.entity(headerString == null ? "null" : headerString);
         return ok.build();
     }
 }

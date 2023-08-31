@@ -16,6 +16,7 @@
 package io.micronaut.jaxrs.runtime.ext.bind;
 
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.util.CollectionUtils;
 import io.micronaut.jaxrs.runtime.core.Weighted;
 import io.micronaut.jaxrs.runtime.ext.impl.CookieHeaderDelegate;
 import jakarta.ws.rs.core.Cookie;
@@ -59,7 +60,7 @@ public class JaxRsHttpHeaders implements HttpHeaders {
     @Override
     public String getHeaderString(String name) {
         List<String> all = httpHeaders.getAll(name);
-        if (all.isEmpty()) {
+        if (CollectionUtils.isEmpty(all)) {
             return null;
         } else {
             return String.join(",", all);
