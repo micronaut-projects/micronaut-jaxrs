@@ -47,7 +47,7 @@ public class JaxRsResourceInfo implements RequestAware, ResourceInfo {
     @Nullable
     @Override
     public Method getResourceMethod() {
-        if (routeInfo instanceof MethodBasedRouteInfo<?,?> methodBasedRouteInfo) {
+        if (routeInfo instanceof MethodBasedRouteInfo<?, ?> methodBasedRouteInfo) {
             return methodBasedRouteInfo.getTargetMethod().getTargetMethod();
         }
         return null;
