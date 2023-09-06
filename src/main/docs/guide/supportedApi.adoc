@@ -96,6 +96,13 @@ You can also use the link:{jaxrsapi}/jakarta/ws/rs/core/Context.html[@Context] a
 
 NOTE: Parameter binding to constructor argument of resource types is not supported at this time.
 
+==== ResourceInfo
+
+link:{jaxrsapi}jakarta/ws/rs/container/ResourceInfo.html[ResourceInfo] is a JAX-RS context which can be injected to check which resource class and method are about to be invoked.
+This is supported in the micronaut-jaxrs module via the link:{micronautapi}runtime/http/scope/RequestScope.html[`@RequestScope`] bean link:{api}/io/micronaut/jaxrs/runtime/core/JaxRsResourceInfo.html[`JaxRsResourceInfo`].
+
+See the https://guides.micronaut.io/latest/micronaut-scope-types.html[Scope type guide] for more information on using RequestScope beans.
+
 ==== SecurityContext and Micronaut Security
 
 When injecting the link:{jaxrsapi}/jakarta/ws/rs/core/SecurityContext.html[SecurityContext] by default the injected instance is not aware of https://micronaut-projects.github.io/micronaut-security/latest/guide/[Micronaut Security] and methods like `isUserInRole` always return `false`.
