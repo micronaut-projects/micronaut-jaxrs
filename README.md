@@ -3,7 +3,7 @@
 [![Maven Central](https://img.shields.io/maven-central/v/io.micronaut.jaxrs/micronaut-jaxrs-server.svg?label=Maven%20Central)](https://search.maven.org/search?q=g:%22io.micronaut.jaxrs%22%20AND%20a:%22micronaut-jaxrs-server%22)
 [![Build Status](https://github.com/micronaut-projects/micronaut-jaxrs/workflows/Java%20CI/badge.svg)](https://github.com/micronaut-projects/micronaut-jaxrs/actions)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=micronaut-projects_micronaut-jaxrs&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=micronaut-projects_micronaut-jaxrs)
-[![Revved up by Gradle Enterprise](https://img.shields.io/badge/Revved%20up%20by-Gradle%20Enterprise-06A0CE?logo=Gradle&labelColor=02303A)](https://ge.micronaut.io/scans)
+[![Revved up by Develocity](https://img.shields.io/badge/Revved%20up%20by-Develocity-06A0CE?logo=Gradle&labelColor=02303A)](https://ge.micronaut.io/scans)
 
 Micronaut JAX-RS adds the ability to use common JAX-RS types and annotations to a Micronaut application.
 
@@ -29,4 +29,3 @@ A release is performed with the following steps:
 - [Create a new release](https://github.com/micronaut-projects/micronaut-jaxrs/releases/new). The Git Tag should start with `v`. For example `v1.0.0`.
 - [Monitor the Workflow](https://github.com/micronaut-projects/micronaut-jaxrs/actions?query=workflow%3ARelease) to check it passed successfully.
 - Celebrate!
-
