@@ -2,3 +2,4 @@ Micronaut JAX-RS adds support for using JAX-RS annotations and types in a Micron
 
 This project is not an implementation of the JAX-RS specification and is designed to allow users familiar with the JAX-RS API to use the most common parts of the API within the context of a Micronaut application.
 
+TIP: See the guide for https://guides.micronaut.io/latest/micronaut-jaxrs-jdbc.html[Micronaut JAX-RS] to learn more.
