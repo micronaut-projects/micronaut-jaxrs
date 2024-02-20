@@ -36,7 +36,7 @@ import java.util.List;
 @Internal
 public class ProducesMapper implements NamedAnnotationMapper {
 
-    private static final String[] JAX_RS_DEFAULT_VALUE = new String[] { "*/*" };
+    private static final String[] JAX_RS_DEFAULT_VALUE = { "*/*" };
 
     @NonNull
     @Override

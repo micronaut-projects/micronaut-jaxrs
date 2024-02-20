@@ -1,33 +1,36 @@
 package io.micronaut.jaxrs.security.bind;
 
+import java.util.Collections;
+import java.util.Map;
+
 import io.micronaut.context.annotation.Property;
 import io.micronaut.context.annotation.Requires;
+import io.micronaut.core.annotation.NonNull;
 import io.micronaut.core.async.publisher.Publishers;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.MutableHttpRequest;
 import io.micronaut.http.client.HttpClient;
 import io.micronaut.http.client.annotation.Client;
-import io.micronaut.security.authentication.AuthenticationProvider;
 import io.micronaut.security.authentication.AuthenticationRequest;
 import io.micronaut.security.authentication.AuthenticationResponse;
+import io.micronaut.security.authentication.provider.ReactiveAuthenticationProvider;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
+
+import org.junit.jupiter.api.Test;
+import org.reactivestreams.Publisher;
+
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.SecurityContext;
-import org.junit.jupiter.api.Test;
-
-import java.util.Collections;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
- *
  * @author graemerocher
  */
 @Property(name = "spec.name", value = "SimpleSecurityContextTest")
@@ -53,11 +56,17 @@ class SimpleSecurityContextTest {
 
     @Requires(property = "spec.name", value = "SimpleSecurityContextTest")
     @Singleton
-    AuthenticationProvider<HttpRequest<?>> authenticationProvider() {
-        return (HttpRequest<?> httpRequest, AuthenticationRequest<?, ?> authenticationRequest) -> {
-            AuthenticationResponse response = AuthenticationResponse
+    ReactiveAuthenticationProvider<HttpRequest<?>, ?, ?> authenticationProvider() {
+        return new ReactiveAuthenticationProvider<>() {
+            @Override
+            public @NonNull Publisher<AuthenticationResponse> authenticate(
+                HttpRequest<?> requestContext,
+                @NonNull AuthenticationRequest<Object, Object> authenticationRequest
+            ) {
+                AuthenticationResponse response = AuthenticationResponse
                     .success("fred", Collections.singleton("admin"));
-            return Publishers.just(response);
+                return Publishers.just(response);
+            }
         };
     }
 }

@@ -1,25 +1,26 @@
 [versions]
-micronaut = "4.3.1"
-micronaut-docs = "2.0.0"
-micronaut-test = "4.1.0"
-groovy = "4.0.15"
-spock = "2.3-groovy-4.0"
+
 managed-jaxrs-api = "3.1.0"
 
-micronaut-logging = "1.1.2"
-micronaut-security = "4.5.1"
-micronaut-serde = "2.7.1"
-micronaut-validation = "4.3.0"
+groovy = "4.0.18"
+spock = "2.3-groovy-4.0"
+
+micronaut = "4.3.7"
+micronaut-docs = "2.0.0"
+micronaut-test = "4.2.1"
+micronaut-logging = "1.2.3"
+micronaut-security = "4.6.4"
+micronaut-serde = "2.8.1"
+micronaut-validation = "4.4.0"
 
 [libraries]
 # Core
 micronaut-core = { module = 'io.micronaut:micronaut-core-bom', version.ref = 'micronaut' }
+micronaut-security = { module = "io.micronaut.security:micronaut-security-bom", version.ref = "micronaut-security" }
+micronaut-serde = { module = "io.micronaut.serde:micronaut-serde-bom", version.ref = "micronaut-serde" }
+micronaut-validation = { module = "io.micronaut.validation:micronaut-validation-bom", version.ref = "micronaut-validation" }
 
 managed-jaxrs-api = { module = "jakarta.ws.rs:jakarta.ws.rs-api", version.ref = "managed-jaxrs-api" }
 
 junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine" }
 junit-jupiter-params = { module = "org.junit.jupiter:junit-jupiter-params" }
-
-micronaut-security = { module = "io.micronaut.security:micronaut-security-bom", version.ref = "micronaut-security" }
-micronaut-serde = { module = "io.micronaut.serde:micronaut-serde-bom", version.ref = "micronaut-serde" }
-micronaut-validation = { module = "io.micronaut.validation:micronaut-validation-bom", version.ref = "micronaut-validation" }
