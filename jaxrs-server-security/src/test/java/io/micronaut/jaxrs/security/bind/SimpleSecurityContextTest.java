@@ -1,8 +1,5 @@
 package io.micronaut.jaxrs.security.bind;
 
-import java.util.Collections;
-import java.util.Map;
-
 import io.micronaut.context.annotation.Property;
 import io.micronaut.context.annotation.Requires;
 import io.micronaut.core.annotation.NonNull;
@@ -14,18 +11,19 @@ import io.micronaut.http.client.HttpClient;
 import io.micronaut.http.client.annotation.Client;
 import io.micronaut.security.authentication.AuthenticationRequest;
 import io.micronaut.security.authentication.AuthenticationResponse;
-import io.micronaut.security.authentication.provider.ReactiveAuthenticationProvider;
+import io.micronaut.security.authentication.provider.HttpRequestReactiveAuthenticationProvider;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
-
-import org.junit.jupiter.api.Test;
-import org.reactivestreams.Publisher;
-
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.SecurityContext;
+import org.junit.jupiter.api.Test;
+import org.reactivestreams.Publisher;
+
+import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -56,16 +54,15 @@ class SimpleSecurityContextTest {
 
     @Requires(property = "spec.name", value = "SimpleSecurityContextTest")
     @Singleton
-    ReactiveAuthenticationProvider<HttpRequest<?>, ?, ?> authenticationProvider() {
-        return new ReactiveAuthenticationProvider<>() {
+    <B> HttpRequestReactiveAuthenticationProvider<B> authenticationProvider() {
+        return new HttpRequestReactiveAuthenticationProvider<>() {
+
             @Override
             public @NonNull Publisher<AuthenticationResponse> authenticate(
-                HttpRequest<?> requestContext,
-                @NonNull AuthenticationRequest<Object, Object> authenticationRequest
+                HttpRequest<B> requestContext,
+                @NonNull AuthenticationRequest<String, String> authenticationRequest
             ) {
-                AuthenticationResponse response = AuthenticationResponse
-                    .success("fred", Collections.singleton("admin"));
-                return Publishers.just(response);
+                return Publishers.just(AuthenticationResponse.success("fred", List.of("admin")));
             }
         };
     }
@@ -75,6 +72,7 @@ class SimpleSecurityContextTest {
 @Path("/secured")
 @RolesAllowed("admin")
 class SecureResource {
+
     @GET
     @Path("/")
     public Map<String, String> test(
