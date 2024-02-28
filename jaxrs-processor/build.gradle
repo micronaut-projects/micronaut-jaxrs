@@ -3,16 +3,16 @@ plugins {
 }
 
 dependencies {
-	implementation(mn.micronaut.http)
-	implementation(mn.micronaut.core.processor)
-	implementation(libs.managed.jaxrs.api)
+    implementation(mn.micronaut.http)
+    implementation(mn.micronaut.core.processor)
+    implementation(libs.managed.jaxrs.api)
 
-	testAnnotationProcessor(mnValidation.micronaut.validation.processor)
+    testAnnotationProcessor(mnValidation.micronaut.validation.processor)
 
     testImplementation(mnValidation.micronaut.validation.processor)
-	testImplementation(mn.micronaut.http.validation)
-	testImplementation(mn.micronaut.http.server)
-	testImplementation(mn.micronaut.inject.java.test)
-	testImplementation(mnValidation.micronaut.validation)
-	testImplementation(mn.micronaut.http.client)
+    testImplementation(mn.micronaut.http.validation)
+    testImplementation(mn.micronaut.http.server)
+    testImplementation(mn.micronaut.inject.java.test)
+    testImplementation(mnValidation.micronaut.validation)
+    testImplementation(mn.micronaut.http.client)
 }
