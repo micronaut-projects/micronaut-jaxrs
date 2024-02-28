@@ -14,6 +14,8 @@ import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.EntityTag;
 import jakarta.ws.rs.core.Link;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.ext.RuntimeDelegate;
+
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -104,7 +106,7 @@ class HeadersTest {
 
         assertEquals(
             "no-cache, must-revalidate, no-transform, proxy-revalidate, s-maxage=0, max-age=0, private, foo=\"bar\"",
-            cacheControl.toString()
+            RuntimeDelegate.getInstance().createHeaderDelegate(CacheControl.class).toString(cacheControl)
         );
     }
 

@@ -237,9 +237,6 @@ public final class UriInfoImpl implements UriInfo {
      * Tim Berners-Lee: https://www.w3.org/DesignIssues/MatrixURIs.html
      */
     private static final class MultiMapNullPermitted<K, V> extends MultivaluedHashMap<K, V> {
-        public MultiMapNullPermitted() {
-            super();
-        }
 
         @Override
         protected void addNull(List<V> values) {

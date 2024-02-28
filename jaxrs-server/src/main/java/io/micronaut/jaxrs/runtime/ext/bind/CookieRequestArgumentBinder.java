@@ -62,7 +62,7 @@ public class CookieRequestArgumentBinder implements TypedRequestArgumentBinder<C
     }
 
     @Override
-    public Class getAnnotationType() {
+    public Class<CookieValue> getAnnotationType() {
         return CookieValue.class;
     }
 }
