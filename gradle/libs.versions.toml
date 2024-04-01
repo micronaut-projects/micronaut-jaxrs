@@ -7,7 +7,7 @@ spock = "2.3-groovy-4.0"
 managed-jaxrs-api = "3.1.0"
 
 micronaut-logging = "1.1.2"
-micronaut-security = "4.5.1"
+micronaut-security = "4.6.9"
 micronaut-serde = "2.8.2"
 micronaut-validation = "4.3.0"
 
