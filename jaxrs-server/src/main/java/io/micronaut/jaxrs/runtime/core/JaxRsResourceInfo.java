@@ -29,7 +29,7 @@ import java.lang.reflect.Method;
 
 /**
  * A {@link RequestScope} bean implementing the JAX-RS ResourceInfo to access the resource class and resource method matched by the current request.
- * Methods in this class MAY return <code>null</code> if a resource class and method have not been matched.
+ * Methods in this class MAY return {@code null} if a resource class and method have not been matched.
  *
  * @author Tim Yates
  * @since 4.1.0

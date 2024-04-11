@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2021 original authors
+ * Copyright 2017-2024 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,9 +26,8 @@ import jakarta.inject.Singleton;
 import jakarta.ws.rs.core.SecurityContext;
 
 import java.util.Optional;
+
 /**
- *
- *
  * @author graemerocher
  * @since 3.1.0
  */
@@ -54,7 +53,7 @@ public class MicronautSecurityContextBinder extends SimpleSecurityContextBinder 
     /**
      * Extended security context implementation that takes into account Micronaut security roles.
      */
-    final class MicronautSecurityContext extends SimpleSecurityContextImpl {
+    static final class MicronautSecurityContext extends SimpleSecurityContextImpl {
 
         private final Authentication authentication;
 

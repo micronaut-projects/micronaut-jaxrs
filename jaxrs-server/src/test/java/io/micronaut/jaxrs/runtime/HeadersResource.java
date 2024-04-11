@@ -14,6 +14,7 @@ import jakarta.ws.rs.core.Link;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.NewCookie;
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.ext.RuntimeDelegate;
 
 @Path("/headers")
 public class HeadersResource {
@@ -35,7 +36,8 @@ public class HeadersResource {
     public Response cookie(@CookieParam("foo") Cookie cookie) {
         return Response.ok()
                 .entity(cookie.getValue())
-                .cookie(new NewCookie(cookie))
+                .cookie(new NewCookie.Builder(cookie)
+                    .build())
                 .build();
     }
 
@@ -64,7 +66,7 @@ public class HeadersResource {
     @Produces("text/plain")
     public Response cacheControl(@HeaderParam(HttpHeaders.CACHE_CONTROL) CacheControl cacheControl) {
         return Response.ok()
-                .entity(cacheControl.toString())
+                .entity(RuntimeDelegate.getInstance().createHeaderDelegate(CacheControl.class).toString(cacheControl))
                 .cacheControl(cacheControl)
                 .build();
     }
