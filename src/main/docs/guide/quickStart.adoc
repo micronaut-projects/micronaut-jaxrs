@@ -2,6 +2,8 @@ To use this project you need Micronaut 1.3 or above then add the following annot
 
 dependency:micronaut-jaxrs-processor[scope="annotationProcessor", groupId="io.micronaut.jaxrs"]
 
+NOTE: For Kotlin, add the `micronaut-jaxrs-processor` dependency in https://docs.micronaut.io/4.4.3/guide/#kaptOrKsp[kapt or ksp scope], and for Groovy add `micronaut-jaxrs-processor` in compileOnly scope.
+
 Then the following compile time dependency:
 
 dependency:micronaut-jaxrs-server[scope="implementation", groupId="io.micronaut.jaxrs"]
