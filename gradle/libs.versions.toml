@@ -13,6 +13,8 @@ micronaut-serde = "2.10.0"
 micronaut-servlet = "4.9.1"
 micronaut-validation = "4.5.0"
 
+jakarta-jaxrs-tck = "4.0.0-SNAPSHOT"
+
 [libraries]
 
 micronaut-core = { module = 'io.micronaut:micronaut-core-bom', version.ref = 'micronaut' }
@@ -25,3 +27,7 @@ managed-jaxrs-api = { module = "jakarta.ws.rs:jakarta.ws.rs-api", version.ref = 
 
 junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine" }
 junit-jupiter-params = { module = "org.junit.jupiter:junit-jupiter-params" }
+junit-jupiter-api = { module = "org.junit.jupiter:junit-jupiter-api" }
+junit-platform-suite-engine = { module = "org.junit.platform:junit-platform-suite-engine" }
+
+jakarta-jaxrs-tck-tests = { module = 'jakarta.ws.rs:jakarta-restful-ws-tck', version.ref = "jakarta-jaxrs-tck" }

@@ -22,6 +22,8 @@ include 'jaxrs-server'
 include 'jaxrs-server-security'
 include 'jaxrs-servlet'
 
+include 'tests:jaxrs-tck'
+
 enableFeaturePreview 'TYPESAFE_PROJECT_ACCESSORS'
 
 micronautBuild {
