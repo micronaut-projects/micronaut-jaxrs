@@ -18,7 +18,9 @@ package io.micronaut.jaxrs.processor;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.NonNull;
 import io.micronaut.core.bind.annotation.Bindable;
+import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.Controller;
+import io.micronaut.http.annotation.Produces;
 import io.micronaut.http.annotation.UriMapping;
 import io.micronaut.inject.ast.ClassElement;
 import io.micronaut.inject.ast.MethodElement;
@@ -84,6 +86,10 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         if (element.hasStereotype(HttpMethod.class)) {
             if (currentClassElement != null && !currentClassElement.hasAnnotation(Controller.class) && !currentClassElement.isAbstract()) {
                 currentClassElement.annotate(Controller.class);
+            }
+            if ((currentClassElement == null || !currentClassElement.hasAnnotation(Produces.class)) &&
+                !element.hasAnnotation(Produces.class)) {
+                element.annotate(Produces.class, b -> b.values(MediaType.ALL));
             }
             final ParameterElement[] parameters = element.getParameters();
             for (ParameterElement parameter : parameters) {
