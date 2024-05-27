@@ -4,9 +4,14 @@ pluginManagement {
         mavenCentral()
     }
 }
-
 plugins {
     id 'io.micronaut.build.shared.settings' version '7.0.1'
+}
+dependencyResolutionManagement {
+    repositories {
+        mavenCentral()
+        maven { url "https://s01.oss.sonatype.org/content/repositories/snapshots/" }
+    }
 }
 
 rootProject.name = 'jaxrs-parent'
@@ -15,6 +20,7 @@ include 'jaxrs-bom'
 include 'jaxrs-processor'
 include 'jaxrs-server'
 include 'jaxrs-server-security'
+include 'jaxrs-servlet'
 
 enableFeaturePreview 'TYPESAFE_PROJECT_ACCESSORS'
 
@@ -24,5 +30,6 @@ micronautBuild {
     importMicronautCatalog("micronaut-security")
     importMicronautCatalog("micronaut-serde")
     importMicronautCatalog("micronaut-validation")
+    importMicronautCatalog("micronaut-servlet")
 }
 

@@ -22,6 +22,8 @@ import io.micronaut.core.io.Writable;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.http.annotation.Filter;
+import io.micronaut.http.annotation.ResponseFilter;
+import io.micronaut.http.annotation.ServerFilter;
 import io.micronaut.http.filter.HttpServerFilter;
 import io.micronaut.http.filter.ServerFilterChain;
 import jakarta.ws.rs.core.StreamingOutput;
@@ -38,39 +40,42 @@ import java.nio.charset.Charset;
  * @author graemerocher
  * @since 1.0
  */
-@Filter("/**")
+//@ServerFilter("/**")
 @Internal
-public class JaxRsResponseFilter implements HttpServerFilter {
-    @Override
-    public Publisher<MutableHttpResponse<?>> doFilter(HttpRequest<?> request, ServerFilterChain chain) {
-        return Publishers.map(chain.proceed(request), mutableHttpResponse -> {
-            final Object body = mutableHttpResponse.getBody().orElse(null);
-            if (body instanceof JaxRsResponse jrs) {
-                final MutableHttpResponse<Object> jaxRsResponse = jrs.getResponse();
-                mutableHttpResponse.getAttributes().forEach(jaxRsResponse::setAttribute);
-                mutableHttpResponse.getHeaders().forEach((name, value) -> {
-                    for (String val: value) {
-                        jaxRsResponse.header(name, val);
+public class JaxRsResponseFilter {
+
+    @ResponseFilter
+    MutableHttpResponse<?> alterResponse(MutableHttpResponse<?> mutableHttpResponse) {
+        final Object body = mutableHttpResponse.getBody().orElse(null);
+        if (body instanceof JaxRsResponse jrs) {
+            final MutableHttpResponse<Object> jaxRsResponse = jrs.getResponse();
+            mutableHttpResponse.getAttributes().forEach(jaxRsResponse::setAttribute);
+            mutableHttpResponse.getHeaders().forEach((name, value) -> {
+                for (String val: value) {
+                    jaxRsResponse.header(name, val);
+                }
+            });
+
+            Object b = jaxRsResponse.body();
+            if (b instanceof JaxRsResponse unwrap) {
+                b = unwrap.getResponse().body();
+                jaxRsResponse.body(b);
+            }
+            if (b instanceof StreamingOutput s) {
+                jaxRsResponse.body(new Writable() {
+                    @Override
+                    public void writeTo(OutputStream outputStream, @Nullable Charset charset) throws IOException {
+                        s.write(outputStream);
+                    }
+
+                    @Override
+                    public void writeTo(Writer out) {
+                        // no-op - handled by OutputStream variant
                     }
                 });
-
-                final Object b = jaxRsResponse.body();
-                if (b instanceof StreamingOutput s) {
-                    jaxRsResponse.body(new Writable() {
-                        @Override
-                        public void writeTo(OutputStream outputStream, @Nullable Charset charset) throws IOException {
-                            s.write(outputStream);
-                        }
-
-                        @Override
-                        public void writeTo(Writer out) {
-                            // no-op - handled by OutputStream variant
-                        }
-                    });
-                }
-                return jaxRsResponse;
             }
-            return mutableHttpResponse;
-        });
+            return jaxRsResponse;
+        }
+        return mutableHttpResponse;
     }
 }

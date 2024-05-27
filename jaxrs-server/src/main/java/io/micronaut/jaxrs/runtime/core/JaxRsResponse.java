@@ -18,10 +18,12 @@ package io.micronaut.jaxrs.runtime.core;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.Nullable;
 import io.micronaut.http.HttpResponse;
+import io.micronaut.http.HttpResponseProvider;
 import io.micronaut.http.MutableHttpHeaders;
 import io.micronaut.http.MutableHttpResponse;
 import jakarta.ws.rs.core.EntityTag;
 import jakarta.ws.rs.core.GenericType;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.Link;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedHashMap;
@@ -31,6 +33,7 @@ import jakarta.ws.rs.core.Response;
 
 import java.lang.annotation.Annotation;
 import java.net.URI;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
@@ -48,13 +51,14 @@ import static jakarta.ws.rs.ext.RuntimeDelegate.getInstance;
  * @since 1.0.0
  */
 @Internal
-class JaxRsResponse extends Response {
+class JaxRsResponse extends Response implements HttpResponseProvider {
 
     private final MutableHttpResponse<Object> response = HttpResponse.ok();
 
     /**
      * @return The Micronaut response object
      */
+    @Override
     public MutableHttpResponse<Object> getResponse() {
         return response;
     }
@@ -146,6 +150,10 @@ class JaxRsResponse extends Response {
 
     @Override
     public Date getDate() {
+        ZonedDateTime date = response.getHeaders().getDate(HttpHeaders.DATE);
+        if (date != null) {
+            return Date.from(date.toInstant());
+        }
         return null;
     }
 
@@ -185,9 +193,11 @@ class JaxRsResponse extends Response {
         return null;
     }
 
+    @SuppressWarnings({"rawtypes", "UnnecessaryLocalVariable", "unchecked"})
     @Override
     public MultivaluedMap<String, Object> getMetadata() {
-        throw new UnsupportedOperationException("Unsupported deprecated method getMetadata()");
+        MultivaluedMap map = getStringHeaders();
+        return map;
     }
 
     @Override
