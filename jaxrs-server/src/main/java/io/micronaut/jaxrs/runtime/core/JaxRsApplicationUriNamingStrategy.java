@@ -19,7 +19,9 @@ import io.micronaut.context.BeanContext;
 import io.micronaut.context.annotation.Primary;
 import io.micronaut.context.annotation.Replaces;
 import io.micronaut.context.annotation.Requires;
+import io.micronaut.context.annotation.Value;
 import io.micronaut.core.annotation.NonNull;
+import io.micronaut.core.annotation.Nullable;
 import io.micronaut.core.naming.conventions.PropertyConvention;
 import io.micronaut.inject.BeanDefinition;
 import io.micronaut.web.router.RouteBuilder;
@@ -48,15 +50,20 @@ public class JaxRsApplicationUriNamingStrategy extends HyphenatedUriNamingStrate
      * Constructs a new uri naming strategy for the given property.
      *
      * @param beanContext The bean context
-     *
      */
     @Inject
-    public JaxRsApplicationUriNamingStrategy(BeanContext beanContext) {
+    public JaxRsApplicationUriNamingStrategy(BeanContext beanContext, @Value("${micronaut.server.context-path}") @Nullable String contextPath) {
+        super(contextPath);
         this.contextPath = normalizeContextPath(
                 beanContext.getBeanDefinition(Application.class)
                     .stringValue(ApplicationPath.class)
                     .orElse("/")
         );
+    }
+
+    @Deprecated
+    public JaxRsApplicationUriNamingStrategy(BeanContext beanContext) {
+        this(beanContext, null);
     }
 
     @Override
