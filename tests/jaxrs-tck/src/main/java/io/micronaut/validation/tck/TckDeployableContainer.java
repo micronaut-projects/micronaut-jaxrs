@@ -136,6 +136,7 @@ public final class TckDeployableContainer implements DeployableContainer<TckCont
             ApplicationContext applicationContext = ApplicationContext.builder()
                 .properties(Map.of(
                     "micronaut.server.port", 0,
+                    "micronaut.server.dispatch-options-requests", true,
                     "micronaut.server.context-path", archive.getName().replaceAll("\\.war$", "")
                 ))
                 .classLoader(classLoader)
