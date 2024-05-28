@@ -21,9 +21,14 @@ import io.micronaut.core.annotation.NonNull;
 import io.micronaut.core.annotation.Nullable;
 import io.micronaut.core.bind.annotation.Bindable;
 import io.micronaut.http.MediaType;
+import io.micronaut.http.annotation.Body;
+import io.micronaut.http.annotation.Consumes;
 import io.micronaut.http.annotation.Controller;
+import io.micronaut.http.annotation.CookieValue;
 import io.micronaut.http.annotation.Header;
+import io.micronaut.http.annotation.PathVariable;
 import io.micronaut.http.annotation.Produces;
+import io.micronaut.http.annotation.QueryValue;
 import io.micronaut.http.annotation.UriMapping;
 import io.micronaut.inject.ast.ClassElement;
 import io.micronaut.inject.ast.FieldElement;
@@ -51,6 +56,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * A type element visitor that turns a JAX-RS path into a controller.
@@ -102,6 +108,10 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
                 !element.hasAnnotation(Produces.class)) {
                 element.annotate(Produces.class, b -> b.values(MediaType.ALL));
             }
+            if ((currentClassElement == null || !currentClassElement.hasAnnotation(Consumes.class)) &&
+                !element.hasAnnotation(Consumes.class)) {
+                element.annotate(Consumes.class, b -> b.values(MediaType.ALL));
+            }
             final ParameterElement[] parameters = element.getParameters();
             for (ParameterElement parameter : parameters) {
                 final List<Class<? extends Annotation>> unsupported = getUnsupportedParameterAnnotations();
@@ -111,6 +121,18 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
                     }
                 }
                 visitParamOrField(parameter);
+                if (Stream.of(
+                    HeaderParam.class,
+                    QueryParam.class,
+                    FormParam.class,
+                    MatrixParam.class,
+                    PathParam.class,
+                    CookieParam.class,
+                    BeanParam.class
+                ).noneMatch(parameter::hasAnnotation)) {
+                    // unannotated, implicit @Body
+                    parameter.annotate(Body.class);
+                }
             }
         }
     }
@@ -131,10 +153,18 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     }
 
     private static void visitParamOrField(TypedElement parameter) {
-        AnnotationValue<HeaderParam> headerParam = parameter.getAnnotation(HeaderParam.class);
-        if (headerParam != null) {
-            parameter.annotate(Header.class, builder -> {
-                headerParam.stringValue().ifPresent(builder::value);
+        mapParam(parameter, HeaderParam.class, Header.class);
+        mapParam(parameter, FormParam.class, Body.class);
+        mapParam(parameter, QueryParam.class, QueryValue.class);
+        mapParam(parameter, CookieParam.class, CookieValue.class);
+        mapParam(parameter, PathParam.class, PathVariable.class);
+    }
+
+    private static <P extends Annotation> void mapParam(TypedElement parameter, Class<P> jakartaAnnotation, Class<? extends Annotation> mnAnnotation) {
+        AnnotationValue<P> ann = parameter.getAnnotation(jakartaAnnotation);
+        if (ann != null) {
+            parameter.annotate(mnAnnotation, builder -> {
+                ann.stringValue().ifPresent(builder::value);
                 if (!parameter.isNonNull()) {
                     if (parameter.isPrimitive()) {
                         if (parameter.getType().isAssignable(boolean.class)) {

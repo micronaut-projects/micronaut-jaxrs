@@ -93,7 +93,8 @@ public class FilterExtension implements ExecutionCondition {
             return ConditionEvaluationResult.disabled("createVariantListBuilder"); // TODO
         } else if (testClass == ee.jakarta.tck.ws.rs.ee.rs.headerparam.JAXRSClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.spec.resource.locator.JAXRSClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.ee.rs.pathparam.JAXRSClientIT.class) {
+            testClass == ee.jakarta.tck.ws.rs.ee.rs.pathparam.JAXRSClientIT.class ||
+            testClass == ee.jakarta.tck.ws.rs.spec.provider.reader.JAXRSClientIT.class) {
             return ConditionEvaluationResult.disabled("request-scoped bean fields");
         } else if (testClass == ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT.class && Arrays.asList(
             "readEntityFromBodyTest",
