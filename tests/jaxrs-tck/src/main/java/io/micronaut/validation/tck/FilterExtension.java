@@ -91,7 +91,9 @@ public class FilterExtension implements ExecutionCondition {
             return ConditionEvaluationResult.disabled("enum as beans"); // TODO
         } else if (testClass == ee.jakarta.tck.ws.rs.api.rs.core.variant.JAXRSClientIT.class && Arrays.asList("encodingsTest", "languagesTest", "mediaTypesTest").contains(testMethodName)) {
             return ConditionEvaluationResult.disabled("createVariantListBuilder"); // TODO
-        } else if (testClass == ee.jakarta.tck.ws.rs.ee.rs.headerparam.JAXRSClientIT.class) {
+        } else if (testClass == ee.jakarta.tck.ws.rs.ee.rs.headerparam.JAXRSClientIT.class ||
+            testClass == ee.jakarta.tck.ws.rs.spec.resource.locator.JAXRSClientIT.class ||
+            testClass == ee.jakarta.tck.ws.rs.ee.rs.pathparam.JAXRSClientIT.class) {
             return ConditionEvaluationResult.disabled("request-scoped bean fields");
         } else if (testClass == ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT.class && Arrays.asList(
             "readEntityFromBodyTest",
@@ -179,9 +181,6 @@ public class FilterExtension implements ExecutionCondition {
             testClass == ee.jakarta.tck.ws.rs.api.rs.core.multivaluedmap.JAXRSClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.spec.provider.standardwithxmlbinding.JAXRSClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.ee.rs.formparam.sub.JAXRSSubClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.spec.provider.reader.JAXRSClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.spec.resource.locator.JAXRSClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.ee.rs.pathparam.JAXRSClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.ee.rs.formparam.locator.JAXRSLocatorClientIT.class) {
             return INVESTIGATE;
         }
