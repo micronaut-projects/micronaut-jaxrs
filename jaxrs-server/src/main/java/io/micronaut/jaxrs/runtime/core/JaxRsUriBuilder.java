@@ -16,6 +16,7 @@
 package io.micronaut.jaxrs.runtime.core;
 
 import io.micronaut.core.util.ArgumentUtils;
+import io.micronaut.jaxrs.runtime.ext.impl.JaxRsArgumentUtils;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.core.UriBuilder;
 import jakarta.ws.rs.core.UriBuilderException;
@@ -23,6 +24,7 @@ import jakarta.ws.rs.core.UriBuilderException;
 import java.lang.reflect.Method;
 import java.net.URI;
 import java.util.Map;
+import java.util.stream.Stream;
 
 /**
  * Partial implementation of {@link UriBuilder}. Unsupported methods throw {@link UnsupportedOperationException}.
@@ -108,15 +110,17 @@ public class JaxRsUriBuilder extends UriBuilder {
 
     @Override
     public UriBuilder path(String path) {
+        JaxRsArgumentUtils.requireNonNull("path", path);
         uriBuilder.path(path);
         return this;
     }
 
     @Override
     public UriBuilder path(Class resource) {
+        JaxRsArgumentUtils.requireNonNull("resource", resource);
         final Path annotation = (Path) resource.getAnnotation(Path.class);
         if (annotation != null) {
-            uriBuilder.path(annotation.value());
+            path(annotation.value());
         }
 
         return this;
@@ -124,14 +128,20 @@ public class JaxRsUriBuilder extends UriBuilder {
 
     @Override
     public UriBuilder path(Class resource, String method) {
-        return this;
+        JaxRsArgumentUtils.requireNonNull("resource", resource);
+        JaxRsArgumentUtils.requireNonNull("method", method);
+        Method r = Stream.of(resource.getMethods())
+            .filter(m -> m.getName().equals(method) && m.isAnnotationPresent(Path.class))
+            .findAny()
+            .orElseThrow(() -> new IllegalArgumentException("No such method or not annotated with @Path"));
+        return path(r);
     }
 
     @Override
     public UriBuilder path(Method method) {
         final Path annotation = method.getAnnotation(Path.class);
         if (annotation != null) {
-            uriBuilder.path(annotation.value());
+            path(annotation.value());
         }
         return this;
     }

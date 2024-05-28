@@ -116,6 +116,16 @@ public class FilterExtension implements ExecutionCondition {
             "isRegisteredTextPlainContextResolverTest"
         ).contains(testMethodName)) {
             return ConditionEvaluationResult.disabled("getContext");
+        } else if (testClass == ee.jakarta.tck.ws.rs.api.rs.core.link.JAXRSClientIT.class && Arrays.asList(
+            "fromMethodTest",
+            "fromResourceTest",
+            "fromResourceWithMediaTypeTest"
+        ).contains(testMethodName)) {
+            return ConditionEvaluationResult.disabled("relative UriBuilder");
+        } else if (testClass == ee.jakarta.tck.ws.rs.api.rs.core.link.JAXRSClientIT.class && Arrays.asList(
+            "fromPathWithUriTemplateParamsTest"
+        ).contains(testMethodName)) {
+            return ConditionEvaluationResult.disabled("uri template");
         } else if (testClass == ee.jakarta.tck.ws.rs.api.client.entity.JAXRSClientIT.class && testMethodName.equals("entityStringThrowsExceptionWhenNullTest") || testClass == ee.jakarta.tck.ws.rs.api.rs.core.entitytag.JAXRSClientIT.class && testMethodName.equals("valueOfTest") || testClass == ee.jakarta.tck.ws.rs.api.rs.core.cookie.JAXRSClientIT.class && testMethodName.equals("parseTest3") || testClass == ee.jakarta.tck.ws.rs.api.rs.ext.runtimedelegate.create.JAXRSClientIT.class && Arrays.asList(
             "createEndpointThrowsIllegalArgumentExceptionTest",
             "createHeaderDelegateThrowsIllegalArgumentExceptionTest",
@@ -172,7 +182,6 @@ public class FilterExtension implements ExecutionCondition {
             testClass == ee.jakarta.tck.ws.rs.spec.provider.reader.JAXRSClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.spec.resource.locator.JAXRSClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.ee.rs.pathparam.JAXRSClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.api.rs.core.link.JAXRSClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.ee.rs.formparam.locator.JAXRSLocatorClientIT.class) {
             return INVESTIGATE;
         }
