@@ -15,22 +15,33 @@
  */
 package io.micronaut.jaxrs.processor;
 
+import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.NonNull;
+import io.micronaut.core.annotation.Nullable;
 import io.micronaut.core.bind.annotation.Bindable;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.Controller;
+import io.micronaut.http.annotation.Header;
 import io.micronaut.http.annotation.Produces;
 import io.micronaut.http.annotation.UriMapping;
 import io.micronaut.inject.ast.ClassElement;
+import io.micronaut.inject.ast.FieldElement;
 import io.micronaut.inject.ast.MethodElement;
 import io.micronaut.inject.ast.ParameterElement;
+import io.micronaut.inject.ast.TypedElement;
 import io.micronaut.inject.visitor.TypeElementVisitor;
 import io.micronaut.inject.visitor.VisitorContext;
+import io.micronaut.runtime.http.scope.RequestScope;
 import jakarta.ws.rs.BeanParam;
+import jakarta.ws.rs.CookieParam;
+import jakarta.ws.rs.FormParam;
+import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.HttpMethod;
 import jakarta.ws.rs.MatrixParam;
 import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.SecurityContext;
 import jakarta.ws.rs.core.UriInfo;
@@ -99,7 +110,43 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
                         context.fail("Unsupported JAX-RS annotation used on method: " + annType.getName(), parameter);
                     }
                 }
+                visitParamOrField(parameter);
             }
+        }
+    }
+
+    @Override
+    public void visitField(FieldElement element, VisitorContext context) {
+        visitParamOrField(element);
+        if (element.hasAnnotation(HeaderParam.class) ||
+            element.hasAnnotation(QueryParam.class) ||
+            element.hasAnnotation(FormParam.class) ||
+            element.hasAnnotation(MatrixParam.class) ||
+            element.hasAnnotation(PathParam.class) ||
+            element.hasAnnotation(CookieParam.class) ||
+            element.hasAnnotation(BeanParam.class)
+        ) {
+            context.fail("Request scoped bean parameters are currently not supported", element); // todo
+        }
+    }
+
+    private static void visitParamOrField(TypedElement parameter) {
+        AnnotationValue<HeaderParam> headerParam = parameter.getAnnotation(HeaderParam.class);
+        if (headerParam != null) {
+            parameter.annotate(Header.class, builder -> {
+                headerParam.stringValue().ifPresent(builder::value);
+                if (!parameter.isNonNull()) {
+                    if (parameter.isPrimitive()) {
+                        if (parameter.getType().isAssignable(boolean.class)) {
+                            builder.member("defaultValue", "false");
+                        } else {
+                            builder.member("defaultValue", "0");
+                        }
+                    } else {
+                        parameter.annotate(Nullable.class);
+                    }
+                }
+            });
         }
     }
 

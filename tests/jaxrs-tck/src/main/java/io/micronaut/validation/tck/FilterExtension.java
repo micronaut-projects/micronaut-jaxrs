@@ -91,8 +91,9 @@ public class FilterExtension implements ExecutionCondition {
             return ConditionEvaluationResult.disabled("enum as beans"); // TODO
         } else if (testClass == ee.jakarta.tck.ws.rs.api.rs.core.variant.JAXRSClientIT.class && Arrays.asList("encodingsTest", "languagesTest", "mediaTypesTest").contains(testMethodName)) {
             return ConditionEvaluationResult.disabled("createVariantListBuilder"); // TODO
-        } else if (testClass == ee.jakarta.tck.ws.rs.ee.rs.headerparam.JAXRSClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT.class ||
+        } else if (testClass == ee.jakarta.tck.ws.rs.ee.rs.headerparam.JAXRSClientIT.class) {
+            return ConditionEvaluationResult.disabled("request-scoped bean fields");
+        } else if (testClass == ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.api.client.entity.JAXRSClientIT.class && testMethodName.equals("entityStringThrowsExceptionWhenNullTest") || testClass == ee.jakarta.tck.ws.rs.api.rs.core.entitytag.JAXRSClientIT.class && testMethodName.equals("valueOfTest") || testClass == ee.jakarta.tck.ws.rs.api.rs.core.cookie.JAXRSClientIT.class && testMethodName.equals("parseTest3") || testClass == ee.jakarta.tck.ws.rs.api.rs.ext.runtimedelegate.create.JAXRSClientIT.class && Arrays.asList(
             "createEndpointThrowsIllegalArgumentExceptionTest",
             "createHeaderDelegateThrowsIllegalArgumentExceptionTest",

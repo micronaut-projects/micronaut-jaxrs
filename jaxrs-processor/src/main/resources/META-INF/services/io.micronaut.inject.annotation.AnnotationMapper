@@ -7,7 +7,6 @@ io.micronaut.jaxrs.processor.DeleteAnnotationMapper
 io.micronaut.jaxrs.processor.OptionsAnnotationMapper
 io.micronaut.jaxrs.processor.ApplicationPathAnnotationMapper
 io.micronaut.jaxrs.processor.PathParamMapper
-io.micronaut.jaxrs.processor.HeaderParamMapper
 io.micronaut.jaxrs.processor.CookieParamMapper
 io.micronaut.jaxrs.processor.QueryParamMapper
 io.micronaut.jaxrs.processor.FormParamMapper
