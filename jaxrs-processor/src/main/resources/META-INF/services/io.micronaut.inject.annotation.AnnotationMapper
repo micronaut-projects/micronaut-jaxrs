@@ -14,3 +14,4 @@ io.micronaut.jaxrs.processor.ProducesMapper
 io.micronaut.jaxrs.processor.ConsumesMapper
 io.micronaut.jaxrs.processor.DefaultValueMapper
 io.micronaut.jaxrs.processor.HttpMethodMapper
+io.micronaut.jaxrs.processor.ContextMapper
