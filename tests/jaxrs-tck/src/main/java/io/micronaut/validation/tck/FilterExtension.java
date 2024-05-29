@@ -122,6 +122,7 @@ public class FilterExtension implements ExecutionCondition {
         } else if ((testClass == ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT.class && Objects.equals("writeIOExceptionWithoutWriterTest", testMethodName)) ||
             testClass == ee.jakarta.tck.ws.rs.ee.resource.webappexception.defaultmapper.DefaultExceptionMapperIT.class ||
             Set.of(
+                "ee.jakarta.tck.ws.rs.jaxrs21.ee.priority.JAXRSClientIT#exceptionMapperPriorityTest",
                 "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#statusOkResponseTest",
                 "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#throwUncheckedExceptionTest",
                 "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#throwableIntOkResponseTest",
@@ -265,6 +266,10 @@ public class FilterExtension implements ExecutionCondition {
         ).contains(id)) {
             return ConditionEvaluationResult.disabled("remove query params");
         } else if (Set.of(
+            "ee.jakarta.tck.ws.rs.jaxrs21.ee.priority.JAXRSClientIT#paramConverterPriorityTest"
+        ).contains(id)) {
+            return ConditionEvaluationResult.disabled("param converters");
+        } else if (Set.of(
             "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#replaceQueryTest1",
             "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#replaceQueryTest2",
             "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#replaceQueryTest3"
@@ -379,8 +384,6 @@ public class FilterExtension implements ExecutionCondition {
             testClass == ee.jakarta.tck.ws.rs.spec.template.JAXRSClientIT.class && (testMethodName.equals("Test1") || testMethodName.equals("Test2")) ||
             testClass == ee.jakarta.tck.ws.rs.spec.provider.jaxbcontext.JAXRSClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.spec.provider.exceptionmapper.JAXRSClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.jaxrs21.ee.priority.JAXRSClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.api.rs.notallowedexception.JAXRSClientIT.class ||
             (testClass == ee.jakarta.tck.ws.rs.api.rs.core.linkbuilder.JAXRSClientIT.class && Arrays.asList(
                 "buildRelativizedThrowsIAEWhenNotSuppliedValuesTest",
                 "buildObjectsTest",
