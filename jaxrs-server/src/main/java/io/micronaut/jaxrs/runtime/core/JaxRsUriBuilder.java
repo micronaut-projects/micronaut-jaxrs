@@ -15,7 +15,6 @@
  */
 package io.micronaut.jaxrs.runtime.core;
 
-import io.micronaut.core.util.ArgumentUtils;
 import io.micronaut.jaxrs.runtime.ext.impl.JaxRsArgumentUtils;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.core.UriBuilder;
@@ -23,7 +22,12 @@ import jakarta.ws.rs.core.UriBuilderException;
 
 import java.lang.reflect.Method;
 import java.net.URI;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Stream;
 
 /**
@@ -58,7 +62,7 @@ public class JaxRsUriBuilder extends UriBuilder {
 
     @Override
     public UriBuilder uri(URI uri) {
-        ArgumentUtils.requireNonNull("uri", uri);
+        JaxRsArgumentUtils.requireNonNull("uri", uri);
         uriBuilder.replacePath(uri.getPath());
         uriBuilder.scheme(uri.getScheme());
         uriBuilder.port(uri.getPort());
@@ -70,6 +74,7 @@ public class JaxRsUriBuilder extends UriBuilder {
 
     @Override
     public UriBuilder uri(String uriTemplate) {
+        JaxRsArgumentUtils.requireNonNull("uriTemplate", uriTemplate);
         return uri(URI.create(uriTemplate));
     }
 
@@ -104,7 +109,7 @@ public class JaxRsUriBuilder extends UriBuilder {
 
     @Override
     public UriBuilder replacePath(String path) {
-        uriBuilder.replacePath(path);
+        uriBuilder.replacePath(path == null ? "" : path);
         return this;
     }
 
@@ -121,6 +126,8 @@ public class JaxRsUriBuilder extends UriBuilder {
         final Path annotation = (Path) resource.getAnnotation(Path.class);
         if (annotation != null) {
             path(annotation.value());
+        } else {
+            throw new IllegalArgumentException("Resource not annotated with @Path");
         }
 
         return this;
@@ -130,24 +137,35 @@ public class JaxRsUriBuilder extends UriBuilder {
     public UriBuilder path(Class resource, String method) {
         JaxRsArgumentUtils.requireNonNull("resource", resource);
         JaxRsArgumentUtils.requireNonNull("method", method);
-        Method r = Stream.of(resource.getMethods())
+        List<Method> candidates = Stream.of(resource.getMethods())
             .filter(m -> m.getName().equals(method) && m.isAnnotationPresent(Path.class))
-            .findAny()
-            .orElseThrow(() -> new IllegalArgumentException("No such method or not annotated with @Path"));
-        return path(r);
+            .toList();
+        if (candidates.isEmpty()) {
+            throw new IllegalArgumentException("No such method or not annotated with @Path");
+        } else if (candidates.size() > 1) {
+            throw new IllegalArgumentException("Multiple method candidates");
+        }
+        return path(candidates.get(0));
     }
 
     @Override
     public UriBuilder path(Method method) {
+        JaxRsArgumentUtils.requireNonNull("method", method);
         final Path annotation = method.getAnnotation(Path.class);
         if (annotation != null) {
             path(annotation.value());
+        } else {
+            throw new IllegalArgumentException("Resource not annotated with @Path");
         }
         return this;
     }
 
     @Override
     public UriBuilder segment(String... segments) {
+        JaxRsArgumentUtils.requireNonNull("segments", segments);
+        for (String segment : segments) {
+            JaxRsArgumentUtils.requireNonNull("segment[*]", segment);
+        }
         return path(String.join("/", segments));
     }
 
@@ -173,13 +191,22 @@ public class JaxRsUriBuilder extends UriBuilder {
 
     @Override
     public UriBuilder queryParam(String name, Object... values) {
+        JaxRsArgumentUtils.requireNonNull("name", name);
+        for (Object value : values) {
+            JaxRsArgumentUtils.requireNonNull("values[*]", value);
+        }
         uriBuilder.queryParam(name, values);
         return this;
     }
 
     @Override
     public UriBuilder replaceQueryParam(String name, Object... values) {
-        throw new UnsupportedOperationException("Method replaceQueryParam(..) not supported by implementation");
+        if (values == null) {
+            throw new UnsupportedOperationException("Removing query params not supported");
+        } else {
+            uriBuilder.replaceQueryParam(name, values);
+        }
+        return this;
     }
 
     @Override
@@ -220,11 +247,14 @@ public class JaxRsUriBuilder extends UriBuilder {
 
     @Override
     public URI buildFromMap(Map<String, ?> values) {
-        return uriBuilder.expand((Map<String, ? super Object>) values);
+        return buildFromMap(values, true);
     }
 
     @Override
     public URI buildFromMap(Map<String, ?> values, boolean encodeSlashInPath) throws IllegalArgumentException, UriBuilderException {
+        for (Object v : values.values()) {
+            JaxRsArgumentUtils.requireNonNull("values[*]", v);
+        }
         return uriBuilder.expand((Map<String, ? super Object>) values);
     }
 

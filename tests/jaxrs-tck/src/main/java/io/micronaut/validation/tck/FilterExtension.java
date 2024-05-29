@@ -119,17 +119,59 @@ public class FilterExtension implements ExecutionCondition {
             "fromResourceWithMediaTypeTest"
         ).contains(testMethodName)) || Set.of(
             "ee.jakarta.tck.ws.rs.uribuilder.UriBuilderIT#emptyUriBuilderBuildsEmptyUri",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#fragmentTest1",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#queryParamTest4",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#queryParamTest5",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#fromPathTest1",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#cloneTest1",
             "ee.jakarta.tck.ws.rs.uribuilder.UriBuilderIT#shouldBuildValidInstanceFromScratch"
         ).contains(id)) {
             return ConditionEvaluationResult.disabled("relative UriBuilder");
         } else if (Set.of(
-            "ee.jakarta.tck.ws.rs.uribuilder.UriBuilderIT#shouldThrowUriBuilderExceptionOnSchemeOnlyUri"
+            "ee.jakarta.tck.ws.rs.uribuilder.UriBuilderIT#shouldThrowUriBuilderExceptionOnSchemeOnlyUri",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#hostTest2"
         ).contains(id)) {
             return ConditionEvaluationResult.disabled("UriBuilder exceptions");
         } else if ((testClass == ee.jakarta.tck.ws.rs.api.rs.core.link.JAXRSClientIT.class && Arrays.asList(
             "fromPathWithUriTemplateParamsTest"
         ).contains(testMethodName)) || Set.of(
-            "ee.jakarta.tck.ws.rs.uribuilder.UriBuilderIT#shouldThrowIllegalArgumentExceptionForUnresolvedTemplates"
+            "ee.jakarta.tck.ws.rs.uribuilder.UriBuilderIT#shouldThrowIllegalArgumentExceptionForUnresolvedTemplates",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplateStringObjectBooleanSlashNotEncodedTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplatesMapThrowsIAEOnNullNameTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplatesMapBooleanSlashNotEncodedTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildObjectsBooleanThrowsIAEWhenNoValueSuppliedTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplateFromEncodedPercentEncodedTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplatesFromEncodedPercentEncodedTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplatesMapThrowsIAEOnNullValueTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplateStringObjectBooleanThrowsIAEOnNullValueTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplateStringObjectBooleanSlashEncodedTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildTest1",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildTest2",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplateStringObjectThrowsIAEOnNullValueTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplatesMapBooleanThrowsIAEOnNullNameTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#templateTest1",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#templateTest2",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplateFromEncodedThrowsNullOnNullValueTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplateFromEncodedThrowsNullOnNullNameTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplatesMapBooleanThrowsIAEOnNullMapTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplatesFromEncodedTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplatesFromEncodedThrowsNullOnNullValueTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplatesFromEncodedThrowsNullOnNullNameTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildObjectsBooleanEncodedTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplatesFromEncodedThrowsNullOnNullMapTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplatesMapBooleanSlashEncodedTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplatesMapBooleanThrowsIAEOnNullValueTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplateStringObjectTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplateStringObjectThrowsIAEOnNullNameTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#fromEncodedTest1",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#fromEncodedTest2",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#fromEncodedTest3",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildObjectsBooleanNotEncodedTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplateFromEncodedTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildObjectsBooleanThrowsIAEWhenValueIsNullTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplateStringObjectBooleanThrowsIAEOnNullNameTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplatesMapTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#toTemplateTest"
         ).contains(id)) {
             return ConditionEvaluationResult.disabled("uri template");
         } else if (testClass == ee.jakarta.tck.ws.rs.spec.provider.standardwithxmlbinding.JAXRSClientIT.class) {
@@ -159,6 +201,62 @@ public class FilterExtension implements ExecutionCondition {
         ).contains(id)) {
             return ConditionEvaluationResult.disabled("duplicate ETAG (should be relatively easy)"); // todo
         } else if (Set.of(
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#uriStringTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#schemeSpecificPartTest1",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#schemeSpecificPartTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#fromUriTest3",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#fromUriTest4",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#uriTest"
+        ).contains(id)) {
+            return ConditionEvaluationResult.disabled("UriBuilder scheme specific part");
+        } else if (Set.of(
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#replaceQueryParamTest2"
+        ).contains(id)) {
+            return ConditionEvaluationResult.disabled("remove query params");
+        } else if (Set.of(
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#replaceQueryTest1",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#replaceQueryTest2",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#replaceQueryTest3"
+        ).contains(id)) {
+            return ConditionEvaluationResult.disabled("replaceQuery with string");
+        } else if (Set.of(
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#replaceMatrixParamTest1",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#replaceMatrixParamTest2",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#replaceMatrixParamTest3",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#replaceMatrixTest1",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#replaceMatrixTest2",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#replaceMatrixTest3",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#matrixParamTest1",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#matrixParamTest2",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#matrixParamTest3",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#replaceMatrixParamTest4"
+        ).contains(id)) {
+            return ConditionEvaluationResult.disabled("UriBuilder matrixParam");
+        } else if (Set.of(
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#replaceQueryParamTest3",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildFromMapTest1",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildFromMapTest2",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildFromMapTest5",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildFromMapWithBooleanSlashNotEncodedTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#pathTest0",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#pathTest2",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#segmentTest2",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#segmentTest3",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#pathTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildFromEncodedMapTest1",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildFromEncodedMapTest2",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildFromEncodedMapTest3",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildFromEncodedMapTest4",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildFromEncodedMapTest5",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildFromMapWithBooleanSlashEncodedTest"
+        ).contains(id)) {
+            return ConditionEvaluationResult.disabled("UriBuilder encoding behavior");
+        } else if (Set.of(
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildFromMapWithBooleanThrowsIAEWhenNoSuppliedValueTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildFromMapTest4"
+        ).contains(id)) {
+            return ConditionEvaluationResult.disabled("missing template variable");
+        } else if (Set.of(
             "ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#acceptedGenericEntityTest",
             "ee.jakarta.tck.ws.rs.ee.resource.java2entity.JAXRSClientIT#genericEntityTest",
             "ee.jakarta.tck.ws.rs.ee.resource.java2entity.JAXRSClientIT#responseGenericEntityTest"
@@ -184,6 +282,10 @@ public class FilterExtension implements ExecutionCondition {
             return ConditionEvaluationResult.disabled("getCookies"); // todo
         } else if (testClass == ee.jakarta.tck.ws.rs.jaxrs40.ee.rs.core.uriinfo.UriInfo40ClientIT.class) {
             return ConditionEvaluationResult.disabled("path param issues");
+        } else if (testClass == ee.jakarta.tck.ws.rs.ee.rs.formparam.JAXRSClientIT.class) {
+            return ConditionEvaluationResult.disabled("@Encoded");
+        } else if (testClass == ee.jakarta.tck.ws.rs.servlet3.rs.applicationpath.JAXRSClientIT.class) {
+            return ConditionEvaluationResult.disabled("encoded @ApplicationPath");
         } else if (testClass == ee.jakarta.tck.ws.rs.api.client.entity.JAXRSClientIT.class && testMethodName.equals("entityStringThrowsExceptionWhenNullTest") || testClass == ee.jakarta.tck.ws.rs.api.rs.core.entitytag.JAXRSClientIT.class && testMethodName.equals("valueOfTest") || testClass == ee.jakarta.tck.ws.rs.api.rs.core.cookie.JAXRSClientIT.class && testMethodName.equals("parseTest3") || testClass == ee.jakarta.tck.ws.rs.api.rs.ext.runtimedelegate.create.JAXRSClientIT.class && Arrays.asList(
             "createEndpointThrowsIllegalArgumentExceptionTest",
             "createHeaderDelegateThrowsIllegalArgumentExceptionTest",
@@ -219,9 +321,6 @@ public class FilterExtension implements ExecutionCondition {
             testClass == ee.jakarta.tck.ws.rs.jaxrs21.ee.patch.server.JAXRSClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.ee.rs.head.JAXRSClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.servlet3.rs.applicationpath.JAXRSClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.ee.rs.formparam.JAXRSClientIT.class ||
             (testClass == ee.jakarta.tck.ws.rs.api.rs.core.linkbuilder.JAXRSClientIT.class && Arrays.asList(
                 "buildRelativizedThrowsIAEWhenNotSuppliedValuesTest",
                 "buildObjectsTest",

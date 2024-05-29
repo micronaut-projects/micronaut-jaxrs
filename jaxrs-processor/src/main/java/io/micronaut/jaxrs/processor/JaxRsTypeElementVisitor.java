@@ -40,6 +40,7 @@ import io.micronaut.inject.visitor.VisitorContext;
 import io.micronaut.runtime.http.scope.RequestScope;
 import jakarta.ws.rs.BeanParam;
 import jakarta.ws.rs.CookieParam;
+import jakarta.ws.rs.Encoded;
 import jakarta.ws.rs.FormParam;
 import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.HttpMethod;
@@ -181,7 +182,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     }
 
     private List<Class<? extends Annotation>> getUnsupportedParameterAnnotations() {
-        return Arrays.asList(MatrixParam.class, BeanParam.class);
+        return Arrays.asList(MatrixParam.class, BeanParam.class, Encoded.class);
     }
 
     @Override

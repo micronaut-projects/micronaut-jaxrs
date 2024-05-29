@@ -31,6 +31,10 @@ import jakarta.inject.Singleton;
 import jakarta.ws.rs.ApplicationPath;
 import jakarta.ws.rs.core.Application;
 
+import java.net.URLDecoder;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+
 /**
  * Configures a URI naming strategy based on the {@link ApplicationPath} annotation.
  *
@@ -55,9 +59,9 @@ public class JaxRsApplicationUriNamingStrategy extends HyphenatedUriNamingStrate
     public JaxRsApplicationUriNamingStrategy(BeanContext beanContext, @Value("${micronaut.server.context-path}") @Nullable String contextPath) {
         super(contextPath);
         this.contextPath = normalizeContextPath(
-                beanContext.getBeanDefinition(Application.class)
-                    .stringValue(ApplicationPath.class)
-                    .orElse("/")
+            URLDecoder.decode(beanContext.getBeanDefinition(Application.class)
+                .stringValue(ApplicationPath.class)
+                .orElse("/"), StandardCharsets.UTF_8)
         );
     }
 

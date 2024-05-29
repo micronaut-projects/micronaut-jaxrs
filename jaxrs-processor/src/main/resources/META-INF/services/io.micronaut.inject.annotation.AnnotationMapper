@@ -5,7 +5,6 @@ io.micronaut.jaxrs.processor.PutAnnotationMapper
 io.micronaut.jaxrs.processor.HeadAnnotationMapper
 io.micronaut.jaxrs.processor.DeleteAnnotationMapper
 io.micronaut.jaxrs.processor.OptionsAnnotationMapper
-io.micronaut.jaxrs.processor.ApplicationPathAnnotationMapper
 io.micronaut.jaxrs.processor.ProducesMapper
 io.micronaut.jaxrs.processor.ConsumesMapper
 io.micronaut.jaxrs.processor.DefaultValueMapper
