@@ -24,6 +24,7 @@ import io.micronaut.inject.annotation.NamedAnnotationMapper;
 import io.micronaut.inject.visitor.VisitorContext;
 
 import java.lang.annotation.Annotation;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -49,12 +50,22 @@ public class ProducesMapper implements NamedAnnotationMapper {
 
         final AnnotationValueBuilder<Produces> builder = AnnotationValue.builder(Produces.class);
         if (annotation.stringValues().length > 0) {
-            builder.values(annotation.stringValues());
+            builder.values(splitMediaTypes(annotation.stringValues()));
         } else {
             builder.values(JAX_RS_DEFAULT_VALUE);
         }
         return Collections.singletonList(
                 builder.build()
         );
+    }
+
+    /**
+     * JAX-RS allows literal commas inside the strings, we need to split those.
+     */
+    static String[] splitMediaTypes(String[] mediaTypes) {
+        return Arrays.stream(mediaTypes)
+            .flatMap(t -> Arrays.stream(t.split(",")))
+            .map(String::trim)
+            .toArray(String[]::new);
     }
 }
