@@ -182,6 +182,8 @@ public class FilterExtension implements ExecutionCondition {
             "ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#getCookiesIsImmutableTest"
         ).contains(id)) {
             return ConditionEvaluationResult.disabled("getCookies"); // todo
+        } else if (testClass == ee.jakarta.tck.ws.rs.jaxrs40.ee.rs.core.uriinfo.UriInfo40ClientIT.class) {
+            return ConditionEvaluationResult.disabled("path param issues");
         } else if (testClass == ee.jakarta.tck.ws.rs.api.client.entity.JAXRSClientIT.class && testMethodName.equals("entityStringThrowsExceptionWhenNullTest") || testClass == ee.jakarta.tck.ws.rs.api.rs.core.entitytag.JAXRSClientIT.class && testMethodName.equals("valueOfTest") || testClass == ee.jakarta.tck.ws.rs.api.rs.core.cookie.JAXRSClientIT.class && testMethodName.equals("parseTest3") || testClass == ee.jakarta.tck.ws.rs.api.rs.ext.runtimedelegate.create.JAXRSClientIT.class && Arrays.asList(
             "createEndpointThrowsIllegalArgumentExceptionTest",
             "createHeaderDelegateThrowsIllegalArgumentExceptionTest",
@@ -220,8 +222,6 @@ public class FilterExtension implements ExecutionCondition {
             testClass == ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.servlet3.rs.applicationpath.JAXRSClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.ee.rs.formparam.JAXRSClientIT.class ||
-            (testClass == ee.jakarta.tck.ws.rs.api.rs.core.newcookie.JAXRSClientIT.class && testMethodName.equals("parseTest3")) ||
-            testClass == ee.jakarta.tck.ws.rs.jaxrs40.ee.rs.core.uriinfo.UriInfo40ClientIT.class ||
             (testClass == ee.jakarta.tck.ws.rs.api.rs.core.linkbuilder.JAXRSClientIT.class && Arrays.asList(
                 "buildRelativizedThrowsIAEWhenNotSuppliedValuesTest",
                 "buildObjectsTest",
