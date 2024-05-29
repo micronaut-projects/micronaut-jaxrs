@@ -122,6 +122,15 @@ public class FilterExtension implements ExecutionCondition {
         } else if ((testClass == ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT.class && Objects.equals("writeIOExceptionWithoutWriterTest", testMethodName)) ||
             testClass == ee.jakarta.tck.ws.rs.ee.resource.webappexception.defaultmapper.DefaultExceptionMapperIT.class ||
             Set.of(
+                "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#statusOkResponseTest",
+                "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#throwUncheckedExceptionTest",
+                "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#throwableIntOkResponseTest",
+                "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#throwableOkResponseTest",
+                "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#statusIntOkResponseTest",
+                "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#throwableResponseTest",
+                "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#noResponseTest",
+                "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#webApplicationExceptionHasResponseWithoutEntityDoesUseMapperTest",
+                "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#okResponseTest",
                 "ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT#exceptionMapperTest",
                 "ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#slashWrongUriTest",
                 "ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#requestNotSupportedOnResourceTest",
@@ -158,6 +167,10 @@ public class FilterExtension implements ExecutionCondition {
             "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#hostTest2"
         ).contains(id)) {
             return ConditionEvaluationResult.disabled("UriBuilder exceptions");
+        } else if (Set.of(
+            "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#webApplicationExceptionHasResponseWithEntityDoesNotUseMapperTest"
+        ).contains(id)) {
+            return ConditionEvaluationResult.disabled("missing method annotation");
         } else if (Set.of(
             "ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#locatorNameTooLongAgainTest",
             "ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#consumesOverridesDescendantSubResourcePathValueTest",
@@ -368,7 +381,6 @@ public class FilterExtension implements ExecutionCondition {
             testClass == ee.jakarta.tck.ws.rs.spec.provider.exceptionmapper.JAXRSClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.jaxrs21.ee.priority.JAXRSClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.api.rs.notallowedexception.JAXRSClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT.class ||
             (testClass == ee.jakarta.tck.ws.rs.api.rs.core.linkbuilder.JAXRSClientIT.class && Arrays.asList(
                 "buildRelativizedThrowsIAEWhenNotSuppliedValuesTest",
                 "buildObjectsTest",
