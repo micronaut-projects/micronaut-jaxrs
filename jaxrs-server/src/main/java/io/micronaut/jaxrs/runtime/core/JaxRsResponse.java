@@ -34,9 +34,14 @@ import jakarta.ws.rs.core.Response;
 import java.lang.annotation.Annotation;
 import java.net.URI;
 import java.time.ZonedDateTime;
+import java.util.AbstractMap;
+import java.util.AbstractSet;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -54,6 +59,7 @@ import static jakarta.ws.rs.ext.RuntimeDelegate.getInstance;
 class JaxRsResponse extends Response implements HttpResponseProvider {
 
     private final MutableHttpResponse<Object> response = HttpResponse.ok();
+    private boolean closed;
 
     /**
      * @return The Micronaut response object
@@ -75,6 +81,7 @@ class JaxRsResponse extends Response implements HttpResponseProvider {
 
     @Override
     public Object getEntity() {
+        checkOpen();
         return response.body();
     }
 
@@ -100,17 +107,25 @@ class JaxRsResponse extends Response implements HttpResponseProvider {
 
     @Override
     public boolean hasEntity() {
+        checkOpen();
         return response.getBody().isPresent();
+    }
+
+    private void checkOpen() {
+        if (closed) {
+            throw new IllegalStateException("Response closed");
+        }
     }
 
     @Override
     public boolean bufferEntity() {
+        checkOpen();
         return false;
     }
 
     @Override
     public void close() {
-        //no op
+        closed = true;
     }
 
     @Override
@@ -137,7 +152,7 @@ class JaxRsResponse extends Response implements HttpResponseProvider {
     @Override
     @Nullable
     public Map<String, NewCookie> getCookies() {
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -202,19 +217,124 @@ class JaxRsResponse extends Response implements HttpResponseProvider {
 
     @Override
     public MultivaluedMap<String, String> getStringHeaders() {
-        final MutableHttpHeaders headers = response.getHeaders();
-        final Set<String> names = headers.names();
-        MultivaluedMap<String, String> map = new MultivaluedHashMap<>(names.size());
-
-        for (String name : names) {
-            final List<String> all = headers.getAll(name);
-            map.addAll(name, all);
-        }
-        return map;
+        return new HeaderView(response.getHeaders());
     }
 
     @Override
     public String getHeaderString(String name) {
         return response.getHeaders().getFirst(name).orElse(null);
+    }
+
+    private static final class HeaderView extends AbstractMap<String, List<String>> implements MultivaluedMap<String, String> {
+        private final MutableHttpHeaders headers;
+
+        HeaderView(MutableHttpHeaders headers) {
+            this.headers = headers;
+        }
+
+        @Override
+        public void putSingle(String key, String value) {
+            headers.remove(key);
+            headers.add(key, value);
+        }
+
+        @Override
+        public void add(String key, String value) {
+            headers.add(key, value);
+        }
+
+        @Override
+        public String getFirst(String key) {
+            return headers.getFirst(key).orElse(null);
+        }
+
+        @Override
+        public void addAll(String key, String... newValues) {
+            addAll(key, Arrays.asList(newValues));
+        }
+
+        @Override
+        public void addAll(String key, List<String> valueList) {
+            for (String v : valueList) {
+                add(key, v);
+            }
+        }
+
+        @Override
+        public void addFirst(String key, String value) {
+            add(key, value);
+        }
+
+        @Override
+        public boolean equalsIgnoreValueOrder(MultivaluedMap<String, String> otherMap) {
+            if (!keySet().equals(otherMap.keySet())) {
+                return false;
+            }
+            for (String key : otherMap.keySet()) {
+                List<String> l = get(key);
+                List<String> r = otherMap.get(key);
+                if (l.size() != r.size()) {
+                    return false;
+                }
+                l = l.stream().sorted().toList();
+                r = r.stream().sorted().toList();
+                if (!l.equals(r)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        @Override
+        public List<String> put(String key, List<String> value) {
+            List<String> prev = headers.getAll(key);
+            headers.remove(key);
+            addAll(key, value);
+            return prev.isEmpty() ? null : prev;
+        }
+
+        @Override
+        public void putAll(Map<? extends String, ? extends List<String>> m) {
+            for (String s : m.keySet()) {
+                put(s, m.get(s));
+            }
+        }
+
+        @Override
+        public boolean containsKey(Object key) {
+            // case insensitive
+            return key instanceof String s && headers.contains(s);
+        }
+
+        @Override
+        public List<String> get(Object key) {
+            // case insensitive
+            return key instanceof String s ? headers.getAll(s) : null;
+        }
+
+        @Override
+        public List<String> remove(Object key) {
+            // case insensitive
+            List<String> prev = get(key);
+            if (key instanceof String s) {
+                headers.remove(s);
+            }
+            return prev;
+        }
+
+        @Override
+        public Set<Entry<String, List<String>>> entrySet() {
+            return new AbstractSet<>() {
+                @Override
+                public Iterator<Entry<String, List<String>>> iterator() {
+                    return headers.iterator();
+                }
+
+                @Override
+                public int size() {
+                    return headers.names().size();
+                }
+            };
+        }
     }
 }

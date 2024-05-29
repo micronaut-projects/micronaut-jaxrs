@@ -6,6 +6,7 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.Set;
 
 public class FilterExtension implements ExecutionCondition {
     private static final ConditionEvaluationResult SUBRESOURCES = ConditionEvaluationResult.disabled("Subresources not supported");
@@ -19,6 +20,7 @@ public class FilterExtension implements ExecutionCondition {
         if (testClass == null) {
             return ConditionEvaluationResult.enabled("No test class or method");
         }
+        String id = testClass.getName() + "#" + testMethodName;
         if (testClass == ee.jakarta.tck.ws.rs.ee.rs.get.JAXRSClientIT.class) {
             switch (testMethodName) {
                 case "headSubTest", "headTest1", "headTest2" -> {
@@ -28,7 +30,9 @@ public class FilterExtension implements ExecutionCondition {
                     return SUBRESOURCES;
                 }
             }
-        } else if (testClass == ee.jakarta.tck.ws.rs.ee.rs.headerparam.sub.JAXRSSubClientIT.class) {
+        } else if (testClass == ee.jakarta.tck.ws.rs.ee.rs.headerparam.sub.JAXRSSubClientIT.class ||
+            testClass == ee.jakarta.tck.ws.rs.ee.rs.formparam.locator.JAXRSLocatorClientIT.class ||
+            testClass == ee.jakarta.tck.ws.rs.ee.rs.formparam.sub.JAXRSSubClientIT.class) {
             return SUBRESOURCES;
         } else if (ee.jakarta.tck.ws.rs.common.client.JaxrsCommonClient.class.isAssignableFrom(testClass) ||
             testClass == ee.jakarta.tck.ws.rs.api.client.client.JAXRSClientIT.class ||
@@ -50,19 +54,6 @@ public class FilterExtension implements ExecutionCondition {
             testClass == ee.jakarta.tck.ws.rs.jaxrs21.ee.client.executor.rx.JAXRSClientIT.class ||
             (testClass == ee.jakarta.tck.ws.rs.api.rs.core.link.JAXRSClientIT.class && "fromResourceMethodLinkUsedInInvocationTest".equals(testMethodName))) {
             return CLIENT;
-        } else if (testClass == ee.jakarta.tck.ws.rs.api.rs.core.linkbuilder.JAXRSClientIT.class) {
-            if (Arrays.asList(
-                "buildRelativizedThrowsIAEWhenNotSuppliedValuesTest",
-                "buildObjectsTest",
-                "buildNoArgsThrowsUriBuilderExceptionTest",
-                "buildRelativizedThrowsUriBuilderExceptionTest",
-                "buildRelativizedThrowsIAEWhenSuppliedJustOneValueOutOfThreeTest",
-                "buildRelativizedThrowsIAEWhenSuppliedValueIsNullTest",
-                "buildThrowsIAEWhenSuppliedJustOneValueOutOfThreeTest",
-                "buildObjectsThrowsUriBuilderExceptionTest"
-            ).contains(testMethodName)) {
-                return INVESTIGATE;
-            }
         } else if (testClass == ee.jakarta.tck.ws.rs.spec.resource.annotationprecedence.subclass.JAXRSClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.ee.rs.matrixparam.locator.JAXRSLocatorClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.spec.resource.valueofandfromstring.JAXRSClientIT.class ||
@@ -94,6 +85,9 @@ public class FilterExtension implements ExecutionCondition {
         } else if (testClass == ee.jakarta.tck.ws.rs.ee.rs.headerparam.JAXRSClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.spec.resource.locator.JAXRSClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.ee.rs.pathparam.JAXRSClientIT.class ||
+            testClass == ee.jakarta.tck.ws.rs.ee.rs.cookieparam.sub.JAXRSSubClientIT.class ||
+            testClass == ee.jakarta.tck.ws.rs.ee.rs.queryparam.sub.JAXRSSubClientIT.class ||
+            testClass == ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.spec.provider.reader.JAXRSClientIT.class) {
             return ConditionEvaluationResult.disabled("request-scoped bean fields");
         } else if (testClass == ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT.class && Arrays.asList(
@@ -129,6 +123,49 @@ public class FilterExtension implements ExecutionCondition {
             "fromPathWithUriTemplateParamsTest"
         ).contains(testMethodName)) {
             return ConditionEvaluationResult.disabled("uri template");
+        } else if (testClass == ee.jakarta.tck.ws.rs.spec.provider.standardwithxmlbinding.JAXRSClientIT.class) {
+            return ConditionEvaluationResult.disabled("JAXB");
+        } else if (testClass == ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT.class && Arrays.asList(
+            "getLinkBuilderForTheRelationTest",
+            "getLinksTest",
+            "okTest5",
+            "fromResponseTest",
+            "getLinkTest",
+            "notAcceptableTest",
+            "hasLinkWhenLinkTest",
+            "variantsTest",
+            "linksTest",
+            "linkStringStringTest",
+            "linkUriStringTest",
+            "variantTest"
+        ).contains(testMethodName)) {
+            return ConditionEvaluationResult.disabled("getLinkBuilder, VariantListBuilder");
+        } else if (testClass == ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT.class && Arrays.asList(
+            "cookieTest",
+            "getCookiesTest"
+        ).contains(testMethodName)) {
+            return ConditionEvaluationResult.disabled("cookies do not contain version=1"); // todo: should we do this?
+        } else if (Set.of(
+            "ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#tagTest2"
+        ).contains(id)) {
+            return ConditionEvaluationResult.disabled("duplicate ETAG (should be relatively easy)"); // todo
+        } else if (Set.of(
+            "ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#acceptedGenericEntityTest"
+        ).contains(id)) {
+            return ConditionEvaluationResult.disabled("GenericEntity serializer"); // todo
+        } else if (Set.of(
+            "ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#getLanguageTest"
+        ).contains(id)) {
+            return ConditionEvaluationResult.disabled("getLocale has different case"); // todo
+        } else if (Set.of(
+            "ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#getDateTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#getLastModifiedTest"
+        ).contains(id)) {
+            return ConditionEvaluationResult.disabled("Date headers have incorrect format (TZ, comma)"); // todo
+        } else if (Set.of(
+            "ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#getCookiesIsImmutableTest"
+        ).contains(id)) {
+            return ConditionEvaluationResult.disabled("getCookies"); // todo
         } else if (testClass == ee.jakarta.tck.ws.rs.api.client.entity.JAXRSClientIT.class && testMethodName.equals("entityStringThrowsExceptionWhenNullTest") || testClass == ee.jakarta.tck.ws.rs.api.rs.core.entitytag.JAXRSClientIT.class && testMethodName.equals("valueOfTest") || testClass == ee.jakarta.tck.ws.rs.api.rs.core.cookie.JAXRSClientIT.class && testMethodName.equals("parseTest3") || testClass == ee.jakarta.tck.ws.rs.api.rs.ext.runtimedelegate.create.JAXRSClientIT.class && Arrays.asList(
             "createEndpointThrowsIllegalArgumentExceptionTest",
             "createHeaderDelegateThrowsIllegalArgumentExceptionTest",
@@ -175,14 +212,16 @@ public class FilterExtension implements ExecutionCondition {
             testClass == ee.jakarta.tck.ws.rs.uribuilder.UriBuilderIT.class ||
             testClass == ee.jakarta.tck.ws.rs.api.rs.serviceunavailableexception.JAXRSClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.ee.resource.webappexception.defaultmapper.DefaultExceptionMapperIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.ee.rs.queryparam.sub.JAXRSSubClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.ee.rs.cookieparam.sub.JAXRSSubClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.api.rs.core.multivaluedmap.JAXRSClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.spec.provider.standardwithxmlbinding.JAXRSClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.ee.rs.formparam.sub.JAXRSSubClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.ee.rs.formparam.locator.JAXRSLocatorClientIT.class) {
+            (testClass == ee.jakarta.tck.ws.rs.api.rs.core.linkbuilder.JAXRSClientIT.class && Arrays.asList(
+                "buildRelativizedThrowsIAEWhenNotSuppliedValuesTest",
+                "buildObjectsTest",
+                "buildNoArgsThrowsUriBuilderExceptionTest",
+                "buildRelativizedThrowsUriBuilderExceptionTest",
+                "buildRelativizedThrowsIAEWhenSuppliedJustOneValueOutOfThreeTest",
+                "buildRelativizedThrowsIAEWhenSuppliedValueIsNullTest",
+                "buildThrowsIAEWhenSuppliedJustOneValueOutOfThreeTest",
+                "buildObjectsThrowsUriBuilderExceptionTest"
+            ).contains(testMethodName))) {
             return INVESTIGATE;
         }
         return ConditionEvaluationResult.enabled(null);

@@ -30,6 +30,7 @@ import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.NewCookie;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.Variant;
+import jakarta.ws.rs.ext.RuntimeDelegate;
 
 import java.lang.annotation.Annotation;
 import java.net.URI;
@@ -89,38 +90,46 @@ public class JaxRsResponseBuilder extends Response.ResponseBuilder {
 
     @Override
     public Response.ResponseBuilder allow(String... methods) {
-        response.getHeaders().allowGeneric(Arrays.asList(methods));
-        return this;
-    }
-
-    @Override
-    public Response.ResponseBuilder allow(Set<String> methods) {
-        response.getHeaders().allowGeneric(methods);
-        return this;
-    }
-
-    @Override
-    public Response.ResponseBuilder cacheControl(CacheControl cacheControl) {
-        if (cacheControl != null) {
-
-            response.getHeaders().add(
-                io.micronaut.http.HttpHeaders.CACHE_CONTROL,
-                getInstance().createHeaderDelegate(CacheControl.class).toString(cacheControl)
-            );
+        if (methods == null) {
+            response.getHeaders().remove(HttpHeaders.ALLOW);
+        } else {
+            response.getHeaders().allowGeneric(Arrays.asList(methods));
         }
         return this;
     }
 
     @Override
-    public Response.ResponseBuilder encoding(String encoding) {
-        response.header(io.micronaut.http.HttpHeaders.CONTENT_ENCODING, encoding);
+    public Response.ResponseBuilder allow(Set<String> methods) {
+        if (methods == null) {
+            response.getHeaders().remove(HttpHeaders.ALLOW);
+        } else {
+            response.getHeaders().allowGeneric(methods);
+        }
         return this;
     }
 
     @Override
+    public Response.ResponseBuilder cacheControl(CacheControl cacheControl) {
+        header(io.micronaut.http.HttpHeaders.CACHE_CONTROL, cacheControl);
+        return this;
+    }
+
+    @Override
+    public Response.ResponseBuilder encoding(String encoding) {
+        header(io.micronaut.http.HttpHeaders.CONTENT_ENCODING, encoding);
+        return this;
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    @Override
     public Response.ResponseBuilder header(String name, Object value) {
         if (value != null) {
-            response.header(name, value.toString());
+            RuntimeDelegate.HeaderDelegate headerDelegate = getInstance().createHeaderDelegate(value.getClass());
+            if (headerDelegate == null) {
+                response.header(name, value.toString());
+            } else {
+                response.header(name, headerDelegate.toString(value));
+            }
         } else {
             response.getHeaders().remove(name);
         }
@@ -129,15 +138,19 @@ public class JaxRsResponseBuilder extends Response.ResponseBuilder {
 
     @Override
     public Response.ResponseBuilder replaceAll(MultivaluedMap<String, Object> headers) {
-        final MutableHttpHeaders finalHeaders = response.getHeaders();
-        headers.forEach((s, objects) -> {
-            finalHeaders.remove(s);
-            for (Object object : objects) {
-                if (object != null) {
-                    finalHeaders.add(s, object.toString());
+        for (String k : List.copyOf(response.getHeaders().names())) {
+            response.getHeaders().remove(k);
+        }
+        if (headers != null) {
+            headers.forEach((s, objects) -> {
+                for (Object object : objects) {
+                    if (object != null) {
+                        response.getHeaders().add(s, object.toString());
+                    }
                 }
-            }
-        });
+            });
+            return this;
+        }
         return this;
     }
 
@@ -180,12 +193,16 @@ public class JaxRsResponseBuilder extends Response.ResponseBuilder {
 
     @Override
     public Response.ResponseBuilder contentLocation(URI location) {
-        response.getHeaders().location(location);
+        header(HttpHeaders.CONTENT_LOCATION, location);
         return this;
     }
 
     @Override
     public Response.ResponseBuilder cookie(NewCookie... cookies) {
+        if (cookies == null) {
+            response.getHeaders().remove(HttpHeaders.SET_COOKIE);
+            return this;
+        }
         for (NewCookie cookie : cookies) {
             final Cookie c = Cookie.of(cookie.getName(), cookie.getValue());
             final String domain = cookie.getDomain();

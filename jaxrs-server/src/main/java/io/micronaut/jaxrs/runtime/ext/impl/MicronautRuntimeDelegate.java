@@ -83,7 +83,7 @@ public final class MicronautRuntimeDelegate extends RuntimeDelegate {
         if (headerDelegate != null) {
             return headerDelegate;
         }
-        throw new UnsupportedOperationException("Unsupported header type: " + type);
+        return null;
     }
 
     @Override
