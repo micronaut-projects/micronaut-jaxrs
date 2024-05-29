@@ -222,7 +222,6 @@ public class FilterExtension implements ExecutionCondition {
             testClass == ee.jakarta.tck.ws.rs.ee.rs.formparam.JAXRSClientIT.class ||
             (testClass == ee.jakarta.tck.ws.rs.api.rs.core.newcookie.JAXRSClientIT.class && testMethodName.equals("parseTest3")) ||
             testClass == ee.jakarta.tck.ws.rs.jaxrs40.ee.rs.core.uriinfo.UriInfo40ClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.ee.resource.webappexception.nomapper.JAXRSClientIT.class ||
             (testClass == ee.jakarta.tck.ws.rs.api.rs.core.linkbuilder.JAXRSClientIT.class && Arrays.asList(
                 "buildRelativizedThrowsIAEWhenNotSuppliedValuesTest",
                 "buildObjectsTest",

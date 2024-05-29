@@ -46,10 +46,6 @@ public class JaxRsExceptionHandler implements ExceptionHandler<WebApplicationExc
 
     @Override
     public HttpResponse<?> handle(HttpRequest request, WebApplicationException exception) {
-        MutableHttpResponse<?> response = HttpResponse.status(HttpStatus.valueOf(exception.getResponse().getStatus()));
-        return responseProcessor.processResponse(ErrorContext.builder(request)
-                .errorMessage(exception.getMessage())
-                .cause(exception)
-                .build(), response);
+        return ((JaxRsResponse) exception.getResponse()).getResponse();
     }
 }
