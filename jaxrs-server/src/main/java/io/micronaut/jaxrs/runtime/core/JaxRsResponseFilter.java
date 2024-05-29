@@ -16,6 +16,9 @@
 package io.micronaut.jaxrs.runtime.core;
 
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.http.HttpRequest;
+import io.micronaut.http.HttpAttributes;
+import io.micronaut.http.HttpMethod;
 import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.http.annotation.ResponseFilter;
 import io.micronaut.http.annotation.ServerFilter;
@@ -31,8 +34,13 @@ import io.micronaut.http.annotation.ServerFilter;
 final class JaxRsResponseFilter {
 
     @ResponseFilter
-    MutableHttpResponse<?> alterResponse(MutableHttpResponse<?> mutableHttpResponse) {
-        final Object body = mutableHttpResponse.getBody().orElse(null);
+    MutableHttpResponse<?> alterResponse(HttpRequest<?> request, MutableHttpResponse<?> mutableHttpResponse) {
+        final Object body;
+        if (request.getMethod() == HttpMethod.HEAD) {
+            body = mutableHttpResponse.getAttribute(HttpAttributes.HEAD_BODY).orElse(null);
+        } else {
+            body = mutableHttpResponse.getBody().orElse(null);
+        }
         if (body instanceof JaxRsResponse jrs) {
             final MutableHttpResponse<Object> jaxRsResponse = jrs.getResponse();
             mutableHttpResponse.getAttributes().forEach(jaxRsResponse::setAttribute);

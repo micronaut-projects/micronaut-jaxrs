@@ -24,9 +24,6 @@ public class FilterExtension implements ExecutionCondition {
         String id = testClass.getName() + "#" + testMethodName;
         if (testClass == ee.jakarta.tck.ws.rs.ee.rs.get.JAXRSClientIT.class) {
             switch (testMethodName) {
-                case "headSubTest", "headTest1", "headTest2" -> {
-                    return ConditionEvaluationResult.disabled("core drops HEAD bodies"); // TODO
-                }
                 case "dynamicGetTest", "recursiveResourceLocatorTest" -> {
                     return SUBRESOURCES;
                 }
@@ -320,7 +317,6 @@ public class FilterExtension implements ExecutionCondition {
             testClass == ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.jaxrs21.ee.patch.server.JAXRSClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.ee.rs.head.JAXRSClientIT.class ||
             (testClass == ee.jakarta.tck.ws.rs.api.rs.core.linkbuilder.JAXRSClientIT.class && Arrays.asList(
                 "buildRelativizedThrowsIAEWhenNotSuppliedValuesTest",
                 "buildObjectsTest",
