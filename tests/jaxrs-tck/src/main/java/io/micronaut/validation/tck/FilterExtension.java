@@ -6,7 +6,6 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
-import java.util.Objects;
 import java.util.Set;
 
 public class FilterExtension implements ExecutionCondition {
@@ -22,16 +21,12 @@ public class FilterExtension implements ExecutionCondition {
             return ConditionEvaluationResult.enabled("No test class or method");
         }
         String id = testClass.getName() + "#" + testMethodName;
-        if (testClass == ee.jakarta.tck.ws.rs.ee.rs.get.JAXRSClientIT.class) {
-            switch (testMethodName) {
-                case "dynamicGetTest", "recursiveResourceLocatorTest" -> {
-                    return SUBRESOURCES;
-                }
-            }
-        } else if (testClass == ee.jakarta.tck.ws.rs.ee.rs.headerparam.sub.JAXRSSubClientIT.class ||
+        if (testClass == ee.jakarta.tck.ws.rs.ee.rs.headerparam.sub.JAXRSSubClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.ee.rs.formparam.locator.JAXRSLocatorClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.ee.rs.formparam.sub.JAXRSSubClientIT.class ||
             Set.of(
+                "ee.jakarta.tck.ws.rs.ee.rs.get.JAXRSClientIT#dynamicGetTest",
+                "ee.jakarta.tck.ws.rs.ee.rs.get.JAXRSClientIT#recursiveResourceLocatorTest",
                 "ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#consumesCorrectContentTypeOnResourceLocatorTest",
                 "ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesCorrectContentTypeOnResourceLocatorTest",
                 "ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#consumesOnSubResourceLocatorTest",
@@ -93,9 +88,11 @@ public class FilterExtension implements ExecutionCondition {
             testClass == ee.jakarta.tck.ws.rs.ee.rs.ext.interceptor.containerreader.readerinterceptorcontext.JAXRSClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.ee.rs.ext.interceptor.containerwriter.interceptorcontext.JAXRSClientIT.class) {
             return ConditionEvaluationResult.disabled("enum as beans"); // TODO
-        } else if ((testClass == ee.jakarta.tck.ws.rs.api.rs.core.variant.JAXRSClientIT.class && Arrays.asList("encodingsTest", "languagesTest", "mediaTypesTest").contains(testMethodName)) ||
-            testClass == ee.jakarta.tck.ws.rs.api.rs.core.variantlistbuilder.JAXRSClientIT.class || Set.of(
-                "ee.jakarta.tck.ws.rs.api.rs.ext.runtimedelegate.create.JAXRSClientIT#checkCreatedVariantListBuilderTest"
+        } else if (testClass == ee.jakarta.tck.ws.rs.api.rs.core.variantlistbuilder.JAXRSClientIT.class || Set.of(
+            "ee.jakarta.tck.ws.rs.api.rs.ext.runtimedelegate.create.JAXRSClientIT#checkCreatedVariantListBuilderTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.variant.JAXRSClientIT#encodingsTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.variant.JAXRSClientIT#languagesTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.variant.JAXRSClientIT#mediaTypesTest"
         ).contains(id)) {
             return ConditionEvaluationResult.disabled("createVariantListBuilder"); // TODO
         } else if (testClass == ee.jakarta.tck.ws.rs.ee.rs.headerparam.JAXRSClientIT.class ||
@@ -112,66 +109,62 @@ public class FilterExtension implements ExecutionCondition {
             testClass == ee.jakarta.tck.ws.rs.ee.rs.cookieparam.JAXRSClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.spec.provider.reader.JAXRSClientIT.class) {
             return ConditionEvaluationResult.disabled("request-scoped bean fields");
-        } else if ((testClass == ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT.class && Arrays.asList(
-            "readEntityFromBodyTest",
-            "readEntityFromHeaderTest",
-            "writeBodyEntityUsingWriterTest",
-            "writeHeaderEntityUsingWriterTest",
-            "isRegisteredMessageBodyReaderWildcardTest",
-            "isRegisteredMessageBodyWriterXmlTest",
-            "isRegisteredMessageBodReaderXmlTest",
-            "isRegisteredMessageBodyWriterWildcardTest",
-            "writeIOExceptionUsingWriterTest",
-            "readEntityIOExceptionTest",
-            "readEntityWebException410Test"
-        ).contains(testMethodName)) || Set.of(
+        } else if (Set.of(
+            "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#readEntityFromBodyTest",
+            "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#readEntityFromHeaderTest",
+            "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#writeBodyEntityUsingWriterTest",
+            "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#writeHeaderEntityUsingWriterTest",
+            "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#isRegisteredMessageBodyReaderWildcardTest",
+            "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#isRegisteredMessageBodyWriterXmlTest",
+            "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#isRegisteredMessageBodReaderXmlTest",
+            "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#isRegisteredMessageBodyWriterWildcardTest",
+            "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#writeIOExceptionUsingWriterTest",
+            "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#readEntityIOExceptionTest",
+            "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#readEntityWebException410Test",
             "ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#mesageBodyWriterProducesTest",
             "ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT#bodyWriterTest",
             "ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT#bodyReaderTest"
         ).contains(id) ||
             testClass == ee.jakarta.tck.ws.rs.spec.provider.overridestandard.JAXRSClientIT.class) {
             return ConditionEvaluationResult.disabled("body reader/writer");
-        } else if ((testClass == ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT.class && Objects.equals("writeIOExceptionWithoutWriterTest", testMethodName)) ||
-            testClass == ee.jakarta.tck.ws.rs.ee.resource.webappexception.defaultmapper.DefaultExceptionMapperIT.class ||
-            Set.of(
-                "ee.jakarta.tck.ws.rs.spec.provider.exceptionmapper.JAXRSClientIT#throwableTest",
-                "ee.jakarta.tck.ws.rs.spec.provider.exceptionmapper.JAXRSClientIT#clientErrorExceptionTest",
-                "ee.jakarta.tck.ws.rs.spec.provider.exceptionmapper.JAXRSClientIT#filterChainTest",
-                "ee.jakarta.tck.ws.rs.spec.provider.exceptionmapper.JAXRSClientIT#exceptionTest",
-                "ee.jakarta.tck.ws.rs.spec.provider.exceptionmapper.JAXRSClientIT#runtimeExceptionTest",
-                "ee.jakarta.tck.ws.rs.spec.provider.exceptionmapper.JAXRSClientIT#webapplicationExceptionTest",
-                "ee.jakarta.tck.ws.rs.jaxrs21.ee.priority.JAXRSClientIT#exceptionMapperPriorityTest",
-                "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#statusOkResponseTest",
-                "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#throwUncheckedExceptionTest",
-                "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#throwableIntOkResponseTest",
-                "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#throwableOkResponseTest",
-                "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#statusIntOkResponseTest",
-                "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#throwableResponseTest",
-                "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#noResponseTest",
-                "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#webApplicationExceptionHasResponseWithoutEntityDoesUseMapperTest",
-                "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#okResponseTest",
-                "ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT#exceptionMapperTest",
-                "ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#slashWrongUriTest",
-                "ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#requestNotSupportedOnResourceTest",
-                "ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesOnResourceTest",
-                "ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#requestNotSupportedOnSubResourceTest",
-                "ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#locatorNameTooLongTest",
-                "ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#methodNotFoundTest",
-                "ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#consumesOnResourceTest"
+        } else if (testClass == ee.jakarta.tck.ws.rs.ee.resource.webappexception.defaultmapper.DefaultExceptionMapperIT.class || Set.of(
+            "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#writeIOExceptionWithoutWriterTest",
+            "ee.jakarta.tck.ws.rs.spec.provider.exceptionmapper.JAXRSClientIT#throwableTest",
+            "ee.jakarta.tck.ws.rs.spec.provider.exceptionmapper.JAXRSClientIT#clientErrorExceptionTest",
+            "ee.jakarta.tck.ws.rs.spec.provider.exceptionmapper.JAXRSClientIT#filterChainTest",
+            "ee.jakarta.tck.ws.rs.spec.provider.exceptionmapper.JAXRSClientIT#exceptionTest",
+            "ee.jakarta.tck.ws.rs.spec.provider.exceptionmapper.JAXRSClientIT#runtimeExceptionTest",
+            "ee.jakarta.tck.ws.rs.spec.provider.exceptionmapper.JAXRSClientIT#webapplicationExceptionTest",
+            "ee.jakarta.tck.ws.rs.jaxrs21.ee.priority.JAXRSClientIT#exceptionMapperPriorityTest",
+            "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#statusOkResponseTest",
+            "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#throwUncheckedExceptionTest",
+            "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#throwableIntOkResponseTest",
+            "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#throwableOkResponseTest",
+            "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#statusIntOkResponseTest",
+            "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#throwableResponseTest",
+            "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#noResponseTest",
+            "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#webApplicationExceptionHasResponseWithoutEntityDoesUseMapperTest",
+            "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#okResponseTest",
+            "ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT#exceptionMapperTest",
+            "ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#slashWrongUriTest",
+            "ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#requestNotSupportedOnResourceTest",
+            "ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesOnResourceTest",
+            "ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#requestNotSupportedOnSubResourceTest",
+            "ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#locatorNameTooLongTest",
+            "ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#methodNotFoundTest",
+            "ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#consumesOnResourceTest"
             ).contains(id)) {
             return ConditionEvaluationResult.disabled("exception mappers");
-        } else if ((testClass == ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT.class && Arrays.asList(
-            "isRegisteredAppJsonContextResolverTest",
-            "isRegisteredTextPlainContextResolverTest"
-        ).contains(testMethodName)) || Set.of(
+        } else if (Set.of(
+            "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#isRegisteredAppJsonContextResolverTest",
+            "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#isRegisteredTextPlainContextResolverTest",
             "ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT#contextResolverTest"
         ).contains(id)) {
             return ConditionEvaluationResult.disabled("getContext");
-        } else if ((testClass == ee.jakarta.tck.ws.rs.api.rs.core.link.JAXRSClientIT.class && Arrays.asList(
-            "fromMethodTest",
-            "fromResourceTest",
-            "fromResourceWithMediaTypeTest"
-        ).contains(testMethodName)) || Set.of(
+        } else if (Set.of(
+            "ee.jakarta.tck.ws.rs.api.rs.core.link.JAXRSClientIT#fromMethodTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.link.JAXRSClientIT#fromResourceTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.link.JAXRSClientIT#fromResourceWithMediaTypeTest",
             "ee.jakarta.tck.ws.rs.uribuilder.UriBuilderIT#emptyUriBuilderBuildsEmptyUri",
             "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#fragmentTest1",
             "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#queryParamTest4",
@@ -198,9 +191,8 @@ public class FilterExtension implements ExecutionCondition {
             "ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesOverridesDescendantSubResourcePathValuePostTest"
         ).contains(id)) {
             return ConditionEvaluationResult.disabled("matching weirdness");
-        } else if ((testClass == ee.jakarta.tck.ws.rs.api.rs.core.link.JAXRSClientIT.class && Arrays.asList(
-            "fromPathWithUriTemplateParamsTest"
-        ).contains(testMethodName)) || Set.of(
+        } else if (Set.of(
+            "ee.jakarta.tck.ws.rs.api.rs.core.link.JAXRSClientIT#fromPathWithUriTemplateParamsTest",
             "ee.jakarta.tck.ws.rs.api.rs.core.linkbuilder.JAXRSClientIT#buildRelativizedThrowsIAEWhenNotSuppliedValuesTest",
             "ee.jakarta.tck.ws.rs.api.rs.core.linkbuilder.JAXRSClientIT#buildObjectsTest",
             "ee.jakarta.tck.ws.rs.api.rs.core.linkbuilder.JAXRSClientIT#buildRelativizedThrowsIAEWhenSuppliedJustOneValueOutOfThreeTest",
@@ -263,10 +255,9 @@ public class FilterExtension implements ExecutionCondition {
             "variantTest"
         ).contains(testMethodName))) {
             return ConditionEvaluationResult.disabled("getLinkBuilder, VariantListBuilder");
-        } else if ((testClass == ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT.class && Arrays.asList(
-            "cookieTest",
-            "getCookiesTest"
-        ).contains(testMethodName)) || Set.of(
+        } else if (Set.of(
+            "ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#cookieTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#getCookiesTest",
             "ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT#cookieTest",
             "ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT#getCookiesTest"
         ).contains(id)) {
