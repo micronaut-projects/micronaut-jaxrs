@@ -71,12 +71,27 @@ class JaxRsResponse extends Response implements HttpResponseProvider {
 
     @Override
     public int getStatus() {
-        return response.status().getCode();
+        return response.code();
     }
 
     @Override
     public StatusType getStatusInfo() {
-        return Status.valueOf(response.status().name());
+        return new StatusType() {
+            @Override
+            public int getStatusCode() {
+                return getStatus();
+            }
+
+            @Override
+            public Status.Family getFamily() {
+                return Status.Family.familyOf(getStatusCode());
+            }
+
+            @Override
+            public String getReasonPhrase() {
+                return response.reason();
+            }
+        };
     }
 
     @Override

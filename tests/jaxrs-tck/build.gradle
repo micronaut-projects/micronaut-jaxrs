@@ -36,6 +36,7 @@ dependencies {
 def methodsTest = tasks.register('methodsTest', Test) {
     scanForTestClasses false
     useJUnitPlatform {
+        scanForTestClasses false
         systemProperties = [
                 'validation.provider': 'io.micronaut.validation.tck.runtime.TckValidationProvider'
         ]

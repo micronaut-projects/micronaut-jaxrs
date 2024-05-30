@@ -122,6 +122,12 @@ public class FilterExtension implements ExecutionCondition {
         } else if ((testClass == ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT.class && Objects.equals("writeIOExceptionWithoutWriterTest", testMethodName)) ||
             testClass == ee.jakarta.tck.ws.rs.ee.resource.webappexception.defaultmapper.DefaultExceptionMapperIT.class ||
             Set.of(
+                "ee.jakarta.tck.ws.rs.spec.provider.exceptionmapper.JAXRSClientIT#throwableTest",
+                "ee.jakarta.tck.ws.rs.spec.provider.exceptionmapper.JAXRSClientIT#clientErrorExceptionTest",
+                "ee.jakarta.tck.ws.rs.spec.provider.exceptionmapper.JAXRSClientIT#filterChainTest",
+                "ee.jakarta.tck.ws.rs.spec.provider.exceptionmapper.JAXRSClientIT#exceptionTest",
+                "ee.jakarta.tck.ws.rs.spec.provider.exceptionmapper.JAXRSClientIT#runtimeExceptionTest",
+                "ee.jakarta.tck.ws.rs.spec.provider.exceptionmapper.JAXRSClientIT#webapplicationExceptionTest",
                 "ee.jakarta.tck.ws.rs.jaxrs21.ee.priority.JAXRSClientIT#exceptionMapperPriorityTest",
                 "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#statusOkResponseTest",
                 "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#throwUncheckedExceptionTest",
@@ -383,7 +389,6 @@ public class FilterExtension implements ExecutionCondition {
             testClass == ee.jakarta.tck.ws.rs.api.rs.core.cachecontrol.JAXRSClientIT.class && testMethodName.equals("valueOfTest1") ||
             testClass == ee.jakarta.tck.ws.rs.spec.template.JAXRSClientIT.class && (testMethodName.equals("Test1") || testMethodName.equals("Test2")) ||
             testClass == ee.jakarta.tck.ws.rs.spec.provider.jaxbcontext.JAXRSClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.spec.provider.exceptionmapper.JAXRSClientIT.class ||
             (testClass == ee.jakarta.tck.ws.rs.api.rs.core.linkbuilder.JAXRSClientIT.class && Arrays.asList(
                 "buildRelativizedThrowsIAEWhenNotSuppliedValuesTest",
                 "buildObjectsTest",

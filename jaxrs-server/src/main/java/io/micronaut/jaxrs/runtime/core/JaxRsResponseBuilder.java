@@ -72,7 +72,7 @@ public class JaxRsResponseBuilder extends Response.ResponseBuilder {
 
     @Override
     public Response.ResponseBuilder status(int status, String reasonPhrase) {
-        response.status(HttpStatus.valueOf(status), reasonPhrase);
+        response.status(status, reasonPhrase);
         return this;
     }
 
