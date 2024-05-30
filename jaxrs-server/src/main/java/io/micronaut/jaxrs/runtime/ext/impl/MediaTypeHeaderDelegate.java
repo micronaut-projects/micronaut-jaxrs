@@ -16,7 +16,6 @@
 package io.micronaut.jaxrs.runtime.ext.impl;
 
 import io.micronaut.core.annotation.Internal;
-import io.micronaut.core.util.ArgumentUtils;
 import io.micronaut.core.util.clhm.ConcurrentLinkedHashMap;
 import io.micronaut.jaxrs.runtime.core.ParameterParser;
 import jakarta.ws.rs.core.MediaType;
@@ -46,15 +45,13 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Ob
 
     @Override
     public Object fromString(String type) throws IllegalArgumentException {
-        if (type == null) {
-            ArgumentUtils.requireNonNull("type", type);
-        }
+        JaxRsArgumentUtils.requireNonNull("type", type);
         return parse(type);
     }
 
     @Override
     public String toString(Object o) {
-        ArgumentUtils.requireNonNull("o", o);
+        JaxRsArgumentUtils.requireNonNull("o", o);
 
         MediaType type = (MediaType) o;
         String result = REVERSE_MAP.get(type);

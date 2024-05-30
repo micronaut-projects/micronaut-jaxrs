@@ -64,6 +64,7 @@ public class FilterExtension implements ExecutionCondition {
             testClass == ee.jakarta.tck.ws.rs.api.client.webtarget.JAXRSClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.api.client.invocation.JAXRSClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.jaxrs21.ee.client.executor.rx.JAXRSClientIT.class ||
+            testClass == ee.jakarta.tck.ws.rs.spec.client.exceptions.ClientExceptionsIT.class ||
             (testClass == ee.jakarta.tck.ws.rs.api.rs.core.link.JAXRSClientIT.class && "fromResourceMethodLinkUsedInInvocationTest".equals(testMethodName))) {
             return CLIENT;
         } else if (testClass == ee.jakarta.tck.ws.rs.spec.resource.annotationprecedence.subclass.JAXRSClientIT.class ||
@@ -92,7 +93,10 @@ public class FilterExtension implements ExecutionCondition {
             testClass == ee.jakarta.tck.ws.rs.ee.rs.ext.interceptor.containerreader.readerinterceptorcontext.JAXRSClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.ee.rs.ext.interceptor.containerwriter.interceptorcontext.JAXRSClientIT.class) {
             return ConditionEvaluationResult.disabled("enum as beans"); // TODO
-        } else if (testClass == ee.jakarta.tck.ws.rs.api.rs.core.variant.JAXRSClientIT.class && Arrays.asList("encodingsTest", "languagesTest", "mediaTypesTest").contains(testMethodName)) {
+        } else if ((testClass == ee.jakarta.tck.ws.rs.api.rs.core.variant.JAXRSClientIT.class && Arrays.asList("encodingsTest", "languagesTest", "mediaTypesTest").contains(testMethodName)) ||
+            testClass == ee.jakarta.tck.ws.rs.api.rs.core.variantlistbuilder.JAXRSClientIT.class || Set.of(
+                "ee.jakarta.tck.ws.rs.api.rs.ext.runtimedelegate.create.JAXRSClientIT#checkCreatedVariantListBuilderTest"
+        ).contains(id)) {
             return ConditionEvaluationResult.disabled("createVariantListBuilder"); // TODO
         } else if (testClass == ee.jakarta.tck.ws.rs.ee.rs.headerparam.JAXRSClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.spec.resource.locator.JAXRSClientIT.class ||
@@ -100,6 +104,12 @@ public class FilterExtension implements ExecutionCondition {
             testClass == ee.jakarta.tck.ws.rs.ee.rs.cookieparam.sub.JAXRSSubClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.ee.rs.queryparam.sub.JAXRSSubClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT.class ||
+            testClass == ee.jakarta.tck.ws.rs.ee.rs.pathparam.sub.JAXRSSubClientIT.class ||
+            testClass == ee.jakarta.tck.ws.rs.ee.rs.cookieparam.locator.JAXRSLocatorClientIT.class ||
+            testClass == ee.jakarta.tck.ws.rs.ee.rs.pathparam.locator.JAXRSLocatorClientIT.class ||
+            testClass == ee.jakarta.tck.ws.rs.ee.rs.headerparam.locator.JAXRSLocatorClientIT.class ||
+            testClass == ee.jakarta.tck.ws.rs.ee.rs.queryparam.JAXRSClientIT.class ||
+            testClass == ee.jakarta.tck.ws.rs.ee.rs.cookieparam.JAXRSClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.spec.provider.reader.JAXRSClientIT.class) {
             return ConditionEvaluationResult.disabled("request-scoped bean fields");
         } else if ((testClass == ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT.class && Arrays.asList(
@@ -115,9 +125,11 @@ public class FilterExtension implements ExecutionCondition {
             "readEntityIOExceptionTest",
             "readEntityWebException410Test"
         ).contains(testMethodName)) || Set.of(
+            "ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#mesageBodyWriterProducesTest",
             "ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT#bodyWriterTest",
             "ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT#bodyReaderTest"
-        ).contains(id)) {
+        ).contains(id) ||
+            testClass == ee.jakarta.tck.ws.rs.spec.provider.overridestandard.JAXRSClientIT.class) {
             return ConditionEvaluationResult.disabled("body reader/writer");
         } else if ((testClass == ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT.class && Objects.equals("writeIOExceptionWithoutWriterTest", testMethodName)) ||
             testClass == ee.jakarta.tck.ws.rs.ee.resource.webappexception.defaultmapper.DefaultExceptionMapperIT.class ||
@@ -189,6 +201,11 @@ public class FilterExtension implements ExecutionCondition {
         } else if ((testClass == ee.jakarta.tck.ws.rs.api.rs.core.link.JAXRSClientIT.class && Arrays.asList(
             "fromPathWithUriTemplateParamsTest"
         ).contains(testMethodName)) || Set.of(
+            "ee.jakarta.tck.ws.rs.api.rs.core.linkbuilder.JAXRSClientIT#buildRelativizedThrowsIAEWhenNotSuppliedValuesTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.linkbuilder.JAXRSClientIT#buildObjectsTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.linkbuilder.JAXRSClientIT#buildRelativizedThrowsIAEWhenSuppliedJustOneValueOutOfThreeTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.linkbuilder.JAXRSClientIT#buildRelativizedThrowsIAEWhenSuppliedValueIsNullTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.linkbuilder.JAXRSClientIT#buildThrowsIAEWhenSuppliedJustOneValueOutOfThreeTest",
             "ee.jakarta.tck.ws.rs.uribuilder.UriBuilderIT#shouldThrowIllegalArgumentExceptionForUnresolvedTemplates",
             "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplateStringObjectBooleanSlashNotEncodedTest",
             "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplatesMapThrowsIAEOnNullNameTest",
@@ -228,7 +245,8 @@ public class FilterExtension implements ExecutionCondition {
             "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#toTemplateTest"
         ).contains(id)) {
             return ConditionEvaluationResult.disabled("uri template");
-        } else if (testClass == ee.jakarta.tck.ws.rs.spec.provider.standardwithxmlbinding.JAXRSClientIT.class) {
+        } else if (testClass == ee.jakarta.tck.ws.rs.spec.provider.standardwithxmlbinding.JAXRSClientIT.class ||
+            testClass == ee.jakarta.tck.ws.rs.spec.provider.jaxbcontext.JAXRSClientIT.class) {
             return ConditionEvaluationResult.disabled("JAXB");
         } else if (((testClass == ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT.class || testClass == ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT.class) && Arrays.asList(
             "getLinkBuilderForTheRelationTest",
@@ -259,6 +277,9 @@ public class FilterExtension implements ExecutionCondition {
         ).contains(id)) {
             return ConditionEvaluationResult.disabled("duplicate ETAG (should be relatively easy)"); // todo
         } else if (Set.of(
+            "ee.jakarta.tck.ws.rs.api.rs.core.linkbuilder.JAXRSClientIT#buildObjectsThrowsUriBuilderExceptionTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.linkbuilder.JAXRSClientIT#buildNoArgsThrowsUriBuilderExceptionTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.linkbuilder.JAXRSClientIT#buildRelativizedThrowsUriBuilderExceptionTest",
             "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#uriStringTest",
             "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#schemeSpecificPartTest1",
             "ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#schemeSpecificPartTest",
@@ -352,9 +373,26 @@ public class FilterExtension implements ExecutionCondition {
         ).contains(id)) {
             return ConditionEvaluationResult.disabled("getCookies"); // todo
         } else if (Set.of(
+            "ee.jakarta.tck.ws.rs.servlet3.rs.core.streamingoutput.JAXRSClientIT#writeTest",
+            "ee.jakarta.tck.ws.rs.servlet3.rs.core.streamingoutput.JAXRSClientIT#writeWebApplicationExceptionTest"
+        ).contains(id)) {
+            return ConditionEvaluationResult.disabled("StreamingOutput"); // todo
+        } else if (Set.of(
+            "ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT#cloneTest",
+            "ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#cloneTest"
+        ).contains(id)) {
+            return ConditionEvaluationResult.disabled("ResponseBuilder.clone"); // todo
+        } else if (Set.of(
+            "ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#clientAnyPreferenceTest",
+            "ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#textPreferenceTest",
+            "ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#defaultResponseErrorTest",
+            "ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#clientImagePreferenceTest",
+            "ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#defaultErrorTest",
             "ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#qualityOfSourceOnDifferentMediaTypesTest",
             "ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#concreteOverStarWhenAcceptStarTest",
-            "ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesOverridesDescendantSubResourcePathValueWeightTest"
+            "ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesOverridesDescendantSubResourcePathValueWeightTest",
+            "ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#noPreferenceTest",
+            "ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#imagePreferenceTest"
         ).contains(id)) {
             return ConditionEvaluationResult.disabled("media type behavior");
         } else if (testClass == ee.jakarta.tck.ws.rs.jaxrs40.ee.rs.core.uriinfo.UriInfo40ClientIT.class) {
@@ -363,43 +401,60 @@ public class FilterExtension implements ExecutionCondition {
             return ConditionEvaluationResult.disabled("@Encoded");
         } else if (testClass == ee.jakarta.tck.ws.rs.servlet3.rs.applicationpath.JAXRSClientIT.class) {
             return ConditionEvaluationResult.disabled("encoded @ApplicationPath");
-        } else if (testClass == ee.jakarta.tck.ws.rs.api.client.entity.JAXRSClientIT.class && testMethodName.equals("entityStringThrowsExceptionWhenNullTest") || testClass == ee.jakarta.tck.ws.rs.api.rs.core.entitytag.JAXRSClientIT.class && testMethodName.equals("valueOfTest") || testClass == ee.jakarta.tck.ws.rs.api.rs.core.cookie.JAXRSClientIT.class && testMethodName.equals("parseTest3") || testClass == ee.jakarta.tck.ws.rs.api.rs.ext.runtimedelegate.create.JAXRSClientIT.class && Arrays.asList(
-            "createEndpointThrowsIllegalArgumentExceptionTest",
-            "createHeaderDelegateThrowsIllegalArgumentExceptionTest",
-            "checkCreatedHeaderDelegateNullPointerTest",
-            "checkCreatedVariantListBuilderTest"
-        ).contains(testMethodName) || testClass == ee.jakarta.tck.ws.rs.ee.rs.cookieparam.JAXRSClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.spec.resourceconstructor.JAXRSClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.spec.provider.sort.JAXRSClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT.class ||
-            (testClass == ee.jakarta.tck.ws.rs.api.rs.core.mediatype.JAXRSClientIT.class && testMethodName.equals("valueOfTest1")) ||
-            testClass == ee.jakarta.tck.ws.rs.servlet3.rs.core.streamingoutput.JAXRSClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.api.rs.core.variantlistbuilder.JAXRSClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.ee.rs.queryparam.JAXRSClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.ee.rs.headerparam.locator.JAXRSLocatorClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.spec.contextprovider.JsonbContextProviderIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.spec.provider.overridestandard.JAXRSClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.ee.rs.core.request.JAXRSClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.spec.client.exceptions.ClientExceptionsIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.ee.rs.core.securitycontext.basic.JAXRSBasicClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.ee.rs.pathparam.locator.JAXRSLocatorClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.ee.rs.cookieparam.locator.JAXRSLocatorClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.ee.rs.pathparam.sub.JAXRSSubClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.api.rs.core.cachecontrol.JAXRSClientIT.class && testMethodName.equals("valueOfTest1") ||
-            testClass == ee.jakarta.tck.ws.rs.spec.template.JAXRSClientIT.class && (testMethodName.equals("Test1") || testMethodName.equals("Test2")) ||
-            testClass == ee.jakarta.tck.ws.rs.spec.provider.jaxbcontext.JAXRSClientIT.class ||
-            (testClass == ee.jakarta.tck.ws.rs.api.rs.core.linkbuilder.JAXRSClientIT.class && Arrays.asList(
-                "buildRelativizedThrowsIAEWhenNotSuppliedValuesTest",
-                "buildObjectsTest",
-                "buildNoArgsThrowsUriBuilderExceptionTest",
-                "buildRelativizedThrowsUriBuilderExceptionTest",
-                "buildRelativizedThrowsIAEWhenSuppliedJustOneValueOutOfThreeTest",
-                "buildRelativizedThrowsIAEWhenSuppliedValueIsNullTest",
-                "buildThrowsIAEWhenSuppliedJustOneValueOutOfThreeTest",
-                "buildObjectsThrowsUriBuilderExceptionTest"
-            ).contains(testMethodName))) {
-            return INVESTIGATE;
+        } else if (testClass == ee.jakarta.tck.ws.rs.ee.rs.core.securitycontext.basic.JAXRSBasicClientIT.class) {
+            return ConditionEvaluationResult.disabled("security context test issues, probably just need a harness fix");
+        } else if (testClass == ee.jakarta.tck.ws.rs.ee.rs.core.request.JAXRSClientIT.class || Set.of(
+            "ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#clientHtmlXmlPreferenceTest"
+        ).contains(id)) {
+            return ConditionEvaluationResult.disabled("@Context on route method parameter");
+        } else if (Set.of(
+            "ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#classProducesTest"
+        ).contains(id)) {
+            return ConditionEvaluationResult.disabled("Content type in HEAD response, our behavior is fine");
+        } else if (Set.of(
+            "ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#getMatchedURIsTest",
+            "ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#getMatchedURIsTest1",
+            "ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#getMatchedURIsTest2",
+            "ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#getMatchedResourcesTest",
+            "ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#requestURITest",
+            "ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#aPathTest",
+            "ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#baseUriTest",
+            "ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#pathParamTest",
+            "ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#pathParamTest2",
+            "ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#pathParamTest1"
+        ).contains(id)) {
+            return ConditionEvaluationResult.disabled("UriInfo unsupported methods");
+        } else if (Set.of(
+            "ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#pathTest",
+            "ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#pathSegTest1",
+            "ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#pathSegTest2",
+            "ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#pathSegTest",
+            "ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#pathTest1",
+            "ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#pathTest2"
+        ).contains(id)) {
+            return ConditionEvaluationResult.disabled("UriInfo.getPath should exclude context path");
+        } else if (Set.of(
+            "ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#queryTest2"
+        ).contains(id)) {
+            return ConditionEvaluationResult.disabled("UriInfo decoding behavior");
+        } else if (Set.of(
+            "ee.jakarta.tck.ws.rs.spec.provider.sort.JAXRSClientIT#contentTypeTextXmlGotTextWildCardTest",
+            "ee.jakarta.tck.ws.rs.spec.provider.sort.JAXRSClientIT#contentTypeTextHmtlGotTextWildCardTest",
+            "ee.jakarta.tck.ws.rs.spec.provider.sort.JAXRSClientIT#contentTypeApplicationGotWildCardTest",
+            "ee.jakarta.tck.ws.rs.spec.provider.sort.JAXRSClientIT#contentTypeTextPlainGotTextPlainTest"
+        ).contains(id)) {
+            return ConditionEvaluationResult.disabled("StringBean");
+        } else if (Set.of(
+            "ee.jakarta.tck.ws.rs.spec.template.JAXRSClientIT#Test1",
+            "ee.jakarta.tck.ws.rs.spec.template.JAXRSClientIT#Test2"
+        ).contains(id)) {
+            return ConditionEvaluationResult.disabled("routing issues");
+        } else if (Set.of(
+            "ee.jakarta.tck.ws.rs.api.rs.ext.runtimedelegate.create.JAXRSClientIT#createEndpointThrowsIllegalArgumentExceptionTest"
+        ).contains(id)) {
+            return ConditionEvaluationResult.disabled("createEndpoint() unsupported");
+        } else if (testClass == ee.jakarta.tck.ws.rs.spec.contextprovider.JsonbContextProviderIT.class) {
+            return ConditionEvaluationResult.disabled("Arquillian issue, but test is likely broken anyway because we don't use jsonb");
         }
         return ConditionEvaluationResult.enabled(null);
     }

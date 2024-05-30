@@ -17,7 +17,6 @@ package io.micronaut.jaxrs.runtime.core;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.util.ArgumentUtils;
-import io.micronaut.http.HttpStatus;
 import io.micronaut.http.MutableHttpHeaders;
 import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.http.cookie.Cookie;
@@ -61,7 +60,7 @@ public class JaxRsResponseBuilder extends Response.ResponseBuilder {
 
     @Override
     public Response.ResponseBuilder clone() {
-        return new JaxRsResponseBuilder();
+        throw new UnsupportedOperationException();
     }
 
     @Override

@@ -39,7 +39,7 @@ class CacheControlDelegate implements RuntimeDelegate.HeaderDelegate<CacheContro
     @Override
     @SuppressWarnings("java:S3776")
     public CacheControl fromString(String value) throws IllegalArgumentException {
-        ArgumentUtils.requireNonNull("value", value);
+        JaxRsArgumentUtils.requireNonNull("value", value);
         CacheControl result = new CacheControl();
         result.setNoTransform(false);
 

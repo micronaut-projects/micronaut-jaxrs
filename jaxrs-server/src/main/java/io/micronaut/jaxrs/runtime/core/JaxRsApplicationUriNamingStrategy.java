@@ -32,7 +32,6 @@ import jakarta.ws.rs.ApplicationPath;
 import jakarta.ws.rs.core.Application;
 
 import java.net.URLDecoder;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
 /**
@@ -91,7 +90,7 @@ public class JaxRsApplicationUriNamingStrategy extends HyphenatedUriNamingStrate
     }
 
     private String normalizeContextPath(String contextPath) {
-        if (contextPath.charAt(0) != '/') {
+        if (!contextPath.startsWith("/")) {
             contextPath = '/' + contextPath;
         }
         if (contextPath.charAt(contextPath.length() - 1) == '/') {
