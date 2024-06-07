@@ -25,17 +25,21 @@ import io.micronaut.servlet.http.ServletHttpRequest;
 import jakarta.inject.Singleton;
 import jakarta.servlet.ServletContext;
 import jakarta.servlet.http.HttpServletRequest;
+
 import java.util.Collection;
 import java.util.Optional;
 
 /**
  * Extends and replaces the context annotation binder to support servlet types.
+ *
  * @param <T> The generic type.
+ * @author graemerocher
+ * @since 4.6.0
  */
 @Singleton
 @Replaces(ContextAnnotationBinder.class)
-public class ServletContextAnnotationBinder<T>
-    extends ContextAnnotationBinder<T> {
+public class ServletContextAnnotationBinder<T> extends ContextAnnotationBinder<T> {
+
     /**
      * Constructor to create a Context binder using all passed in argument binders.
      *
@@ -50,7 +54,7 @@ public class ServletContextAnnotationBinder<T>
     @Override
     public BindingResult<T> bind(ArgumentConversionContext<T> context, HttpRequest<?> source) {
         Class<T> type = context.getArgument().getType();
-        if (source instanceof ServletHttpRequest<?,?> servletHttpRequest) {
+        if (source instanceof ServletHttpRequest<?, ?> servletHttpRequest) {
             Object nativeRequest = servletHttpRequest.getNativeRequest();
             if (nativeRequest instanceof HttpServletRequest httpServletRequest) {
                 if (ServletContext.class.equals(type)) {

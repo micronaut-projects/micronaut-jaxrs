@@ -27,10 +27,17 @@ import io.micronaut.http.body.MessageBodyWriter;
 import io.micronaut.http.codec.CodecException;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.core.Response;
+
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.List;
 
+/**
+ * The JAX RS response body writer
+ *
+ * @author graemerocher
+ * @since 4.6.0
+ */
 @Singleton
 @Internal
 final class JaxRsMessageBodyWriter implements MessageBodyWriter<Response> {

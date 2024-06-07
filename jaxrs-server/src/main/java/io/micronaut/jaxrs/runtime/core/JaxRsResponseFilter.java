@@ -16,23 +16,9 @@
 package io.micronaut.jaxrs.runtime.core;
 
 import io.micronaut.core.annotation.Internal;
-import io.micronaut.core.annotation.Nullable;
-import io.micronaut.core.async.publisher.Publishers;
-import io.micronaut.core.io.Writable;
-import io.micronaut.http.HttpRequest;
 import io.micronaut.http.MutableHttpResponse;
-import io.micronaut.http.annotation.Filter;
 import io.micronaut.http.annotation.ResponseFilter;
 import io.micronaut.http.annotation.ServerFilter;
-import io.micronaut.http.filter.HttpServerFilter;
-import io.micronaut.http.filter.ServerFilterChain;
-import jakarta.ws.rs.core.StreamingOutput;
-import org.reactivestreams.Publisher;
-
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.Writer;
-import java.nio.charset.Charset;
 
 /**
  * A filter which retrieves the actual response from the returned JAX-RS Response object.
@@ -40,9 +26,9 @@ import java.nio.charset.Charset;
  * @author graemerocher
  * @since 1.0
  */
-//@ServerFilter("/**")
+@ServerFilter("/**")
 @Internal
-public class JaxRsResponseFilter {
+final class JaxRsResponseFilter {
 
     @ResponseFilter
     MutableHttpResponse<?> alterResponse(MutableHttpResponse<?> mutableHttpResponse) {
@@ -55,25 +41,6 @@ public class JaxRsResponseFilter {
                     jaxRsResponse.header(name, val);
                 }
             });
-
-            Object b = jaxRsResponse.body();
-            if (b instanceof JaxRsResponse unwrap) {
-                b = unwrap.getResponse().body();
-                jaxRsResponse.body(b);
-            }
-            if (b instanceof StreamingOutput s) {
-                jaxRsResponse.body(new Writable() {
-                    @Override
-                    public void writeTo(OutputStream outputStream, @Nullable Charset charset) throws IOException {
-                        s.write(outputStream);
-                    }
-
-                    @Override
-                    public void writeTo(Writer out) {
-                        // no-op - handled by OutputStream variant
-                    }
-                });
-            }
             return jaxRsResponse;
         }
         return mutableHttpResponse;
