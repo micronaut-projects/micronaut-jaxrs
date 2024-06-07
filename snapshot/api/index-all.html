@@ -85,6 +85,8 @@ loadScripts(document, 'script');</script>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/ext/bind/ContextAnnotationBinder.html#bind(io.micronaut.core.convert.ArgumentConversionContext,io.micronaut.http.HttpRequest)" class="member-name-link">bind(ArgumentConversionContext&lt;T&gt;, HttpRequest&lt;?&gt;)</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/ContextAnnotationBinder.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">ContextAnnotationBinder</a></dt>
 <dd>&nbsp;</dd>
+<dt><a href="io/micronaut/jaxrs/servlet/ServletContextAnnotationBinder.html#bind(io.micronaut.core.convert.ArgumentConversionContext,io.micronaut.http.HttpRequest)" class="member-name-link">bind(ArgumentConversionContext&lt;T&gt;, HttpRequest&lt;?&gt;)</a> - Method in class io.micronaut.jaxrs.servlet.<a href="io/micronaut/jaxrs/servlet/ServletContextAnnotationBinder.html" title="class in io.micronaut.jaxrs.servlet">ServletContextAnnotationBinder</a></dt>
+<dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/ext/impl/MicronautRuntimeDelegate.html#bootstrap(jakarta.ws.rs.core.Application,jakarta.ws.rs.SeBootstrap.Configuration)" class="member-name-link">bootstrap(Application, SeBootstrap.Configuration)</a> - Method in class io.micronaut.jaxrs.runtime.ext.impl.<a href="io/micronaut/jaxrs/runtime/ext/impl/MicronautRuntimeDelegate.html" title="class in io.micronaut.jaxrs.runtime.ext.impl">MicronautRuntimeDelegate</a></dt>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/ext/impl/MicronautRuntimeDelegate.html#bootstrap(java.lang.Class,jakarta.ws.rs.SeBootstrap.Configuration)" class="member-name-link">bootstrap(Class&lt;? extends Application&gt;, SeBootstrap.Configuration)</a> - Method in class io.micronaut.jaxrs.runtime.ext.impl.<a href="io/micronaut/jaxrs/runtime/ext/impl/MicronautRuntimeDelegate.html" title="class in io.micronaut.jaxrs.runtime.ext.impl">MicronautRuntimeDelegate</a></dt>
@@ -180,8 +182,6 @@ loadScripts(document, 'script');</script>
 <div class="block">Maps the JAX-RS <code>DELETE</code> annotation to Micronaut's version.</div>
 </dd>
 <dt><a href="io/micronaut/jaxrs/processor/DeleteAnnotationMapper.html#%3Cinit%3E()" class="member-name-link">DeleteAnnotationMapper()</a> - Constructor for class io.micronaut.jaxrs.processor.<a href="io/micronaut/jaxrs/processor/DeleteAnnotationMapper.html" title="class in io.micronaut.jaxrs.processor">DeleteAnnotationMapper</a></dt>
-<dd>&nbsp;</dd>
-<dt><a href="io/micronaut/jaxrs/runtime/core/JaxRsResponseFilter.html#doFilter(io.micronaut.http.HttpRequest,io.micronaut.http.filter.ServerFilterChain)" class="member-name-link">doFilter(HttpRequest&lt;?&gt;, ServerFilterChain)</a> - Method in class io.micronaut.jaxrs.runtime.core.<a href="io/micronaut/jaxrs/runtime/core/JaxRsResponseFilter.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsResponseFilter</a></dt>
 <dd>&nbsp;</dd>
 </dl>
 <h2 class="title" id="I:E">E</h2>
@@ -400,6 +400,8 @@ loadScripts(document, 'script');</script>
 </dd>
 <dt><a href="io/micronaut/jaxrs/security/bind/package-summary.html">io.micronaut.jaxrs.security.bind</a> - package io.micronaut.jaxrs.security.bind</dt>
 <dd>&nbsp;</dd>
+<dt><a href="io/micronaut/jaxrs/servlet/package-summary.html">io.micronaut.jaxrs.servlet</a> - package io.micronaut.jaxrs.servlet</dt>
+<dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/core/ParameterParser.html#isLowerCaseNames()" class="member-name-link">isLowerCaseNames()</a> - Method in class io.micronaut.jaxrs.runtime.core.<a href="io/micronaut/jaxrs/runtime/core/ParameterParser.html" title="class in io.micronaut.jaxrs.runtime.core">ParameterParser</a></dt>
 <dd>
 <div class="block">Returns <code>true</code> if parameter names are to be converted to lower
@@ -453,12 +455,6 @@ loadScripts(document, 'script');</script>
 <div class="block">Implementation of <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/core/Response.ResponseBuilder.html" title="class or interface in jakarta.ws.rs.core" class="external-link"><code>Response.ResponseBuilder</code></a> for Micronaut.</div>
 </dd>
 <dt><a href="io/micronaut/jaxrs/runtime/core/JaxRsResponseBuilder.html#%3Cinit%3E()" class="member-name-link">JaxRsResponseBuilder()</a> - Constructor for class io.micronaut.jaxrs.runtime.core.<a href="io/micronaut/jaxrs/runtime/core/JaxRsResponseBuilder.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsResponseBuilder</a></dt>
-<dd>&nbsp;</dd>
-<dt><a href="io/micronaut/jaxrs/runtime/core/JaxRsResponseFilter.html" class="type-name-link" title="class in io.micronaut.jaxrs.runtime.core">JaxRsResponseFilter</a> - Class in <a href="io/micronaut/jaxrs/runtime/core/package-summary.html">io.micronaut.jaxrs.runtime.core</a></dt>
-<dd>
-<div class="block">A filter which retrieves the actual response from the returned JAX-RS Response object.</div>
-</dd>
-<dt><a href="io/micronaut/jaxrs/runtime/core/JaxRsResponseFilter.html#%3Cinit%3E()" class="member-name-link">JaxRsResponseFilter()</a> - Constructor for class io.micronaut.jaxrs.runtime.core.<a href="io/micronaut/jaxrs/runtime/core/JaxRsResponseFilter.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsResponseFilter</a></dt>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/core/JaxRsRuntime.html" class="type-name-link" title="class in io.micronaut.jaxrs.runtime.core">JaxRsRuntime</a> - Class in <a href="io/micronaut/jaxrs/runtime/core/package-summary.html">io.micronaut.jaxrs.runtime.core</a></dt>
 <dd>
@@ -693,6 +689,14 @@ loadScripts(document, 'script');</script>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/core/JaxRsUriBuilder.html#segment(java.lang.String...)" class="member-name-link">segment(String...)</a> - Method in class io.micronaut.jaxrs.runtime.core.<a href="io/micronaut/jaxrs/runtime/core/JaxRsUriBuilder.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsUriBuilder</a></dt>
 <dd>&nbsp;</dd>
+<dt><a href="io/micronaut/jaxrs/servlet/ServletContextAnnotationBinder.html" class="type-name-link" title="class in io.micronaut.jaxrs.servlet">ServletContextAnnotationBinder</a>&lt;<a href="io/micronaut/jaxrs/servlet/ServletContextAnnotationBinder.html" title="type parameter in ServletContextAnnotationBinder">T</a>&gt; - Class in <a href="io/micronaut/jaxrs/servlet/package-summary.html">io.micronaut.jaxrs.servlet</a></dt>
+<dd>
+<div class="block">Extends and replaces the context annotation binder to support servlet types.</div>
+</dd>
+<dt><a href="io/micronaut/jaxrs/servlet/ServletContextAnnotationBinder.html#%3Cinit%3E(io.micronaut.context.BeanContext,java.util.Collection)" class="member-name-link">ServletContextAnnotationBinder(BeanContext, Collection&lt;TypedRequestArgumentBinder&lt;?&gt;&gt;)</a> - Constructor for class io.micronaut.jaxrs.servlet.<a href="io/micronaut/jaxrs/servlet/ServletContextAnnotationBinder.html" title="class in io.micronaut.jaxrs.servlet">ServletContextAnnotationBinder</a></dt>
+<dd>
+<div class="block">Constructor to create a Context binder using all passed in argument binders.</div>
+</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/core/ParameterParser.html#setAttribute(char%5B%5D,int,int,char,java.lang.String,java.lang.String)" class="member-name-link">setAttribute(char[], int, int, char, String, String)</a> - Method in class io.micronaut.jaxrs.runtime.core.<a href="io/micronaut/jaxrs/runtime/core/ParameterParser.html" title="class in io.micronaut.jaxrs.runtime.core">ParameterParser</a></dt>
 <dd>
 <div class="block">Takes string as-is and only changes the value of a specific attribute.</div>

@@ -4,3 +4,4 @@ io.micronaut.jaxrs.runtime.ext.bind
 io.micronaut.jaxrs.runtime.ext.convert
 io.micronaut.jaxrs.runtime.ext.impl
 io.micronaut.jaxrs.security.bind
+io.micronaut.jaxrs.servlet
