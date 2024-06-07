@@ -6,6 +6,7 @@ import io.micronaut.core.annotation.NonNull;
 import io.micronaut.core.async.publisher.Publishers;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpRequest;
+import io.micronaut.http.MediaType;
 import io.micronaut.http.MutableHttpRequest;
 import io.micronaut.http.client.HttpClient;
 import io.micronaut.http.client.annotation.Client;
@@ -17,6 +18,7 @@ import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
+import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.SecurityContext;
 import org.junit.jupiter.api.Test;
@@ -75,6 +77,7 @@ class SecureResource {
 
     @GET
     @Path("/")
+    @Produces(MediaType.APPLICATION_JSON) // TODO: implement backward compatibility
     public Map<String, String> test(
         @Context SecurityContext context,
         SecurityContext context2 // test with and without @Context

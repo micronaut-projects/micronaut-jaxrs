@@ -13,7 +13,7 @@ micronaut-serde = "2.10.0"
 micronaut-servlet = "4.9.1"
 micronaut-validation = "4.5.0"
 
-jakarta-jaxrs-tck = "4.0.0-SNAPSHOT"
+jakarta-jaxrs-tck = "4.0.0"
 
 [libraries]
 

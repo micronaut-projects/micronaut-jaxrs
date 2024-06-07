@@ -17,6 +17,7 @@ package io.micronaut.jaxrs.processor;
 
 import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.annotation.NextMajorVersion;
 import io.micronaut.core.annotation.NonNull;
 import io.micronaut.core.annotation.Nullable;
 import io.micronaut.core.bind.annotation.Bindable;
@@ -37,7 +38,6 @@ import io.micronaut.inject.ast.ParameterElement;
 import io.micronaut.inject.ast.TypedElement;
 import io.micronaut.inject.visitor.TypeElementVisitor;
 import io.micronaut.inject.visitor.VisitorContext;
-import io.micronaut.runtime.http.scope.RequestScope;
 import jakarta.ws.rs.BeanParam;
 import jakarta.ws.rs.CookieParam;
 import jakarta.ws.rs.Encoded;
@@ -49,6 +49,8 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.Cookie;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.SecurityContext;
 import jakarta.ws.rs.core.UriInfo;
 
@@ -71,6 +73,25 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     public static final int POSITION = 200;
     private static final Class<?>[] BINDABLE_TYPES = new Class<?>[]{Context.class, SecurityContext.class, UriInfo.class};
     private ClassElement currentClassElement;
+
+    private final List<Class<? extends Annotation>> JAX_RS_BINDING_ANNOTATIONS = List.of(
+        HeaderParam.class,
+        QueryParam.class,
+        FormParam.class,
+        MatrixParam.class,
+        PathParam.class,
+        CookieParam.class,
+        BeanParam.class
+    );
+
+    // Backwards compatibility
+    @NextMajorVersion("Allow only inject values annotated with @Context")
+    private final List<String> JAX_RS_BINDING_TYPES = Stream.of(
+        HttpHeaders.class,
+        Cookie.class,
+        SecurityContext.class,
+        UriInfo.class
+    ).map(Class::getName).toList();
 
     @Override
     public int getOrder() {
@@ -122,15 +143,9 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
                     }
                 }
                 visitParamOrField(parameter);
-                if (Stream.of(
-                    HeaderParam.class,
-                    QueryParam.class,
-                    FormParam.class,
-                    MatrixParam.class,
-                    PathParam.class,
-                    CookieParam.class,
-                    BeanParam.class
-                ).noneMatch(parameter::hasAnnotation)) {
+                String parameterTypeName = parameter.getType().getName();
+                if (JAX_RS_BINDING_ANNOTATIONS.stream().noneMatch(parameter::hasAnnotation)
+                    && JAX_RS_BINDING_TYPES.stream().noneMatch(cl -> cl.equals(parameterTypeName))) {
                     // unannotated, implicit @Body
                     parameter.annotate(Body.class);
                 }

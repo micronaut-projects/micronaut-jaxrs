@@ -5,7 +5,6 @@ plugins {
 
 repositories {
     mavenCentral()
-    mavenLocal() // todo: necessary for tck sources
 }
 
 dependencies {
@@ -26,11 +25,7 @@ dependencies {
     testImplementation 'org.slf4j:jul-to-slf4j:2.0.13'
     testRuntimeOnly(mnLogging.logback.classic)
 
-    testImplementation(libs.jakarta.jaxrs.tck.tests) {
-        artifact {
-            classifier = "sources"
-        }
-    }
+    testImplementation(files('jakarta-restful-ws-tck-4.0.0-SNAPSHOT-sources.jar'))
 }
 
 def methodsTest = tasks.register('methodsTest', Test) {

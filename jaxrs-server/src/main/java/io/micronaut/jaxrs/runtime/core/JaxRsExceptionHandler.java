@@ -17,8 +17,6 @@ package io.micronaut.jaxrs.runtime.core;
 
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
-import io.micronaut.http.HttpStatus;
-import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.http.annotation.Produces;
 import io.micronaut.http.server.exceptions.ExceptionHandler;
 import io.micronaut.http.server.exceptions.response.ErrorContext;
@@ -38,6 +36,7 @@ public class JaxRsExceptionHandler implements ExceptionHandler<WebApplicationExc
 
     /**
      * Constructor.
+     *
      * @param responseProcessor Error Response Processor
      */
     public JaxRsExceptionHandler(ErrorResponseProcessor<?> responseProcessor) {
@@ -46,6 +45,10 @@ public class JaxRsExceptionHandler implements ExceptionHandler<WebApplicationExc
 
     @Override
     public HttpResponse<?> handle(HttpRequest request, WebApplicationException exception) {
-        return ((JaxRsResponse) exception.getResponse()).getResponse();
+        JaxRsResponse response = (JaxRsResponse) exception.getResponse();
+        return responseProcessor.processResponse(ErrorContext.builder(request)
+            .errorMessage(exception.getMessage())
+            .cause(exception)
+            .build(), response.getResponse());
     }
 }

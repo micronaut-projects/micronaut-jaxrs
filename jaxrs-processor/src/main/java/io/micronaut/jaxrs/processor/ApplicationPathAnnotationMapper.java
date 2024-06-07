@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2024 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,32 +16,37 @@
 package io.micronaut.jaxrs.processor;
 
 import io.micronaut.core.annotation.AnnotationValue;
+import io.micronaut.core.annotation.AnnotationValueBuilder;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.NonNull;
+import io.micronaut.http.annotation.UriMapping;
 import io.micronaut.inject.annotation.NamedAnnotationMapper;
 import io.micronaut.inject.visitor.VisitorContext;
-import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 
 import java.lang.annotation.Annotation;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
 /**
- * Maps the JAX-RS {@code Context} annotation.
+ * Maps the JAX-RS {@code ApplicationPath} annotation turning the application class into a singleton.
  *
- * @author Jonas Konrad
+ * @author graemerocher
+ * @since 1.0.0
  */
 @Internal
-public class ContextMapper implements NamedAnnotationMapper {
-
+public class ApplicationPathAnnotationMapper implements NamedAnnotationMapper {
     @NonNull
     @Override
     public String getName() {
-        return "jakarta.ws.rs.core.Context";
+        return "jakarta.ws.rs.ApplicationPath";
     }
 
     @Override
     public List<AnnotationValue<?>> map(AnnotationValue<Annotation> annotation, VisitorContext visitorContext) {
-        return Collections.singletonList(AnnotationValue.builder(Inject.class).build());
+        return Collections.singletonList(
+            AnnotationValue.builder(Singleton.class).build()
+        );
     }
 }

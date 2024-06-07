@@ -42,7 +42,6 @@ import java.nio.charset.StandardCharsets;
  */
 @Singleton
 @Requires(classes = RouteBuilder.UriNamingStrategy.class)
-@Requires(beans = Application.class)
 @Replaces(HyphenatedUriNamingStrategy.class)
 @Primary
 public class JaxRsApplicationUriNamingStrategy extends HyphenatedUriNamingStrategy {
@@ -55,13 +54,12 @@ public class JaxRsApplicationUriNamingStrategy extends HyphenatedUriNamingStrate
      * @param beanContext The bean context
      */
     @Inject
-    public JaxRsApplicationUriNamingStrategy(BeanContext beanContext, @Value("${micronaut.server.context-path}") @Nullable String contextPath) {
+    public JaxRsApplicationUriNamingStrategy(BeanContext beanContext,
+                                             @Value("${micronaut.server.context-path}") @Nullable String contextPath) {
         super(contextPath);
-        this.contextPath = normalizeContextPath(
-            URLDecoder.decode(beanContext.getBeanDefinition(Application.class)
-                .stringValue(ApplicationPath.class)
-                .orElse("/"), StandardCharsets.UTF_8)
-        );
+        this.contextPath = normalizeContextPath(beanContext.findBeanDefinition(Application.class).flatMap(bd -> bd.stringValue(ApplicationPath.class))
+            .map(path -> URLDecoder.decode(path, StandardCharsets.UTF_8))
+            .orElse("/"));
     }
 
     @Deprecated
