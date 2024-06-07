@@ -69,9 +69,10 @@ public class ContextAnnotationBinder<T> implements AnnotatedRequestArgumentBinde
     @Override
     public BindingResult<T> bind(ArgumentConversionContext<T> context, HttpRequest<?> source) {
         Argument<T> argument = context.getArgument();
+        Class<T> javaType = argument.getType();
 
         //noinspection unchecked
-        TypedRequestArgumentBinder<T> binder = (TypedRequestArgumentBinder<T>) argBinders.get(argument.getType());
+        TypedRequestArgumentBinder<T> binder = (TypedRequestArgumentBinder<T>) argBinders.get(javaType);
         if (binder != null) {
             return binder.bind(context, source);
         }
