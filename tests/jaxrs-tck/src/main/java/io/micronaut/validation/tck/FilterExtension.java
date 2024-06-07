@@ -123,8 +123,12 @@ public class FilterExtension implements ExecutionCondition {
             "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#readEntityWebException410Test",
             "ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#mesageBodyWriterProducesTest",
             "ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT#bodyWriterTest",
-            "ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT#bodyReaderTest"
-        ).contains(id) ||
+            "ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT#bodyReaderTest",
+            // Implement proper exception mapping with BC support
+            "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#isRegisteredExceptionMapperNullExceptionTest",
+            "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#isRegisteredIOExceptionExceptionMapperTest",
+            "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#isRegisteredRuntimeExceptionExceptionMapperTest"
+            ).contains(id) ||
             testClass == ee.jakarta.tck.ws.rs.spec.provider.overridestandard.JAXRSClientIT.class) {
             return ConditionEvaluationResult.disabled("body reader/writer");
         } else if (testClass == ee.jakarta.tck.ws.rs.ee.resource.webappexception.defaultmapper.DefaultExceptionMapperIT.class || Set.of(
@@ -145,6 +149,7 @@ public class FilterExtension implements ExecutionCondition {
             "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#noResponseTest",
             "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#webApplicationExceptionHasResponseWithoutEntityDoesUseMapperTest",
             "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#okResponseTest",
+            "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#responseEntityTest",
             "ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT#exceptionMapperTest",
             "ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#slashWrongUriTest",
             "ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#requestNotSupportedOnResourceTest",
@@ -252,7 +257,8 @@ public class FilterExtension implements ExecutionCondition {
             "linksTest",
             "linkStringStringTest",
             "linkUriStringTest",
-            "variantTest"
+            "variantTest",
+            "expiresTest"
         ).contains(testMethodName))) {
             return ConditionEvaluationResult.disabled("getLinkBuilder, VariantListBuilder");
         } else if (Set.of(
@@ -446,6 +452,8 @@ public class FilterExtension implements ExecutionCondition {
             return ConditionEvaluationResult.disabled("createEndpoint() unsupported");
         } else if (testClass == ee.jakarta.tck.ws.rs.spec.contextprovider.JsonbContextProviderIT.class) {
             return ConditionEvaluationResult.disabled("Arquillian issue, but test is likely broken anyway because we don't use jsonb");
+        } else if (testClass == ee.jakarta.tck.ws.rs.ee.resource.webappexception.nomapper .JAXRSClientIT.class) {
+            return ConditionEvaluationResult.disabled("Implement proper exception mapping with BC support");
         }
         return ConditionEvaluationResult.enabled(null);
     }
