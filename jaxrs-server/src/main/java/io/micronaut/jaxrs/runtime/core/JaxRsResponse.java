@@ -60,7 +60,7 @@ import static jakarta.ws.rs.ext.RuntimeDelegate.getInstance;
  * @since 1.0.0
  */
 @Internal
-class JaxRsResponse extends Response implements HttpResponseProvider {
+final class JaxRsResponse extends Response implements HttpResponseProvider {
 
     private final MutableHttpResponse<Object> response = HttpResponse.ok();
     private boolean closed;
@@ -204,8 +204,8 @@ class JaxRsResponse extends Response implements HttpResponseProvider {
     @Override
     public URI getLocation() {
         return response.getHeaders()
-                    .getFirst(io.micronaut.http.HttpHeaders.LOCATION)
-                    .map(URI::create).orElse(null);
+            .getFirst(io.micronaut.http.HttpHeaders.LOCATION)
+            .map(URI::create).orElse(null);
     }
 
     @Override
@@ -247,7 +247,7 @@ class JaxRsResponse extends Response implements HttpResponseProvider {
         return response.getHeaders().getFirst(name).orElse(null);
     }
 
-    private static abstract class HeaderOrMetadataView<V> extends AbstractMap<String, List<V>> implements MultivaluedMap<String, V> {
+    private abstract static class HeaderOrMetadataView<V> extends AbstractMap<String, List<V>> implements MultivaluedMap<String, V> {
         private static final String ATTR_PREFIX = "jax-rs-metadata.";
         /**
          * This is the substitute for {@code null} keys to store inside {@link #attributes}. We use
@@ -286,7 +286,7 @@ class JaxRsResponse extends Response implements HttpResponseProvider {
         }
 
         /**
-         * Reverse operation of {@link #attrKey(String)}
+         * Reverse operation of {@link #attrKey(String)}.
          */
         @Nullable
         static String unAttrKey(@NonNull String key) {

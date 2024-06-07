@@ -30,6 +30,7 @@ import java.util.List;
  * Maps the JAX-RS {@code Context} annotation.
  *
  * @author Jonas Konrad
+ * @since 4.6.0
  */
 @Internal
 public class ContextMapper implements NamedAnnotationMapper {

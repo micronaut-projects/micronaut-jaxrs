@@ -52,6 +52,7 @@ public class JaxRsApplicationUriNamingStrategy extends HyphenatedUriNamingStrate
      * Constructs a new uri naming strategy for the given property.
      *
      * @param beanContext The bean context
+     * @param contextPath The context path
      */
     @Inject
     public JaxRsApplicationUriNamingStrategy(BeanContext beanContext,

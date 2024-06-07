@@ -25,13 +25,18 @@ import io.micronaut.http.body.DynamicMessageBodyWriter;
 import io.micronaut.http.body.MessageBodyHandlerRegistry;
 import io.micronaut.http.body.MessageBodyWriter;
 import io.micronaut.http.codec.CodecException;
-import jakarta.inject.Singleton;
 import jakarta.ws.rs.core.Response;
+
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.List;
 
-//@Singleton
+/**
+ * The JAX-RS {@link MessageBodyWriter}.
+ *
+ * @author Jonas Konrad
+ * @since 4.6.0
+ */
 @Internal
 final class JaxRsMessageBodyWriter implements MessageBodyWriter<Response> {
 
