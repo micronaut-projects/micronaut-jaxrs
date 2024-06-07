@@ -17,7 +17,6 @@ package io.micronaut.jaxrs.runtime.ext.impl;
 
 
 import io.micronaut.core.annotation.Internal;
-import io.micronaut.core.util.ArgumentUtils;
 import jakarta.ws.rs.core.EntityTag;
 import jakarta.ws.rs.ext.RuntimeDelegate;
 
@@ -33,7 +32,7 @@ final class EntityTagDelegate implements RuntimeDelegate.HeaderDelegate<EntityTa
 
     @Override
     public EntityTag fromString(String value) throws IllegalArgumentException {
-        ArgumentUtils.requireNonNull("value", value);
+        JaxRsArgumentUtils.requireNonNull("value", value);
         boolean weakTag = false;
         if (value.startsWith("W/")) {
             weakTag = true;

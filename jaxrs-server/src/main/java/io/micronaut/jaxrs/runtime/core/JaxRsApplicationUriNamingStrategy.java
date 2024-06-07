@@ -19,7 +19,9 @@ import io.micronaut.context.BeanContext;
 import io.micronaut.context.annotation.Primary;
 import io.micronaut.context.annotation.Replaces;
 import io.micronaut.context.annotation.Requires;
+import io.micronaut.context.annotation.Value;
 import io.micronaut.core.annotation.NonNull;
+import io.micronaut.core.annotation.Nullable;
 import io.micronaut.core.naming.conventions.PropertyConvention;
 import io.micronaut.inject.BeanDefinition;
 import io.micronaut.web.router.RouteBuilder;
@@ -29,6 +31,9 @@ import jakarta.inject.Singleton;
 import jakarta.ws.rs.ApplicationPath;
 import jakarta.ws.rs.core.Application;
 
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+
 /**
  * Configures a URI naming strategy based on the {@link ApplicationPath} annotation.
  *
@@ -37,7 +42,6 @@ import jakarta.ws.rs.core.Application;
  */
 @Singleton
 @Requires(classes = RouteBuilder.UriNamingStrategy.class)
-@Requires(beans = Application.class)
 @Replaces(HyphenatedUriNamingStrategy.class)
 @Primary
 public class JaxRsApplicationUriNamingStrategy extends HyphenatedUriNamingStrategy {
@@ -48,15 +52,20 @@ public class JaxRsApplicationUriNamingStrategy extends HyphenatedUriNamingStrate
      * Constructs a new uri naming strategy for the given property.
      *
      * @param beanContext The bean context
-     *
+     * @param contextPath The context path
      */
     @Inject
+    public JaxRsApplicationUriNamingStrategy(BeanContext beanContext,
+                                             @Value("${micronaut.server.context-path}") @Nullable String contextPath) {
+        super(contextPath);
+        this.contextPath = normalizeContextPath(beanContext.findBeanDefinition(Application.class).flatMap(bd -> bd.stringValue(ApplicationPath.class))
+            .map(path -> URLDecoder.decode(path, StandardCharsets.UTF_8))
+            .orElse("/"));
+    }
+
+    @Deprecated
     public JaxRsApplicationUriNamingStrategy(BeanContext beanContext) {
-        this.contextPath = normalizeContextPath(
-                beanContext.getBeanDefinition(Application.class)
-                    .stringValue(ApplicationPath.class)
-                    .orElse("/")
-        );
+        this(beanContext, null);
     }
 
     @Override
@@ -80,7 +89,7 @@ public class JaxRsApplicationUriNamingStrategy extends HyphenatedUriNamingStrate
     }
 
     private String normalizeContextPath(String contextPath) {
-        if (contextPath.charAt(0) != '/') {
+        if (!contextPath.startsWith("/")) {
             contextPath = '/' + contextPath;
         }
         if (contextPath.charAt(contextPath.length() - 1) == '/') {

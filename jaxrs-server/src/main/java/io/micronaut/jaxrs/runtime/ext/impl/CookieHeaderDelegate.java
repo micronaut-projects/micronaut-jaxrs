@@ -17,7 +17,6 @@ package io.micronaut.jaxrs.runtime.ext.impl;
 
 
 import io.micronaut.core.annotation.Internal;
-import io.micronaut.core.util.ArgumentUtils;
 import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.ext.RuntimeDelegate;
 
@@ -52,7 +51,7 @@ public final class CookieHeaderDelegate implements RuntimeDelegate.HeaderDelegat
      */
     @SuppressWarnings("java:S3776")
     public static List<Cookie> parseCookies(String cookieHeader) {
-        ArgumentUtils.requireNonNull("cookieHeader", cookieHeader);
+        JaxRsArgumentUtils.requireNonNull("cookieHeader", cookieHeader);
         try {
             List<Cookie> cookies = new ArrayList<>();
 

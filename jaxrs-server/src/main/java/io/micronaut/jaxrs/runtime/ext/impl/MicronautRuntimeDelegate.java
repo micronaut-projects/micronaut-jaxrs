@@ -79,11 +79,12 @@ public final class MicronautRuntimeDelegate extends RuntimeDelegate {
 
     @Override
     public <T> HeaderDelegate createHeaderDelegate(Class<T> type) throws IllegalArgumentException {
+        JaxRsArgumentUtils.requireNonNull("type", type);
         final HeaderDelegate<?> headerDelegate = HEADER_DELEGATES.get(type);
         if (headerDelegate != null) {
             return headerDelegate;
         }
-        throw new UnsupportedOperationException("Unsupported header type: " + type);
+        return null;
     }
 
     @Override

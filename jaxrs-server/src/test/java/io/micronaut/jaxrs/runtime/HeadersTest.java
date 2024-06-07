@@ -82,8 +82,8 @@ class HeadersTest {
 
     @Test
     void testNullMediaType() {
-        NullPointerException npe = assertThrows(NullPointerException.class, () -> MediaType.valueOf(null));
-        assertEquals("Argument [type] cannot be null", npe.getMessage());
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> MediaType.valueOf(null));
+        assertEquals("Argument [type] cannot be null", e.getMessage());
     }
 
     @Test

@@ -49,7 +49,7 @@ public class ConsumesMapper implements NamedAnnotationMapper {
 
         final AnnotationValueBuilder<Consumes> builder = AnnotationValue.builder(Consumes.class);
         if (annotation.stringValues().length > 0) {
-            builder.values(annotation.stringValues());
+            builder.values(ProducesMapper.splitMediaTypes(annotation.stringValues()));
         } else {
             builder.values(JAX_RS_DEFAULT_VALUE);
         }
