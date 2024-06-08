@@ -35,6 +35,7 @@ loadScripts(document, 'script');</script>
 <li><a href="package-summary.html">Package</a></li>
 <li class="nav-bar-cell1-rev">Class</li>
 <li><a href="package-tree.html">Tree</a></li>
+<li><a href="../../../../../deprecated-list.html">Deprecated</a></li>
 <li><a href="../../../../../index-all.html">Index</a></li>
 <li><a href="../../../../../help-doc.html#class">Help</a></li>
 </ul>
@@ -82,7 +83,7 @@ loadScripts(document, 'script');</script>
 </dl>
 <hr>
 <div class="type-signature"><span class="annotations">@Singleton
-<a href="https://docs.micronaut.io/latest/api/io/micronaut/context/annotation/Requires.html" title="class or interface in io.micronaut.context.annotation" class="external-link">@Requires</a>(<a href="https://docs.micronaut.io/latest/api/io/micronaut/context/annotation/Requires.html#classes()" title="class or interface in io.micronaut.context.annotation" class="external-link">classes</a>=<a href="https://docs.micronaut.io/latest/api/io/micronaut/web/router/RouteBuilder.UriNamingStrategy.html" title="class or interface in io.micronaut.web.router" class="external-link">io.micronaut.web.router.RouteBuilder.UriNamingStrategy.class</a>) <a href="https://docs.micronaut.io/latest/api/io/micronaut/context/annotation/Requires.html" title="class or interface in io.micronaut.context.annotation" class="external-link">@Requires</a>(<a href="https://docs.micronaut.io/latest/api/io/micronaut/context/annotation/Requires.html#beans()" title="class or interface in io.micronaut.context.annotation" class="external-link">beans</a>=<a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/core/Application.html" title="class or interface in jakarta.ws.rs.core" class="external-link">jakarta.ws.rs.core.Application.class</a>)
+<a href="https://docs.micronaut.io/latest/api/io/micronaut/context/annotation/Requires.html" title="class or interface in io.micronaut.context.annotation" class="external-link">@Requires</a>(<a href="https://docs.micronaut.io/latest/api/io/micronaut/context/annotation/Requires.html#classes()" title="class or interface in io.micronaut.context.annotation" class="external-link">classes</a>=<a href="https://docs.micronaut.io/latest/api/io/micronaut/web/router/RouteBuilder.UriNamingStrategy.html" title="class or interface in io.micronaut.web.router" class="external-link">io.micronaut.web.router.RouteBuilder.UriNamingStrategy.class</a>)
 <a href="https://docs.micronaut.io/latest/api/io/micronaut/context/annotation/Replaces.html" title="class or interface in io.micronaut.context.annotation" class="external-link">@Replaces</a>(<a href="https://docs.micronaut.io/latest/api/io/micronaut/web/router/naming/HyphenatedUriNamingStrategy.html" title="class or interface in io.micronaut.web.router.naming" class="external-link">io.micronaut.web.router.naming.HyphenatedUriNamingStrategy.class</a>)
 <a href="https://docs.micronaut.io/latest/api/io/micronaut/context/annotation/Primary.html" title="class or interface in io.micronaut.context.annotation" class="external-link">@Primary</a>
 </span><span class="modifiers">public class </span><span class="element-name type-name-label">JaxRsApplicationUriNamingStrategy</span>
@@ -107,6 +108,11 @@ loadScripts(document, 'script');</script>
 <div class="table-header col-last">Description</div>
 <div class="col-constructor-name even-row-color"><code><a href="#%3Cinit%3E(io.micronaut.context.BeanContext)" class="member-name-link">JaxRsApplicationUriNamingStrategy</a><wbr>(<a href="https://docs.micronaut.io/latest/api/io/micronaut/context/BeanContext.html" title="class or interface in io.micronaut.context" class="external-link">BeanContext</a>&nbsp;beanContext)</code></div>
 <div class="col-last even-row-color">
+<div class="block"><span class="deprecated-label">Deprecated.</span></div>
+</div>
+<div class="col-constructor-name odd-row-color"><code><a href="#%3Cinit%3E(io.micronaut.context.BeanContext,java.lang.String)" class="member-name-link">JaxRsApplicationUriNamingStrategy</a><wbr>(<a href="https://docs.micronaut.io/latest/api/io/micronaut/context/BeanContext.html" title="class or interface in io.micronaut.context" class="external-link">BeanContext</a>&nbsp;beanContext,
+ <a href="https://docs.micronaut.io/latest/api/io/micronaut/core/annotation/Nullable.html" title="class or interface in io.micronaut.core.annotation" class="external-link">@Nullable</a> <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html" title="class or interface in java.lang" class="external-link">String</a>&nbsp;contextPath)</code></div>
+<div class="col-last odd-row-color">
 <div class="block">Constructs a new uri naming strategy for the given property.</div>
 </div>
 </div>
@@ -157,15 +163,26 @@ loadScripts(document, 'script');</script>
 <h2>Constructor Details</h2>
 <ul class="member-list">
 <li>
-<section class="detail" id="&lt;init&gt;(io.micronaut.context.BeanContext)">
+<section class="detail" id="&lt;init&gt;(io.micronaut.context.BeanContext,java.lang.String)">
 <h3>JaxRsApplicationUriNamingStrategy</h3>
 <div class="member-signature"><span class="annotations">@Inject
-</span><span class="modifiers">public</span>&nbsp;<span class="element-name">JaxRsApplicationUriNamingStrategy</span><wbr><span class="parameters">(<a href="https://docs.micronaut.io/latest/api/io/micronaut/context/BeanContext.html" title="class or interface in io.micronaut.context" class="external-link">BeanContext</a>&nbsp;beanContext)</span></div>
+</span><span class="modifiers">public</span>&nbsp;<span class="element-name">JaxRsApplicationUriNamingStrategy</span><wbr><span class="parameters">(<a href="https://docs.micronaut.io/latest/api/io/micronaut/context/BeanContext.html" title="class or interface in io.micronaut.context" class="external-link">BeanContext</a>&nbsp;beanContext,
+ <a href="https://docs.micronaut.io/latest/api/io/micronaut/context/annotation/Value.html" title="class or interface in io.micronaut.context.annotation" class="external-link">@Value</a>("${micronaut.server.context-path}") <a href="https://docs.micronaut.io/latest/api/io/micronaut/core/annotation/Nullable.html" title="class or interface in io.micronaut.core.annotation" class="external-link">@Nullable</a>
+ <a href="https://docs.micronaut.io/latest/api/io/micronaut/core/annotation/Nullable.html" title="class or interface in io.micronaut.core.annotation" class="external-link">@Nullable</a> <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html" title="class or interface in java.lang" class="external-link">String</a>&nbsp;contextPath)</span></div>
 <div class="block">Constructs a new uri naming strategy for the given property.</div>
 <dl class="notes">
 <dt>Parameters:</dt>
 <dd><code>beanContext</code> - The bean context</dd>
+<dd><code>contextPath</code> - The context path</dd>
 </dl>
+</section>
+</li>
+<li>
+<section class="detail" id="&lt;init&gt;(io.micronaut.context.BeanContext)">
+<h3>JaxRsApplicationUriNamingStrategy</h3>
+<div class="member-signature"><span class="annotations"><a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Deprecated.html" title="class or interface in java.lang" class="external-link">@Deprecated</a>
+</span><span class="modifiers">public</span>&nbsp;<span class="element-name">JaxRsApplicationUriNamingStrategy</span><wbr><span class="parameters">(<a href="https://docs.micronaut.io/latest/api/io/micronaut/context/BeanContext.html" title="class or interface in io.micronaut.context" class="external-link">BeanContext</a>&nbsp;beanContext)</span></div>
+<div class="deprecation-block"><span class="deprecated-label">Deprecated.</span></div>
 </section>
 </li>
 </ul>

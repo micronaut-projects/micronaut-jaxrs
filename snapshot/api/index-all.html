@@ -31,6 +31,7 @@ loadScripts(document, 'script');</script>
 <li>Package</li>
 <li>Class</li>
 <li><a href="overview-tree.html">Tree</a></li>
+<li><a href="deprecated-list.html">Deprecated</a></li>
 <li class="nav-bar-cell1-rev">Index</li>
 <li><a href="help-doc.html#index">Help</a></li>
 </ul>
@@ -132,6 +133,12 @@ loadScripts(document, 'script');</script>
 <dd>
 <div class="block">Constructor to create a Context binder using all passed in argument binders.</div>
 </dd>
+<dt><a href="io/micronaut/jaxrs/processor/ContextMapper.html" class="type-name-link" title="class in io.micronaut.jaxrs.processor">ContextMapper</a> - Class in <a href="io/micronaut/jaxrs/processor/package-summary.html">io.micronaut.jaxrs.processor</a></dt>
+<dd>
+<div class="block">Maps the JAX-RS <code>Context</code> annotation.</div>
+</dd>
+<dt><a href="io/micronaut/jaxrs/processor/ContextMapper.html#%3Cinit%3E()" class="member-name-link">ContextMapper()</a> - Constructor for class io.micronaut.jaxrs.processor.<a href="io/micronaut/jaxrs/processor/ContextMapper.html" title="class in io.micronaut.jaxrs.processor">ContextMapper</a></dt>
+<dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/core/JaxRsResponseBuilder.html#cookie(jakarta.ws.rs.core.NewCookie...)" class="member-name-link">cookie(NewCookie...)</a> - Method in class io.micronaut.jaxrs.runtime.core.<a href="io/micronaut/jaxrs/runtime/core/JaxRsResponseBuilder.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsResponseBuilder</a></dt>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/ext/impl/CookieHeaderDelegate.html" class="type-name-link" title="class in io.micronaut.jaxrs.runtime.ext.impl">CookieHeaderDelegate</a> - Class in <a href="io/micronaut/jaxrs/runtime/ext/impl/package-summary.html">io.micronaut.jaxrs.runtime.ext.impl</a></dt>
@@ -240,9 +247,13 @@ loadScripts(document, 'script');</script>
 <div class="block">This operation is not supported currently,
  so <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/UnsupportedOperationException.html" title="class or interface in java.lang" class="external-link"><code>UnsupportedOperationException</code></a> is thrown for all invocations.</div>
 </dd>
+<dt><a href="io/micronaut/jaxrs/runtime/core/JaxRsProviders.html#getContextResolver(java.lang.Class,jakarta.ws.rs.core.MediaType)" class="member-name-link">getContextResolver(Class&lt;T&gt;, MediaType)</a> - Method in class io.micronaut.jaxrs.runtime.core.<a href="io/micronaut/jaxrs/runtime/core/JaxRsProviders.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsProviders</a></dt>
+<dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/ext/bind/JaxRsHttpHeaders.html#getCookies()" class="member-name-link">getCookies()</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/JaxRsHttpHeaders.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">JaxRsHttpHeaders</a></dt>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/ext/bind/JaxRsHttpHeaders.html#getDate()" class="member-name-link">getDate()</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/JaxRsHttpHeaders.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">JaxRsHttpHeaders</a></dt>
+<dd>&nbsp;</dd>
+<dt><a href="io/micronaut/jaxrs/runtime/core/JaxRsProviders.html#getExceptionMapper(java.lang.Class)" class="member-name-link">getExceptionMapper(Class&lt;T&gt;)</a> - Method in class io.micronaut.jaxrs.runtime.core.<a href="io/micronaut/jaxrs/runtime/core/JaxRsProviders.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsProviders</a></dt>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/ext/bind/JaxRsHttpHeaders.html#getHeaderString(java.lang.String)" class="member-name-link">getHeaderString(String)</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/JaxRsHttpHeaders.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">JaxRsHttpHeaders</a></dt>
 <dd>&nbsp;</dd>
@@ -267,9 +278,15 @@ loadScripts(document, 'script');</script>
 </dd>
 <dt><a href="io/micronaut/jaxrs/runtime/ext/bind/JaxRsHttpHeaders.html#getMediaType()" class="member-name-link">getMediaType()</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/JaxRsHttpHeaders.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">JaxRsHttpHeaders</a></dt>
 <dd>&nbsp;</dd>
+<dt><a href="io/micronaut/jaxrs/runtime/core/JaxRsProviders.html#getMessageBodyReader(java.lang.Class,java.lang.reflect.Type,java.lang.annotation.Annotation%5B%5D,jakarta.ws.rs.core.MediaType)" class="member-name-link">getMessageBodyReader(Class&lt;T&gt;, Type, Annotation[], MediaType)</a> - Method in class io.micronaut.jaxrs.runtime.core.<a href="io/micronaut/jaxrs/runtime/core/JaxRsProviders.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsProviders</a></dt>
+<dd>&nbsp;</dd>
+<dt><a href="io/micronaut/jaxrs/runtime/core/JaxRsProviders.html#getMessageBodyWriter(java.lang.Class,java.lang.reflect.Type,java.lang.annotation.Annotation%5B%5D,jakarta.ws.rs.core.MediaType)" class="member-name-link">getMessageBodyWriter(Class&lt;T&gt;, Type, Annotation[], MediaType)</a> - Method in class io.micronaut.jaxrs.runtime.core.<a href="io/micronaut/jaxrs/runtime/core/JaxRsProviders.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsProviders</a></dt>
+<dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/processor/ApplicationPathAnnotationMapper.html#getName()" class="member-name-link">getName()</a> - Method in class io.micronaut.jaxrs.processor.<a href="io/micronaut/jaxrs/processor/ApplicationPathAnnotationMapper.html" title="class in io.micronaut.jaxrs.processor">ApplicationPathAnnotationMapper</a></dt>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/processor/ConsumesMapper.html#getName()" class="member-name-link">getName()</a> - Method in class io.micronaut.jaxrs.processor.<a href="io/micronaut/jaxrs/processor/ConsumesMapper.html" title="class in io.micronaut.jaxrs.processor">ConsumesMapper</a></dt>
+<dd>&nbsp;</dd>
+<dt><a href="io/micronaut/jaxrs/processor/ContextMapper.html#getName()" class="member-name-link">getName()</a> - Method in class io.micronaut.jaxrs.processor.<a href="io/micronaut/jaxrs/processor/ContextMapper.html" title="class in io.micronaut.jaxrs.processor">ContextMapper</a></dt>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/processor/CookieParamMapper.html#getName()" class="member-name-link">getName()</a> - Method in class io.micronaut.jaxrs.processor.<a href="io/micronaut/jaxrs/processor/CookieParamMapper.html" title="class in io.micronaut.jaxrs.processor">CookieParamMapper</a></dt>
 <dd>&nbsp;</dd>
@@ -420,8 +437,18 @@ loadScripts(document, 'script');</script>
 </dd>
 <dt><a href="io/micronaut/jaxrs/runtime/core/JaxRsApplicationUriNamingStrategy.html#%3Cinit%3E(io.micronaut.context.BeanContext)" class="member-name-link">JaxRsApplicationUriNamingStrategy(BeanContext)</a> - Constructor for class io.micronaut.jaxrs.runtime.core.<a href="io/micronaut/jaxrs/runtime/core/JaxRsApplicationUriNamingStrategy.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsApplicationUriNamingStrategy</a></dt>
 <dd>
+<div class="deprecation-block"><span class="deprecated-label">Deprecated.</span></div>
+</dd>
+<dt><a href="io/micronaut/jaxrs/runtime/core/JaxRsApplicationUriNamingStrategy.html#%3Cinit%3E(io.micronaut.context.BeanContext,java.lang.String)" class="member-name-link">JaxRsApplicationUriNamingStrategy(BeanContext, String)</a> - Constructor for class io.micronaut.jaxrs.runtime.core.<a href="io/micronaut/jaxrs/runtime/core/JaxRsApplicationUriNamingStrategy.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsApplicationUriNamingStrategy</a></dt>
+<dd>
 <div class="block">Constructs a new uri naming strategy for the given property.</div>
 </dd>
+<dt><a href="io/micronaut/jaxrs/runtime/ext/impl/JaxRsArgumentUtils.html" class="type-name-link" title="class in io.micronaut.jaxrs.runtime.ext.impl">JaxRsArgumentUtils</a> - Class in <a href="io/micronaut/jaxrs/runtime/ext/impl/package-summary.html">io.micronaut.jaxrs.runtime.ext.impl</a></dt>
+<dd>
+<div class="block">Util class.</div>
+</dd>
+<dt><a href="io/micronaut/jaxrs/runtime/ext/impl/JaxRsArgumentUtils.html#%3Cinit%3E()" class="member-name-link">JaxRsArgumentUtils()</a> - Constructor for class io.micronaut.jaxrs.runtime.ext.impl.<a href="io/micronaut/jaxrs/runtime/ext/impl/JaxRsArgumentUtils.html" title="class in io.micronaut.jaxrs.runtime.ext.impl">JaxRsArgumentUtils</a></dt>
+<dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/ext/convert/JaxRsConverterRegistrar.html" class="type-name-link" title="class in io.micronaut.jaxrs.runtime.ext.convert">JaxRsConverterRegistrar</a> - Class in <a href="io/micronaut/jaxrs/runtime/ext/convert/package-summary.html">io.micronaut.jaxrs.runtime.ext.convert</a></dt>
 <dd>
 <div class="block">Registers JAX-RS converters.</div>
@@ -444,6 +471,12 @@ loadScripts(document, 'script');</script>
 <dd>
 <div class="block">Default constructor.</div>
 </dd>
+<dt><a href="io/micronaut/jaxrs/runtime/core/JaxRsProviders.html" class="type-name-link" title="class in io.micronaut.jaxrs.runtime.core">JaxRsProviders</a> - Class in <a href="io/micronaut/jaxrs/runtime/core/package-summary.html">io.micronaut.jaxrs.runtime.core</a></dt>
+<dd>
+<div class="block">The JAX-RS <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/ext/Providers.html" title="class or interface in jakarta.ws.rs.ext" class="external-link"><code>Providers</code></a>.</div>
+</dd>
+<dt><a href="io/micronaut/jaxrs/runtime/core/JaxRsProviders.html#%3Cinit%3E(io.micronaut.context.BeanContext)" class="member-name-link">JaxRsProviders(BeanContext)</a> - Constructor for class io.micronaut.jaxrs.runtime.core.<a href="io/micronaut/jaxrs/runtime/core/JaxRsProviders.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsProviders</a></dt>
+<dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/core/JaxRsResourceInfo.html" class="type-name-link" title="class in io.micronaut.jaxrs.runtime.core">JaxRsResourceInfo</a> - Class in <a href="io/micronaut/jaxrs/runtime/core/package-summary.html">io.micronaut.jaxrs.runtime.core</a></dt>
 <dd>
 <div class="block">A <a href="https://docs.micronaut.io/latest/api/io/micronaut/runtime/http/scope/RequestScope.html" title="class or interface in io.micronaut.runtime.http.scope" class="external-link"><code>RequestScope</code></a> bean implementing the JAX-RS ResourceInfo to access the resource class and resource method matched by the current request.</div>
@@ -501,6 +534,8 @@ loadScripts(document, 'script');</script>
 <dt><a href="io/micronaut/jaxrs/processor/ApplicationPathAnnotationMapper.html#map(io.micronaut.core.annotation.AnnotationValue,io.micronaut.inject.visitor.VisitorContext)" class="member-name-link">map(AnnotationValue&lt;Annotation&gt;, VisitorContext)</a> - Method in class io.micronaut.jaxrs.processor.<a href="io/micronaut/jaxrs/processor/ApplicationPathAnnotationMapper.html" title="class in io.micronaut.jaxrs.processor">ApplicationPathAnnotationMapper</a></dt>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/processor/ConsumesMapper.html#map(io.micronaut.core.annotation.AnnotationValue,io.micronaut.inject.visitor.VisitorContext)" class="member-name-link">map(AnnotationValue&lt;Annotation&gt;, VisitorContext)</a> - Method in class io.micronaut.jaxrs.processor.<a href="io/micronaut/jaxrs/processor/ConsumesMapper.html" title="class in io.micronaut.jaxrs.processor">ConsumesMapper</a></dt>
+<dd>&nbsp;</dd>
+<dt><a href="io/micronaut/jaxrs/processor/ContextMapper.html#map(io.micronaut.core.annotation.AnnotationValue,io.micronaut.inject.visitor.VisitorContext)" class="member-name-link">map(AnnotationValue&lt;Annotation&gt;, VisitorContext)</a> - Method in class io.micronaut.jaxrs.processor.<a href="io/micronaut/jaxrs/processor/ContextMapper.html" title="class in io.micronaut.jaxrs.processor">ContextMapper</a></dt>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/processor/CookieParamMapper.html#map(io.micronaut.core.annotation.AnnotationValue,io.micronaut.inject.visitor.VisitorContext)" class="member-name-link">map(AnnotationValue&lt;Annotation&gt;, VisitorContext)</a> - Method in class io.micronaut.jaxrs.processor.<a href="io/micronaut/jaxrs/processor/CookieParamMapper.html" title="class in io.micronaut.jaxrs.processor">CookieParamMapper</a></dt>
 <dd>&nbsp;</dd>
@@ -658,6 +693,8 @@ loadScripts(document, 'script');</script>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/core/JaxRsUriBuilder.html#replaceQueryParam(java.lang.String,java.lang.Object...)" class="member-name-link">replaceQueryParam(String, Object...)</a> - Method in class io.micronaut.jaxrs.runtime.core.<a href="io/micronaut/jaxrs/runtime/core/JaxRsUriBuilder.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsUriBuilder</a></dt>
 <dd>&nbsp;</dd>
+<dt><a href="io/micronaut/jaxrs/runtime/ext/impl/JaxRsArgumentUtils.html#requireNonNull(java.lang.String,T)" class="member-name-link">requireNonNull(String, T)</a> - Static method in class io.micronaut.jaxrs.runtime.ext.impl.<a href="io/micronaut/jaxrs/runtime/ext/impl/JaxRsArgumentUtils.html" title="class in io.micronaut.jaxrs.runtime.ext.impl">JaxRsArgumentUtils</a></dt>
+<dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html#resolve(java.net.URI)" class="member-name-link">resolve(URI)</a> - Method in class io.micronaut.jaxrs.runtime.ext.bind.<a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">UriInfoImpl</a></dt>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/runtime/core/JaxRsUriBuilder.html#resolveTemplate(java.lang.String,java.lang.Object)" class="member-name-link">resolveTemplate(String, Object)</a> - Method in class io.micronaut.jaxrs.runtime.core.<a href="io/micronaut/jaxrs/runtime/core/JaxRsUriBuilder.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsUriBuilder</a></dt>
@@ -781,6 +818,8 @@ loadScripts(document, 'script');</script>
 <dt><a href="io/micronaut/jaxrs/runtime/core/JaxRsResponseBuilder.html#variants(java.util.List)" class="member-name-link">variants(List&lt;Variant&gt;)</a> - Method in class io.micronaut.jaxrs.runtime.core.<a href="io/micronaut/jaxrs/runtime/core/JaxRsResponseBuilder.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsResponseBuilder</a></dt>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/processor/JaxRsTypeElementVisitor.html#visitClass(io.micronaut.inject.ast.ClassElement,io.micronaut.inject.visitor.VisitorContext)" class="member-name-link">visitClass(ClassElement, VisitorContext)</a> - Method in class io.micronaut.jaxrs.processor.<a href="io/micronaut/jaxrs/processor/JaxRsTypeElementVisitor.html" title="class in io.micronaut.jaxrs.processor">JaxRsTypeElementVisitor</a></dt>
+<dd>&nbsp;</dd>
+<dt><a href="io/micronaut/jaxrs/processor/JaxRsTypeElementVisitor.html#visitField(io.micronaut.inject.ast.FieldElement,io.micronaut.inject.visitor.VisitorContext)" class="member-name-link">visitField(FieldElement, VisitorContext)</a> - Method in class io.micronaut.jaxrs.processor.<a href="io/micronaut/jaxrs/processor/JaxRsTypeElementVisitor.html" title="class in io.micronaut.jaxrs.processor">JaxRsTypeElementVisitor</a></dt>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/jaxrs/processor/JaxRsTypeElementVisitor.html#visitMethod(io.micronaut.inject.ast.MethodElement,io.micronaut.inject.visitor.VisitorContext)" class="member-name-link">visitMethod(MethodElement, VisitorContext)</a> - Method in class io.micronaut.jaxrs.processor.<a href="io/micronaut/jaxrs/processor/JaxRsTypeElementVisitor.html" title="class in io.micronaut.jaxrs.processor">JaxRsTypeElementVisitor</a></dt>
 <dd>&nbsp;</dd>
