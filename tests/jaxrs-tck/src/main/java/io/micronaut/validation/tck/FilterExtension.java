@@ -20,6 +20,9 @@ public class FilterExtension implements ExecutionCondition {
         if (testClass == null) {
             return ConditionEvaluationResult.enabled("No test class or method");
         }
+//        if (testClass != ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT.class) {
+//            return CLIENT;
+//        }
         String id = testClass.getName() + "#" + testMethodName;
         if (testClass == ee.jakarta.tck.ws.rs.ee.rs.headerparam.sub.JAXRSSubClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.ee.rs.formparam.locator.JAXRSLocatorClientIT.class ||
@@ -396,8 +399,6 @@ public class FilterExtension implements ExecutionCondition {
             return ConditionEvaluationResult.disabled("path param issues");
         } else if (testClass == ee.jakarta.tck.ws.rs.ee.rs.formparam.JAXRSClientIT.class) {
             return ConditionEvaluationResult.disabled("@Encoded");
-        } else if (testClass == ee.jakarta.tck.ws.rs.servlet3.rs.applicationpath.JAXRSClientIT.class) {
-            return ConditionEvaluationResult.disabled("encoded @ApplicationPath");
         } else if (testClass == ee.jakarta.tck.ws.rs.ee.rs.core.securitycontext.basic.JAXRSBasicClientIT.class) {
             return ConditionEvaluationResult.disabled("security context test issues, probably just need a harness fix");
         } else if (testClass == ee.jakarta.tck.ws.rs.ee.rs.core.request.JAXRSClientIT.class || Set.of(
@@ -415,25 +416,9 @@ public class FilterExtension implements ExecutionCondition {
             "ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#getMatchedResourcesTest",
             "ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#requestURITest",
             "ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#aPathTest",
-            "ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#baseUriTest",
-            "ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#pathParamTest",
-            "ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#pathParamTest2",
-            "ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#pathParamTest1"
+            "ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#baseUriTest"
         ).contains(id)) {
             return ConditionEvaluationResult.disabled("UriInfo unsupported methods");
-        } else if (Set.of(
-            "ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#pathTest",
-            "ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#pathSegTest1",
-            "ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#pathSegTest2",
-            "ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#pathSegTest",
-            "ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#pathTest1",
-            "ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#pathTest2"
-        ).contains(id)) {
-            return ConditionEvaluationResult.disabled("UriInfo.getPath should exclude context path");
-        } else if (Set.of(
-            "ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#queryTest2"
-        ).contains(id)) {
-            return ConditionEvaluationResult.disabled("UriInfo decoding behavior");
         } else if (Set.of(
             "ee.jakarta.tck.ws.rs.spec.provider.sort.JAXRSClientIT#contentTypeTextXmlGotTextWildCardTest",
             "ee.jakarta.tck.ws.rs.spec.provider.sort.JAXRSClientIT#contentTypeTextHmtlGotTextWildCardTest",

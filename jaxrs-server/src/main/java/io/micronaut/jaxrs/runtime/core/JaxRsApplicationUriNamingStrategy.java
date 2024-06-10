@@ -29,10 +29,6 @@ import io.micronaut.web.router.naming.HyphenatedUriNamingStrategy;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.ApplicationPath;
-import jakarta.ws.rs.core.Application;
-
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 
 /**
  * Configures a URI naming strategy based on the {@link ApplicationPath} annotation.
@@ -48,19 +44,15 @@ public class JaxRsApplicationUriNamingStrategy extends HyphenatedUriNamingStrate
 
     private final String contextPath;
 
-    /**
-     * Constructs a new uri naming strategy for the given property.
-     *
-     * @param beanContext The bean context
-     * @param contextPath The context path
-     */
     @Inject
+    public JaxRsApplicationUriNamingStrategy(ApplicationPathProvider applicationPathProvider) {
+        this.contextPath = applicationPathProvider.getPath();
+    }
+
+    @Deprecated
     public JaxRsApplicationUriNamingStrategy(BeanContext beanContext,
                                              @Value("${micronaut.server.context-path}") @Nullable String contextPath) {
-        super(contextPath);
-        this.contextPath = normalizeContextPath(beanContext.findBeanDefinition(Application.class).flatMap(bd -> bd.stringValue(ApplicationPath.class))
-            .map(path -> URLDecoder.decode(path, StandardCharsets.UTF_8))
-            .orElse("/"));
+        this.contextPath = contextPath;
     }
 
     @Deprecated
@@ -88,14 +80,5 @@ public class JaxRsApplicationUriNamingStrategy extends HyphenatedUriNamingStrate
         return contextPath + super.resolveUri(type, id);
     }
 
-    private String normalizeContextPath(String contextPath) {
-        if (!contextPath.startsWith("/")) {
-            contextPath = '/' + contextPath;
-        }
-        if (contextPath.charAt(contextPath.length() - 1) == '/') {
-            contextPath = contextPath.substring(0, contextPath.length() - 1);
-        }
-        return contextPath;
-    }
 }
 
