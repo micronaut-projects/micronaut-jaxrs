@@ -113,8 +113,10 @@ loadScripts(document, 'script');</script>
 <div class="col-constructor-name odd-row-color"><code><a href="#%3Cinit%3E(io.micronaut.context.BeanContext,java.lang.String)" class="member-name-link">JaxRsApplicationUriNamingStrategy</a><wbr>(<a href="https://docs.micronaut.io/latest/api/io/micronaut/context/BeanContext.html" title="class or interface in io.micronaut.context" class="external-link">BeanContext</a>&nbsp;beanContext,
  <a href="https://docs.micronaut.io/latest/api/io/micronaut/core/annotation/Nullable.html" title="class or interface in io.micronaut.core.annotation" class="external-link">@Nullable</a> <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html" title="class or interface in java.lang" class="external-link">String</a>&nbsp;contextPath)</code></div>
 <div class="col-last odd-row-color">
-<div class="block">Constructs a new uri naming strategy for the given property.</div>
+<div class="block"><span class="deprecated-label">Deprecated.</span></div>
 </div>
+<div class="col-constructor-name even-row-color"><code><a href="#%3Cinit%3E(io.micronaut.jaxrs.runtime.core.ApplicationPathProvider)" class="member-name-link">JaxRsApplicationUriNamingStrategy</a><wbr>(<a href="ApplicationPathProvider.html" title="class in io.micronaut.jaxrs.runtime.core">ApplicationPathProvider</a>&nbsp;applicationPathProvider)</code></div>
+<div class="col-last even-row-color">&nbsp;</div>
 </div>
 </section>
 </li>
@@ -163,18 +165,20 @@ loadScripts(document, 'script');</script>
 <h2>Constructor Details</h2>
 <ul class="member-list">
 <li>
-<section class="detail" id="&lt;init&gt;(io.micronaut.context.BeanContext,java.lang.String)">
+<section class="detail" id="&lt;init&gt;(io.micronaut.jaxrs.runtime.core.ApplicationPathProvider)">
 <h3>JaxRsApplicationUriNamingStrategy</h3>
 <div class="member-signature"><span class="annotations">@Inject
+</span><span class="modifiers">public</span>&nbsp;<span class="element-name">JaxRsApplicationUriNamingStrategy</span><wbr><span class="parameters">(<a href="ApplicationPathProvider.html" title="class in io.micronaut.jaxrs.runtime.core">ApplicationPathProvider</a>&nbsp;applicationPathProvider)</span></div>
+</section>
+</li>
+<li>
+<section class="detail" id="&lt;init&gt;(io.micronaut.context.BeanContext,java.lang.String)">
+<h3>JaxRsApplicationUriNamingStrategy</h3>
+<div class="member-signature"><span class="annotations"><a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Deprecated.html" title="class or interface in java.lang" class="external-link">@Deprecated</a>
 </span><span class="modifiers">public</span>&nbsp;<span class="element-name">JaxRsApplicationUriNamingStrategy</span><wbr><span class="parameters">(<a href="https://docs.micronaut.io/latest/api/io/micronaut/context/BeanContext.html" title="class or interface in io.micronaut.context" class="external-link">BeanContext</a>&nbsp;beanContext,
  <a href="https://docs.micronaut.io/latest/api/io/micronaut/context/annotation/Value.html" title="class or interface in io.micronaut.context.annotation" class="external-link">@Value</a>("${micronaut.server.context-path}") <a href="https://docs.micronaut.io/latest/api/io/micronaut/core/annotation/Nullable.html" title="class or interface in io.micronaut.core.annotation" class="external-link">@Nullable</a>
  <a href="https://docs.micronaut.io/latest/api/io/micronaut/core/annotation/Nullable.html" title="class or interface in io.micronaut.core.annotation" class="external-link">@Nullable</a> <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html" title="class or interface in java.lang" class="external-link">String</a>&nbsp;contextPath)</span></div>
-<div class="block">Constructs a new uri naming strategy for the given property.</div>
-<dl class="notes">
-<dt>Parameters:</dt>
-<dd><code>beanContext</code> - The bean context</dd>
-<dd><code>contextPath</code> - The context path</dd>
-</dl>
+<div class="deprecation-block"><span class="deprecated-label">Deprecated.</span></div>
 </section>
 </li>
 <li>
