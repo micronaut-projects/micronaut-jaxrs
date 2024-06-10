@@ -16,7 +16,6 @@
 package io.micronaut.jaxrs.runtime.ext.impl;
 
 import io.micronaut.core.annotation.Internal;
-import io.micronaut.core.util.ArgumentUtils;
 import jakarta.ws.rs.core.Link;
 import jakarta.ws.rs.core.UriBuilder;
 import jakarta.ws.rs.core.UriBuilderException;
@@ -62,21 +61,21 @@ final class LinkBuilderImpl implements Link.Builder {
 
     @Override
     public Link.Builder uri(URI uri) {
-        ArgumentUtils.requireNonNull("uri", uri);
+        JaxRsArgumentUtils.requireNonNull("uri", uri);
         uriBuilder = UriBuilder.fromUri(uri);
         return this;
     }
 
     @Override
     public Link.Builder uri(String uri) throws IllegalArgumentException {
-        ArgumentUtils.requireNonNull("uri", uri);
+        JaxRsArgumentUtils.requireNonNull("uri", uri);
         uriBuilder = UriBuilder.fromUri(uri);
         return this;
     }
 
     @Override
     public Link.Builder rel(String rel) {
-        ArgumentUtils.requireNonNull("rel", rel);
+        JaxRsArgumentUtils.requireNonNull("rel", rel);
         final String rels = this.map.get(Link.REL);
         param(Link.REL, rels == null ? rel : rels + " " + rel);
         return this;
@@ -84,7 +83,7 @@ final class LinkBuilderImpl implements Link.Builder {
 
     @Override
     public Link.Builder title(String title) {
-        ArgumentUtils.requireNonNull("title", title);
+        JaxRsArgumentUtils.requireNonNull("title", title);
         param(Link.TITLE, title);
         return this;
 
@@ -92,22 +91,22 @@ final class LinkBuilderImpl implements Link.Builder {
 
     @Override
     public Link.Builder type(String type) {
-        ArgumentUtils.requireNonNull("type", type);
+        JaxRsArgumentUtils.requireNonNull("type", type);
         param(Link.TYPE, type);
         return this;
     }
 
     @Override
     public Link.Builder param(String name, String value) throws IllegalArgumentException {
-        ArgumentUtils.requireNonNull("name", name);
-        ArgumentUtils.requireNonNull("value", value);
+        JaxRsArgumentUtils.requireNonNull("name", name);
+        JaxRsArgumentUtils.requireNonNull("value", value);
         this.map.put(name, value);
         return this;
     }
 
     @Override
     public Link build(Object... values) throws UriBuilderException {
-        ArgumentUtils.requireNonNull("values", values);
+        JaxRsArgumentUtils.requireNonNull("values", values);
         URI built = null;
         if (uriBuilder == null) {
             built = baseUri;
@@ -122,8 +121,8 @@ final class LinkBuilderImpl implements Link.Builder {
 
     @Override
     public Link buildRelativized(URI uri, Object... values) {
-        ArgumentUtils.requireNonNull("uri", uri);
-        ArgumentUtils.requireNonNull("values", values);
+        JaxRsArgumentUtils.requireNonNull("uri", uri);
+        JaxRsArgumentUtils.requireNonNull("values", values);
         URI built = uriBuilder.build(values);
         URI with = built;
         if (baseUri != null) {

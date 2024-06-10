@@ -40,7 +40,7 @@ class NewCookieHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Object> 
 
     @Override
     public Object fromString(String newCookie) throws IllegalArgumentException {
-        ArgumentUtils.requireNonNull("newCookie", newCookie);
+        JaxRsArgumentUtils.requireNonNull("newCookie", newCookie);
         String cookieName = null;
         String cookieValue = null;
         String comment = null;

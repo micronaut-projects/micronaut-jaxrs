@@ -1,0 +1,51 @@
+plugins {
+    id "java-library"
+    id "io.micronaut.build.internal.jaxrs-base"
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation mn.micronaut.inject.java
+    implementation mn.micronaut.inject
+    implementation mn.micronaut.aop
+    implementation mn.micronaut.context
+    implementation mn.micronaut.http.server.netty
+    implementation mn.micronaut.jackson.databind
+
+    implementation projects.micronautJaxrsServer
+    implementation projects.micronautJaxrsProcessor
+
+    implementation libs.jakarta.jaxrs.tck.tests
+    testImplementation libs.junit.jupiter.engine
+    testImplementation libs.junit.jupiter.api
+    testImplementation libs.junit.platform.suite.engine
+    testImplementation 'org.slf4j:jul-to-slf4j:2.0.13'
+    testRuntimeOnly(mnLogging.logback.classic)
+
+    testImplementation(files('jakarta-restful-ws-tck-4.0.0-SNAPSHOT-sources.jar'))
+}
+
+def methodsTest = tasks.register('methodsTest', Test) {
+    scanForTestClasses false
+    useJUnitPlatform {
+        scanForTestClasses false
+        systemProperties = [
+                'validation.provider': 'io.micronaut.validation.tck.runtime.TckValidationProvider'
+        ]
+        //suites file("tck-methods2.xml")
+    }
+}
+
+test {
+    scanForTestClasses false
+    systemProperty("junit.jupiter.extensions.autodetection.enabled", "true")
+    systemProperty("java.util.logging.config.class", "x.LoggingConfig")
+    useJUnitPlatform {
+        scanForTestClasses false
+        //suites file("tck-tests.xml")
+    }
+    //dependsOn(methodsTest)
+}

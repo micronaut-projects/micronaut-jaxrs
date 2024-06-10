@@ -10,7 +10,6 @@ plugins {
 dependencyResolutionManagement {
     repositories {
         mavenCentral()
-        maven { url "https://s01.oss.sonatype.org/content/repositories/snapshots/" }
     }
 }
 
@@ -21,6 +20,8 @@ include 'jaxrs-processor'
 include 'jaxrs-server'
 include 'jaxrs-server-security'
 include 'jaxrs-servlet'
+
+include 'tests:jaxrs-tck'
 
 enableFeaturePreview 'TYPESAFE_PROJECT_ACCESSORS'
 
