@@ -22,6 +22,7 @@ import io.micronaut.core.convert.ArgumentConversionContext;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.bind.binders.TypedRequestArgumentBinder;
+import io.micronaut.jaxrs.runtime.core.ApplicationPathProvider;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.core.UriInfo;
 
@@ -36,10 +37,15 @@ import jakarta.ws.rs.core.UriInfo;
 public final class UriInfoBinder implements TypedRequestArgumentBinder<UriInfo> {
 
     private static final Argument<UriInfo> ARGUMENT = Argument.of(UriInfo.class);
+    private final ApplicationPathProvider applicationPathProvider;
+
+    public UriInfoBinder(ApplicationPathProvider applicationPathProvider) {
+        this.applicationPathProvider = applicationPathProvider;
+    }
 
     @Override
     public BindingResult<UriInfo> bind(ArgumentConversionContext<UriInfo> uriInfo, HttpRequest<?> source) {
-        return () -> Optional.of(new UriInfoImpl(source));
+        return () -> Optional.of(new UriInfoImpl(source, applicationPathProvider.getPath()));
     }
 
     @Override

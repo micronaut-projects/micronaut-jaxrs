@@ -16,20 +16,28 @@
 package io.micronaut.jaxrs.runtime.ext.bind;
 
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.annotation.NonNull;
+import io.micronaut.core.annotation.Nullable;
 import io.micronaut.core.util.StringUtils;
+import io.micronaut.http.HttpAttributes;
 import io.micronaut.http.HttpRequest;
+import io.micronaut.web.router.RouteMatch;
 import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.PathSegment;
 import jakarta.ws.rs.core.UriBuilder;
 import jakarta.ws.rs.core.UriInfo;
 
+import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLDecoder;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Map;
 import java.util.stream.Stream;
 
 /**
@@ -41,18 +49,40 @@ import java.util.stream.Stream;
 @Internal
 public final class UriInfoImpl implements UriInfo {
     private final HttpRequest<?> request;
+    private final String basePath;
+
+    /**
+     * Construct from an HTTP request.
+     *
+     * @param request  The HTTP request to this URI
+     * @param basePath The base path
+     */
+    public UriInfoImpl(@NonNull HttpRequest<?> request, @Nullable String basePath) {
+        this.request = request;
+        this.basePath = basePath == null || basePath.equals("/") ? null : basePath;
+    }
 
     /**
      * Construct from an HTTP request.
      *
      * @param request The HTTP request to this URI
      */
-    public UriInfoImpl(HttpRequest<?> request) {
-        this.request = request;
+    public UriInfoImpl(@NonNull HttpRequest<?> request) {
+        this(request, null);
     }
 
-    private String string(String str, boolean decode) {
-        return decode ? URLDecoder.decode(str, StandardCharsets.UTF_8) : str;
+    private String getPath(String requestPath, boolean decode) {
+        String path = decode ? URLDecoder.decode(requestPath, StandardCharsets.UTF_8) : requestPath;
+        if (basePath != null) {
+            String pathToCheck = path;
+            if (!path.startsWith("/")) {
+                pathToCheck = "/" + path;
+            }
+            if (pathToCheck.startsWith(basePath)) {
+                return pathToCheck.substring(basePath.length());
+            }
+        }
+        return path;
     }
 
     @Override
@@ -62,7 +92,7 @@ public final class UriInfoImpl implements UriInfo {
 
     @Override
     public String getPath(boolean decode) {
-        return string(request.getPath(), decode);
+        return getPath(request.getPath(), decode);
     }
 
     @Override
@@ -73,19 +103,19 @@ public final class UriInfoImpl implements UriInfo {
     @Override
     public List<PathSegment> getPathSegments(boolean decode) {
         return Stream.of(request.getPath().split("/"))
-                .filter(StringUtils::isNotEmpty)
-                .map(token -> {
-                    String[] segmentTokens = token.split(";");
-                    MultivaluedMap<String, String> params = new MultiMapNullPermitted<>();
-                    for (int i = 1; i < segmentTokens.length; ++i) {
-                        String[] keyVal = segmentTokens[i].split("=", 2);
-                        String key = keyVal[0];
-                        String val = keyVal.length > 1 ? keyVal[1] : null;
-                        params.add(string(key, decode), string(val, decode));
-                    }
-                    return new UriPathSegment(string(segmentTokens[0], decode), params);
-                })
-                .collect(Collectors.toList());
+            .filter(StringUtils::isNotEmpty)
+            .<PathSegment>map(token -> {
+                String[] segmentTokens = token.split(";");
+                MultivaluedMap<String, String> params = new MultiMapNullPermitted<>();
+                for (int i = 1; i < segmentTokens.length; ++i) {
+                    String[] keyVal = segmentTokens[i].split("=", 2);
+                    String key = keyVal[0];
+                    String val = keyVal.length > 1 ? keyVal[1] : null;
+                    params.add(getPath(key, decode), getPath(val, decode));
+                }
+                return new UriPathSegment(getPath(segmentTokens[0], decode), params);
+            })
+            .toList();
     }
 
     @Override
@@ -141,26 +171,26 @@ public final class UriInfoImpl implements UriInfo {
         throw new UnsupportedOperationException();
     }
 
-    /**
-     * This operation is not supported currently,
-     * so {@link UnsupportedOperationException} is thrown for all invocations.
-     *
-     * @throws UnsupportedOperationException this operation is not supported currently.
-     */
     @Override
     public MultivaluedMap<String, String> getPathParameters() {
-        throw new UnsupportedOperationException();
+        return getPathParameters(true);
     }
 
-    /**
-     * This operation is not supported currently,
-     * so {@link UnsupportedOperationException} is thrown for all invocations.
-     *
-     * @throws UnsupportedOperationException this operation is not supported currently.
-     */
     @Override
     public MultivaluedMap<String, String> getPathParameters(boolean decode) {
-        throw new UnsupportedOperationException();
+        RouteMatch<?> match = request.getAttribute(HttpAttributes.ROUTE_MATCH, RouteMatch.class)
+            .orElseThrow(() -> new IllegalStateException("Route match not available!"));
+        MultivaluedMap<String, String> map = new MultivaluedHashMap<>();
+        if (decode) {
+            match.getVariableValues().forEach((name, value) -> map.add(name, value.toString()));
+        } else {
+            // We should be able to access DefaultUriRouteMatch#matchInfo to get unencoded values
+            match.getVariableValues().forEach((name, value) -> map.add(
+                name,
+                URLEncoder.encode(value.toString(), StandardCharsets.UTF_8).replace("+", "%20")
+            ));
+        }
+        return map;
     }
 
     @Override
@@ -171,11 +201,35 @@ public final class UriInfoImpl implements UriInfo {
     @Override
     public MultivaluedMap<String, String> getQueryParameters(boolean decode) {
         MultivaluedMap<String, String> map = new MultivaluedHashMap<>();
-        request.getParameters().forEach(
+        if (decode) {
+            request.getParameters().forEach(
                 (str, vals) -> vals.forEach(
-                        val -> map.add(string(str, decode), string(val, decode))));
+                    val -> map.add(getPath(str, decode), getPath(val, decode))));
+        } else {
+            getEncodedParameters(request.getUri()).forEach(
+                (str, vals) -> vals.forEach(
+                    val -> map.add(str, val)));
+        }
         return map;
     }
+
+    public static Map<String, List<String>> getEncodedParameters(URI url) {
+        final Map<String, List<String>> map = new LinkedHashMap<>();
+        final String[] pairs = url.getRawQuery().split("&");
+        for (String pair : pairs) {
+            final int idx = pair.indexOf("=");
+            final String key = idx > 0 ? pair.substring(0, idx) : pair;
+            final String value = idx > 0 && pair.length() > idx + 1 ? pair.substring(idx + 1) : null;
+            List<String> list = map.get(key);
+            if (list == null) {
+                list = new ArrayList<>();
+                map.put(key, list);
+            }
+            list.add(value);
+        }
+        return map;
+    }
+
 
     /**
      * This operation is not supported currently,
@@ -220,7 +274,8 @@ public final class UriInfoImpl implements UriInfo {
         return request.getUri().relativize(uri);
     }
 
-    private record UriPathSegment(String path, MultivaluedMap<String, String> params) implements PathSegment {
+    private record UriPathSegment(String path,
+                                  MultivaluedMap<String, String> params) implements PathSegment {
         @Override
         public String getPath() {
             return path;

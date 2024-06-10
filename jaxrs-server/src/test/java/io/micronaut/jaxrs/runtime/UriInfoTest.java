@@ -27,7 +27,7 @@ class UriInfoTest {
         HttpRequest<String> request = HttpRequest.GET("/api/uri-info");
         //In the HTTP response body the endpoint prints the path from the injected UriInfo
         String respBody = client.toBlocking().retrieve(request, String.class);
-        Assertions.assertEquals("test path: /api/uri-info", respBody);
+        Assertions.assertEquals("test path: /uri-info", respBody);
     }
 
     @Test
@@ -155,8 +155,6 @@ class UriInfoTest {
                 UriInfo::getRequestUriBuilder,
                 UriInfo::getAbsolutePathBuilder,
                 UriInfo::getBaseUriBuilder,
-                UriInfo::getPathParameters,
-                uriInfo -> uriInfo.getPathParameters(true),
                 UriInfo::getMatchedURIs,
                 uriInfo -> uriInfo.getMatchedURIs(true),
                 UriInfo::getMatchedResources
