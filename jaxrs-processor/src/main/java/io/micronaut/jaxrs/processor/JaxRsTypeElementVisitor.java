@@ -197,7 +197,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     }
 
     private List<Class<? extends Annotation>> getUnsupportedParameterAnnotations() {
-        return Arrays.asList(MatrixParam.class, BeanParam.class, Encoded.class);
+        return Arrays.asList(BeanParam.class, Encoded.class);
     }
 
     @Override

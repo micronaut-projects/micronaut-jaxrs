@@ -1,0 +1,415 @@
+/*
+ * Copyright 2017-2020 original authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.micronaut.jaxrs.runtime.core;
+
+import io.micronaut.core.annotation.NonNull;
+import io.micronaut.core.annotation.Nullable;
+import io.micronaut.core.convert.value.MutableConvertibleMultiValues;
+import io.micronaut.core.convert.value.MutableConvertibleMultiValuesMap;
+import io.micronaut.core.util.ArrayUtils;
+import io.micronaut.core.util.CollectionUtils;
+import io.micronaut.core.util.StringUtils;
+import io.micronaut.http.exceptions.UriSyntaxException;
+import io.micronaut.http.uri.UriBuilder;
+import io.micronaut.http.uri.UriTemplate;
+
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * Default implementation of the {@link UriBuilder} interface.
+ *
+ * @author graemerocher
+ * @since 1.0.2
+ */
+class DefaultUriBuilder2 implements UriBuilder {
+
+    private static final String STRING_PATTERN_SCHEME = "([^:/?#]+):";
+    private static final String STRING_PATTERN_USER_INFO = "([^@\\[/?#]*)";
+    private static final String STRING_PATTERN_HOST_IPV4 = "[^\\[{/?#:]*";
+    private static final String STRING_PATTERN_HOST_IPV6 = "\\[[\\p{XDigit}\\:\\.]*[%\\p{Alnum}]*\\]";
+    private static final String STRING_PATTERN_HOST = "(" + STRING_PATTERN_HOST_IPV6 + "|" + STRING_PATTERN_HOST_IPV4 + ")";
+    private static final String STRING_PATTERN_PORT = "(\\d*(?:\\{[^/]+?\\})?)";
+    private static final String STRING_PATTERN_PATH = "([^#?]*)";
+    private static final String STRING_PATTERN_QUERY = "([^#]*)";
+    private static final String STRING_PATTERN_REMAINING = "(.*)";
+
+    // Regex patterns that matches URIs. See RFC 3986, appendix B
+    private static final Pattern PATTERN_SCHEME = Pattern.compile("^" + STRING_PATTERN_SCHEME + "//.*");
+    private static final Pattern PATTERN_FULL_PATH = Pattern.compile("^([^#\\?]*)(\\?([^#]*))?(\\#(.*))?$");
+    private static final Pattern PATTERN_FULL_URI = Pattern.compile(
+        "^(" + STRING_PATTERN_SCHEME + ")?" + "(//(" + STRING_PATTERN_USER_INFO + "@)?" + STRING_PATTERN_HOST + "(:" + STRING_PATTERN_PORT +
+            ")?" + ")?" + STRING_PATTERN_PATH + "(\\?" + STRING_PATTERN_QUERY + ")?" + "(#" + STRING_PATTERN_REMAINING + ")?");
+
+    private String authority;
+    private MutableConvertibleMultiValues<String> params = new MutableConvertibleMultiValuesMap<>();
+    private String scheme;
+    private String userInfo;
+    private String host;
+    private int port = -1;
+    private StringBuilder path = new StringBuilder();
+    private String fragment;
+    private boolean useMatrixParams;
+
+    /**
+     * Constructor to create from a URI.
+     *
+     * @param uri The URI
+     */
+    DefaultUriBuilder2(URI uri) {
+        initFromUri(uri);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void initFromUri(URI uri) {
+        this.scheme = uri.getScheme();
+        this.userInfo = uri.getRawUserInfo();
+        this.authority = uri.getRawAuthority();
+        this.host = uri.getHost();
+        this.port = uri.getPort();
+        this.path = new StringBuilder();
+        final String rawPath = uri.getRawPath();
+        if (rawPath != null) {
+            this.path.append(rawPath);
+        }
+        this.fragment = uri.getRawFragment();
+        final String query = uri.getQuery();
+        if (query != null) {
+            final Map parameters = new QueryStringDecoder(uri).parameters();
+            this.params.putAll(parameters);
+        }
+    }
+
+    /**
+     * Constructor for charsequence.
+     *
+     * @param uri The URI
+     */
+    DefaultUriBuilder2(CharSequence uri, boolean isPath) {
+        if (PATTERN_SCHEME.matcher(uri).matches()) {
+            try {
+                initFromUri(new URI(uri.toString()));
+            } catch (URISyntaxException e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            QueryStringDecoder decoder = new QueryStringDecoder(uri.toString());
+            this.path = new StringBuilder(decoder.path());
+            final Map parameters = new QueryStringDecoder(uri.toString()).parameters();
+            this.params = new MutableConvertibleMultiValuesMap<>(parameters);
+            this.useMatrixParams = decoder.rawQuery().contains(";");
+        }
+    }
+
+    public void setUseMatrixParams(boolean useMatrixParams) {
+        if (this.useMatrixParams != useMatrixParams) {
+            params.clear();
+        }
+        this.useMatrixParams = useMatrixParams;
+    }
+
+    public void setParametersQuery(String parametersQuery, boolean useMatrixParams) {
+        if (StringUtils.isEmpty(parametersQuery)) {
+            params.clear();
+        } else {
+            Map parameters = new QueryStringDecoder((!useMatrixParams ? "?" : ";") + parametersQuery).parameters();
+            params.clear();
+            params.putAll(parameters);
+            this.useMatrixParams = useMatrixParams;
+        }
+    }
+
+    @NonNull
+    @Override
+    public UriBuilder fragment(@Nullable String fragment) {
+        if (fragment != null) {
+            this.fragment = fragment;
+        }
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public UriBuilder scheme(@Nullable String scheme) {
+        if (scheme != null) {
+            this.scheme = scheme;
+        }
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public UriBuilder userInfo(@Nullable String userInfo) {
+        if (userInfo != null) {
+            this.userInfo = userInfo;
+        }
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public UriBuilder host(@Nullable String host) {
+        if (host != null) {
+            this.host = host;
+        }
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public UriBuilder port(int port) {
+        if (port < -1) {
+            throw new IllegalArgumentException("Invalid port value");
+        }
+        this.port = port;
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public UriBuilder path(@Nullable String path) {
+        if (StringUtils.isNotEmpty(path)) {
+            final int len = this.path.length();
+            final boolean endsWithSlash = len > 0 && this.path.charAt(len - 1) == '/';
+            if (endsWithSlash) {
+                if (path.charAt(0) == '/') {
+                    this.path.append(path.substring(1));
+                } else {
+                    this.path.append(path);
+                }
+            } else {
+                if (path.charAt(0) == '/') {
+                    this.path.append(path);
+                } else {
+                    this.path.append('/').append(path);
+                }
+            }
+        }
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public UriBuilder replacePath(@Nullable String path) {
+        if (path != null) {
+            this.path.setLength(0);
+            this.path.append(path);
+        }
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public UriBuilder queryParam(String name, Object... values) {
+        if (name == null) {
+            throw new IllegalArgumentException("Name must not be null");
+        }
+        if (ArrayUtils.isNotEmpty(values)) {
+            final List<String> existing = params.getAll(name);
+            List<String> strings = existing != null ? new ArrayList<>(existing) : new ArrayList<>(values.length);
+            for (Object value : values) {
+                if (value != null) {
+                    strings.add(value.toString());
+                }
+            }
+            if (CollectionUtils.isNotEmpty(strings)) {
+                params.put(name, strings);
+            }
+        }
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public UriBuilder replaceQueryParam(String name, Object... values) {
+        if (name == null) {
+            throw new IllegalArgumentException("Name must not be null");
+        }
+        if (ArrayUtils.isNotEmpty(values)) {
+            List<String> strings = new ArrayList<>(values.length);
+            for (Object value : values) {
+                if (value != null) {
+                    strings.add(value.toString());
+                }
+            }
+            params.put(name, strings);
+        } else {
+            params.remove(name);
+        }
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public URI build() {
+        try {
+            return new URI(reconstructAsString(null));
+        } catch (URISyntaxException e) {
+            throw new UriSyntaxException(e);
+        }
+    }
+
+    @NonNull
+    @Override
+    public URI expand(Map<String, ? super Object> values) {
+        String uri = reconstructAsString(values);
+        return URI.create(uri);
+    }
+
+    @Override
+    public String toString() {
+        return build().toString();
+    }
+
+    private String reconstructAsString(Map<String, ? super Object> values) {
+        StringBuilder builder = new StringBuilder();
+        String scheme = this.scheme;
+        String host = this.host;
+        if (StringUtils.isNotEmpty(scheme)) {
+            if (isTemplate(scheme, values)) {
+                scheme = UriTemplate.of(scheme).expand(values);
+            }
+            builder.append(scheme)
+                .append(":");
+        }
+
+        final boolean hasPort = port != -1;
+        final boolean hasHost = host != null;
+        final boolean hasUserInfo = StringUtils.isNotEmpty(userInfo);
+        if (hasUserInfo || hasHost || hasPort) {
+            builder.append("//");
+            if (hasUserInfo) {
+                String userInfo = this.userInfo;
+                if (userInfo.contains(":")) {
+                    final String[] sa = userInfo.split(":");
+                    userInfo = expandOrEncode(sa[0], values) + ":" + expandOrEncode(sa[1], values);
+                } else {
+                    userInfo = expandOrEncode(userInfo, values);
+                }
+                builder.append(userInfo);
+                builder.append("@");
+            }
+
+            if (hasHost) {
+                host = expandOrEncode(host, values);
+                builder.append(host);
+            }
+
+            if (hasPort) {
+                builder.append(":").append(port);
+            }
+        } else {
+            String authority = this.authority;
+            if (StringUtils.isNotEmpty(authority)) {
+                authority = expandOrEncode(authority, values);
+                builder.append("//")
+                    .append(authority);
+            }
+        }
+
+        StringBuilder path = this.path;
+        if (StringUtils.isNotEmpty(path)) {
+            if (builder.length() > 0 && path.charAt(0) != '/') {
+                builder.append('/');
+            }
+            String pathStr = path.toString();
+            if (isTemplate(pathStr, values)) {
+                pathStr = UriTemplate.of(pathStr).expand(values);
+            }
+
+            builder.append(pathStr);
+        }
+
+        if (!params.isEmpty()) {
+            if (useMatrixParams) {
+                builder.append(';');
+            } else {
+                builder.append('?');
+            }
+            builder.append(buildQueryParams(values));
+        }
+
+        String fragment = this.fragment;
+        if (StringUtils.isNotEmpty(fragment)) {
+            fragment = expandOrEncode(fragment, values);
+            if (fragment.charAt(0) != '#') {
+                builder.append('#');
+            }
+            builder.append(fragment);
+        }
+        return builder.toString();
+    }
+
+    private boolean isTemplate(String value, Map<String, ? super Object> values) {
+        return values != null && value.indexOf('{') > -1;
+    }
+
+    private String buildQueryParams(Map<String, ? super Object> values) {
+        if (!params.isEmpty()) {
+            StringBuilder builder = new StringBuilder();
+            final Iterator<Map.Entry<String, List<String>>> nameIterator = params.iterator();
+            while (nameIterator.hasNext()) {
+                Map.Entry<String, List<String>> entry = nameIterator.next();
+                String rawName = entry.getKey();
+                String name = expandOrEncode(rawName, values);
+
+                final Iterator<String> i = entry.getValue().iterator();
+                while (i.hasNext()) {
+                    String v = expandOrEncode(i.next(), values);
+                    builder.append(name).append('=').append(v);
+                    if (i.hasNext()) {
+                        if (useMatrixParams) {
+                            builder.append(',');
+                        } else {
+                            builder.append('&');
+                        }
+                    }
+                }
+                if (nameIterator.hasNext()) {
+                    if (useMatrixParams) {
+                        builder.append(';');
+                    } else {
+                        builder.append('&');
+                    }
+                }
+
+            }
+            return builder.toString();
+        }
+        return null;
+    }
+
+    private String expandOrEncode(String value, Map<String, ? super Object> values) {
+        if (isTemplate(value, values)) {
+            value = UriTemplate.of(value).expand(values);
+        } else {
+            value = encode(value);
+        }
+        return value;
+    }
+
+    private String encode(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8).replaceAll("\\+", "%20");
+    }
+}

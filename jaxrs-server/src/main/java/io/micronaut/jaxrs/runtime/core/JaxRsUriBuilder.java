@@ -15,6 +15,8 @@
  */
 package io.micronaut.jaxrs.runtime.core;
 
+import io.micronaut.core.convert.value.MutableConvertibleMultiValues;
+import io.micronaut.core.convert.value.MutableConvertibleMultiValuesMap;
 import io.micronaut.jaxrs.runtime.ext.impl.JaxRsArgumentUtils;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.core.UriBuilder;
@@ -24,6 +26,7 @@ import java.lang.reflect.Method;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Stream;
 
 /**
@@ -34,37 +37,41 @@ import java.util.stream.Stream;
  */
 public class JaxRsUriBuilder extends UriBuilder {
 
-    private final io.micronaut.http.uri.UriBuilder uriBuilder;
+    private DefaultUriBuilder2 uriBuilder;
+    private String queryParamsQuery;
+    private String matrixParamsQuery;
+    private final MutableConvertibleMultiValues<String> matrixParams = new MutableConvertibleMultiValuesMap<>();
 
     /**
      * Default constructor.
      */
     public JaxRsUriBuilder() {
-        this(io.micronaut.http.uri.UriBuilder.of("/"));
+        this(null);
     }
 
     /**
      * Copy constructor.
+     *
      * @param uriBuilder The uri builder
      */
-    JaxRsUriBuilder(io.micronaut.http.uri.UriBuilder uriBuilder) {
+    JaxRsUriBuilder(DefaultUriBuilder2 uriBuilder) {
         this.uriBuilder = uriBuilder;
     }
 
     @Override
     public UriBuilder clone() {
-        return new JaxRsUriBuilder(io.micronaut.http.uri.UriBuilder.of(uriBuilder.build()));
+        return new JaxRsUriBuilder(new DefaultUriBuilder2(getUriBuilder().build()));
     }
 
     @Override
     public UriBuilder uri(URI uri) {
         JaxRsArgumentUtils.requireNonNull("uri", uri);
-        uriBuilder.replacePath(uri.getPath());
-        uriBuilder.scheme(uri.getScheme());
-        uriBuilder.port(uri.getPort());
-        uriBuilder.fragment(uri.getFragment());
-        uriBuilder.userInfo(uri.getUserInfo());
-        uriBuilder.host(uri.getHost());
+        getUriBuilder().replacePath(uri.getPath())
+            .scheme(uri.getScheme())
+            .port(uri.getPort())
+            .fragment(uri.getFragment())
+            .userInfo(uri.getUserInfo())
+            .host(uri.getHost());
         return this;
     }
 
@@ -76,7 +83,7 @@ public class JaxRsUriBuilder extends UriBuilder {
 
     @Override
     public UriBuilder scheme(String scheme) {
-        uriBuilder.scheme(scheme);
+        getUriBuilder().scheme(scheme);
         return this;
     }
 
@@ -87,32 +94,36 @@ public class JaxRsUriBuilder extends UriBuilder {
 
     @Override
     public UriBuilder userInfo(String ui) {
-        uriBuilder.userInfo(ui);
+        getUriBuilder().userInfo(ui);
         return this;
     }
 
     @Override
     public UriBuilder host(String host) {
-        uriBuilder.host(host);
+        getUriBuilder().host(host);
         return this;
     }
 
     @Override
     public UriBuilder port(int port) {
-        uriBuilder.port(port);
+        getUriBuilder().port(port);
         return this;
     }
 
     @Override
     public UriBuilder replacePath(String path) {
-        uriBuilder.replacePath(path == null ? "" : path);
+        getUriBuilder().replacePath(path == null ? "" : path);
         return this;
     }
 
     @Override
     public UriBuilder path(String path) {
         JaxRsArgumentUtils.requireNonNull("path", path);
-        uriBuilder.path(path);
+        if (uriBuilder == null) {
+            uriBuilder = new DefaultUriBuilder2(path, true);
+        } else {
+            uriBuilder.path(path);
+        }
         return this;
     }
 
@@ -167,47 +178,69 @@ public class JaxRsUriBuilder extends UriBuilder {
 
     @Override
     public UriBuilder replaceMatrix(String matrix) {
-        throw new UnsupportedOperationException("Method replaceMatrix(..) not supported by implementation");
+        getUriBuilder().setParametersQuery(matrix, true);
+        return this;
     }
 
     @Override
     public UriBuilder matrixParam(String name, Object... values) {
-        throw new UnsupportedOperationException("Method matrixParam(..) not supported by implementation");
-    }
-
-    @Override
-    public UriBuilder replaceMatrixParam(String name, Object... values) {
-        throw new UnsupportedOperationException("Method replaceMatrixParam(..) not supported by implementation");
-    }
-
-    @Override
-    public UriBuilder replaceQuery(String query) {
-        throw new UnsupportedOperationException("Method replaceQuery(..) not supported by implementation");
-    }
-
-    @Override
-    public UriBuilder queryParam(String name, Object... values) {
+        getUriBuilder().setUseMatrixParams(true);
         JaxRsArgumentUtils.requireNonNull("name", name);
         for (Object value : values) {
             JaxRsArgumentUtils.requireNonNull("values[*]", value);
         }
-        uriBuilder.queryParam(name, values);
+        getUriBuilder().queryParam(name, values);
+        return this;
+    }
+
+    @Override
+    public UriBuilder replaceMatrixParam(String name, Object... values) {
+        if (name == null) {
+            throw new IllegalArgumentException("Name must not be null");
+        }
+        if (values == null) {
+            getUriBuilder().setParametersQuery(null, true);
+        } else {
+            getUriBuilder().setUseMatrixParams(true);
+            getUriBuilder().replaceQueryParam(name, values);
+        }
+        return this;
+    }
+
+    @Override
+    public UriBuilder replaceQuery(String query) {
+        getUriBuilder().setParametersQuery(query, false);
+        return this;
+    }
+
+    @Override
+    public UriBuilder queryParam(String name, Object... values) {
+        if (name == null) {
+            throw new IllegalArgumentException("Name must not be null");
+        }
+        getUriBuilder().setUseMatrixParams(false);
+        JaxRsArgumentUtils.requireNonNull("name", name);
+        for (Object value : values) {
+            JaxRsArgumentUtils.requireNonNull("values[*]", value);
+        }
+        getUriBuilder().queryParam(name, values);
         return this;
     }
 
     @Override
     public UriBuilder replaceQueryParam(String name, Object... values) {
         if (values == null) {
-            throw new UnsupportedOperationException("Removing query params not supported");
+            getUriBuilder().setParametersQuery(null, false);
         } else {
-            uriBuilder.replaceQueryParam(name, values);
+            getUriBuilder().setUseMatrixParams(false);
+            getUriBuilder().replaceQueryParam(name, values);
         }
         return this;
     }
 
     @Override
     public UriBuilder fragment(String fragment) {
-        uriBuilder.fragment(fragment);
+        getUriBuilder().fragment(fragment);
         return this;
     }
 
@@ -251,31 +284,39 @@ public class JaxRsUriBuilder extends UriBuilder {
         for (Object v : values.values()) {
             JaxRsArgumentUtils.requireNonNull("values[*]", v);
         }
-        return uriBuilder.expand((Map<String, ? super Object>) values);
+        return getUriBuilder().expand((Map<String, ? super Object>) values);
     }
 
     @Override
     public URI buildFromEncodedMap(Map<String, ?> values) throws IllegalArgumentException, UriBuilderException {
-        return uriBuilder.expand((Map<String, ? super Object>) values);
+        return getUriBuilder().expand((Map<String, ? super Object>) values);
     }
 
     @Override
     public URI build(Object... values) throws IllegalArgumentException, UriBuilderException {
-        return uriBuilder.build();
+        return getUriBuilder().build();
     }
 
     @Override
     public URI build(Object[] values, boolean encodeSlashInPath) throws IllegalArgumentException, UriBuilderException {
-        return uriBuilder.build();
+        return getUriBuilder().build();
     }
 
     @Override
     public URI buildFromEncoded(Object... values) throws IllegalArgumentException, UriBuilderException {
-        return uriBuilder.build();
+        return getUriBuilder().build();
     }
 
     @Override
     public String toTemplate() {
-        return uriBuilder.toString();
+        return getUriBuilder().toString();
     }
+
+    private DefaultUriBuilder2 getUriBuilder() {
+        if (uriBuilder == null) {
+            uriBuilder = new DefaultUriBuilder2("/", true);
+        }
+        return uriBuilder;
+    }
+
 }
