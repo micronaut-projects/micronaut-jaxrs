@@ -20,7 +20,7 @@ public class FilterExtension implements ExecutionCondition {
         if (testClass == null) {
             return ConditionEvaluationResult.enabled("No test class or method");
         }
-//        if (testClass != ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT.class) {
+//        if (testClass != ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT.class) {
 //            return CLIENT;
 //        }
         String id = testClass.getName() + "#" + testMethodName;
@@ -76,7 +76,6 @@ public class FilterExtension implements ExecutionCondition {
             testClass == ee.jakarta.tck.ws.rs.ee.rs.beanparam.path.plain.JAXRSClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.ee.rs.beanparam.header.plain.JAXRSClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.ee.rs.beanparam.query.plain.JAXRSClientIT.class ||
-            testClass == ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.ee.rs.beanparam.matrix.plain.JAXRSClientIT.class ||
             testClass == ee.jakarta.tck.ws.rs.ee.rs.beanparam.form.plain.JAXRSClientIT.class) {
             return ConditionEvaluationResult.disabled("BeanParam"); // TODO
@@ -135,25 +134,13 @@ public class FilterExtension implements ExecutionCondition {
             testClass == ee.jakarta.tck.ws.rs.spec.provider.overridestandard.JAXRSClientIT.class) {
             return ConditionEvaluationResult.disabled("body reader/writer");
         } else if (testClass == ee.jakarta.tck.ws.rs.ee.resource.webappexception.defaultmapper.DefaultExceptionMapperIT.class || Set.of(
-            "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#writeIOExceptionWithoutWriterTest",
-            "ee.jakarta.tck.ws.rs.spec.provider.exceptionmapper.JAXRSClientIT#throwableTest",
-            "ee.jakarta.tck.ws.rs.spec.provider.exceptionmapper.JAXRSClientIT#clientErrorExceptionTest",
-            "ee.jakarta.tck.ws.rs.spec.provider.exceptionmapper.JAXRSClientIT#filterChainTest",
-            "ee.jakarta.tck.ws.rs.spec.provider.exceptionmapper.JAXRSClientIT#exceptionTest",
-            "ee.jakarta.tck.ws.rs.spec.provider.exceptionmapper.JAXRSClientIT#runtimeExceptionTest",
-            "ee.jakarta.tck.ws.rs.spec.provider.exceptionmapper.JAXRSClientIT#webapplicationExceptionTest",
-            "ee.jakarta.tck.ws.rs.jaxrs21.ee.priority.JAXRSClientIT#exceptionMapperPriorityTest",
-            "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#statusOkResponseTest",
-            "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#throwUncheckedExceptionTest",
-            "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#throwableIntOkResponseTest",
-            "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#throwableOkResponseTest",
-            "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#statusIntOkResponseTest",
-            "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#throwableResponseTest",
-            "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#noResponseTest",
+            "ee.jakarta.tck.ws.rs.spec.provider.exceptionmapper.JAXRSClientIT#filterChainTest", // Filters and exceptions
+            "ee.jakarta.tck.ws.rs.jaxrs21.ee.priority.JAXRSClientIT#exceptionMapperPriorityTest", // Support exception mappers priority
+            // @Path without a HTTP method annotation, it's only allowed because of the subresource support
             "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#webApplicationExceptionHasResponseWithoutEntityDoesUseMapperTest",
-            "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#okResponseTest",
-            "ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#responseEntityTest",
-            "ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT#exceptionMapperTest",
+            "ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT#exceptionMapperTest", // Exception mapper needs to support @Context injection
+
+            // Support catching and remapping all bad responses
             "ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#slashWrongUriTest",
             "ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#requestNotSupportedOnResourceTest",
             "ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesOnResourceTest",
@@ -437,8 +424,6 @@ public class FilterExtension implements ExecutionCondition {
             return ConditionEvaluationResult.disabled("createEndpoint() unsupported");
         } else if (testClass == ee.jakarta.tck.ws.rs.spec.contextprovider.JsonbContextProviderIT.class) {
             return ConditionEvaluationResult.disabled("Arquillian issue, but test is likely broken anyway because we don't use jsonb");
-        } else if (testClass == ee.jakarta.tck.ws.rs.ee.resource.webappexception.nomapper .JAXRSClientIT.class) {
-            return ConditionEvaluationResult.disabled("Implement proper exception mapping with BC support");
         }
         return ConditionEvaluationResult.enabled(null);
     }

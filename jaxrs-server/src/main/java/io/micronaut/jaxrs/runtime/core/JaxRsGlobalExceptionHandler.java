@@ -15,6 +15,7 @@
  */
 package io.micronaut.jaxrs.runtime.core;
 
+import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.annotation.Produces;
@@ -23,18 +24,19 @@ import io.micronaut.http.server.exceptions.response.ErrorContext;
 import io.micronaut.http.server.exceptions.response.ErrorResponseProcessor;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
-import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Providers;
 
 /**
  * Handles JAX-RS exceptions that occur during the execution of an HTTP request.
  *
- * @author guillermocalvo
+ * @author Denis Stepanov
+ * @since 4.6.0
  */
 @Singleton
 @Produces
-public class JaxRsExceptionHandler implements ExceptionHandler<WebApplicationException, HttpResponse<?>> {
+@Internal
+public class JaxRsGlobalExceptionHandler implements ExceptionHandler<Throwable, HttpResponse<?>> {
     private final ErrorResponseProcessor<?> responseProcessor;
     private final Providers providers;
 
@@ -45,35 +47,20 @@ public class JaxRsExceptionHandler implements ExceptionHandler<WebApplicationExc
      * @param providers         The providers
      */
     @Inject
-    public JaxRsExceptionHandler(ErrorResponseProcessor<?> responseProcessor, Providers providers) {
+    public JaxRsGlobalExceptionHandler(ErrorResponseProcessor<?> responseProcessor, Providers providers) {
         this.responseProcessor = responseProcessor;
         this.providers = providers;
     }
 
-    /**
-     * Constructor.
-     *
-     * @param responseProcessor Error Response Processor
-     */
-    @Deprecated
-    public JaxRsExceptionHandler(ErrorResponseProcessor<?> responseProcessor) {
-        this.responseProcessor = responseProcessor;
-        this.providers = null;
-    }
-
     @Override
-    public HttpResponse<?> handle(HttpRequest request, WebApplicationException exception) {
+    public HttpResponse<?> handle(HttpRequest request, Throwable exception) {
         ExceptionMapper exceptionMapper = providers.getExceptionMapper(exception.getClass());
-        JaxRsResponse response = (JaxRsResponse) exception.getResponse();
-        if (response.hasEntity()) {
-            return response.getResponse();
-        }
         if (exceptionMapper != null) {
             return ((JaxRsResponse) exceptionMapper.toResponse(exception)).getResponse();
         }
         return responseProcessor.processResponse(ErrorContext.builder(request)
             .errorMessage(exception.getMessage())
             .cause(exception)
-            .build(), response.getResponse());
+            .build(), HttpResponse.badRequest());
     }
 }
