@@ -20,15 +20,21 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.type.Argument;
 import io.micronaut.inject.BeanDefinition;
 import jakarta.inject.Singleton;
+import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.ext.ContextResolver;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.MessageBodyReader;
 import jakarta.ws.rs.ext.MessageBodyWriter;
 import jakarta.ws.rs.ext.Providers;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
@@ -49,12 +55,47 @@ public final class JaxRsProviders implements Providers {
 
     @Override
     public <T> MessageBodyReader<T> getMessageBodyReader(Class<T> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
-        throw new UnsupportedOperationException("Not supported");
+        Collection<MessageBodyReader> messageBodyReaders = beanContext.getBeansOfType(Argument.of(MessageBodyReader.class, Argument.of(type)));
+        return messageBodyReaders.stream()
+            .filter(r -> r.isReadable(type, genericType, annotations, mediaType))
+            .findFirst()
+            .map(r -> new MessageBodyReader<T>() {
+                @Override
+                public boolean isReadable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+                    return true;
+                }
+
+                @Override
+                public T readFrom(Class<T> type, Type ignore1, Annotation[] ignore2, MediaType ignore3, MultivaluedMap<String, String> httpHeaders, InputStream entityStream) throws IOException, WebApplicationException {
+                    return (T) r.readFrom(type, genericType, annotations, mediaType, httpHeaders, entityStream);
+                }
+            })
+            .orElse(null);
     }
 
     @Override
     public <T> MessageBodyWriter<T> getMessageBodyWriter(Class<T> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
-        throw new UnsupportedOperationException("Not supported");
+        Collection<MessageBodyWriter> messageBodyWriters = beanContext.getBeansOfType(Argument.of(MessageBodyWriter.class, Argument.of(type)));
+        return messageBodyWriters.stream()
+            .filter(w -> w.isWriteable(type, genericType, annotations, mediaType))
+            .findFirst()
+            .map(w -> new MessageBodyWriter<T>() {
+                @Override
+                public boolean isWriteable(Class<?> ignore1, Type ignore2, Annotation[] ignore3, MediaType ignore4) {
+                    return true;
+                }
+
+                @Override
+                public long getSize(T t, Class<?> ignore1, Type ignore2, Annotation[] ignore3, MediaType ignore4) {
+                    return w.getSize(t, type, genericType, annotations, mediaType);
+                }
+
+                @Override
+                public void writeTo(T t, Class<?> ignore1, Type ignore2, Annotation[] ignore3, MediaType ignore4, MultivaluedMap<String, Object> httpHeaders, OutputStream entityStream) throws IOException, WebApplicationException {
+                    w.writeTo(t, type, genericType, annotations, mediaType, httpHeaders, entityStream);
+                }
+            })
+            .orElse(null);
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

@@ -20,30 +20,34 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.NonNull;
 import io.micronaut.inject.annotation.NamedAnnotationMapper;
 import io.micronaut.inject.visitor.VisitorContext;
-import jakarta.inject.Inject;
+import jakarta.inject.Named;
+import jakarta.inject.Singleton;
 
 import java.lang.annotation.Annotation;
 import java.util.List;
+import java.util.UUID;
 
 /**
- * Maps the JAX-RS {@code Context} annotation.
+ * Maps the JAX-RS {@code Provider} annotation.
  *
- * @author Jonas Konrad
+ * @author Denis Stepanov
  * @since 4.6.0
  */
 @Internal
-public class ContextMapper implements NamedAnnotationMapper {
+public class ProviderMapper implements NamedAnnotationMapper {
 
     @NonNull
     @Override
     public String getName() {
-        return "jakarta.ws.rs.core.Context";
+        return "jakarta.ws.rs.ext.Provider";
     }
 
     @Override
     public List<AnnotationValue<?>> map(AnnotationValue<Annotation> annotation, VisitorContext visitorContext) {
         return List.of(
-            AnnotationValue.builder(Inject.class).build()
+            AnnotationValue.builder(Singleton.class).build(),
+            // Remove hack after https://github.com/micronaut-projects/micronaut-core/pull/10902
+            AnnotationValue.builder(Named.class).value(UUID.randomUUID().toString()).build()
         );
     }
 }

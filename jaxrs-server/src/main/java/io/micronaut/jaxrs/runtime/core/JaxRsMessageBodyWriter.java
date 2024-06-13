@@ -15,58 +15,65 @@
  */
 package io.micronaut.jaxrs.runtime.core;
 
+import io.micronaut.context.annotation.EachBean;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.NonNull;
 import io.micronaut.core.annotation.Nullable;
 import io.micronaut.core.type.Argument;
 import io.micronaut.core.type.MutableHeaders;
 import io.micronaut.http.MediaType;
-import io.micronaut.http.body.DynamicMessageBodyWriter;
-import io.micronaut.http.body.MessageBodyHandlerRegistry;
 import io.micronaut.http.body.MessageBodyWriter;
 import io.micronaut.http.codec.CodecException;
-import jakarta.ws.rs.core.Response;
+import jakarta.inject.Singleton;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.util.List;
 
 /**
- * The JAX-RS {@link MessageBodyWriter}.
+ * The reader remapped {@link MessageBodyWriter}.
  *
- * @author Jonas Konrad
+ * @param <T> The type
+ * @author Denis Stepanov
  * @since 4.6.0
  */
 @Internal
-final class JaxRsMessageBodyWriter implements MessageBodyWriter<Response> {
+@Singleton
+@EachBean(jakarta.ws.rs.ext.MessageBodyWriter.class)
+public final class JaxRsMessageBodyWriter<T> implements MessageBodyWriter<T> {
 
-    private final DynamicMessageBodyWriter dynamicMessageBodyWriter;
+    private final jakarta.ws.rs.ext.MessageBodyWriter<T> messageBodyWriter;
 
-    JaxRsMessageBodyWriter(MessageBodyHandlerRegistry registry) {
-        this.dynamicMessageBodyWriter = new DynamicMessageBodyWriter(registry, List.of());
+    JaxRsMessageBodyWriter(jakarta.ws.rs.ext.MessageBodyWriter<T> messageBodyWriter) {
+        this.messageBodyWriter = messageBodyWriter;
     }
 
     @Override
-    public boolean isWriteable(@NonNull Argument<Response> type, @Nullable MediaType mediaType) {
-        return true;
+    public boolean isWriteable(@NonNull Argument<T> type, @Nullable MediaType mediaType) {
+        return messageBodyWriter.isWriteable(type.getType(), type.asType(), type.getAnnotationMetadata().synthesizeAll(), as(mediaType));
     }
 
     @Override
-    public void writeTo(@NonNull Argument<Response> type, @NonNull MediaType mediaType, Response object, @NonNull MutableHeaders outgoingHeaders, @NonNull OutputStream outputStream) throws CodecException {
-        object.getStringHeaders().forEach((name, list) -> {
-            for (String value : list) {
-                outgoingHeaders.add(name, value);
-            }
-        });
-        if (object.hasEntity()) {
-            Argument<Object> argument = (Argument<Object>) Argument.of(object.getEntity().getClass());
-            dynamicMessageBodyWriter.writeTo(argument, mediaType, object.getEntity(), outgoingHeaders, outputStream);
-        } else {
-            try {
-                outputStream.flush();
-            } catch (IOException e) {
-                throw new CodecException(e.getMessage(), e);
-            }
+    public void writeTo(@NonNull Argument<T> type,
+                        @NonNull MediaType mediaType,
+                        T object,
+                        @NonNull MutableHeaders outgoingHeaders,
+                        @NonNull OutputStream outputStream) throws CodecException {
+        try {
+            messageBodyWriter.writeTo(object,
+                type.getType(),
+                type.asType(),
+                type.getAnnotationMetadata().synthesizeAll(),
+                as(mediaType),
+                new JaxRsMutableHeadersMultivaluedMap(outgoingHeaders),
+                outputStream
+            );
+        } catch (IOException e) {
+            throw new CodecException("Cannot write to", e);
         }
     }
+
+    private jakarta.ws.rs.core.MediaType as(MediaType mediaType) {
+        return jakarta.ws.rs.core.MediaType.valueOf(mediaType.toString());
+    }
+
 }
