@@ -20,7 +20,7 @@ public class FilterExtension implements ExecutionCondition {
         if (testClass == null) {
             return ConditionEvaluationResult.enabled("No test class or method");
         }
-//        if (testClass != ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT.class) {
+//        if (testClass != ee.jakarta.tck.ws.rs.spec.provider.sort.JAXRSClientIT.class) {
 //            return CLIENT;
 //        }
         String id = testClass.getName() + "#" + testMethodName;
@@ -112,24 +112,17 @@ public class FilterExtension implements ExecutionCondition {
             testClass == ee.jakarta.tck.ws.rs.spec.provider.reader.JAXRSClientIT.class) {
             return ConditionEvaluationResult.disabled("request-scoped bean fields");
         } else if (Set.of(
+            // Correctly remap and support MessageBodyReader
+            "ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT#bodyReaderTest",
             "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#readEntityFromBodyTest",
             "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#readEntityFromHeaderTest",
-            "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#writeBodyEntityUsingWriterTest",
-            "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#writeHeaderEntityUsingWriterTest",
-            "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#isRegisteredMessageBodyReaderWildcardTest",
-            "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#isRegisteredMessageBodyWriterXmlTest",
-            "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#isRegisteredMessageBodReaderXmlTest",
-            "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#isRegisteredMessageBodyWriterWildcardTest",
-            "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#writeIOExceptionUsingWriterTest",
             "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#readEntityIOExceptionTest",
             "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#readEntityWebException410Test",
-            "ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#mesageBodyWriterProducesTest",
-            "ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT#bodyWriterTest",
-            "ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT#bodyReaderTest",
-            // Implement proper exception mapping with BC support
-            "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#isRegisteredExceptionMapperNullExceptionTest",
-            "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#isRegisteredIOExceptionExceptionMapperTest",
-            "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#isRegisteredRuntimeExceptionExceptionMapperTest"
+            // Writer is expecting annotations from the controller method
+            "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#writeBodyEntityUsingWriterTest",
+            "ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#writeHeaderEntityUsingWriterTest",
+            // Body writer can mutate headers
+            "ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#mesageBodyWriterProducesTest"
             ).contains(id) ||
             testClass == ee.jakarta.tck.ws.rs.spec.provider.overridestandard.JAXRSClientIT.class) {
             return ConditionEvaluationResult.disabled("body reader/writer");
