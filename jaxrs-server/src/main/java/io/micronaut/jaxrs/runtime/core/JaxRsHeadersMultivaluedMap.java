@@ -35,7 +35,6 @@ import java.util.stream.Stream;
  * @since 4.6.0
  */
 @Internal
-@Singleton
 final class JaxRsHeadersMultivaluedMap extends AbstractMap<String, List<String>> implements MultivaluedMap<String, String> {
 
     private final Headers headers;
