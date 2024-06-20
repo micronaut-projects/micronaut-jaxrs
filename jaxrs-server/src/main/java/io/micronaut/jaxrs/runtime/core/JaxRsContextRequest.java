@@ -33,7 +33,7 @@ import java.util.List;
  */
 @Internal
 @Singleton
-public final class JaxRsContextRequest implements Request {
+final class JaxRsContextRequest implements Request {
     @Override
     public String getMethod() {
         return "";

@@ -36,7 +36,7 @@ import java.util.stream.Stream;
  */
 @Internal
 @Singleton
-public class JaxRsHeadersMultivaluedMap extends AbstractMap<String, List<String>> implements MultivaluedMap<String, String> {
+final class JaxRsHeadersMultivaluedMap extends AbstractMap<String, List<String>> implements MultivaluedMap<String, String> {
 
     private final Headers headers;
 
@@ -60,7 +60,7 @@ public class JaxRsHeadersMultivaluedMap extends AbstractMap<String, List<String>
     }
 
     @Override
-    public final String getFirst(String key) {
+    public String getFirst(String key) {
         List<String> l = get(key);
         return l == null || l.isEmpty() ? null : l.get(0);
     }
@@ -72,7 +72,7 @@ public class JaxRsHeadersMultivaluedMap extends AbstractMap<String, List<String>
     }
 
     @Override
-    public final void addAll(String key, List<String> valueList) {
+    public void addAll(String key, List<String> valueList) {
         for (String v : valueList) {
             add(key, v);
         }
@@ -80,20 +80,20 @@ public class JaxRsHeadersMultivaluedMap extends AbstractMap<String, List<String>
 
     @SuppressWarnings("Java8MapApi")
     @Override
-    public final void addFirst(String key, String value) {
+    public void addFirst(String key, String value) {
         List<String> old = get(key);
         put(key, Stream.concat(Stream.of(value), old.stream()).toList());
     }
 
     @Override
-    public final void putAll(Map<? extends String, ? extends List<String>> m) {
+    public void putAll(Map<? extends String, ? extends List<String>> m) {
         for (String s : m.keySet()) {
             put(s, m.get(s));
         }
     }
 
     @Override
-    public final Set<Entry<String, List<String>>> entrySet() {
+    public Set<Entry<String, List<String>>> entrySet() {
         return headers.asMap().entrySet();
     }
 

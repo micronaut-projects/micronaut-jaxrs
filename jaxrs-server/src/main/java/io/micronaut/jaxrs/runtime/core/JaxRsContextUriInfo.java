@@ -33,7 +33,7 @@ import java.util.List;
  */
 @Internal
 @Singleton
-public final class JaxRsContextUriInfo implements UriInfo {
+final class JaxRsContextUriInfo implements UriInfo {
 
     @Override
     public String getPath() {

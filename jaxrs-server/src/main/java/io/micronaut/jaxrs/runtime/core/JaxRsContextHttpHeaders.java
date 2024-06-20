@@ -36,7 +36,7 @@ import java.util.Map;
  */
 @Internal
 @Singleton
-public final class JaxRsContextHttpHeaders implements jakarta.ws.rs.core.HttpHeaders {
+final class JaxRsContextHttpHeaders implements jakarta.ws.rs.core.HttpHeaders {
 
     @Override
     public List<String> getRequestHeader(String name) {
