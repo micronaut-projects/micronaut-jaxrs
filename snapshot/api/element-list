@@ -1,4 +1,5 @@
 io.micronaut.jaxrs.processor
+io.micronaut.jaxrs.processor.transformer
 io.micronaut.jaxrs.runtime.core
 io.micronaut.jaxrs.runtime.ext.bind
 io.micronaut.jaxrs.runtime.ext.convert
