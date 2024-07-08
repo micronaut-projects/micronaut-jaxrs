@@ -4,6 +4,7 @@ package io.micronaut.jaxrs.runtime.core
 import io.micronaut.http.HttpStatus
 import io.micronaut.http.client.HttpClient
 import io.micronaut.http.client.annotation.Client
+import io.micronaut.jaxrs.runtime.GreeterService
 import io.micronaut.jaxrs.runtime.InterfaceResourceClient
 import io.micronaut.test.extensions.spock.annotation.MicronautTest
 import spock.lang.Specification
@@ -50,6 +51,15 @@ class InterfaceSpec extends Specification {
         then:
         response.status() == HttpStatus.OK
         response.body() == "noPath"
+    }
+
+    void 'test JAX-RS controller implemented interface'() {
+        when:
+            def response = rootClient.toBlocking().exchange("/api/greeter/string", String.class)
+
+        then:
+            response.status() == HttpStatus.OK
+            response.body() == "hello!!!"
     }
 
 }
