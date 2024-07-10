@@ -17,7 +17,6 @@ package io.micronaut.validation.tck;
 
 import io.micronaut.core.annotation.Internal;
 import org.jboss.arquillian.container.spi.client.container.DeployableContainer;
-import org.jboss.arquillian.container.test.spi.client.protocol.Protocol;
 import org.jboss.arquillian.core.spi.LoadableExtension;
 
 /**

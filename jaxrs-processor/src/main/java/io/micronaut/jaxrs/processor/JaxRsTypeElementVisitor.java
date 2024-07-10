@@ -38,6 +38,8 @@ import io.micronaut.inject.ast.ParameterElement;
 import io.micronaut.inject.ast.TypedElement;
 import io.micronaut.inject.visitor.TypeElementVisitor;
 import io.micronaut.inject.visitor.VisitorContext;
+import jakarta.inject.Named;
+import jakarta.inject.Singleton;
 import jakarta.ws.rs.BeanParam;
 import jakarta.ws.rs.CookieParam;
 import jakarta.ws.rs.Encoded;
@@ -53,6 +55,7 @@ import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.SecurityContext;
 import jakarta.ws.rs.core.UriInfo;
+import jakarta.ws.rs.ext.Provider;
 
 import java.lang.annotation.Annotation;
 import java.util.Arrays;
@@ -111,6 +114,14 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
 
     @Override
     public void visitClass(ClassElement element, VisitorContext context) {
+        if (element.hasStereotype(Provider.class)) {
+            if (element.isEnum()) {
+                return;
+            }
+            element.annotate(Singleton.class);
+            element.annotate(Named.class);
+            return;
+        }
         currentClassElement = element;
         if (element.hasAnnotation(Path.class) && !element.isAbstract()) {
             element.stringValue(Path.class).ifPresent(p -> {
@@ -148,6 +159,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
                     && JAX_RS_BINDING_TYPES.stream().noneMatch(cl -> cl.equals(parameterTypeName))) {
                     // unannotated, implicit @Body
                     parameter.annotate(Body.class);
+                    parameter.annotate(Nullable.class); // JAX-RS controller bodies are nullable by default
                 }
             }
         }

@@ -10,6 +10,7 @@ dependencies {
 
 	implementation(mn.micronaut.router)
 	implementation(mn.micronaut.http.server)
+    implementation(projects.micronautJaxrsCommon)
 
 	// for Java
 	testAnnotationProcessor(mn.micronaut.inject.java)

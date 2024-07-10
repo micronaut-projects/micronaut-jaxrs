@@ -107,6 +107,7 @@ public final class TckDeployableContainer implements DeployableContainer<TckCont
     private static JavaArchive buildSupportLibrary() {
         return ShrinkWrap.create(JavaArchive.class, "micronaut-jaxrs-tck-support.jar")
             .addAsManifestResource("META-INF/services/io.micronaut.inject.visitor.TypeElementVisitor")
+            .addAsResource("logback.xml")
             .addPackage(TestClassVisitor.class.getPackage());
     }
 
@@ -147,7 +148,6 @@ public final class TckDeployableContainer implements DeployableContainer<TckCont
             embeddedServer.start();
             System.setProperty("webServerHost", embeddedServer.getHost());
             System.setProperty("webServerPort", String.valueOf(embeddedServer.getPort()));
-            //testInstance = applicationContext.getBean(classLoader.loadClass(testJavaClass.getName()));
 
             runningApplicationContext.set(applicationContext);
             APP.set(applicationContext);

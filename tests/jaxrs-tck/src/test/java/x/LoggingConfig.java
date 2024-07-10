@@ -7,7 +7,8 @@ import java.util.logging.LogManager;
 
 public class LoggingConfig {
     {
-        LogManager.getLogManager().getLogger("").setLevel(Level.FINEST);
+        SLF4JBridgeHandler.removeHandlersForRootLogger();
         SLF4JBridgeHandler.install();
+        LogManager.getLogManager().getLogger("").setLevel(Level.FINEST);
     }
 }

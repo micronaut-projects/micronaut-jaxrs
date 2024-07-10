@@ -43,7 +43,7 @@ public final class TestClassVisitor implements TypeElementVisitor<Object, Object
     }
 
     private void process(ClassElement element) {
-        if (element.getName().startsWith("ee.jakarta.tck.ws.rs")) {
+        if (element.getName().startsWith("ee.jakarta.tck.ws.rs") && !element.isEnum()) {
             element.annotate(Introspected.class, builder -> {
                 builder.member("accessKind", new Introspected.AccessKind[]{Introspected.AccessKind.FIELD, Introspected.AccessKind.METHOD});
                 builder.member("visibility", Introspected.Visibility.ANY);

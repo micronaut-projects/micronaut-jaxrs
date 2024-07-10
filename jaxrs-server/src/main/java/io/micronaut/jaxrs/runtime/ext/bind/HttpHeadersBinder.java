@@ -19,6 +19,7 @@ import io.micronaut.core.convert.ArgumentConversionContext;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.bind.binders.TypedRequestArgumentBinder;
+import io.micronaut.jaxrs.common.JaxRsHttpHeaders;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.core.HttpHeaders;
 
@@ -42,6 +43,6 @@ public class HttpHeadersBinder implements TypedRequestArgumentBinder<HttpHeaders
 
     @Override
     public BindingResult<HttpHeaders> bind(ArgumentConversionContext<HttpHeaders> context, HttpRequest<?> source) {
-        return () -> Optional.of(new JaxRsHttpHeaders(source.getHeaders()));
+        return () -> Optional.of(JaxRsHttpHeaders.forRequest(source.getHeaders()));
     }
 }
