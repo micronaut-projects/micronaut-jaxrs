@@ -47,7 +47,7 @@ public final class JaxRsClientResponseContext implements ClientResponseContext {
     private final JaxRsMutableResponse jaxRsMutableResponse;
     private final MutableHttpResponse<?> mutableHttpResponse;
 
-    public JaxRsClientResponseContext(JaxRsMutableResponse jaxRsMutableResponse) {
+    JaxRsClientResponseContext(JaxRsMutableResponse jaxRsMutableResponse) {
         this.jaxRsMutableResponse = jaxRsMutableResponse;
         this.mutableHttpResponse = jaxRsMutableResponse.getResponse();
     }
