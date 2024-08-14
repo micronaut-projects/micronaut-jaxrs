@@ -30,7 +30,7 @@ public class FilterExtension implements ExecutionCondition {
 //        if (testClass == null) {
 //            return ConditionEvaluationResult.enabled("No test class or method");
 //        }
-//        if (testClass != ee.jakarta.tck.ws.rs.ee.rs.ext.interceptor.clientwriter.writerinterceptorcontext.JAXRSClientIT.class) {
+//        if (testClass != ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT.class) {
 //            return DISABLED;
 //        }
 
@@ -41,7 +41,7 @@ public class FilterExtension implements ExecutionCondition {
         if (disabledTests.contains(id)) {
             return DISABLED;
         }
-//        if ("exceptionMapperPriorityTest".equals(testMethodName) || testMethodName.isEmpty()) {
+//        if ("wrongAppNameTest".equals(testMethodName) || testMethodName.isEmpty()) {
 //            return ConditionEvaluationResult.enabled(null);
 //        } else if (true) {
 //            return DISABLED;

@@ -61,7 +61,8 @@ import java.util.concurrent.TimeUnit;
 public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConfigurable<ClientBuilder> {
 
     // Only for testing
-    private static final List<WeakReference<DefaultHttpClient>> CLIENTS = new ArrayList<>();
+    private static final List<WeakReference<DefaultHttpClient>> TESTING_CLIENTS = new ArrayList<>();
+    private static final int TESTING_MIN_CLIENTS = Optional.ofNullable(System.getProperty("micronaut.testing.jaxrs.min.clients")).map(Integer::parseInt).orElse(-1);
 
     private JaxRsConfiguration config;
     private SSLContext sslContext;
@@ -108,12 +109,14 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
         jaxRsConfiguration.register(new JaxRsInputStreamMessageBodyReader());
         jaxRsConfiguration.register(new JaxRsStreamingOutputMessageBodyWriter<>());
 
-        CLIENTS.removeIf(w -> w.get() == null);
-        CLIENTS.add(new WeakReference<>(httpClient));
-        if (CLIENTS.size() > 5) {
-            DefaultHttpClient client = CLIENTS.remove(0).get();
-            if (client != null) {
-                client.close();
+        if (TESTING_MIN_CLIENTS > 0) {
+            TESTING_CLIENTS.removeIf(w -> w.get() == null);
+            TESTING_CLIENTS.add(new WeakReference<>(httpClient));
+            if (TESTING_CLIENTS.size() > TESTING_MIN_CLIENTS) {
+                DefaultHttpClient client = TESTING_CLIENTS.remove(0).get();
+                if (client != null) {
+                    client.close();
+                }
             }
         }
         return new JaxRsClient(httpClient, jaxRsConfiguration);

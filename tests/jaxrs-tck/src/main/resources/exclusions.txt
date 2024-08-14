@@ -1,8 +1,33 @@
-# Uncomment for faster tests
-#ee.jakarta.tck.ws.rs.ee.rs.client.asyncinvoker.JAXRSClientIT
-
 # Support returning nulls
 ee.jakarta.tck.ws.rs.spec.returntype.JAXRSClientIT
+
+# Builder issue
+ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT#readEntityClassAnnotationTest
+
+# matching weirdness
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#locatorNameTooLongAgainTest
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#slashUriTest
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#slashWrongUriTest
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#slashAppNameTest
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#wrongAppNameTest
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#descendantResourcePathValueTest
+
+# Sub resources
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesOverridesDescendantSubResourcePathValuePostTest
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#consumesOverridesDescendantSubResourcePathValueTest
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#consumesCorrectContentTypeOnResourceLocatorTest
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesCorrectContentTypeOnResourceLocatorTest
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#l2SubResourceLocatorTest
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesOnResourceLocatorTest
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesCorrectContentTypeOnSubResourceLocatorTest
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesOnSubResourceLocatorTest
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#consumesCorrectContentTypeOnSubResourceLocatorTest
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#foundAnotherResourceLocatorByPathTest
+
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#qualityOfSourceOnDifferentMediaTypesTest
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#concreteOverStarWhenAcceptStarTest
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesOverridesDescendantSubResourcePathValueWeightTest
+
 
 # Why multivaluedmap of headers should accept nulls???
 ee.jakarta.tck.ws.rs.api.rs.core.multivaluedmap.JAXRSClientIT
@@ -95,9 +120,6 @@ ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT#getLastModifiedTes
 ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT#getHeaderStringTest
 ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT#getHeadersTest
 
-# Support returning null in controllers
-ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT#readEntityClassAnnotationTest
-
 # Builder doesn't include query value for tests
 ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT#readEntityGenericTypeAnnotationIsNullWhenNoEntityTest
 ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT#readEntityClassIsNullWhenNoEntityTest
@@ -135,18 +157,6 @@ ee.jakarta.tck.ws.rs.ee.rs.formparam.locator.JAXRSLocatorClientIT
 ee.jakarta.tck.ws.rs.ee.rs.formparam.sub.JAXRSSubClientIT
 ee.jakarta.tck.ws.rs.ee.rs.get.JAXRSClientIT#dynamicGetTest
 ee.jakarta.tck.ws.rs.ee.rs.get.JAXRSClientIT#recursiveResourceLocatorTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#consumesCorrectContentTypeOnResourceLocatorTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesCorrectContentTypeOnResourceLocatorTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#consumesOnSubResourceLocatorTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#l2SubResourceLocatorTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesOnResourceLocatorTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesCorrectContentTypeOnSubResourceLocatorTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#requestNotSupportedOnSubResourceLocatorTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#requestNotSupportedOnResourceLocatorTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesOnSubResourceLocatorTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#consumesCorrectContentTypeOnSubResourceLocatorTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#foundAnotherResourceLocatorByPathTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#consumesOnResourceLocatorTest
 
 # Receive MultivaluedMap as a form body
 ee.jakarta.tck.ws.rs.spec.provider.standardwithjaxrsclient.JAXRSClientIT#mapElementProviderTest
@@ -168,9 +178,6 @@ ee.jakarta.tck.ws.rs.spec.provider.writer.JAXRSClientIT#supportAllTest
 ee.jakarta.tck.ws.rs.spec.provider.writer.JAXRSClientIT#supportXmlByXmlWriterTest
 ee.jakarta.tck.ws.rs.spec.provider.writer.JAXRSClientIT#supportXmlByDefaultWriterTest
 
-# Allow return nothing in controllers
-ee.jakarta.tck.ws.rs.ee.rs.container.responsecontext.JAXRSClientIT#containsHeaderStringTest
-
 # Filter abortWith doesn't trigger interceptors...
 ee.jakarta.tck.ws.rs.api.rs.ext.interceptor.reader.interceptorcontext.JAXRSClientIT#setTypeTest
 
@@ -183,9 +190,6 @@ ee.jakarta.tck.ws.rs.ee.rs.client.clientrequestcontext.JAXRSClientIT#setMethodTe
 
 # Not supported to access / replace OutputStream in ClientRequestContext
 ee.jakarta.tck.ws.rs.ee.rs.client.clientrequestcontext.JAXRSClientIT#getEntityStreamTest
-
-# Enable after https:#github.com/micronaut-projects/micronaut-core/pull/10984
-ee.jakarta.tck.ws.rs.ee.rs.ext.interceptor.clientwriter.interceptorcontext.JAXRSClientIT#getAnnotationsTest
 
 # Unsupported writers / readers
 ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT#clientSourceWriterTest
@@ -233,15 +237,6 @@ ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#webApplica
 # Exception mapper needs to support @Context injection
 ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT#exceptionMapperTest
 
-# Support catching and remapping all bad responses
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#slashWrongUriTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#requestNotSupportedOnResourceTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesOnResourceTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#requestNotSupportedOnSubResourceTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#locatorNameTooLongTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#methodNotFoundTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#consumesOnResourceTest
-
 # Get context
 ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#isRegisteredAppJsonContextResolverTest
 ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#isRegisteredTextPlainContextResolverTest
@@ -265,13 +260,6 @@ ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#hostTest2
 
 # TCK BUG missing method annotation
 ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#webApplicationExceptionHasResponseWithEntityDoesNotUseMapperTest
-
-# matching weirdness
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#locatorNameTooLongAgainTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#consumesOverridesDescendantSubResourcePathValueTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#slashUriTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#descendantResourcePathValueTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesOverridesDescendantSubResourcePathValuePostTest
 
 # uri template
 ee.jakarta.tck.ws.rs.api.rs.core.link.JAXRSClientIT#fromPathWithUriTemplateParamsTest
@@ -394,9 +382,6 @@ ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#textPreferenc
 ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#defaultResponseErrorTest
 ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#clientImagePreferenceTest
 ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#defaultErrorTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#qualityOfSourceOnDifferentMediaTypesTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#concreteOverStarWhenAcceptStarTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesOverridesDescendantSubResourcePathValueWeightTest
 ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#noPreferenceTest
 ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#imagePreferenceTest
 

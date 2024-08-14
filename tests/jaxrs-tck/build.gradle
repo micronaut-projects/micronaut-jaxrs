@@ -36,6 +36,7 @@ test {
     systemProperty("java.util.logging.config.class", "x.LoggingConfig")
     systemProperty("webServerHost", "localhost")
     systemProperty("webServerPort", "8123")
+    systemProperty("micronaut.testing.jaxrs.min.clients", "5")
     useJUnitPlatform()
     maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
 }
