@@ -139,7 +139,6 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
     }
 
     private <T> T asyncBlock(CompletableFuture<T> future) {
-        // Use it as a workaround before https://github.com/micronaut-projects/micronaut-core/pull/10975 is merged
         try {
             return future.get();
         } catch (InterruptedException e) {
@@ -284,7 +283,6 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
             filterResponse(jaxRsMutableResponse, requestContext);
             return jaxRsMutableResponse;
         }
-        // Todo: filter custom response
         return response;
     }
 
