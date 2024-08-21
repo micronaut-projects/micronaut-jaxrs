@@ -19,11 +19,6 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.MediaType;
 import jakarta.annotation.Priority;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -74,30 +69,6 @@ public final class JaxRsUtils {
 
     public static MediaType convert(jakarta.ws.rs.core.MediaType mediaType) {
         return mediaType == null ? null : MediaType.of(mediaType.toString());
-    }
-
-    public static byte[] readIOStream(InputStream inputStream) {
-        try {
-            if (inputStream instanceof ByteArrayInputStream byteArrayInputStream) {
-                return byteArrayInputStream.readAllBytes();
-            }
-            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-            int nRead;
-            byte[] data = new byte[4];
-            while ((nRead = inputStream.readNBytes(data, 0, data.length)) != 0) {
-                buffer.write(data, 0, nRead);
-            }
-            buffer.flush();
-            return buffer.toByteArray();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        } finally {
-            try {
-                inputStream.close();
-            } catch (IOException ignore) {
-                // Ignore
-            }
-        }
     }
 
 }

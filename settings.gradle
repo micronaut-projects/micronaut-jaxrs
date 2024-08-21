@@ -19,7 +19,7 @@ include 'jaxrs-bom'
 include 'jaxrs-processor'
 include 'jaxrs-server'
 include 'jaxrs-server-security'
-//include 'jaxrs-servlet'
+include 'jaxrs-servlet'
 include 'jaxrs-client'
 include 'jaxrs-common'
 

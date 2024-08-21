@@ -25,6 +25,7 @@ import jakarta.ws.rs.core.MultivaluedMap;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 
 /**
  * Adapter for JAX-RS and final Micronaut response.
@@ -59,7 +60,18 @@ public final class JaxRsMutableResponse extends JaxRsResponse implements HttpRes
             if (entityType.getType().equals(InputStream.class)) {
                 return (T) entityStream;
             }
-            mutableHttpResponse.body(JaxRsUtils.readIOStream(entityStream));
+            byte[] result;
+            try {
+                result = entityStream.readAllBytes();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            try {
+                entityStream.close();
+            } catch (IOException ignore) {
+                // Ignore
+            }
+            mutableHttpResponse.body(result);
             entityStream = null;
         }
         return super.readEntity(entityType);

@@ -16,6 +16,8 @@
 package io.micronaut.jaxrs.common;
 
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.convert.ConversionService;
+import io.micronaut.http.CaseInsensitiveMutableHttpHeaders;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.MultivaluedMap;
@@ -27,6 +29,8 @@ import java.io.OutputStreamWriter;
 import java.io.Reader;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
+import java.nio.charset.Charset;
+import java.util.Map;
 
 /**
  * The implementation of {@link MessageBodyWriter} for {@link Reader}.
@@ -44,13 +48,17 @@ public final class JaxRsReaderMessageBodyWriter implements MessageBodyWriter<Rea
     }
 
     @Override
-    public void writeTo(Reader reader, Class<?> type,
+    public void writeTo(Reader reader,
+                        Class<?> type,
                         Type genericType,
                         Annotation[] annotations,
                         jakarta.ws.rs.core.MediaType mediaType,
                         MultivaluedMap<String, Object> httpHeaders,
                         OutputStream entityStream) throws IOException, WebApplicationException {
-        try (OutputStreamWriter out = new OutputStreamWriter(entityStream)) {
+        Charset charset = io.micronaut.http.body.MessageBodyWriter.
+            findCharset(JaxRsUtils.convert(mediaType), new CaseInsensitiveMutableHttpHeaders((Map) httpHeaders, ConversionService.SHARED))
+            .orElse(Charset.defaultCharset());
+        try (OutputStreamWriter out = new OutputStreamWriter(entityStream, charset)) {
             reader.transferTo(out);
         }
         try {

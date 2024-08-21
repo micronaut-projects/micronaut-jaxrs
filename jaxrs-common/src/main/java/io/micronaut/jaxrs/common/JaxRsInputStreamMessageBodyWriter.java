@@ -23,9 +23,7 @@ import jakarta.ws.rs.core.MultivaluedMap;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.io.OutputStreamWriter;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 
@@ -53,9 +51,7 @@ public final class JaxRsInputStreamMessageBodyWriter<T extends InputStream> impl
                         jakarta.ws.rs.core.MediaType mediaType,
                         MultivaluedMap<String, Object> httpHeaders,
                         OutputStream entityStream) throws IOException, WebApplicationException {
-        try (OutputStreamWriter out = new OutputStreamWriter(entityStream)) {
-            new InputStreamReader(inputStream).transferTo(out);
-        }
+        inputStream.transferTo(entityStream);
         try {
             inputStream.close();
         } catch (IOException ignore) {
