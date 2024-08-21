@@ -32,6 +32,7 @@ import java.io.Reader;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
 /**
@@ -51,7 +52,7 @@ public final class JaxRsReaderMessageBodyReader implements MessageBodyReader<Rea
     @Override
     public Reader readFrom(Class<Reader> type, Type genericType, Annotation[] annotations, MediaType mediaType, MultivaluedMap<String, String> httpHeaders, InputStream entityStream) throws IOException, WebApplicationException {
         Optional<Charset> charset = MessageBodyWriter.findCharset(JaxRsUtils.convert(mediaType), new CaseInsensitiveMutableHttpHeaders(httpHeaders, ConversionService.SHARED));
-        return new InputStreamReader(entityStream, charset.orElse(Charset.defaultCharset()));
+        return new InputStreamReader(entityStream, charset.orElse(StandardCharsets.UTF_8));
     }
 
 }

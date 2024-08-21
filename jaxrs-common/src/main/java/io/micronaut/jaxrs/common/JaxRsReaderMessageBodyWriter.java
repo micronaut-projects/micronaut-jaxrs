@@ -30,6 +30,7 @@ import java.io.Reader;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 /**
@@ -57,7 +58,7 @@ public final class JaxRsReaderMessageBodyWriter implements MessageBodyWriter<Rea
                         OutputStream entityStream) throws IOException, WebApplicationException {
         Charset charset = io.micronaut.http.body.MessageBodyWriter.
             findCharset(JaxRsUtils.convert(mediaType), new CaseInsensitiveMutableHttpHeaders((Map) httpHeaders, ConversionService.SHARED))
-            .orElse(Charset.defaultCharset());
+            .orElse(StandardCharsets.UTF_8);
         try (OutputStreamWriter out = new OutputStreamWriter(entityStream, charset)) {
             reader.transferTo(out);
         }

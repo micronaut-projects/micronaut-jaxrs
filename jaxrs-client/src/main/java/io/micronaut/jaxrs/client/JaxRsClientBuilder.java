@@ -134,8 +134,7 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
 
     @Override
     public ClientBuilder withConfig(Configuration config) {
-//        this.config = config;
-        return this;
+        throw new IllegalStateException("Not supported");
     }
 
     @Override
