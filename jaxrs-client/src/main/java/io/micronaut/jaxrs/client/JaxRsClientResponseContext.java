@@ -82,12 +82,12 @@ public final class JaxRsClientResponseContext implements ClientResponseContext {
         return jaxRsMutableResponse.getHeaderString(name);
     }
 
-    @Override
+    // @Override
     public boolean containsHeaderString(String name, String valueSeparatorRegex, Predicate<String> valuePredicate) {
         return JaxRsHttpHeaders.forResponse(mutableHttpResponse.getHeaders()).containsHeaderString(name, valueSeparatorRegex, valuePredicate);
     }
 
-    @Override
+    // @Override
     public boolean containsHeaderString(String name, Predicate<String> valuePredicate) {
         return JaxRsHttpHeaders.forResponse(mutableHttpResponse.getHeaders()).containsHeaderString(name, valuePredicate);
     }
