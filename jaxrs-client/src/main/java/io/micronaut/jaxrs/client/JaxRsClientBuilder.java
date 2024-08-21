@@ -182,7 +182,7 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
 
     @Override
     public ClientBuilder readTimeout(long timeout, TimeUnit unit) {
-        this.readTimeout = Duration.ofMillis(unit.toMillis(timeout));
+        this.readTimeout = Duration.of(timeout, unit.toChronoUnit());
         return this;
     }
 
