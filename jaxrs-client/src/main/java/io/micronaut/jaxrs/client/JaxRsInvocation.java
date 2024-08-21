@@ -29,7 +29,7 @@ import io.micronaut.http.MutableHttpHeaders;
 import io.micronaut.http.MutableHttpRequest;
 import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.http.client.exceptions.HttpClientResponseException;
-import io.micronaut.jaxrs.common.ArgumentUtil;
+import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import io.micronaut.jaxrs.common.JaxRsResponse;
 import jakarta.ws.rs.ProcessingException;
@@ -111,7 +111,7 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
 
     @Override
     public <T> T invoke(GenericType<T> genericType) {
-        return invoke(ArgumentUtil.from(genericType));
+        return invoke(JaxRsArgumentUtil.from(genericType));
     }
 
     @Override
@@ -126,12 +126,12 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
 
     @Override
     public <T> Future<T> submit(GenericType<T> genericType) {
-        return async(ArgumentUtil.from(genericType));
+        return async(JaxRsArgumentUtil.from(genericType));
     }
 
     @Override
     public <T> Future<T> submit(InvocationCallback<T> invocationCallback) {
-        return async(ArgumentUtil.from(invocationCallback)).whenComplete(withCallback(invocationCallback));
+        return async(JaxRsArgumentUtil.from(invocationCallback)).whenComplete(withCallback(invocationCallback));
     }
 
     private <T> T invoke(Argument<T> type) {
@@ -147,7 +147,7 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
             if (e.getCause() instanceof RuntimeException runtimeException) {
                 throw runtimeException;
             }
-            throw new RuntimeException(e);
+            throw new ProcessingException(e);
         }
     }
 
@@ -182,9 +182,9 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
             if (entity != null) {
                 Object entityValue = entity.getEntity();
                 if (entityValue instanceof GenericEntity<?> genericEntity) {
-                    requestBodyType = (Argument<Object>) ArgumentUtil.from(genericEntity);
+                    requestBodyType = (Argument<Object>) JaxRsArgumentUtil.from(genericEntity);
                 } else {
-                    requestBodyType = (Argument<Object>) Argument.of(entityValue.getClass(), ArgumentUtil.createAnnotationMetadata(entity.getAnnotations()));
+                    requestBodyType = (Argument<Object>) Argument.of(entityValue.getClass(), JaxRsArgumentUtil.createAnnotationMetadata(entity.getAnnotations()));
                 }
             }
             List<ClientRequestFilter> requestFilters = configuration.getRequestFilters();
@@ -327,7 +327,7 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
         Argument<Object> bodyArgument;
         Object body;
         if (entity != null) {
-            bodyArgument = (Argument<Object>) ArgumentUtil.from(entity);
+            bodyArgument = (Argument<Object>) JaxRsArgumentUtil.from(entity);
             body = entity.getEntity();
         } else {
             body = mutableHttpRequest.getBody().orElse(null);
@@ -353,12 +353,12 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
 
     @Override
     public <T> CompletableFuture<T> get(GenericType<T> responseType) {
-        return async(HttpMethod.GET, ArgumentUtil.from(responseType));
+        return async(HttpMethod.GET, JaxRsArgumentUtil.from(responseType));
     }
 
     @Override
     public <T> Future<T> get(InvocationCallback<T> callback) {
-        return async(HttpMethod.GET, ArgumentUtil.from(callback)).whenComplete(withCallback(callback));
+        return async(HttpMethod.GET, JaxRsArgumentUtil.from(callback)).whenComplete(withCallback(callback));
     }
 
     @Override
@@ -373,12 +373,12 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
 
     @Override
     public <T> CompletableFuture<T> put(Entity<?> entity, GenericType<T> type) {
-        return async(HttpMethod.PUT, ArgumentUtil.from(type), entity);
+        return async(HttpMethod.PUT, JaxRsArgumentUtil.from(type), entity);
     }
 
     @Override
     public <T> Future<T> put(Entity<?> entity, InvocationCallback<T> callback) {
-        return async(HttpMethod.PUT, ArgumentUtil.from(callback), entity).whenComplete(withCallback(callback));
+        return async(HttpMethod.PUT, JaxRsArgumentUtil.from(callback), entity).whenComplete(withCallback(callback));
     }
 
     @Override
@@ -393,12 +393,12 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
 
     @Override
     public <T> CompletableFuture<T> post(Entity<?> entity, GenericType<T> type) {
-        return async(HttpMethod.POST, ArgumentUtil.from(type), entity);
+        return async(HttpMethod.POST, JaxRsArgumentUtil.from(type), entity);
     }
 
     @Override
     public <T> Future<T> post(Entity<?> entity, InvocationCallback<T> callback) {
-        return async(HttpMethod.POST, ArgumentUtil.from(callback), entity).whenComplete(withCallback(callback));
+        return async(HttpMethod.POST, JaxRsArgumentUtil.from(callback), entity).whenComplete(withCallback(callback));
     }
 
     private <T> BiConsumer<T, Throwable> withCallback(InvocationCallback<T> callback) {
@@ -423,12 +423,12 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
 
     @Override
     public <T> CompletableFuture<T> delete(GenericType<T> type) {
-        return async(HttpMethod.DELETE, ArgumentUtil.from(type));
+        return async(HttpMethod.DELETE, JaxRsArgumentUtil.from(type));
     }
 
     @Override
     public <T> Future<T> delete(InvocationCallback<T> callback) {
-        return async(HttpMethod.DELETE, ArgumentUtil.from(callback)).whenComplete(withCallback(callback));
+        return async(HttpMethod.DELETE, JaxRsArgumentUtil.from(callback)).whenComplete(withCallback(callback));
     }
 
     @Override
@@ -438,7 +438,7 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
 
     @Override
     public Future<Response> head(InvocationCallback<Response> callback) {
-        return async(HttpMethod.HEAD, ArgumentUtil.from(callback)).whenComplete(withCallback(callback));
+        return async(HttpMethod.HEAD, JaxRsArgumentUtil.from(callback)).whenComplete(withCallback(callback));
     }
 
     @Override
@@ -453,12 +453,12 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
 
     @Override
     public <T> CompletableFuture<T> options(GenericType<T> responseType) {
-        return async(HttpMethod.OPTIONS, ArgumentUtil.from(responseType));
+        return async(HttpMethod.OPTIONS, JaxRsArgumentUtil.from(responseType));
     }
 
     @Override
     public <T> Future<T> options(InvocationCallback<T> callback) {
-        return async(HttpMethod.OPTIONS, ArgumentUtil.from(callback)).whenComplete(withCallback(callback));
+        return async(HttpMethod.OPTIONS, JaxRsArgumentUtil.from(callback)).whenComplete(withCallback(callback));
     }
 
     @Override
@@ -473,12 +473,12 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
 
     @Override
     public <T> CompletableFuture<T> trace(GenericType<T> responseType) {
-        return async(HttpMethod.TRACE, ArgumentUtil.from(responseType));
+        return async(HttpMethod.TRACE, JaxRsArgumentUtil.from(responseType));
     }
 
     @Override
     public <T> Future<T> trace(InvocationCallback<T> callback) {
-        return async(HttpMethod.TRACE, ArgumentUtil.from(callback)).whenComplete(withCallback(callback));
+        return async(HttpMethod.TRACE, JaxRsArgumentUtil.from(callback)).whenComplete(withCallback(callback));
     }
 
     @Override
@@ -493,12 +493,12 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
 
     @Override
     public <T> CompletableFuture<T> method(String name, GenericType<T> responseType) {
-        return async(name, ArgumentUtil.from(responseType));
+        return async(name, JaxRsArgumentUtil.from(responseType));
     }
 
     @Override
     public <T> Future<T> method(String name, InvocationCallback<T> callback) {
-        return async(name, ArgumentUtil.from(callback)).whenComplete(withCallback(callback));
+        return async(name, JaxRsArgumentUtil.from(callback)).whenComplete(withCallback(callback));
     }
 
     @Override
@@ -513,11 +513,11 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
 
     @Override
     public <T> CompletableFuture<T> method(String name, Entity<?> entity, GenericType<T> responseType) {
-        return async(name, ArgumentUtil.from(responseType), entity);
+        return async(name, JaxRsArgumentUtil.from(responseType), entity);
     }
 
     @Override
     public <T> Future<T> method(String name, Entity<?> entity, InvocationCallback<T> callback) {
-        return async(name, ArgumentUtil.from(callback), entity).whenComplete(withCallback(callback));
+        return async(name, JaxRsArgumentUtil.from(callback), entity).whenComplete(withCallback(callback));
     }
 }

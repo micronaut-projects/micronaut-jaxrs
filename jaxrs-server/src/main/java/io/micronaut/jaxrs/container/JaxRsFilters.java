@@ -28,7 +28,7 @@ import io.micronaut.http.annotation.RequestFilter;
 import io.micronaut.http.annotation.ResponseFilter;
 import io.micronaut.http.annotation.ServerFilter;
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
-import io.micronaut.jaxrs.common.ArgumentUtil;
+import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
 import io.micronaut.jaxrs.common.JaxRsGenericEntity;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import io.micronaut.jaxrs.common.JaxRsResponse;
@@ -118,7 +118,7 @@ final class JaxRsFilters {
                 bodyArgument = genericEntity.asArgument();
                 mutableHttpResponse.body(genericEntity.getEntity());
             } else if (body instanceof GenericEntity<?> genericEntity) {
-                bodyArgument = ArgumentUtil.from(genericEntity);
+                bodyArgument = JaxRsArgumentUtil.from(genericEntity);
                 mutableHttpResponse.body(genericEntity.getEntity());
             } else if (body != null) {
                 bodyArgument = Argument.of(body.getClass());

@@ -53,7 +53,7 @@ abstract sealed class AbstractJaxRsInterceptorContext implements InterceptorCont
         if (type == null && genericType == null && annotations == null) {
             return (Argument<T>) argument;
         }
-        AnnotationMetadata annotationMetadata = annotations == null ? argument.getAnnotationMetadata() : ArgumentUtil.createAnnotationMetadata(annotations);
+        AnnotationMetadata annotationMetadata = annotations == null ? argument.getAnnotationMetadata() : JaxRsArgumentUtil.createAnnotationMetadata(annotations);
         if (genericType != null) {
             Argument<?> genericArgument = Argument.of(genericType);
             return (Argument<T>) Argument.of(genericArgument.getType(),

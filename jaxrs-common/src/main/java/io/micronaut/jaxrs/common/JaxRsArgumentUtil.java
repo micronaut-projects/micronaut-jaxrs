@@ -35,9 +35,9 @@ import java.util.Map;
  * @since 4.6
  */
 @Internal
-public final class ArgumentUtil {
+public final class JaxRsArgumentUtil {
 
-    private ArgumentUtil() {
+    private JaxRsArgumentUtil() {
     }
 
     public static <T> Argument<T> from(InvocationCallback<T> callback) {

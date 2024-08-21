@@ -56,7 +56,7 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements MessageBodyWriter<
         if (genericEntity instanceof JaxRsGenericEntity<T> jaxRsGenericEntity) {
             argument = jaxRsGenericEntity.asArgument();
         } else {
-            argument = ArgumentUtil.from(genericEntity);
+            argument = JaxRsArgumentUtil.from(genericEntity);
         }
         T entity = genericEntity.getEntity();
         registry.getWriter(argument, List.of(mediaType))

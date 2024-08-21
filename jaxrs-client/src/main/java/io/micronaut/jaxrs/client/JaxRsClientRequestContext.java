@@ -18,7 +18,7 @@ package io.micronaut.jaxrs.client;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.MutableHttpRequest;
-import io.micronaut.jaxrs.common.ArgumentUtil;
+import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
 import io.micronaut.jaxrs.common.JaxRsHttpHeaders;
 import io.micronaut.jaxrs.common.JaxRsMutableHttpHeaders;
 import io.micronaut.jaxrs.common.JaxRsMutableObjectHeadersMultivaluedMap;
@@ -207,7 +207,7 @@ final class JaxRsClientRequestContext implements ClientRequestContext {
         bodyType = Argument.of(entity.getClass());
         if (annotations != null) {
             this.annotations = annotations;
-            bodyType = Argument.of(bodyType.getType(), ArgumentUtil.createAnnotationMetadata(annotations), bodyType.getTypeParameters());
+            bodyType = Argument.of(bodyType.getType(), JaxRsArgumentUtil.createAnnotationMetadata(annotations), bodyType.getTypeParameters());
         }
     }
 

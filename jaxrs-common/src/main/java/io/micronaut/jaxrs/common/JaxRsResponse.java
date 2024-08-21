@@ -157,17 +157,17 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
 
     @Override
     public <T> T readEntity(GenericType<T> entityType) {
-        return readEntity(ArgumentUtil.from(entityType));
+        return readEntity(JaxRsArgumentUtil.from(entityType));
     }
 
     @Override
     public <T> T readEntity(Class<T> entityType, Annotation[] annotations) {
-        return readEntity(ArgumentUtil.from(entityType, annotations));
+        return readEntity(JaxRsArgumentUtil.from(entityType, annotations));
     }
 
     @Override
     public <T> T readEntity(GenericType<T> entityType, Annotation[] annotations) {
-        return readEntity(ArgumentUtil.from(entityType, annotations));
+        return readEntity(JaxRsArgumentUtil.from(entityType, annotations));
     }
 
     @Override

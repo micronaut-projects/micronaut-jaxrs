@@ -18,7 +18,7 @@ package io.micronaut.jaxrs.container;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.MutableHttpResponse;
-import io.micronaut.jaxrs.common.ArgumentUtil;
+import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
 import io.micronaut.jaxrs.common.JaxRsHttpHeaders;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import io.micronaut.jaxrs.common.JaxRsUtils;
@@ -200,7 +200,7 @@ final class JaxRsContainerResponseContext implements ContainerResponseContext {
         if (mediaType != null) {
             mutableHttpResponse.contentType(JaxRsUtils.convert(mediaType));
         }
-        bodyArgument = Argument.of(entity == null ? (Class) Object.class : entity.getClass(), ArgumentUtil.createAnnotationMetadata(annotations));
+        bodyArgument = Argument.of(entity == null ? (Class) Object.class : entity.getClass(), JaxRsArgumentUtil.createAnnotationMetadata(annotations));
     }
 
     @Override

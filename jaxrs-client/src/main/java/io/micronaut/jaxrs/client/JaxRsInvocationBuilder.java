@@ -22,8 +22,8 @@ import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpMethod;
 import io.micronaut.http.MutableHttpHeaders;
 import io.micronaut.http.simple.SimpleHttpHeaders;
-import io.micronaut.jaxrs.common.ArgumentUtil;
-import io.micronaut.jaxrs.common.HeaderUtil;
+import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
+import io.micronaut.jaxrs.common.JaxRsHeaderUtil;
 import jakarta.ws.rs.client.AsyncInvoker;
 import jakarta.ws.rs.client.CompletionStageRxInvoker;
 import jakarta.ws.rs.client.Entity;
@@ -154,7 +154,7 @@ final class JaxRsInvocationBuilder implements Invocation.Builder {
 
     @Override
     public Invocation.Builder header(String name, Object value) {
-        mutableHttpHeaders.add(name, HeaderUtil.headerToString(value));
+        mutableHttpHeaders.add(name, JaxRsHeaderUtil.headerToString(value));
         return this;
     }
 
@@ -164,7 +164,7 @@ final class JaxRsInvocationBuilder implements Invocation.Builder {
             mutableHttpHeaders.remove(header);
         }
         if (headers != null) {
-            headers.forEach((key, values) -> values.forEach(value -> mutableHttpHeaders.add(key, HeaderUtil.headerToString(value))));
+            headers.forEach((key, values) -> values.forEach(value -> mutableHttpHeaders.add(key, JaxRsHeaderUtil.headerToString(value))));
         }
         return this;
     }
@@ -314,7 +314,7 @@ final class JaxRsInvocationBuilder implements Invocation.Builder {
 
     @Override
     public <T> T method(String name, Entity<?> entity, GenericType<T> responseType) {
-        return build(name).invokeExchange(ArgumentUtil.from(responseType), entity);
+        return build(name).invokeExchange(JaxRsArgumentUtil.from(responseType), entity);
     }
 
     private <T> String toRuntimeString(T value) {

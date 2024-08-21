@@ -47,6 +47,6 @@ public final class JaxRsGenericEntity<T> extends GenericEntity<T> {
     }
 
     public Argument<T> asArgument() {
-        return ArgumentUtil.from(this, annotations);
+        return JaxRsArgumentUtil.from(this, annotations);
     }
 }

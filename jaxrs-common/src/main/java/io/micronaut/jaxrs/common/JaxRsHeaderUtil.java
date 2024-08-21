@@ -25,7 +25,7 @@ import jakarta.ws.rs.ext.RuntimeDelegate;
  * @since 4.6
  */
 @Internal
-public final class HeaderUtil {
+public final class JaxRsHeaderUtil {
 
     private static final ClassValue<RuntimeDelegate.HeaderDelegate<?>> HEADER_DELEGATE_CACHE = new ClassValue<>() {
         @Override
