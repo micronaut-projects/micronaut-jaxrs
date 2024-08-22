@@ -1,8 +1,8 @@
+io.micronaut.jaxrs.client
+io.micronaut.jaxrs.common
+io.micronaut.jaxrs.container
 io.micronaut.jaxrs.processor
 io.micronaut.jaxrs.processor.transformer
-io.micronaut.jaxrs.runtime.core
 io.micronaut.jaxrs.runtime.ext.bind
-io.micronaut.jaxrs.runtime.ext.convert
-io.micronaut.jaxrs.runtime.ext.impl
 io.micronaut.jaxrs.security.bind
 io.micronaut.jaxrs.servlet

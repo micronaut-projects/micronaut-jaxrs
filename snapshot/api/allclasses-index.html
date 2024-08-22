@@ -15,7 +15,11 @@
 <script type="text/javascript" src="script-dir/jquery-ui.min.js"></script>
 </head>
 <body class="all-classes-index-page">
-<script type="text/javascript">var pathtoroot = "./";
+<script type="text/javascript">var evenRowColor = "even-row-color";
+var oddRowColor = "odd-row-color";
+var tableTab = "table-tab";
+var activeTableTab = "active-table-tab";
+var pathtoroot = "./";
 loadScripts(document, 'script');</script>
 <noscript>
 <div>JavaScript is disabled on your browser.</div>
@@ -51,155 +55,228 @@ loadScripts(document, 'script');</script>
 <h1 title="All Classes and Interfaces" class="title">All Classes and Interfaces</h1>
 </div>
 <div id="all-classes-table">
-<div class="caption"><span>Classes</span></div>
-<div class="summary-table two-column-summary">
+<div class="table-tabs" role="tablist" aria-orientation="horizontal"><button id="all-classes-table-tab0" role="tab" aria-selected="true" aria-controls="all-classes-table.tabpanel" tabindex="0" onkeydown="switchTab(event)" onclick="show('all-classes-table', 'all-classes-table', 2)" class="active-table-tab">All Classes and Interfaces</button><button id="all-classes-table-tab1" role="tab" aria-selected="false" aria-controls="all-classes-table.tabpanel" tabindex="-1" onkeydown="switchTab(event)" onclick="show('all-classes-table', 'all-classes-table-tab1', 2)" class="table-tab">Interfaces</button><button id="all-classes-table-tab2" role="tab" aria-selected="false" aria-controls="all-classes-table.tabpanel" tabindex="-1" onkeydown="switchTab(event)" onclick="show('all-classes-table', 'all-classes-table-tab2', 2)" class="table-tab">Classes</button><button id="all-classes-table-tab4" role="tab" aria-selected="false" aria-controls="all-classes-table.tabpanel" tabindex="-1" onkeydown="switchTab(event)" onclick="show('all-classes-table', 'all-classes-table-tab4', 2)" class="table-tab">Record Classes</button></div>
+<div id="all-classes-table.tabpanel" role="tabpanel">
+<div class="summary-table two-column-summary" aria-labelledby="all-classes-table-tab0">
 <div class="table-header col-first">Class</div>
 <div class="table-header col-last">Description</div>
 <div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/processor/ApplicationPathAnnotationMapper.html" title="class in io.micronaut.jaxrs.processor">ApplicationPathAnnotationMapper</a></div>
 <div class="col-last even-row-color all-classes-table all-classes-table-tab2">
 <div class="block">Maps the JAX-RS <code>ApplicationPath</code> annotation turning the application class into a singleton.</div>
 </div>
-<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/core/ApplicationPathProvider.html" title="class in io.micronaut.jaxrs.runtime.core">ApplicationPathProvider</a></div>
+<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/container/ApplicationPathProvider.html" title="class in io.micronaut.jaxrs.container">ApplicationPathProvider</a></div>
 <div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
 <div class="block">The application path provider.</div>
 </div>
-<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/processor/ConsumesMapper.html" title="class in io.micronaut.jaxrs.processor">ConsumesMapper</a></div>
+<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/common/ByteArrayByteBuffer.html" title="class in io.micronaut.jaxrs.common">ByteArrayByteBuffer</a>&lt;<a href="io/micronaut/jaxrs/common/ByteArrayByteBuffer.html" title="type parameter in ByteArrayByteBuffer">T</a>&gt;</div>
 <div class="col-last even-row-color all-classes-table all-classes-table-tab2">
+<div class="block">The implementation of <a href="https://docs.micronaut.io/latest/api/io/micronaut/core/io/buffer/ByteBuffer.html" title="class or interface in io.micronaut.core.io.buffer" class="external-link"><code>ByteBuffer</code></a> for byte arrays.</div>
+</div>
+<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/processor/ConsumesMapper.html" title="class in io.micronaut.jaxrs.processor">ConsumesMapper</a></div>
+<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
 <div class="block">Maps the JAX-RS <code>Consumes</code> annotation.</div>
 </div>
-<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/ext/bind/ContextAnnotationBinder.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">ContextAnnotationBinder</a>&lt;<a href="io/micronaut/jaxrs/runtime/ext/bind/ContextAnnotationBinder.html" title="type parameter in ContextAnnotationBinder">T</a>&gt;</div>
-<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
+<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/ext/bind/ContextAnnotationBinder.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">ContextAnnotationBinder</a>&lt;<a href="io/micronaut/jaxrs/runtime/ext/bind/ContextAnnotationBinder.html" title="type parameter in ContextAnnotationBinder">T</a>&gt;</div>
+<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
 <div class="block">Handles the JAX-RS <code>Context</code> annotation binding.</div>
 </div>
-<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/processor/ContextMapper.html" title="class in io.micronaut.jaxrs.processor">ContextMapper</a></div>
-<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
+<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/processor/ContextMapper.html" title="class in io.micronaut.jaxrs.processor">ContextMapper</a></div>
+<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
 <div class="block">Maps the JAX-RS <code>Context</code> annotation.</div>
 </div>
-<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/ext/impl/CookieHeaderDelegate.html" title="class in io.micronaut.jaxrs.runtime.ext.impl">CookieHeaderDelegate</a></div>
-<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
+<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/common/CookieHeaderDelegate.html" title="class in io.micronaut.jaxrs.common">CookieHeaderDelegate</a></div>
+<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
 <div class="block">Forked from RESTEasy.</div>
 </div>
-<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/processor/CookieParamMapper.html" title="class in io.micronaut.jaxrs.processor">CookieParamMapper</a></div>
-<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
+<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/processor/CookieParamMapper.html" title="class in io.micronaut.jaxrs.processor">CookieParamMapper</a></div>
+<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
 <div class="block">Maps the JAX-RS <code>CookieParam</code> annotation.</div>
 </div>
-<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/ext/bind/CookieRequestArgumentBinder.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">CookieRequestArgumentBinder</a></div>
-<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
+<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/ext/bind/CookieRequestArgumentBinder.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">CookieRequestArgumentBinder</a></div>
+<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
 <div class="block">Argument binder for handling cookies.</div>
 </div>
-<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/processor/DefaultValueMapper.html" title="class in io.micronaut.jaxrs.processor">DefaultValueMapper</a></div>
-<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
+<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/processor/DefaultValueMapper.html" title="class in io.micronaut.jaxrs.processor">DefaultValueMapper</a></div>
+<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
 <div class="block">Maps the JAX-RS <code>DefaultValue</code> annotation.</div>
 </div>
-<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/processor/DeleteAnnotationMapper.html" title="class in io.micronaut.jaxrs.processor">DeleteAnnotationMapper</a></div>
-<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
+<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/processor/DeleteAnnotationMapper.html" title="class in io.micronaut.jaxrs.processor">DeleteAnnotationMapper</a></div>
+<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
 <div class="block">Maps the JAX-RS <code>DELETE</code> annotation to Micronaut's version.</div>
 </div>
-<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/processor/FormParamMapper.html" title="class in io.micronaut.jaxrs.processor">FormParamMapper</a></div>
-<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
+<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/processor/FormParamMapper.html" title="class in io.micronaut.jaxrs.processor">FormParamMapper</a></div>
+<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
 <div class="block">Maps the JAX-RS <code>FormParam</code> annotation.</div>
 </div>
-<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/processor/GetAnnotationMapper.html" title="class in io.micronaut.jaxrs.processor">GetAnnotationMapper</a></div>
-<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
+<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/processor/GetAnnotationMapper.html" title="class in io.micronaut.jaxrs.processor">GetAnnotationMapper</a></div>
+<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
 <div class="block">Maps the JAX-RS <code>GET</code> annotation to Micronaut's version.</div>
 </div>
-<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/processor/HeadAnnotationMapper.html" title="class in io.micronaut.jaxrs.processor">HeadAnnotationMapper</a></div>
-<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
+<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/processor/HeadAnnotationMapper.html" title="class in io.micronaut.jaxrs.processor">HeadAnnotationMapper</a></div>
+<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
 <div class="block">Maps the JAX-RS <code>HEAD</code> annotation to Micronaut's version.</div>
 </div>
-<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/processor/HeaderParamMapper.html" title="class in io.micronaut.jaxrs.processor">HeaderParamMapper</a></div>
-<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
+<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/processor/HeaderParamMapper.html" title="class in io.micronaut.jaxrs.processor">HeaderParamMapper</a></div>
+<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
 <div class="block">Maps the JAX-RS <code>HeaderParam</code> annotation.</div>
 </div>
-<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/ext/bind/HttpHeadersBinder.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">HttpHeadersBinder</a></div>
-<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
+<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/ext/bind/HttpHeadersBinder.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">HttpHeadersBinder</a></div>
+<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
 <div class="block">Handles binding of the JAX-RS <code>HttpHeaders</code> type.</div>
+</div>
+<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/common/HttpMessageEntityReader.html" title="class in io.micronaut.jaxrs.common">HttpMessageEntityReader</a></div>
+<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
+<div class="block">En entity reader.</div>
 </div>
 <div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/processor/HttpMethodMapper.html" title="class in io.micronaut.jaxrs.processor">HttpMethodMapper</a></div>
 <div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
 <div class="block">Maps the JAX-RS <code>HttpMethod</code> annotation.</div>
 </div>
+<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/common/InterceptedMessageBodyReader.html" title="class in io.micronaut.jaxrs.common">InterceptedMessageBodyReader</a>&lt;<a href="io/micronaut/jaxrs/common/InterceptedMessageBodyReader.html" title="type parameter in InterceptedMessageBodyReader">T</a>&gt;</div>
+<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
+<div class="block">The Micronaut body reader with JAX-RS interceptors.</div>
+</div>
+<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/common/InterceptedMessageBodyWriter.html" title="class in io.micronaut.jaxrs.common">InterceptedMessageBodyWriter</a>&lt;<a href="io/micronaut/jaxrs/common/InterceptedMessageBodyWriter.html" title="type parameter in InterceptedMessageBodyWriter">T</a>&gt;</div>
+<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
+<div class="block">The Micronaut body writer with JAX-RS interceptors.</div>
+</div>
 <div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/processor/transformer/JaxRsAnnotationRemapper.html" title="class in io.micronaut.jaxrs.processor.transformer">JaxRsAnnotationRemapper</a></div>
 <div class="col-last even-row-color all-classes-table all-classes-table-tab2">
 <div class="block">The validation annotations remapper.</div>
 </div>
-<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/core/JaxRsApplication.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsApplication</a></div>
+<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/container/JaxRsApplicationUriNamingStrategy.html" title="class in io.micronaut.jaxrs.container">JaxRsApplicationUriNamingStrategy</a></div>
 <div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
-<div class="block">The default implementation of <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/core/Application.html" title="class or interface in jakarta.ws.rs.core" class="external-link"><code>Application</code></a>.</div>
-</div>
-<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/core/JaxRsApplicationUriNamingStrategy.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsApplicationUriNamingStrategy</a></div>
-<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
 <div class="block">Configures a URI naming strategy based on the <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/ApplicationPath.html" title="class or interface in jakarta.ws.rs" class="external-link"><code>ApplicationPath</code></a> annotation.</div>
 </div>
-<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/ext/impl/JaxRsArgumentUtils.html" title="class in io.micronaut.jaxrs.runtime.ext.impl">JaxRsArgumentUtils</a></div>
-<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
-<div class="block">Util class.</div>
-</div>
-<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/ext/convert/JaxRsConverterRegistrar.html" title="class in io.micronaut.jaxrs.runtime.ext.convert">JaxRsConverterRegistrar</a></div>
+<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/common/JaxRsArgumentUtil.html" title="class in io.micronaut.jaxrs.common">JaxRsArgumentUtil</a></div>
 <div class="col-last even-row-color all-classes-table all-classes-table-tab2">
+<div class="block">An argument util class.</div>
+</div>
+<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/client/JaxRsClientBuilder.html" title="class in io.micronaut.jaxrs.client">JaxRsClientBuilder</a></div>
+<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
+<div class="block">The implementation of <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/client/ClientBuilder.html" title="class or interface in jakarta.ws.rs.client" class="external-link"><code>ClientBuilder</code></a>.</div>
+</div>
+<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/client/JaxRsClientResponseContext.html" title="class in io.micronaut.jaxrs.client">JaxRsClientResponseContext</a></div>
+<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
+<div class="block">The implementation of <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/client/ClientResponseContext.html" title="class or interface in jakarta.ws.rs.client" class="external-link"><code>ClientResponseContext</code></a>.</div>
+</div>
+<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/common/JaxRsConverterRegistrar.html" title="class in io.micronaut.jaxrs.common">JaxRsConverterRegistrar</a></div>
+<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
 <div class="block">Registers JAX-RS converters.</div>
 </div>
-<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/core/JaxRsExceptionHandler.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsExceptionHandler</a></div>
-<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
-<div class="block">Handles JAX-RS exceptions that occur during the execution of an HTTP request.</div>
-</div>
-<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/core/JaxRsGlobalExceptionHandler.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsGlobalExceptionHandler</a></div>
+<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/common/JaxRsGenericEntity.html" title="class in io.micronaut.jaxrs.common">JaxRsGenericEntity</a>&lt;<a href="io/micronaut/jaxrs/common/JaxRsGenericEntity.html" title="type parameter in JaxRsGenericEntity">T</a>&gt;</div>
 <div class="col-last even-row-color all-classes-table all-classes-table-tab2">
-<div class="block">Handles JAX-RS exceptions that occur during the execution of an HTTP request.</div>
+<div class="block">The simple variation of <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/core/GenericEntity.html" title="class or interface in jakarta.ws.rs.core" class="external-link"><code>GenericEntity</code></a>.</div>
 </div>
-<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/ext/bind/JaxRsHttpHeaders.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">JaxRsHttpHeaders</a></div>
+<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/common/JaxRsHeadersMultivaluedMap.html" title="class in io.micronaut.jaxrs.common">JaxRsHeadersMultivaluedMap</a></div>
+<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
+<div class="block">The representation of headers as <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/core/MultivaluedMap.html" title="class or interface in jakarta.ws.rs.core" class="external-link"><code>MultivaluedMap</code></a>.</div>
+</div>
+<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/common/JaxRsHeaderUtil.html" title="class in io.micronaut.jaxrs.common">JaxRsHeaderUtil</a></div>
+<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
+<div class="block">A simple header util.</div>
+</div>
+<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/common/JaxRsHttpHeaders.html" title="class in io.micronaut.jaxrs.common">JaxRsHttpHeaders</a></div>
 <div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
 <div class="block">Adapter class for JAR-RS headers.</div>
 </div>
-<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/core/JaxRsMessageBodyReader.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsMessageBodyReader</a>&lt;<a href="io/micronaut/jaxrs/runtime/core/JaxRsMessageBodyReader.html" title="type parameter in JaxRsMessageBodyReader">T</a>&gt;</div>
+<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/common/JaxRsInputStreamMessageBodyReader.html" title="class in io.micronaut.jaxrs.common">JaxRsInputStreamMessageBodyReader</a></div>
+<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
+<div class="block">The implementation of <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/ext/MessageBodyReader.html" title="class or interface in jakarta.ws.rs.ext" class="external-link"><code>MessageBodyReader</code></a> for <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/io/InputStream.html" title="class or interface in java.io" class="external-link"><code>InputStream</code></a>.</div>
+</div>
+<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/common/JaxRsInputStreamMessageBodyWriter.html" title="class in io.micronaut.jaxrs.common">JaxRsInputStreamMessageBodyWriter</a>&lt;<a href="io/micronaut/jaxrs/common/JaxRsInputStreamMessageBodyWriter.html" title="type parameter in JaxRsInputStreamMessageBodyWriter">T</a> extends <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/io/InputStream.html" title="class or interface in java.io" class="external-link">InputStream</a>&gt;</div>
+<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
+<div class="block">The implementation of <a href="https://docs.micronaut.io/latest/api/io/micronaut/http/body/MessageBodyWriter.html" title="class or interface in io.micronaut.http.body" class="external-link"><code>MessageBodyWriter</code></a> for <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/io/InputStream.html" title="class or interface in java.io" class="external-link"><code>InputStream</code></a>.</div>
+</div>
+<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/common/JaxRsMessageBodyReader.html" title="class in io.micronaut.jaxrs.common">JaxRsMessageBodyReader</a>&lt;<a href="io/micronaut/jaxrs/common/JaxRsMessageBodyReader.html" title="type parameter in JaxRsMessageBodyReader">T</a>&gt;</div>
 <div class="col-last even-row-color all-classes-table all-classes-table-tab2">
 <div class="block">The reader remapped <a href="https://docs.micronaut.io/latest/api/io/micronaut/http/body/MessageBodyReader.html" title="class or interface in io.micronaut.http.body" class="external-link"><code>MessageBodyReader</code></a>.</div>
 </div>
-<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/core/JaxRsMessageBodyWriter.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsMessageBodyWriter</a>&lt;<a href="io/micronaut/jaxrs/runtime/core/JaxRsMessageBodyWriter.html" title="type parameter in JaxRsMessageBodyWriter">T</a>&gt;</div>
-<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
+<div class="col-first odd-row-color all-classes-table all-classes-table-tab4"><a href="io/micronaut/jaxrs/common/JaxRsMessageBodyReaderDefinition.html" title="class in io.micronaut.jaxrs.common">JaxRsMessageBodyReaderDefinition</a></div>
+<div class="col-last odd-row-color all-classes-table all-classes-table-tab4">
+<div class="block">The simple definition for message body reader.</div>
+</div>
+<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/common/JaxRsMessageBodyWriter.html" title="class in io.micronaut.jaxrs.common">JaxRsMessageBodyWriter</a>&lt;<a href="io/micronaut/jaxrs/common/JaxRsMessageBodyWriter.html" title="type parameter in JaxRsMessageBodyWriter">T</a>&gt;</div>
+<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
 <div class="block">The reader remapped <a href="https://docs.micronaut.io/latest/api/io/micronaut/http/body/MessageBodyWriter.html" title="class or interface in io.micronaut.http.body" class="external-link"><code>MessageBodyWriter</code></a>.</div>
 </div>
-<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/core/JaxRsMutableHeadersMultivaluedMap.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsMutableHeadersMultivaluedMap</a></div>
-<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
+<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/common/JaxRsMutableHeadersMultivaluedMap.html" title="class in io.micronaut.jaxrs.common">JaxRsMutableHeadersMultivaluedMap</a></div>
+<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
 <div class="block">The representation of mutable headers as <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/core/MultivaluedMap.html" title="class or interface in jakarta.ws.rs.core" class="external-link"><code>MultivaluedMap</code></a>.</div>
 </div>
-<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/core/JaxRsProviders.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsProviders</a></div>
-<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
-<div class="block">The JAX-RS <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/ext/Providers.html" title="class or interface in jakarta.ws.rs.ext" class="external-link"><code>Providers</code></a>.</div>
+<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/common/JaxRsMutableHttpHeaders.html" title="class in io.micronaut.jaxrs.common">JaxRsMutableHttpHeaders</a></div>
+<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
+<div class="block">Adapter class for JAR-RS headers.</div>
 </div>
-<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/core/JaxRsResourceInfo.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsResourceInfo</a></div>
+<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/common/JaxRsMutableObjectHeadersMultivaluedMap.html" title="class in io.micronaut.jaxrs.common">JaxRsMutableObjectHeadersMultivaluedMap</a></div>
+<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
+<div class="block">The representation of mutable headers as <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/core/MultivaluedMap.html" title="class or interface in jakarta.ws.rs.core" class="external-link"><code>MultivaluedMap</code></a>.</div>
+</div>
+<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/common/JaxRsMutableResponse.html" title="class in io.micronaut.jaxrs.common">JaxRsMutableResponse</a></div>
+<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
+<div class="block">Adapter for JAX-RS and final Micronaut response.</div>
+</div>
+<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/common/JaxRsObjectHeadersMultivaluedMap.html" title="class in io.micronaut.jaxrs.common">JaxRsObjectHeadersMultivaluedMap</a></div>
+<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
+<div class="block">The representation of mutable headers as <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/core/MultivaluedMap.html" title="class or interface in jakarta.ws.rs.core" class="external-link"><code>MultivaluedMap</code></a>.</div>
+</div>
+<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/common/JaxRsReaderInterceptorContext.html" title="class in io.micronaut.jaxrs.common">JaxRsReaderInterceptorContext</a></div>
+<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
+<div class="block">The implementation of <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/ext/ReaderInterceptorContext.html" title="class or interface in jakarta.ws.rs.ext" class="external-link"><code>ReaderInterceptorContext</code></a>.</div>
+</div>
+<div class="col-first odd-row-color all-classes-table all-classes-table-tab1"><a href="io/micronaut/jaxrs/common/JaxRsReaderInterceptorContext.IOProceedSupplier.html" title="interface in io.micronaut.jaxrs.common">JaxRsReaderInterceptorContext.IOProceedSupplier</a>&lt;<a href="io/micronaut/jaxrs/common/JaxRsReaderInterceptorContext.IOProceedSupplier.html" title="type parameter in JaxRsReaderInterceptorContext.IOProceedSupplier">T</a>&gt;</div>
+<div class="col-last odd-row-color all-classes-table all-classes-table-tab1">
+<div class="block">The reader.</div>
+</div>
+<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/common/JaxRsReaderMessageBodyReader.html" title="class in io.micronaut.jaxrs.common">JaxRsReaderMessageBodyReader</a></div>
+<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
+<div class="block">The implementation of <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/ext/MessageBodyReader.html" title="class or interface in jakarta.ws.rs.ext" class="external-link"><code>MessageBodyReader</code></a> for <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/io/Reader.html" title="class or interface in java.io" class="external-link"><code>Reader</code></a>.</div>
+</div>
+<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/common/JaxRsReaderMessageBodyWriter.html" title="class in io.micronaut.jaxrs.common">JaxRsReaderMessageBodyWriter</a></div>
+<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
+<div class="block">The implementation of <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/ext/MessageBodyWriter.html" title="class or interface in jakarta.ws.rs.ext" class="external-link"><code>MessageBodyWriter</code></a> for <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/io/Reader.html" title="class or interface in java.io" class="external-link"><code>Reader</code></a>.</div>
+</div>
+<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/container/JaxRsResourceInfo.html" title="class in io.micronaut.jaxrs.container">JaxRsResourceInfo</a></div>
 <div class="col-last even-row-color all-classes-table all-classes-table-tab2">
 <div class="block">A <a href="https://docs.micronaut.io/latest/api/io/micronaut/runtime/http/scope/RequestScope.html" title="class or interface in io.micronaut.runtime.http.scope" class="external-link"><code>RequestScope</code></a> bean implementing the JAX-RS ResourceInfo to access the resource class and resource method matched by the current request.</div>
 </div>
-<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/core/JaxRsResponseBuilder.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsResponseBuilder</a></div>
+<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/common/JaxRsResponse.html" title="class in io.micronaut.jaxrs.common">JaxRsResponse</a></div>
 <div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
+<div class="block">Adapter for JAX-RS and final Micronaut response.</div>
+</div>
+<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/common/JaxRsResponseBuilder.html" title="class in io.micronaut.jaxrs.common">JaxRsResponseBuilder</a></div>
+<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
 <div class="block">Implementation of <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/core/Response.ResponseBuilder.html" title="class or interface in jakarta.ws.rs.core" class="external-link"><code>Response.ResponseBuilder</code></a> for Micronaut.</div>
 </div>
-<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/core/JaxRsRuntime.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsRuntime</a></div>
-<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
+<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/container/JaxRsRuntime.html" title="class in io.micronaut.jaxrs.container">JaxRsRuntime</a></div>
+<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
 <div class="block">Registers runtime singletons and adds <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/core/Application.html" title="class or interface in jakarta.ws.rs.core" class="external-link"><code>Application</code></a> as a property source.</div>
+</div>
+<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/common/JaxRsStreamingOutputMessageBodyWriter.html" title="class in io.micronaut.jaxrs.common">JaxRsStreamingOutputMessageBodyWriter</a>&lt;<a href="io/micronaut/jaxrs/common/JaxRsStreamingOutputMessageBodyWriter.html" title="type parameter in JaxRsStreamingOutputMessageBodyWriter">T</a> extends <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/core/StreamingOutput.html" title="class or interface in jakarta.ws.rs.core" class="external-link">StreamingOutput</a>&gt;</div>
+<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
+<div class="block">The implementation of <a href="https://docs.micronaut.io/latest/api/io/micronaut/http/body/MessageBodyWriter.html" title="class or interface in io.micronaut.http.body" class="external-link"><code>MessageBodyWriter</code></a> for <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/core/StreamingOutput.html" title="class or interface in jakarta.ws.rs.core" class="external-link"><code>StreamingOutput</code></a>.</div>
 </div>
 <div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/processor/JaxRsTypeElementVisitor.html" title="class in io.micronaut.jaxrs.processor">JaxRsTypeElementVisitor</a></div>
 <div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
 <div class="block">A type element visitor that turns a JAX-RS path into a controller.</div>
 </div>
-<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/core/JaxRsUriBuilder.html" title="class in io.micronaut.jaxrs.runtime.core">JaxRsUriBuilder</a></div>
+<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/common/JaxRsUriBuilder.html" title="class in io.micronaut.jaxrs.common">JaxRsUriBuilder</a></div>
 <div class="col-last even-row-color all-classes-table all-classes-table-tab2">
 <div class="block">Partial implementation of <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/core/UriBuilder.html" title="class or interface in jakarta.ws.rs.core" class="external-link"><code>UriBuilder</code></a>.</div>
 </div>
-<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/ext/impl/MicronautRuntimeDelegate.html" title="class in io.micronaut.jaxrs.runtime.ext.impl">MicronautRuntimeDelegate</a></div>
+<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/common/JaxRsUtils.html" title="class in io.micronaut.jaxrs.common">JaxRsUtils</a></div>
 <div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
+<div class="block">The JAX-RS utils.</div>
+</div>
+<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/common/MicronautRuntimeDelegate.html" title="class in io.micronaut.jaxrs.common">MicronautRuntimeDelegate</a></div>
+<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
 <div class="block">RuntimeDelegate implementation for JAX-RS.</div>
 </div>
-<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/security/bind/MicronautSecurityContextBinder.html" title="class in io.micronaut.jaxrs.security.bind">MicronautSecurityContextBinder</a></div>
-<div class="col-last even-row-color all-classes-table all-classes-table-tab2">&nbsp;</div>
-<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/processor/OptionsAnnotationMapper.html" title="class in io.micronaut.jaxrs.processor">OptionsAnnotationMapper</a></div>
-<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
-<div class="block">Maps the JAX-RS <code>OPTIONS</code> annotation to Micronaut's version.</div>
-</div>
-<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/core/ParameterParser.html" title="class in io.micronaut.jaxrs.runtime.core">ParameterParser</a></div>
+<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/security/bind/MicronautSecurityContextBinder.html" title="class in io.micronaut.jaxrs.security.bind">MicronautSecurityContextBinder</a></div>
+<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">&nbsp;</div>
+<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/processor/OptionsAnnotationMapper.html" title="class in io.micronaut.jaxrs.processor">OptionsAnnotationMapper</a></div>
 <div class="col-last even-row-color all-classes-table all-classes-table-tab2">
-<div class="block">A simple parser intended to parse sequences of name/value pairs.</div>
+<div class="block">Maps the JAX-RS <code>OPTIONS</code> annotation to Micronaut's version.</div>
 </div>
 <div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/processor/PathAnnotationMapper.html" title="class in io.micronaut.jaxrs.processor">PathAnnotationMapper</a></div>
 <div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
@@ -213,13 +290,13 @@ loadScripts(document, 'script');</script>
 <div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
 <div class="block">Maps the JAX-RS <code>POST</code> annotation to Micronaut's version.</div>
 </div>
-<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/processor/ProducesMapper.html" title="class in io.micronaut.jaxrs.processor">ProducesMapper</a></div>
+<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/processor/PriorityMapper.html" title="class in io.micronaut.jaxrs.processor">PriorityMapper</a></div>
 <div class="col-last even-row-color all-classes-table all-classes-table-tab2">
-<div class="block">Maps the JAX-RS <code>Produces</code> annotation.</div>
+<div class="block">Maps the JAX-RS <code>Priority</code> annotation.</div>
 </div>
-<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/processor/ProviderMapper.html" title="class in io.micronaut.jaxrs.processor">ProviderMapper</a></div>
+<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/processor/ProducesMapper.html" title="class in io.micronaut.jaxrs.processor">ProducesMapper</a></div>
 <div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
-<div class="block">Maps the JAX-RS <code>Provider</code> annotation.</div>
+<div class="block">Maps the JAX-RS <code>Produces</code> annotation.</div>
 </div>
 <div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/processor/PutAnnotationMapper.html" title="class in io.micronaut.jaxrs.processor">PutAnnotationMapper</a></div>
 <div class="col-last even-row-color all-classes-table all-classes-table-tab2">
@@ -229,30 +306,31 @@ loadScripts(document, 'script');</script>
 <div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
 <div class="block">Maps the JAX-RS <code>QueryParam</code> annotation.</div>
 </div>
-<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/servlet/ServletContextAnnotationBinder.html" title="class in io.micronaut.jaxrs.servlet">ServletContextAnnotationBinder</a>&lt;<a href="io/micronaut/jaxrs/servlet/ServletContextAnnotationBinder.html" title="type parameter in ServletContextAnnotationBinder">T</a>&gt;</div>
-<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
+<div class="col-first even-row-color all-classes-table all-classes-table-tab1"><a href="io/micronaut/jaxrs/common/RouteReturnTypeProvider.html" title="interface in io.micronaut.jaxrs.common">RouteReturnTypeProvider</a></div>
+<div class="col-last even-row-color all-classes-table all-classes-table-tab1">
+<div class="block">The route return type provider.</div>
+</div>
+<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/servlet/ServletContextAnnotationBinder.html" title="class in io.micronaut.jaxrs.servlet">ServletContextAnnotationBinder</a>&lt;<a href="io/micronaut/jaxrs/servlet/ServletContextAnnotationBinder.html" title="type parameter in ServletContextAnnotationBinder">T</a>&gt;</div>
+<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
 <div class="block">Extends and replaces the context annotation binder to support servlet types.</div>
 </div>
-<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/ext/bind/SimpleSecurityContextBinder.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">SimpleSecurityContextBinder</a></div>
-<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
+<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/ext/bind/SimpleSecurityContextBinder.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">SimpleSecurityContextBinder</a></div>
+<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
 <div class="block">A simple implementation the binds the JAX-RS <code>SecurityContext</code> without
  support for roles.</div>
 </div>
-<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/ext/bind/SimpleSecurityContextImpl.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">SimpleSecurityContextImpl</a></div>
-<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
+<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/ext/bind/SimpleSecurityContextImpl.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">SimpleSecurityContextImpl</a></div>
+<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
 <div class="block">Implementation of the JAX-RS <code>SecurityContext</code> interface.</div>
 </div>
-<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoBinder.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">UriInfoBinder</a></div>
-<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
+<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoBinder.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">UriInfoBinder</a></div>
+<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
 <div class="block">Binds the <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/core/UriInfo.html" title="class or interface in jakarta.ws.rs.core" class="external-link"><code>UriInfo</code></a> of the <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/core/Context.html" title="class or interface in jakarta.ws.rs.core" class="external-link"><code>Context</code></a>.</div>
 </div>
-<div class="col-first even-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">UriInfoImpl</a></div>
-<div class="col-last even-row-color all-classes-table all-classes-table-tab2">
+<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/ext/bind/UriInfoImpl.html" title="class in io.micronaut.jaxrs.runtime.ext.bind">UriInfoImpl</a></div>
+<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
 <div class="block">The JAX-RS <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/core/UriInfo.html" title="class or interface in jakarta.ws.rs.core" class="external-link"><code>UriInfo</code></a> injected through <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/core/Context.html" title="class or interface in jakarta.ws.rs.core" class="external-link"><code>Context</code></a> annotation.</div>
 </div>
-<div class="col-first odd-row-color all-classes-table all-classes-table-tab2"><a href="io/micronaut/jaxrs/runtime/core/Weighted.html" title="class in io.micronaut.jaxrs.runtime.core">Weighted</a>&lt;<a href="io/micronaut/jaxrs/runtime/core/Weighted.html" title="type parameter in Weighted">T</a>&gt;</div>
-<div class="col-last odd-row-color all-classes-table all-classes-table-tab2">
-<div class="block">Used to compare objects be weighted value.</div>
 </div>
 </div>
 </div>
