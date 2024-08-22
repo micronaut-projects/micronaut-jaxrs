@@ -1,0 +1,21 @@
+Micronaut JAX-RS supports Client API link:{jaxrsapi}/jakarta/ws/rs/client/Client.html[jakarta.ws.rs.client.Client] created using link:{jaxrsapi}/jakarta/ws/rs/client/ClientBuilder.html[jakarta.ws.rs.client.ClientBuilder].
+
+Include the following client dependency:
+
+dependency:micronaut-jaxrs-client[scope="implementation", groupId="io.micronaut.jaxrs"]
+
+==== Filters
+
+Micronaut JAX-RS supports following JAX-RS client API:
+
+* link:{jaxrsapi}/jakarta/ws/rs/client/ClientRequestFilter.html[jakarta.ws.rs.client.ClientRequestFilter]
+* link:{jaxrsapi}/jakarta/ws/rs/client/ClientResponseFilter.html[jakarta.ws.rs.client.ClientResponseFilter]
+
+Filters should be defined as beans.
+
+==== Message Body Writers / Readers
+
+Micronaut supports JAX-RS body writers / readers API:
+
+* link:{jaxrsapi}/jakarta/ws/rs/ext/MessageBodyWriter.html[jakarta.ws.rs.ext.MessageBodyWriter]
+* link:{jaxrsapi}/jakarta/ws/rs/ext/MessageBodyReader.html[jakarta.ws.rs.ext.MessageBodyReader]
