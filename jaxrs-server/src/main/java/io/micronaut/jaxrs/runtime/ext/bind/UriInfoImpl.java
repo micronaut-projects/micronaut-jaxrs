@@ -241,6 +241,11 @@ public final class UriInfoImpl implements UriInfo {
         throw new UnsupportedOperationException();
     }
 
+//    @Override v4
+    public String getMatchedResourceTemplate() {
+        return "";
+    }
+
     /**
      * This operation is not supported currently,
      * so {@link UnsupportedOperationException} is thrown for all invocations.

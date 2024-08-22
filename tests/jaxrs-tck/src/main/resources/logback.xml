@@ -13,6 +13,7 @@
     </root>
 
     <logger name="org.jboss.arquillian" level="debug"/>
-    <logger name="io.micronaut.http" level="debug"/>
+    <logger name="io.micronaut.http" level="trace"/>
+    <logger name="io.micronaut.http.client" level="trace"/>
 
 </configuration>

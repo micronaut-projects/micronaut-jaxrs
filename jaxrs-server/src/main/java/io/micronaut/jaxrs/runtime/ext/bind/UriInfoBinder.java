@@ -22,7 +22,7 @@ import io.micronaut.core.convert.ArgumentConversionContext;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.bind.binders.TypedRequestArgumentBinder;
-import io.micronaut.jaxrs.runtime.core.ApplicationPathProvider;
+import io.micronaut.jaxrs.container.ApplicationPathProvider;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.core.UriInfo;
 
