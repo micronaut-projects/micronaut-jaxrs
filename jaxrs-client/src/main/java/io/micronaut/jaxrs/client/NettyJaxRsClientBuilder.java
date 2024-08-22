@@ -15,6 +15,7 @@
  */
 package io.micronaut.jaxrs.client;
 
+import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.NonNull;
 import io.micronaut.core.annotation.Nullable;
 import io.micronaut.core.type.Argument;
@@ -35,6 +36,7 @@ import java.util.Optional;
  * @author Sergio del Amo
  * @since 4.6.0
  */
+@Internal
 public final class NettyJaxRsClientBuilder extends JaxRsClientBuilder {
 
     @Override
