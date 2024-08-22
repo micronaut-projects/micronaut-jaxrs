@@ -9,7 +9,6 @@ micronautBuild {
 }
 
 dependencies {
-	annotationProcessor(mn.micronaut.graal)
 
 	api(mn.micronaut.http)
 	api(libs.managed.jaxrs.api)
