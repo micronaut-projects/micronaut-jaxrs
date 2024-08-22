@@ -11,8 +11,6 @@ micronautBuild {
 dependencies {
     api(mn.micronaut.http)
     api(libs.managed.jaxrs.api)
-    api(libs.managed.jaxrs.api)
-
     implementation(projects.micronautJaxrsCommon)
     implementation(mn.micronaut.http.client.core)
     implementation(mn.micronaut.buffer.netty)
