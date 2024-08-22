@@ -21,6 +21,7 @@ include 'jaxrs-server'
 include 'jaxrs-server-security'
 include 'jaxrs-servlet'
 include 'jaxrs-client'
+include 'jaxrs-client-netty'
 include 'jaxrs-common'
 
 include 'tests:jaxrs-tck'

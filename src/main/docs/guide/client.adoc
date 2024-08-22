@@ -2,7 +2,9 @@ Micronaut JAX-RS supports Client API link:{jaxrsapi}/jakarta/ws/rs/client/Client
 
 Include the following client dependency:
 
-dependency:micronaut-jaxrs-client[scope="implementation", groupId="io.micronaut.jaxrs"]
+dependency:micronaut-jaxrs-client-netty[scope="implementation", groupId="io.micronaut.jaxrs"]
+
+The implementation uses under-the-hood the https://docs.micronaut.io/latest/guide/#nettyHttpClient[Micronaut HTTP client based on Netty].
 
 ==== Filters
 

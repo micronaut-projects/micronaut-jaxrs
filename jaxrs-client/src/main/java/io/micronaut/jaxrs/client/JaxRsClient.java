@@ -17,7 +17,6 @@ package io.micronaut.jaxrs.client;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.client.HttpClient;
-import io.micronaut.http.client.netty.DefaultHttpClient;
 import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.client.Invocation;
 import jakarta.ws.rs.core.Link;
@@ -36,10 +35,10 @@ import java.net.URI;
 @Internal
 final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
 
-    private final DefaultHttpClient httpClient;
+    private final HttpClient httpClient;
     private final JaxRsConfiguration config;
 
-    JaxRsClient(DefaultHttpClient httpClient, JaxRsConfiguration config) {
+    JaxRsClient(HttpClient httpClient, JaxRsConfiguration config) {
         this.httpClient = httpClient;
         this.config = config;
     }

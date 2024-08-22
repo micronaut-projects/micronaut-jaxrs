@@ -16,7 +16,7 @@ dependencies {
     implementation mn.micronaut.jackson.databind
 
     implementation projects.micronautJaxrsServer
-    implementation projects.micronautJaxrsClient
+    implementation(projects.micronautJaxrsClientNetty)
     implementation projects.micronautJaxrsProcessor
 
     implementation libs.jakarta.jaxrs.tck.tests
