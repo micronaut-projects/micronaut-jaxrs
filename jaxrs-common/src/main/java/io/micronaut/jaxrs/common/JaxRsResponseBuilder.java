@@ -51,15 +51,15 @@ import static jakarta.ws.rs.ext.RuntimeDelegate.getInstance;
  * @since 4.6
  */
 @Internal
-public class JaxRsResponseBuilder extends Response.ResponseBuilder {
+final class JaxRsResponseBuilder extends Response.ResponseBuilder {
 
     private final MutableHttpResponse<Object> response;
 
-    public JaxRsResponseBuilder() {
+    JaxRsResponseBuilder() {
         this(HttpResponse.ok());
     }
 
-    public JaxRsResponseBuilder(MutableHttpResponse<Object> response) {
+    JaxRsResponseBuilder(MutableHttpResponse<Object> response) {
         this.response = response;
     }
 
@@ -273,7 +273,12 @@ public class JaxRsResponseBuilder extends Response.ResponseBuilder {
         if (location == null) {
             headers.remove(io.micronaut.http.HttpHeaders.LOCATION);
         } else {
-            headers.location(location);
+            if (location.isAbsolute()) {
+                headers.location(location);
+            } else {
+                // TODO: Apply relative path to base URL
+                headers.location(location);
+            }
         }
         return this;
     }
@@ -281,7 +286,7 @@ public class JaxRsResponseBuilder extends Response.ResponseBuilder {
     @Override
     public Response.ResponseBuilder tag(EntityTag tag) {
         if (tag != null) {
-            response.getHeaders().add(io.micronaut.http.HttpHeaders.ETAG,
+            response.getHeaders().set(io.micronaut.http.HttpHeaders.ETAG,
                 getInstance().createHeaderDelegate(EntityTag.class).toString(tag));
         }
         return this;
@@ -290,7 +295,7 @@ public class JaxRsResponseBuilder extends Response.ResponseBuilder {
     @Override
     public Response.ResponseBuilder tag(String tag) {
         if (tag != null) {
-            response.getHeaders().add(io.micronaut.http.HttpHeaders.ETAG, tag);
+            response.getHeaders().set(io.micronaut.http.HttpHeaders.ETAG, tag);
         }
         return this;
     }

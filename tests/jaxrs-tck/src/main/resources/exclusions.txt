@@ -1,13 +1,9 @@
 # Support returning nulls
 ee.jakarta.tck.ws.rs.spec.returntype.JAXRSClientIT
 
-# Builder issue
-ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT#readEntityClassAnnotationTest
-
 # matching weirdness
 ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#locatorNameTooLongAgainTest
 ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#slashUriTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#slashWrongUriTest
 ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#slashAppNameTest
 ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#wrongAppNameTest
 ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#descendantResourcePathValueTest
@@ -27,7 +23,6 @@ ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#foundAnotherRes
 ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#qualityOfSourceOnDifferentMediaTypesTest
 ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#concreteOverStarWhenAcceptStarTest
 ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesOverridesDescendantSubResourcePathValueWeightTest
-
 
 # Why multivaluedmap of headers should accept nulls???
 ee.jakarta.tck.ws.rs.api.rs.core.multivaluedmap.JAXRSClientIT
@@ -70,9 +65,6 @@ ee.jakarta.tck.ws.rs.spec.filter.globalbinding.JAXRSClientIT
 ee.jakarta.tck.ws.rs.spec.filter.dynamicfeature.JAXRSClientIT
 ee.jakarta.tck.ws.rs.jaxrs31.spec.extensions.JAXRSClientIT
 
-# UriBuilder
-ee.jakarta.tck.ws.rs.spec.client.invocations.JAXRSClientIT
-
 # Closed client
 ee.jakarta.tck.ws.rs.api.client.client.JAXRSClientIT
 
@@ -98,14 +90,11 @@ ee.jakarta.tck.ws.rs.jaxrs21.ee.sse.sseeventsink.JAXRSClientIT
 ee.jakarta.tck.ws.rs.jaxrs21.ee.sse.sseeventsource.JAXRSClientIT
 ee.jakarta.tck.ws.rs.jaxrs21.ee.sse.ssebroadcaster.JAXRSClientIT
 
-# Url builder
-ee.jakarta.tck.ws.rs.api.client.webtarget.JAXRSClientIT
+# No default */*
+ee.jakarta.tck.ws.rs.api.client.webtarget.JAXRSClientIT#requestNoArgTest
 
 # Arquillian issue
 ee.jakarta.tck.ws.rs.spec.client.exceptions.ClientExceptionsIT
-
-# Builder
-ee.jakarta.tck.ws.rs.api.rs.core.link.JAXRSClientIT#fromResourceMethodLinkUsedInInvocationTest
 
 # Support catching exceptions from body writer
 ee.jakarta.tck.ws.rs.servlet3.rs.core.streamingoutput.JAXRSClientIT#writeWebApplicationExceptionTest
@@ -120,14 +109,6 @@ ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT#getLastModifiedTes
 ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT#getHeaderStringTest
 ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT#getHeadersTest
 
-# Builder doesn't include query value for tests
-ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT#readEntityGenericTypeAnnotationIsNullWhenNoEntityTest
-ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT#readEntityClassIsNullWhenNoEntityTest
-ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT#statusTest
-ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT#readEntityGenericIsNullWhenNoEntityTest
-ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT#readEntityClassAnnotationIsNullWhenNoEntityTest
-ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT#readEntityGenericTypeAnnotationTest
-
 # Unsupported client configurations
 ee.jakarta.tck.ws.rs.ee.rs.core.configurable.JAXRSClientIT#registerObjectNotAssignableContractsInMapTest
 ee.jakarta.tck.ws.rs.ee.rs.core.configurable.JAXRSClientIT#registerClassBindingPriorityInMapTest
@@ -135,14 +116,7 @@ ee.jakarta.tck.ws.rs.ee.rs.core.configurable.JAXRSClientIT#registerObjectNotAssi
 ee.jakarta.tck.ws.rs.ee.rs.core.configurable.JAXRSClientIT#registerClassNotAssignableContractsTest
 ee.jakarta.tck.ws.rs.ee.rs.core.configurable.JAXRSClientIT#registerObjectBindingPriorityInMapTest
 
-# createVariantListBuilder
-ee.jakarta.tck.ws.rs.api.rs.core.variantlistbuilder.JAXRSClientIT
-ee.jakarta.tck.ws.rs.api.rs.ext.runtimedelegate.create.JAXRSClientIT#checkCreatedVariantListBuilderTest
-ee.jakarta.tck.ws.rs.api.rs.core.variant.JAXRSClientIT#encodingsTest
-ee.jakarta.tck.ws.rs.api.rs.core.variant.JAXRSClientIT#languagesTest
-ee.jakarta.tck.ws.rs.api.rs.core.variant.JAXRSClientIT#mediaTypesTest
-
-# Builder
+# Relative location URI
 ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT#responseCreatedRelativeURITest
 
 # createEndpoint() unsupported
@@ -160,10 +134,6 @@ ee.jakarta.tck.ws.rs.ee.rs.get.JAXRSClientIT#recursiveResourceLocatorTest
 
 # Receive MultivaluedMap as a form body
 ee.jakarta.tck.ws.rs.spec.provider.standardwithjaxrsclient.JAXRSClientIT#mapElementProviderTest
-
-# Missing UrlBuilder methods
-ee.jakarta.tck.ws.rs.spec.client.webtarget.JAXRSClientIT#imutableWithRespectToUriQueryResolveTemplateTest
-ee.jakarta.tck.ws.rs.spec.client.webtarget.JAXRSClientIT#imutableWithRespectToUriMatrixPathTest
 
 # Fake response 1 to String incorrectly converts
 ee.jakarta.tck.ws.rs.api.client.clientrequestcontext.JAXRSClientIT#getPropertyNamesIsImmutableTest
@@ -242,129 +212,14 @@ ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#isRegisteredAppJ
 ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#isRegisteredTextPlainContextResolverTest
 ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT#contextResolverTest
 
-# Relative Url builder
-ee.jakarta.tck.ws.rs.api.rs.core.link.JAXRSClientIT#fromMethodTest
-ee.jakarta.tck.ws.rs.api.rs.core.link.JAXRSClientIT#fromResourceTest
-ee.jakarta.tck.ws.rs.api.rs.core.link.JAXRSClientIT#fromResourceWithMediaTypeTest
-ee.jakarta.tck.ws.rs.uribuilder.UriBuilderIT#emptyUriBuilderBuildsEmptyUri
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#fragmentTest1
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#queryParamTest4
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#queryParamTest5
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#fromPathTest1
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#cloneTest1
-ee.jakarta.tck.ws.rs.uribuilder.UriBuilderIT#shouldBuildValidInstanceFromScratch
-
-# UriBuilder exceptions
-ee.jakarta.tck.ws.rs.uribuilder.UriBuilderIT#shouldThrowUriBuilderExceptionOnSchemeOnlyUri
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#hostTest2
-
 # TCK BUG missing method annotation
 ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#webApplicationExceptionHasResponseWithEntityDoesNotUseMapperTest
-
-# uri template
-ee.jakarta.tck.ws.rs.api.rs.core.link.JAXRSClientIT#fromPathWithUriTemplateParamsTest
-ee.jakarta.tck.ws.rs.api.rs.core.linkbuilder.JAXRSClientIT#buildRelativizedThrowsIAEWhenNotSuppliedValuesTest
-ee.jakarta.tck.ws.rs.api.rs.core.linkbuilder.JAXRSClientIT#buildObjectsTest
-ee.jakarta.tck.ws.rs.api.rs.core.linkbuilder.JAXRSClientIT#buildRelativizedThrowsIAEWhenSuppliedJustOneValueOutOfThreeTest
-ee.jakarta.tck.ws.rs.api.rs.core.linkbuilder.JAXRSClientIT#buildRelativizedThrowsIAEWhenSuppliedValueIsNullTest
-ee.jakarta.tck.ws.rs.api.rs.core.linkbuilder.JAXRSClientIT#buildThrowsIAEWhenSuppliedJustOneValueOutOfThreeTest
-ee.jakarta.tck.ws.rs.uribuilder.UriBuilderIT#shouldThrowIllegalArgumentExceptionForUnresolvedTemplates
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplateStringObjectBooleanSlashNotEncodedTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplatesMapThrowsIAEOnNullNameTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplatesMapBooleanSlashNotEncodedTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildObjectsBooleanThrowsIAEWhenNoValueSuppliedTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplateFromEncodedPercentEncodedTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplatesFromEncodedPercentEncodedTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplatesMapThrowsIAEOnNullValueTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplateStringObjectBooleanThrowsIAEOnNullValueTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplateStringObjectBooleanSlashEncodedTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildTest1
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildTest2
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplateStringObjectThrowsIAEOnNullValueTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplatesMapBooleanThrowsIAEOnNullNameTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#templateTest1
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#templateTest2
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplateFromEncodedThrowsNullOnNullValueTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplateFromEncodedThrowsNullOnNullNameTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplatesMapBooleanThrowsIAEOnNullMapTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplatesFromEncodedTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplatesFromEncodedThrowsNullOnNullValueTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplatesFromEncodedThrowsNullOnNullNameTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildObjectsBooleanEncodedTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplatesFromEncodedThrowsNullOnNullMapTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplatesMapBooleanSlashEncodedTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplatesMapBooleanThrowsIAEOnNullValueTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplateStringObjectTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplateStringObjectThrowsIAEOnNullNameTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#fromEncodedTest1
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#fromEncodedTest2
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#fromEncodedTest3
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildObjectsBooleanNotEncodedTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplateFromEncodedTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildObjectsBooleanThrowsIAEWhenValueIsNullTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplateStringObjectBooleanThrowsIAEOnNullNameTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#resolveTemplatesMapTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#toTemplateTest
 
 # cookies do not contain version=1
 ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#cookieTest
 ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#getCookiesTest
 ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT#cookieTest
 ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT#getCookiesTest
-
-# duplicate ETAG (should be relatively easy)
-ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#tagTest2
-ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT#tagTest2
-
-# UriBuilder scheme specific part
-ee.jakarta.tck.ws.rs.api.rs.core.linkbuilder.JAXRSClientIT#buildObjectsThrowsUriBuilderExceptionTest
-ee.jakarta.tck.ws.rs.api.rs.core.linkbuilder.JAXRSClientIT#buildNoArgsThrowsUriBuilderExceptionTest
-ee.jakarta.tck.ws.rs.api.rs.core.linkbuilder.JAXRSClientIT#buildRelativizedThrowsUriBuilderExceptionTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#uriStringTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#schemeSpecificPartTest1
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#schemeSpecificPartTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#fromUriTest3
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#fromUriTest4
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#uriTest
-
-# replaceQuery with string
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#replaceQueryTest1
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#replaceQueryTest2
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#replaceQueryTest3
-
-# UriBuilder matrixParam
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#replaceMatrixParamTest1
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#replaceMatrixParamTest2
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#replaceMatrixParamTest3
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#replaceMatrixTest1
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#replaceMatrixTest2
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#replaceMatrixTest3
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#matrixParamTest1
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#matrixParamTest2
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#matrixParamTest3
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#replaceMatrixParamTest4
-
-#UriBuilder encoding behavior
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#replaceQueryParamTest3
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildFromMapTest1
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildFromMapTest2
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildFromMapTest5
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildFromMapWithBooleanSlashNotEncodedTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#pathTest0
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#pathTest2
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#segmentTest2
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#segmentTest3
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#pathTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildFromEncodedMapTest1
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildFromEncodedMapTest2
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildFromEncodedMapTest3
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildFromEncodedMapTest4
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildFromEncodedMapTest5
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildFromMapWithBooleanSlashEncodedTest
-
-# missing template variable
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildFromMapWithBooleanThrowsIAEWhenNoSuppliedValueTest
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#buildFromMapTest4
 
 # GenericEntity serializer
 ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#acceptedGenericEntityTest
@@ -407,9 +262,6 @@ ee.jakarta.tck.ws.rs.spec.template.JAXRSClientIT#Test2
 # Arquillian issue but test is likely broken anyway because we don't use jsonb
 ee.jakarta.tck.ws.rs.spec.contextprovider.JsonbContextProviderIT
 
-# remove query params
-ee.jakarta.tck.ws.rs.api.rs.core.uribuilder.JAXRSClientIT#replaceQueryParamTest2
-
 # param converters
 ee.jakarta.tck.ws.rs.jaxrs21.ee.priority.JAXRSClientIT#paramConverterPriorityTest
 
@@ -428,20 +280,6 @@ ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#clientHtmlXml
 
 # Content type in HEAD response, our behavior is fine
 ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#classProducesTest
-
-# VariantListBuilder
-ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#okTest5
-ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#fromResponseTest
-ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#notAcceptableTest
-ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#variantsTest
-ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#variantTest
-
-# VariantListBuilder
-ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT#okTest5
-ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT#fromResponseTest
-ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT#notAcceptableTest
-ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT#variantsTest
-ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT#variantTest
 
 # JAXB
 ee.jakarta.tck.ws.rs.spec.provider.standardwithxmlbinding.JAXRSClientIT

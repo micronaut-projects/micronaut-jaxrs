@@ -22,6 +22,8 @@ import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpMessage;
 import jakarta.ws.rs.ProcessingException;
 
+import java.util.Optional;
+
 /**
  * En entity reader.
  *
@@ -44,7 +46,11 @@ public class HttpMessageEntityReader {
     public <T> T readEntity(HttpMessage<?> message, Argument<T> entityType) {
         T result = message.getBody(entityType).orElse(null);
         if (result == null) {
-            return message.getBody(String.class)
+            Optional<String> body = message.getBody(String.class);
+            if (body.isEmpty()) {
+                return null;
+            }
+            return body
                 .flatMap(str -> ConversionService.SHARED.convert(str, entityType))
                 .orElseThrow(() -> new ProcessingException("Cannot read an entity of type " + entityType));
         }

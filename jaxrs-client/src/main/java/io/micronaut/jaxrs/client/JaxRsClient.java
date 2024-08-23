@@ -85,7 +85,12 @@ final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
 
     @Override
     public Invocation.Builder invocation(Link link) {
-        return target(UriBuilder.fromLink(link)).request();
+        Invocation.Builder request = target(UriBuilder.fromLink(link)).request();
+        String type = link.getType();
+        if (type != null) {
+            request = request.accept(type.split(","));
+        }
+        return request;
     }
 
     @Override

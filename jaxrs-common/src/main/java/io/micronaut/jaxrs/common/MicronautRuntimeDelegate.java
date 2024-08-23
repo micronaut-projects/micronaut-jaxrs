@@ -68,7 +68,7 @@ public final class MicronautRuntimeDelegate extends RuntimeDelegate {
 
     @Override
     public Variant.VariantListBuilder createVariantListBuilder() {
-        throw new UnsupportedOperationException("Method createVariantListBuilder() not supported by implementation");
+        return new JaxRsVariantListBuilder();
     }
 
     @Override
