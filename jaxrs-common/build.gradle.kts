@@ -1,13 +1,6 @@
 plugins {
     id("io.micronaut.build.internal.jaxrs-module")
 }
-
-micronautBuild {
-    binaryCompatibility {
-        enabled.set(false)
-    }
-}
-
 dependencies {
     annotationProcessor(mn.micronaut.graal)
 
