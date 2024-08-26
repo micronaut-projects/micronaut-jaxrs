@@ -80,7 +80,7 @@ final class JaxRsWebTarget implements WebTarget, JaxRsConfigurable<WebTarget> {
         Objects.requireNonNull(value, "Value cannot be null");
         return new JaxRsWebTarget(
             client,
-            uriBuilder.resolveTemplate(name, value),
+            uriBuilder.clone().resolveTemplate(name, value),
             configuration
         );
     }
