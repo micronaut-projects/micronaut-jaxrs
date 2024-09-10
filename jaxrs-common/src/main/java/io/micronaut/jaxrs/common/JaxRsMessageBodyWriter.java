@@ -48,7 +48,7 @@ import java.util.List;
  */
 @Internal
 @Singleton
-@EachBean(jakarta.ws.rs.ext.MessageBodyWriter.class)
+@EachBean(value = jakarta.ws.rs.ext.MessageBodyWriter.class, remapGenerics = @EachBean.RemapGeneric(name = "T", type = MessageBodyWriter.class))
 public final class JaxRsMessageBodyWriter<T> implements MessageBodyWriter<T> {
 
     private final List<MediaType> produces;
@@ -132,11 +132,6 @@ public final class JaxRsMessageBodyWriter<T> implements MessageBodyWriter<T> {
                 iterator.next().aroundWriteTo(context);
                 return;
             }
-            if (mediaType == null || JaxRsUtils.convert(mediaType).isWildcardType()) {
-                if (produces.size() == 1) {
-                    httpHeaders.add(HttpHeaders.CONTENT_TYPE, produces.get(0).toString());
-                }
-            }
             delegate.writeTo(object,
                 type.getType(),
                 type.asType(),
@@ -145,6 +140,15 @@ public final class JaxRsMessageBodyWriter<T> implements MessageBodyWriter<T> {
                 httpHeaders,
                 outputStream
             );
+            if (!httpHeaders.containsKey(HttpHeaders.CONTENT_TYPE)) {
+                if (mediaType == null || JaxRsUtils.convert(mediaType).isWildcardType()) {
+                    if (produces.size() == 1) {
+                        httpHeaders.add(HttpHeaders.CONTENT_TYPE, produces.get(0).toString());
+                    }
+                } else {
+                    httpHeaders.add(HttpHeaders.CONTENT_TYPE, mediaType.toString());
+                }
+            }
         } catch (IOException e) {
             throw new CodecException("Cannot write to", e);
         }
