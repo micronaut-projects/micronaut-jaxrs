@@ -41,7 +41,7 @@ import java.util.List;
  */
 @Internal
 @Singleton
-@EachBean(jakarta.ws.rs.ext.MessageBodyReader.class)
+@EachBean(value = jakarta.ws.rs.ext.MessageBodyReader.class, remapGenerics = @EachBean.RemapGeneric(name = "T", type = MessageBodyReader.class))
 public final class JaxRsMessageBodyReader<T> implements MessageBodyReader<T> {
 
     private final jakarta.ws.rs.ext.MessageBodyReader<T> delegate;
