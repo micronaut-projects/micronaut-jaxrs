@@ -6,10 +6,10 @@ import io.micronaut.http.client.annotation.Client;
 import io.micronaut.jaxrs.runtime.ext.bind.UriInfoImpl;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
+import jakarta.ws.rs.core.UriInfo;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-import jakarta.ws.rs.core.UriInfo;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
@@ -68,11 +68,11 @@ class UriInfoTest {
         jakarta.ws.rs.core.UriInfo expectedUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo;color=red/bar;color=green/?baz=bam"));
 
         UriInfo actualUri =
-                new UriInfoImpl(HttpRequest.GET("http://example.com/foo;color=red/bar;color=green?baz=bam"));
+            new UriInfoImpl(HttpRequest.GET("http://example.com/foo;color=red/bar;color=green?baz=bam"));
         Assertions.assertEquals(expectedUri.getPathSegments().get(0).getPath(),
-                actualUri.getPathSegments().get(0).getPath());
+            actualUri.getPathSegments().get(0).getPath());
         Assertions.assertEquals(expectedUri.getPathSegments(true).get(0).getPath(),
-                actualUri.getPathSegments(true).get(0).getPath());
+            actualUri.getPathSegments(true).get(0).getPath());
     }
 
     @Test
@@ -80,9 +80,9 @@ class UriInfoTest {
         jakarta.ws.rs.core.UriInfo expectedUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo;color=red/bar;color=green/?baz=bam"));
 
         UriInfo actualUri =
-                new UriInfoImpl(HttpRequest.GET("http://example.com/foo;color=red/bar;color=green/?baz=bam"));
+            new UriInfoImpl(HttpRequest.GET("http://example.com/foo;color=red/bar;color=green/?baz=bam"));
         Assertions.assertEquals(expectedUri.getPathSegments(false).get(0).getPath(),
-                actualUri.getPathSegments(false).get(0).getPath());
+            actualUri.getPathSegments(false).get(0).getPath());
     }
 
     @Test
@@ -90,23 +90,23 @@ class UriInfoTest {
         jakarta.ws.rs.core.UriInfo expectedUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo;color=red;color=green/bar;color=blue/?baz=bam"));
 
         UriInfo actualUri =
-                new UriInfoImpl(HttpRequest.GET("http://example.com/foo;color=red;color=green/bar;color=blue/?baz=bam"));
+            new UriInfoImpl(HttpRequest.GET("http://example.com/foo;color=red;color=green/bar;color=blue/?baz=bam"));
         Assertions.assertEquals(
-                Arrays.asList("red", "green"),
-                actualUri.getPathSegments().get(0).getMatrixParameters().get("color"));
+            Arrays.asList("red", "green"),
+            actualUri.getPathSegments().get(0).getMatrixParameters().get("color"));
         Assertions.assertEquals(
-                expectedUri.getPathSegments().get(0).getMatrixParameters().get("color"),
-                actualUri.getPathSegments().get(0).getMatrixParameters().get("color"));
+            expectedUri.getPathSegments().get(0).getMatrixParameters().get("color"),
+            actualUri.getPathSegments().get(0).getMatrixParameters().get("color"));
 
         Assertions.assertEquals(
-                Arrays.asList("blue"),
-                actualUri.getPathSegments().get(1).getMatrixParameters().get("color"));
+            Arrays.asList("blue"),
+            actualUri.getPathSegments().get(1).getMatrixParameters().get("color"));
         Assertions.assertEquals(
-                Arrays.asList("blue"),
-                actualUri.getPathSegments(false).get(1).getMatrixParameters().get("color"));
+            Arrays.asList("blue"),
+            actualUri.getPathSegments(false).get(1).getMatrixParameters().get("color"));
         Assertions.assertEquals(
-                expectedUri.getPathSegments().get(1).getMatrixParameters().get("color"),
-                actualUri.getPathSegments().get(1).getMatrixParameters().get("color"));
+            expectedUri.getPathSegments().get(1).getMatrixParameters().get("color"),
+            actualUri.getPathSegments().get(1).getMatrixParameters().get("color"));
     }
 
     @Test
@@ -115,13 +115,13 @@ class UriInfoTest {
 
         System.out.println(expectedUri.getPathSegments().get(0).getMatrixParameters().get("color"));
         UriInfo actualUri =
-                new UriInfoImpl(HttpRequest.GET("http://example.com/foo;color=red/bar;color=green/?baz=bam"));
+            new UriInfoImpl(HttpRequest.GET("http://example.com/foo;color=red/bar;color=green/?baz=bam"));
         Assertions.assertEquals(
-                actualUri.getPathSegments(false).get(0).getMatrixParameters().get("color"),
-                expectedUri.getPathSegments(false).get(0).getMatrixParameters().get("color"));
+            actualUri.getPathSegments(false).get(0).getMatrixParameters().get("color"),
+            expectedUri.getPathSegments(false).get(0).getMatrixParameters().get("color"));
         Assertions.assertEquals(
-                actualUri.getPathSegments(false).get(1).getMatrixParameters().get("color"),
-                expectedUri.getPathSegments(false).get(1).getMatrixParameters().get("color"));
+            actualUri.getPathSegments(false).get(1).getMatrixParameters().get("color"),
+            expectedUri.getPathSegments(false).get(1).getMatrixParameters().get("color"));
     }
 
     @Test
@@ -152,12 +152,12 @@ class UriInfoTest {
     @Test
     void testUnsupportedMethods() {
         List<Consumer<UriInfo>> unsupportedMethods = Arrays.asList(
-                UriInfo::getRequestUriBuilder,
-                UriInfo::getAbsolutePathBuilder,
-                UriInfo::getBaseUriBuilder,
-                UriInfo::getMatchedURIs,
-                uriInfo -> uriInfo.getMatchedURIs(true),
-                UriInfo::getMatchedResources
+            UriInfo::getRequestUriBuilder,
+            UriInfo::getAbsolutePathBuilder,
+            UriInfo::getBaseUriBuilder,
+            UriInfo::getMatchedURIs,
+            uriInfo -> uriInfo.getMatchedURIs(true),
+            UriInfo::getMatchedResources
         );
         UriInfo uriInfo = new UriInfoImpl(HttpRequest.GET("/api/uri-info"));
         for (Consumer<UriInfo> unsupportedMethod : unsupportedMethods) {

@@ -208,7 +208,7 @@ public final class TckDeployableContainer implements DeployableContainer<TckCont
                 }
             });
         } catch (IOException e) {
-            LOGGER.warn("Unable to delete directory: " + dir, e);
+            LOGGER.warn("Unable to delete directory: {}", dir, e);
         }
     }
 }

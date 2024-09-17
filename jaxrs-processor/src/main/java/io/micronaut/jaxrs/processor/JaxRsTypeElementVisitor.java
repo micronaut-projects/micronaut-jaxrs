@@ -74,7 +74,7 @@ import java.util.stream.Stream;
 public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Object> {
 
     public static final int POSITION = 200;
-    private static final Class<?>[] BINDABLE_TYPES = new Class<?>[]{Context.class, SecurityContext.class, UriInfo.class};
+    private static final Class<?>[] BINDABLE_TYPES = new Class<?>[] {Context.class, SecurityContext.class, UriInfo.class};
     private ClassElement currentClassElement;
 
     private final List<Class<? extends Annotation>> JAX_RS_BINDING_ANNOTATIONS = List.of(

@@ -22,7 +22,7 @@ import java.util.Map;
 
 /**
  * A simple parser intended to parse sequences of name/value pairs.
- * Parameter values are exptected to be enclosed in quotes if they
+ * Parameter values are expected to be enclosed in quotes if they
  * contain unsafe characters, such as '=' characters or separators.
  * Parameter values are optional and can be omitted.
  * <p>
@@ -119,15 +119,15 @@ final class ParameterParser {
     /**
      * Tests if the given character is present in the array of characters.
      *
-     * @param ch      the character to test for presense in the array of characters
-     * @param charray the array of characters to test against
+     * @param ch      the character to test for presence in the array of characters
+     * @param charArray the array of characters to test against
      * @return <code>true</code> if the character is present in the array of
      * characters, <code>false</code> otherwise.
      */
-    private boolean isOneOf(char ch, final char[] charray) {
+    private boolean isOneOf(char ch, final char[] charArray) {
         boolean result = false;
-        for (int i = 0; i < charray.length; i++) {
-            if (ch == charray[i]) {
+        for (char c : charArray) {
+            if (ch == c) {
                 result = true;
                 break;
             }
@@ -272,17 +272,17 @@ final class ParameterParser {
         String paramName;
         String paramValue;
         while (hasChar()) {
-            paramName = parseToken(new char[]{'=', separator});
+            paramName = parseToken(new char[] {'=', separator});
             paramValue = null;
             if (hasChar() && (chars[pos] == '=')) {
                 pos++; // skip '='
-                paramValue = parseQuotedToken(new char[]{
+                paramValue = parseQuotedToken(new char[] {
                     separator});
             }
             if (hasChar() && (chars[pos] == separator)) {
                 pos++; // skip separator
             }
-            if ((paramName != null) && (paramName.length() > 0)) {
+            if ((paramName != null) && (!paramName.isEmpty())) {
                 if (this.lowerCaseNames) {
                     paramName = paramName.toLowerCase();
                 }
@@ -316,14 +316,14 @@ final class ParameterParser {
         this.pos = offset;
         this.len = length;
 
-        String paramName = null;
+        String paramName;
 
         int start = offset;
 
         StringBuilder newChars = new StringBuilder();
 
         while (hasChar()) {
-            paramName = parseToken(new char[]{'=', separator});
+            paramName = parseToken(new char[] {'=', separator});
             if (name.equals(paramName)) {
                 newChars.append(new String(chars, start, pos - start));
             }
@@ -332,11 +332,10 @@ final class ParameterParser {
             }
             if (name.equals(paramName)) {
                 newChars.append("=").append(value);
-                start = pos;
             } else {
                 newChars.append(new String(chars, start, pos - start));
-                start = pos;
             }
+            start = pos;
             if (hasChar() && (chars[pos] == separator)) {
                 pos++; // skip separator
             }

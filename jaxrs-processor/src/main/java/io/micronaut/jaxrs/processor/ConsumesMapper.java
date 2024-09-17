@@ -36,7 +36,7 @@ import java.util.List;
 @Internal
 public class ConsumesMapper implements NamedAnnotationMapper {
 
-    private static final String[] JAX_RS_DEFAULT_VALUE = { "*/*" };
+    private static final String[] JAX_RS_DEFAULT_VALUE = {"*/*"};
 
     @NonNull
     @Override
@@ -54,7 +54,7 @@ public class ConsumesMapper implements NamedAnnotationMapper {
             builder.values(JAX_RS_DEFAULT_VALUE);
         }
         return Collections.singletonList(
-                builder.build()
+            builder.build()
         );
     }
 }

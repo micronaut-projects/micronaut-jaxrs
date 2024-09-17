@@ -94,7 +94,7 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Ob
                 subtype = type.substring(typeIndex + 1);
             }
         }
-        if (major.length() < 1 || subtype.length() < 1) {
+        if (major.isEmpty() || subtype.isEmpty()) {
             throw new IllegalArgumentException(INVALID_MEDIA_TYPE + type);
         }
         if (!isValid(major) || !isValid(subtype)) {
@@ -104,7 +104,7 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Ob
         if (paramIndex > -1) {
             params = type.substring(paramIndex + 1);
         }
-        if (params != null && !params.equals("")) {
+        if (params != null && !params.isEmpty()) {
             Map<String, String> typeParams = new ParameterParser().parse(params, ';');
             return new MediaType(major, subtype, typeParams);
         } else {
@@ -113,7 +113,7 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Ob
     }
 
     private static boolean isValid(String str) {
-        if (str == null || str.length() == 0) {
+        if (str == null || str.isEmpty()) {
             return false;
         }
         char[] notValid = {'/', '\\', '?', ':', '<', '>', ';', '(', ')', '@', ',', '[', ']', '='};
@@ -144,7 +144,7 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Ob
         StringBuilder buf = new StringBuilder();
 
         buf.append(type.getType().toLowerCase()).append("/").append(type.getSubtype().toLowerCase());
-        if (type.getParameters() == null || type.getParameters().size() == 0) {
+        if (type.getParameters() == null || type.getParameters().isEmpty()) {
             return buf.toString();
         }
         for (String name : type.getParameters().keySet()) {

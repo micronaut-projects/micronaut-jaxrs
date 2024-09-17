@@ -15,8 +15,6 @@
  */
 package io.micronaut.jaxrs.runtime.ext.bind;
 
-import java.util.Optional;
-
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.convert.ArgumentConversionContext;
 import io.micronaut.core.type.Argument;
@@ -25,6 +23,8 @@ import io.micronaut.http.bind.binders.TypedRequestArgumentBinder;
 import io.micronaut.jaxrs.container.ApplicationPathProvider;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.core.UriInfo;
+
+import java.util.Optional;
 
 /**
  * Binds the {@link  UriInfo} of the {@link jakarta.ws.rs.core.Context}.

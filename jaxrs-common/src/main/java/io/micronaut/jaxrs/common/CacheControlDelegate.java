@@ -37,7 +37,7 @@ class CacheControlDelegate implements RuntimeDelegate.HeaderDelegate<CacheContro
     public static final String PRIVATE = "private";
 
     private static StringBuilder addDirective(String directive, StringBuilder buffer) {
-        if (buffer.length() > 0) {
+        if (!buffer.isEmpty()) {
             buffer.append(", ");
         }
         buffer.append(directive);
@@ -69,39 +69,41 @@ class CacheControlDelegate implements RuntimeDelegate.HeaderDelegate<CacheContro
             }
 
             String lowercase = name.toLowerCase();
-            if (NO_CACHE.equals(lowercase)) {
-                result.setNoCache(true);
-                if (val != null && !"".equals(val)) {
-                    result.getNoCacheFields().add(val);
+            switch (lowercase) {
+                case NO_CACHE -> {
+                    result.setNoCache(true);
+                    if (val != null && !val.isEmpty()) {
+                        result.getNoCacheFields().add(val);
+                    }
                 }
-            } else if (PRIVATE.equals(lowercase)) {
-                result.setPrivate(true);
-                if (val != null && !"".equals(val)) {
-                    result.getPrivateFields().add(val);
+                case PRIVATE -> {
+                    result.setPrivate(true);
+                    if (val != null && !val.isEmpty()) {
+                        result.getPrivateFields().add(val);
+                    }
                 }
-            } else if ("no-store".equals(lowercase)) {
-                result.setNoStore(true);
-            } else if ("max-age".equals(lowercase)) {
-                if (val == null) {
-                    throw new IllegalArgumentException("CacheControl max-age header does not have a value: " + value);
+                case "no-store" -> result.setNoStore(true);
+                case "max-age" -> {
+                    if (val == null) {
+                        throw new IllegalArgumentException("CacheControl max-age header does not have a value: " + value);
+                    }
+                    result.setMaxAge(Integer.parseInt(val));
                 }
-                result.setMaxAge(Integer.parseInt(val));
-            } else if ("s-maxage".equals(lowercase)) {
-                if (val == null) {
-                    throw new IllegalArgumentException("CacheControl s-max-age header does not have a value: " + value);
+                case "s-maxage" -> {
+                    if (val == null) {
+                        throw new IllegalArgumentException("CacheControl s-max-age header does not have a value: " + value);
+                    }
+                    result.setSMaxAge(Integer.parseInt(val));
                 }
-                result.setSMaxAge(Integer.parseInt(val));
-            } else if ("no-transform".equals(lowercase)) {
-                result.setNoTransform(true);
-            } else if ("must-revalidate".equals(lowercase)) {
-                result.setMustRevalidate(true);
-            } else if ("proxy-revalidate".equals(lowercase)) {
-                result.setProxyRevalidate(true);
-            } else {
-                if (val == null) {
-                    val = "";
+                case "no-transform" -> result.setNoTransform(true);
+                case "must-revalidate" -> result.setMustRevalidate(true);
+                case "proxy-revalidate" -> result.setProxyRevalidate(true);
+                default -> {
+                    if (val == null) {
+                        val = "";
+                    }
+                    result.getCacheExtension().put(name, val);
                 }
-                result.getCacheExtension().put(name, val);
             }
         }
         return result;
@@ -111,7 +113,7 @@ class CacheControlDelegate implements RuntimeDelegate.HeaderDelegate<CacheContro
     @SuppressWarnings("java:S3776")
     public String toString(CacheControl value) {
         ArgumentUtils.requireNonNull("value", value);
-        StringBuilder buffer = new StringBuilder();
+        var buffer = new StringBuilder();
         if (value.isNoCache()) {
             List<String> fields = value.getNoCacheFields();
             if (fields.isEmpty()) {
@@ -153,7 +155,7 @@ class CacheControlDelegate implements RuntimeDelegate.HeaderDelegate<CacheContro
         for (String key : value.getCacheExtension().keySet()) {
             String val = value.getCacheExtension().get(key);
             addDirective(key, buffer);
-            if (val != null && !"".equals(val)) {
+            if (val != null && !val.isEmpty()) {
                 buffer.append("=\"").append(val).append("\"");
             }
         }

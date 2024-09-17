@@ -2,7 +2,7 @@ Micronaut JAX-RS supports Client API link:{jaxrsapi}/jakarta/ws/rs/client/Client
 
 Include the following client dependency:
 
-dependency:micronaut-jaxrs-client[scope="implementation", groupId="io.micronaut.jaxrs"]
+dependency:micronaut-jaxrs-client[scope="implementation",groupId="io.micronaut.jaxrs"]
 
 ==== Filters
 

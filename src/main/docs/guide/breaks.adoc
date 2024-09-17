@@ -1,5 +1,8 @@
-=== Micronaut Jaxrs 4
+=== Micronaut JAX-RS 4
 
-Micronaut Jaxrs 4 migrates to https://jakarta.ee/specifications/restful-ws/3.0//[Jakarta RESTful Web Services 3.0]. Package namespaces are moved from `javax.ws.rs` to `jakarta.ws.rs`. Moreover, it uses transitive dependency `jakarta.ws.rs:jakarta.ws.rs-api` instead of `org.jboss.resteasy:jaxrs-api`.
+Micronaut JAX-RS 4 migrates to https://jakarta.ee/specifications/restful-ws/3.0//[Jakarta RESTful Web Services 3.0].
+Package namespaces are moved from `javax.ws.rs` to `jakarta.ws.rs`.
+Moreover, it uses transitive dependency `jakarta.ws.rs:jakarta.ws.rs-api` instead of `org.jboss.resteasy:jaxrs-api`.
 
-As a consequence, annotation mappers found in the `io.micronaut.jaxrs.processor` package are changed to support `jakarta.ws.rs` annotations only. Support for the older `javax.ws.rs` annotations is dropped with this version, and users will need to migrate to the Jakarta versions.
+As a consequence, annotation mappers found in the `io.micronaut.jaxrs.processor` package are changed to support `jakarta.ws.rs` annotations only.
+Support for the older `javax.ws.rs` annotations is dropped with this version, and users will need to migrate to the Jakarta versions.

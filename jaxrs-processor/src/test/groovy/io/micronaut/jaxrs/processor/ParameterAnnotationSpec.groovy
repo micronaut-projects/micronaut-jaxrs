@@ -119,7 +119,7 @@ class Test {
 
     void "test jakarta.ws.rs.PathParam value"() {
         when:
-        def definition =  buildBeanDefinition('test.Test', """
+        def definition = buildBeanDefinition('test.Test', """
 package test;
 
 @jakarta.ws.rs.Path("/test/{user_id}/v1")
@@ -140,7 +140,7 @@ class Test {
 
     void "test jakarta.ws.rs.PathParam value with jakarta.ws.rs.DefaultValue"() {
         when:
-        def definition =  buildBeanDefinition('test.Test', """
+        def definition = buildBeanDefinition('test.Test', """
 package test;
 
 @jakarta.ws.rs.Path("/test/{user_id}")

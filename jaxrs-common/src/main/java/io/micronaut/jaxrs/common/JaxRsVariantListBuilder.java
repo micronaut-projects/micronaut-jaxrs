@@ -32,14 +32,15 @@ import java.util.Locale;
  * @since 4.7
  */
 final class JaxRsVariantListBuilder extends Variant.VariantListBuilder {
-    private final ArrayList<Variant> variants = new ArrayList<Variant>();
-    private final ArrayList<Locale> currentLanguages = new ArrayList<Locale>();
-    private final ArrayList<String> currentEncodings = new ArrayList<String>();
-    private final ArrayList<MediaType> currentTypes = new ArrayList<MediaType>();
+    private final ArrayList<Variant> variants = new ArrayList<>();
+    private final ArrayList<Locale> currentLanguages = new ArrayList<>();
+    private final ArrayList<String> currentEncodings = new ArrayList<>();
+    private final ArrayList<MediaType> currentTypes = new ArrayList<>();
 
+    @Override
     public List<Variant> build() {
         add();
-        ArrayList<Variant> copy = new ArrayList<Variant>(variants);
+        var copy = new ArrayList<>(variants);
         variants.clear();
         currentLanguages.clear();
         currentEncodings.clear();
@@ -47,6 +48,7 @@ final class JaxRsVariantListBuilder extends Variant.VariantListBuilder {
         return copy;
     }
 
+    @Override
     public Variant.VariantListBuilder add() {
         int langSize = currentLanguages.size();
         int encodingSize = currentEncodings.size();
@@ -90,6 +92,7 @@ final class JaxRsVariantListBuilder extends Variant.VariantListBuilder {
         return this;
     }
 
+    @Override
     public Variant.VariantListBuilder languages(Locale... languages) {
         currentLanguages.addAll(Arrays.asList(languages));
         return this;

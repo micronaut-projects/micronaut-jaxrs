@@ -109,9 +109,10 @@ When injecting the link:{jaxrsapi}/jakarta/ws/rs/core/SecurityContext.html[Secur
 
 To integrate the JAX-RS support with Micronaut Security add the following dependency:
 
-dependency:micronaut-jaxrs-server-security[scope="implementation", groupId="io.micronaut.jaxrs"]
+dependency:micronaut-jaxrs-server-security[scope="implementation",groupId="io.micronaut.jaxrs"]
 
-With the above dependency in place the `SecurityContext.isUserInRole` method will return `true` if the role is found within Micronaut Security's https://micronaut-projects.github.io/micronaut-security/latest/api/io/micronaut/security/authentication/Authentication.html#getRoles--[Authentication.getRoles()] method. See https://micronaut-projects.github.io/micronaut-security/latest/guide/#retrievingAuthenticatedUser[Retrieving the authenticated user] for more information.
+With the above dependency in place the `SecurityContext.isUserInRole` method will return `true` if the role is found within Micronaut Security's https://micronaut-projects.github.io/micronaut-security/latest/api/io/micronaut/security/authentication/Authentication.html#getRoles--[Authentication.getRoles()] method.
+See https://micronaut-projects.github.io/micronaut-security/latest/guide/#retrievingAuthenticatedUser[Retrieving the authenticated user] for more information.
 
 ==== Supported Return Types
 

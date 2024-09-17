@@ -298,7 +298,7 @@ final class Encode {
      * @return encoded value
      */
     public static String encodeValue(String segment, String[] encoding) {
-        ArrayList<String> params = new ArrayList<String>();
+        var params = new ArrayList<String>();
         boolean foundParam = false;
         StringBuilder newSegment = new StringBuilder();
         if (savePathParams(segment, newSegment, params)) {
@@ -515,6 +515,7 @@ final class Encode {
             this.count = count;
         }
 
+        @Override
         public char charAt(int index) {
             if (index < 0 || index >= count) {
                 throw new StringIndexOutOfBoundsException(index);
@@ -522,10 +523,12 @@ final class Encode {
             return buf[offset + index];
         }
 
+        @Override
         public int length() {
             return count;
         }
 
+        @Override
         public CharSequence subSequence(int beginIndex, int endIndex) {
             if (beginIndex < 0) {
                 throw new StringIndexOutOfBoundsException(beginIndex);
@@ -541,6 +544,7 @@ final class Encode {
                 : new ArrayCharSequence(buf, offset + beginIndex, endIndex - beginIndex);
         }
 
+        @Override
         public String toString() {
             return new String(this.buf, this.offset, this.count);
         }

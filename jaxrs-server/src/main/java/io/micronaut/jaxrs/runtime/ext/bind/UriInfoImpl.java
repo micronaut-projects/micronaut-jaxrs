@@ -199,7 +199,7 @@ public final class UriInfoImpl implements UriInfo {
 
     @Override
     public MultivaluedMap<String, String> getQueryParameters(boolean decode) {
-        MultivaluedMap<String, String> map = new MultivaluedHashMap<>();
+        var map = new MultivaluedHashMap<String, String>();
         if (decode) {
             request.getParameters().forEach(
                 (str, vals) -> vals.forEach(
@@ -213,17 +213,13 @@ public final class UriInfoImpl implements UriInfo {
     }
 
     public static Map<String, List<String>> getEncodedParameters(URI url) {
-        final Map<String, List<String>> map = new LinkedHashMap<>();
+        final var map = new LinkedHashMap<String, List<String>>();
         final String[] pairs = url.getRawQuery().split("&");
         for (String pair : pairs) {
             final int idx = pair.indexOf("=");
             final String key = idx > 0 ? pair.substring(0, idx) : pair;
             final String value = idx > 0 && pair.length() > idx + 1 ? pair.substring(idx + 1) : null;
-            List<String> list = map.get(key);
-            if (list == null) {
-                list = new ArrayList<>();
-                map.put(key, list);
-            }
+            List<String> list = map.computeIfAbsent(key, k -> new ArrayList<>());
             list.add(value);
         }
         return map;
@@ -241,7 +237,7 @@ public final class UriInfoImpl implements UriInfo {
         throw new UnsupportedOperationException();
     }
 
-//    @Override v4
+    //    @Override v4
     public String getMatchedResourceTemplate() {
         return "";
     }

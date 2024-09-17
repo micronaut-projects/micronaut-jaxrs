@@ -31,7 +31,6 @@ import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Providers;
 
 import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Handles JAX-RS exceptions that occur during the execution of an HTTP request.
@@ -58,8 +57,8 @@ final class JaxRsNotAllowedExceptionHandler implements ExceptionHandler<NotAllow
 
     @Override
     public HttpResponse<?> handle(HttpRequest request, NotAllowedException exception) {
-        List<String> allowedMethods = new ArrayList<>(exception.getAllowedMethods());
-        jakarta.ws.rs.NotAllowedException notAllowedException = new jakarta.ws.rs.NotAllowedException(
+        var allowedMethods = new ArrayList<>(exception.getAllowedMethods());
+        var notAllowedException = new jakarta.ws.rs.NotAllowedException(
             allowedMethods.get(0),
             allowedMethods.subList(1, allowedMethods.size()).toArray(String[]::new)
         );

@@ -47,8 +47,8 @@ public class CookieRequestArgumentBinder implements TypedRequestArgumentBinder<C
     @Override
     public BindingResult<Cookie> bind(ArgumentConversionContext<Cookie> context, HttpRequest<?> source) {
         final io.micronaut.http.cookie.Cookie cookie = source.getCookies()
-                .findCookie(context.getAnnotationMetadata().stringValue(CookieValue.class)
-                        .orElse(context.getArgument().getName())).orElse(null);
+            .findCookie(context.getAnnotationMetadata().stringValue(CookieValue.class)
+                .orElse(context.getArgument().getName())).orElse(null);
         if (cookie != null) {
             Cookie c = new Cookie.Builder(cookie.getName())
                 .value(cookie.getValue())

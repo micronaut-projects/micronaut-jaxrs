@@ -99,7 +99,7 @@ public final class JaxRsMutableResponse extends JaxRsResponse implements HttpRes
 
     public InputStream getEntityStream() {
         if (entityStream == null) {
-            byte[] bytes = mutableHttpResponse.getBody(byte[].class).orElse(new byte[]{});
+            byte[] bytes = mutableHttpResponse.getBody(byte[].class).orElse(new byte[] {});
             entityStream = new ByteArrayInputStream(bytes);
         }
         return entityStream;

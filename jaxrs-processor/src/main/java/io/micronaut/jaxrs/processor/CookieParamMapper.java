@@ -47,7 +47,7 @@ public class CookieParamMapper implements NamedAnnotationMapper {
         final AnnotationValueBuilder<CookieValue> builder = AnnotationValue.builder(CookieValue.class);
         annotation.stringValue().ifPresent(builder::value);
         return Collections.singletonList(
-                builder.build()
+            builder.build()
         );
     }
 }

@@ -92,11 +92,11 @@ final class TckProtocol implements Protocol<TckProtocol.TckProtocolConfiguration
                         Method actualMethod = null;
                         try {
                             actualMethod = actualTestInstance.getClass().getMethod(getMethod().getName(),
-                                    convertToTCCL(getMethod().getParameterTypes()));
+                                convertToTCCL(getMethod().getParameterTypes()));
                         } catch (NoSuchMethodException e) {
                             // the method should still be present, just not public, let's try declared methods
                             actualMethod = actualTestInstance.getClass().getDeclaredMethod(getMethod().getName(),
-                                    convertToTCCL(getMethod().getParameterTypes()));
+                                convertToTCCL(getMethod().getParameterTypes()));
                             actualMethod.setAccessible(true);
                         }
                         try {

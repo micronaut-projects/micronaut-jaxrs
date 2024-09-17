@@ -190,7 +190,7 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
             if (body.isEmpty()) {
                 return false;
             }
-            buffer = body.orElse(new byte[]{});
+            buffer = body.orElse(new byte[] {});
             buffered = true;
         }
         return buffered;

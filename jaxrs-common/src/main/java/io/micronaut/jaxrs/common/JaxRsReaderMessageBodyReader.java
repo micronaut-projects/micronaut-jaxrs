@@ -25,7 +25,6 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.ext.MessageBodyReader;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
@@ -50,7 +49,7 @@ public final class JaxRsReaderMessageBodyReader implements MessageBodyReader<Rea
     }
 
     @Override
-    public Reader readFrom(Class<Reader> type, Type genericType, Annotation[] annotations, MediaType mediaType, MultivaluedMap<String, String> httpHeaders, InputStream entityStream) throws IOException, WebApplicationException {
+    public Reader readFrom(Class<Reader> type, Type genericType, Annotation[] annotations, MediaType mediaType, MultivaluedMap<String, String> httpHeaders, InputStream entityStream) throws WebApplicationException {
         Optional<Charset> charset = MessageBodyWriter.findCharset(JaxRsUtils.convert(mediaType), new CaseInsensitiveMutableHttpHeaders(httpHeaders, ConversionService.SHARED));
         return new InputStreamReader(entityStream, charset.orElse(StandardCharsets.UTF_8));
     }

@@ -7,21 +7,21 @@
 
 Micronaut JAX-RS adds the ability to use common JAX-RS types and annotations to a Micronaut application.
 
-This project is not an implementation of the JAX-RS specification and is designed to allow users familiar with the JAX-RS API to use the most common parts of the API within the context of a Micronaut application. 
+This project is not an implementation of the JAX-RS specification and is designed to allow users familiar with the JAX-RS API to use the most common parts of the API within the context of a Micronaut application.
 
 ## Documentation
 
-See the [Documentation](https://micronaut-projects.github.io/micronaut-jaxrs/latest/guide/) for more information. 
+See the [Documentation](https://micronaut-projects.github.io/micronaut-jaxrs/latest/guide/) for more information.
 
 See the [Snapshot Documentation](https://micronaut-projects.github.io/micronaut-jaxrs/snapshot/guide/) for the current development docs.
 
 ## Snapshots and Releases
 
-Snaphots are automatically published to [JFrog OSS](https://oss.jfrog.org/artifactory/oss-snapshot-local/) using [Github Actions](https://github.com/micronaut-projects/micronaut-jaxrs/actions).
+Snapshots are automatically published to [JFrog OSS](https://oss.jfrog.org/artifactory/oss-snapshot-local/) using [GitHub Actions](https://github.com/micronaut-projects/micronaut-jaxrs/actions).
 
 See the documentation in the [Micronaut Docs](https://docs.micronaut.io/latest/guide/index.html#usingsnapshots) for how to configure your build to use snapshots.
 
-Releases are published to JCenter and Maven Central via [Github Actions](https://github.com/micronaut-projects/micronaut-jaxrs/actions).
+Releases are published to JCenter and Maven Central via [GitHub Actions](https://github.com/micronaut-projects/micronaut-jaxrs/actions).
 
 A release is performed with the following steps:
 

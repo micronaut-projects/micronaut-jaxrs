@@ -12,7 +12,7 @@ public class RestApplication extends Application {
     @Override
     public Map<String, Object> getProperties() {
         return Collections.singletonMap(
-                "service.name", "notifications"
+            "service.name", "notifications"
         );
     }
 }

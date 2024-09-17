@@ -41,10 +41,10 @@ public class MicronautSecurityContextBinder extends SimpleSecurityContextBinder 
         HttpRequest<?> source) {
         if (source.getAttributes().contains(SecurityFilter.KEY)) {
             Authentication auth = source.getAttribute(SecurityFilter.AUTHENTICATION, Authentication.class)
-                    .orElse(null);
+                .orElse(null);
             return (auth == null) ?
-                    super.bind(context, source) :
-                    () -> Optional.of(new MicronautSecurityContext(auth, source));
+                super.bind(context, source) :
+                () -> Optional.of(new MicronautSecurityContext(auth, source));
         }
         //noinspection unchecked
         return BindingResult.UNSATISFIED;

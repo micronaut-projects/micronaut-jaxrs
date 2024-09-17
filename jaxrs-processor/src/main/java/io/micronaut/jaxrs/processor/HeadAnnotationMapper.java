@@ -45,7 +45,7 @@ public class HeadAnnotationMapper implements NamedAnnotationMapper {
     @Override
     public List<AnnotationValue<?>> map(AnnotationValue<Annotation> annotation, VisitorContext visitorContext) {
         return Collections.singletonList(
-                AnnotationValue.builder(Head.class).value(UriMapping.DEFAULT_URI).build()
+            AnnotationValue.builder(Head.class).value(UriMapping.DEFAULT_URI).build()
         );
     }
 }

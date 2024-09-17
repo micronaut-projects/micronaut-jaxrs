@@ -172,9 +172,9 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
     }
 
     private <T> CompletableFuture<T> async(String method, Argument<T> type, Entity<?> entity) {
-        CompletableFuture<T> future = new CompletableFuture<>();
+        var future = new CompletableFuture<T>();
         try {
-            Argument<Object> requestBodyType = Argument.of(Object.class);
+            var requestBodyType = Argument.of(Object.class);
             if (entity == null) {
                 entity = this.entity;
             }

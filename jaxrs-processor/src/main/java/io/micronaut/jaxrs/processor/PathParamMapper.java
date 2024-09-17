@@ -48,7 +48,7 @@ public class PathParamMapper implements NamedAnnotationMapper {
         final AnnotationValueBuilder<PathVariable> builder = AnnotationValue.builder(PathVariable.class);
         annotation.stringValue().ifPresent(builder::value);
         return Collections.singletonList(
-                builder.build()
+            builder.build()
         );
     }
 }

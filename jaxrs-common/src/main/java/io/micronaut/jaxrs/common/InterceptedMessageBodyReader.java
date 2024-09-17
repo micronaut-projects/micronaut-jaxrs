@@ -54,6 +54,7 @@ public final class InterceptedMessageBodyReader<T> implements MessageBodyReader<
         this.readerInterceptor = readerInterceptor;
     }
 
+    @Override
     public boolean isReadable(@NonNull Argument<T> type, @Nullable MediaType mediaType) {
         return (readerType == null || type.getType().isAssignableFrom(readerType)) && reader.isReadable(type, mediaType);
     }

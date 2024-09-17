@@ -1,4 +1,4 @@
 To use this project you to add the following annotation processor to any Micronaut project:
 
-dependency:micronaut-jaxrs-processor[scope="annotationProcessor", groupId="io.micronaut.jaxrs"]
+dependency:micronaut-jaxrs-processor[scope="annotationProcessor",groupId="io.micronaut.jaxrs"]
 

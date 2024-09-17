@@ -39,10 +39,10 @@ public class JaxRsRuntime {
      */
     protected JaxRsRuntime(ApplicationContext applicationContext, Application application) {
         applicationContext.getEnvironment().addPropertySource(
-                PropertySource.of(
-                        application.getClass().getName(),
-                        application.getProperties()
-                )
+            PropertySource.of(
+                application.getClass().getName(),
+                application.getProperties()
+            )
         );
     }
 }

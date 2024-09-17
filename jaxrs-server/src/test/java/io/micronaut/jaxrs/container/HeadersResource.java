@@ -24,10 +24,10 @@ public class HeadersResource {
     @Produces("text/plain")
     public Response contentType(@HeaderParam("Content-Type") MediaType mediaType) {
         return Response.ok()
-                .type(MediaType.valueOf("text/plain"))
-                .entity(mediaType.toString())
-                .type(mediaType)
-                .build();
+            .type(MediaType.valueOf("text/plain"))
+            .entity(mediaType.toString())
+            .type(mediaType)
+            .build();
     }
 
     @GET
@@ -35,9 +35,9 @@ public class HeadersResource {
     @Produces("text/plain")
     public Response cookie(@CookieParam("foo") Cookie cookie) {
         return Response.ok()
-                .entity(cookie.getValue())
-                .cookie(new NewCookie.Builder(cookie).build())
-                .build();
+            .entity(cookie.getValue())
+            .cookie(new NewCookie.Builder(cookie).build())
+            .build();
     }
 
     @GET
@@ -45,9 +45,9 @@ public class HeadersResource {
     @Produces("text/plain")
     public Response etag(@HeaderParam(HttpHeaders.ETAG) EntityTag entityTag) {
         return Response.ok()
-                .entity(entityTag.getValue())
-                .tag(entityTag)
-                .build();
+            .entity(entityTag.getValue())
+            .tag(entityTag)
+            .build();
     }
 
     @GET
@@ -55,9 +55,9 @@ public class HeadersResource {
     @Produces("text/plain")
     public Response link(@HeaderParam(HttpHeaders.LINK) Link link) {
         return Response.ok()
-                .entity(link.toString())
-                .links(Link.fromUri("/blah").rel("friend").build())
-                .build();
+            .entity(link.toString())
+            .links(Link.fromUri("/blah").rel("friend").build())
+            .build();
     }
 
     @GET
@@ -65,9 +65,9 @@ public class HeadersResource {
     @Produces("text/plain")
     public Response cacheControl(@HeaderParam(HttpHeaders.CACHE_CONTROL) CacheControl cacheControl) {
         return Response.ok()
-                .entity(RuntimeDelegate.getInstance().createHeaderDelegate(CacheControl.class).toString(cacheControl))
-                .cacheControl(cacheControl)
-                .build();
+            .entity(RuntimeDelegate.getInstance().createHeaderDelegate(CacheControl.class).toString(cacheControl))
+            .cacheControl(cacheControl)
+            .build();
     }
 
     @GET
