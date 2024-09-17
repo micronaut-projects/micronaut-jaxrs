@@ -229,7 +229,7 @@ final class ServerCookie implements Serializable {
     }
 
     private static boolean alreadyQuoted(String value) {
-        if (value == null || value.length() == 0) {
+        if (value == null || value.isEmpty()) {
             return false;
         }
         return (value.charAt(0) == '\"' && value.charAt(value.length() - 1) == '\"');
@@ -244,7 +244,7 @@ final class ServerCookie implements Serializable {
      */
     @SuppressWarnings("java:S1871")
     private static void maybeQuote2(int version, StringBuffer buf, String value) {
-        if (value == null || value.length() == 0) {
+        if (value == null || value.isEmpty()) {
             buf.append("\"\"");
         } else if (containsCTL(value)) {
             throw new IllegalArgumentException("Invalid control character in cookie value: " + value);
@@ -275,7 +275,7 @@ final class ServerCookie implements Serializable {
      */
     private static String escapeDoubleQuotes(String s, int beginIndex, int endIndex) {
 
-        if (s == null || s.length() == 0 || s.indexOf('"') == -1) {
+        if (s == null || s.isEmpty() || s.indexOf('"') == -1) {
             return s;
         }
 

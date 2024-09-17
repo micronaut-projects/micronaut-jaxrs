@@ -58,12 +58,12 @@ final class JaxRsContextHttpHeaders implements jakarta.ws.rs.core.HttpHeaders {
         return getHeaders().getHeaderString(name);
     }
 
-//    @Override v4
+    //    @Override v4
     public boolean containsHeaderString(String name, String valueSeparatorRegex, Predicate<String> valuePredicate) {
         return getHeaders().containsHeaderString(name, valueSeparatorRegex, valuePredicate);
     }
 
-//    @Override v4
+    //    @Override v4
     public boolean containsHeaderString(String name, Predicate<String> valuePredicate) {
         return getHeaders().containsHeaderString(name, valuePredicate);
     }

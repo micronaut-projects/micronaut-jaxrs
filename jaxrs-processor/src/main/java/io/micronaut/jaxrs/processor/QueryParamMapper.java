@@ -47,7 +47,7 @@ public class QueryParamMapper implements NamedAnnotationMapper {
         final AnnotationValueBuilder<QueryValue> builder = AnnotationValue.builder(QueryValue.class);
         annotation.stringValue().ifPresent(builder::value);
         return Collections.singletonList(
-                builder.build()
+            builder.build()
         );
     }
 }

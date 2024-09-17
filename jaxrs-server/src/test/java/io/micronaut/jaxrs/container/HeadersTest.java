@@ -15,7 +15,6 @@ import jakarta.ws.rs.core.EntityTag;
 import jakarta.ws.rs.core.Link;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.ext.RuntimeDelegate;
-
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -28,20 +27,23 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 @MicronautTest
 class HeadersTest {
 
-    @Inject HeaderClient headerClient;
+    @Inject
+    HeaderClient headerClient;
 
-    @Inject @Client("/api")
+    @Inject
+    @Client("/api")
     HttpClient httpClient;
 
-    @Inject @Client("/")
+    @Inject
+    @Client("/")
     HttpClient rootClient;
 
     @Test
     void testMicronautResponse() {
         String result = rootClient.toBlocking().retrieve("/api/micronaut/test");
         assertEquals(
-                "ok",
-                result
+            "ok",
+            result
         );
     }
 
@@ -54,19 +56,19 @@ class HeadersTest {
         final String result = response.body();
 
         assertEquals(
-                "no-cache, no-transform, no-store",
-                result
+            "no-cache, no-transform, no-store",
+            result
         );
 
 
         final CacheControl cc = response.getHeaders()
-                .getFirst(jakarta.ws.rs.core.HttpHeaders.CACHE_CONTROL, CacheControl.class)
-                .get();
+            .getFirst(jakarta.ws.rs.core.HttpHeaders.CACHE_CONTROL, CacheControl.class)
+            .get();
         Assertions.assertTrue(
-                cc.isNoCache()
+            cc.isNoCache()
         );
         Assertions.assertTrue(
-                cc.isNoStore()
+            cc.isNoStore()
         );
     }
 
@@ -75,8 +77,8 @@ class HeadersTest {
         final String result = headerClient.contentType(MediaType.valueOf("application/json"));
 
         assertEquals(
-                "application/json",
-                result
+            "application/json",
+            result
         );
     }
 
@@ -116,8 +118,8 @@ class HeadersTest {
         final String result = headerClient.cookie(new Cookie.Builder("foo").value("bar").build());
 
         assertEquals(
-                "bar",
-                result
+            "bar",
+            result
         );
     }
 
@@ -126,8 +128,8 @@ class HeadersTest {
         final String result = headerClient.etag(new EntityTag("foo"));
 
         assertEquals(
-                "foo",
-                result
+            "foo",
+            result
         );
     }
 
@@ -137,15 +139,15 @@ class HeadersTest {
         final String result = response.body();
 
         assertEquals(
-                "</headers>",
-                result
+            "</headers>",
+            result
         );
 
 
         assertEquals(
-                "/blah",
-                response.getHeaders().getFirst(jakarta.ws.rs.core.HttpHeaders.LINK, Link.class)
-                    .get().getUri().toString()
+            "/blah",
+            response.getHeaders().getFirst(jakarta.ws.rs.core.HttpHeaders.LINK, Link.class)
+                .get().getUri().toString()
         );
     }
 
@@ -153,7 +155,7 @@ class HeadersTest {
     void testAcceptHeader() {
         final MutableHttpRequest<Object> request = HttpRequest.GET("/headers");
         request.accept(new io.micronaut.http.MediaType("text/plain"), new io.micronaut.http.MediaType("application/json;q=0.7"), new io.micronaut.http.MediaType(
-                "application/xml;q=0.9"
+            "application/xml;q=0.9"
         ));
         final HttpResponse<String> response = httpClient.toBlocking().exchange(request, String.class);
 
@@ -161,13 +163,13 @@ class HeadersTest {
 
         final List<MediaType> acceptableMediaTypes = jaxRsHttpHeaders.getAcceptableMediaTypes();
         assertEquals(
-                3,
-                acceptableMediaTypes.size()
+            3,
+            acceptableMediaTypes.size()
         );
 
         assertEquals(
-                "plain",
-                acceptableMediaTypes.get(0).getSubtype()
+            "plain",
+            acceptableMediaTypes.get(0).getSubtype()
         );
     }
 
@@ -181,13 +183,13 @@ class HeadersTest {
 
         final List<Locale> acceptableLanguages = jaxRsHttpHeaders.getAcceptableLanguages();
         assertEquals(
-                2,
-                acceptableLanguages.size()
+            2,
+            acceptableLanguages.size()
         );
 
         assertEquals(
-                "en",
-                acceptableLanguages.get(0).getLanguage()
+            "en",
+            acceptableLanguages.get(0).getLanguage()
         );
     }
 }

@@ -436,7 +436,7 @@ final class JaxRsConfiguration implements Configuration {
     }
 
     private <T> List<T> getComponentOfType(Class<T> type) {
-        List<Map.Entry<T, Integer>> valuesWithPriority = new ArrayList<>();
+        var valuesWithPriority = new ArrayList<Map.Entry<T, Integer>>();
         for (JaxRsConfiguration.Component component : components) {
             T instance = component.tryGet(type);
             if (instance != null) {

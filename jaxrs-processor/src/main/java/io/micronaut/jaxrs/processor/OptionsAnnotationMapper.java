@@ -45,7 +45,7 @@ public class OptionsAnnotationMapper implements NamedAnnotationMapper {
     @Override
     public List<AnnotationValue<?>> map(AnnotationValue<Annotation> annotation, VisitorContext visitorContext) {
         return Collections.singletonList(
-                AnnotationValue.builder(Options.class).value(UriMapping.DEFAULT_URI).build()
+            AnnotationValue.builder(Options.class).value(UriMapping.DEFAULT_URI).build()
         );
     }
 }

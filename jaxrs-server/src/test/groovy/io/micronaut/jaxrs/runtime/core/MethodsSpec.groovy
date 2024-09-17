@@ -1,11 +1,9 @@
 package io.micronaut.jaxrs.runtime.core
 
 import io.micronaut.context.ApplicationContext
-import io.micronaut.core.io.buffer.ByteBuffer
 import io.micronaut.core.type.Argument
 import io.micronaut.http.HttpMethod
 import io.micronaut.http.HttpRequest
-import io.micronaut.http.HttpResponse
 import io.micronaut.http.client.HttpClient
 import io.micronaut.runtime.server.EmbeddedServer
 import spock.lang.AutoCleanup
@@ -15,10 +13,12 @@ import spock.lang.Unroll
 
 class MethodsSpec extends Specification {
 
-    @Shared @AutoCleanup
+    @Shared
+    @AutoCleanup
     EmbeddedServer embeddedServer = ApplicationContext.run(EmbeddedServer)
 
-    @Shared @AutoCleanup
+    @Shared
+    @AutoCleanup
     HttpClient client = embeddedServer.getApplicationContext().createBean(HttpClient, embeddedServer.getURL())
 
     @Unroll

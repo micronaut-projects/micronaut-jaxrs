@@ -22,10 +22,11 @@ import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.SecurityContext;
 import jakarta.ws.rs.core.UriInfo;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 @MicronautTest
 @Property(name = "micronaut.server.testing.async", value = "false")
@@ -94,4 +95,5 @@ class ServletResource {
 }
 
 @Serdeable
-record Foo(String name) {}
+record Foo(String name) {
+}

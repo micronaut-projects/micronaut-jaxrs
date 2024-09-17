@@ -10,7 +10,9 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @MicronautTest
 public class ResponseTest {
@@ -25,13 +27,13 @@ public class ResponseTest {
     void testPingResponse() {
         final HttpResponse<String> response = client.ping();
         assertEquals(
-                HttpStatus.OK,
-                response.getStatus()
+            HttpStatus.OK,
+            response.getStatus()
 
         );
         assertEquals(
-                "Service online: notifications",
-                response.body()
+            "Service online: notifications",
+            response.body()
         );
     }
 
@@ -60,8 +62,8 @@ public class ResponseTest {
 
         assertEquals(HttpStatus.CREATED, response.status());
         assertEquals(
-                "test",
-                response.body().getName()
+            "test",
+            response.body().getName()
         );
     }
 
@@ -78,8 +80,8 @@ public class ResponseTest {
     @Test
     void testValidation() {
         assertThrows(HttpClientResponseException.class,
-                () -> client.getNotification(-10),
-                "id: must be greater than or equal to 1");
+            () -> client.getNotification(-10),
+            "id: must be greater than or equal to 1");
     }
 
     @Test
@@ -90,14 +92,14 @@ public class ResponseTest {
     }
 
     @Test
-    void testForbidden(){
+    void testForbidden() {
         HttpClientResponseException exception = assertThrows(HttpClientResponseException.class, client::forbidden);
         assertEquals(HttpStatus.FORBIDDEN, exception.getStatus());
         assertEquals("Testing forbidden", errorsMessage(exception));
     }
 
     @Test
-    void testNotAcceptable(){
+    void testNotAcceptable() {
         HttpClientResponseException exception = assertThrows(HttpClientResponseException.class, client::notAcceptable);
         assertEquals(HttpStatus.NOT_ACCEPTABLE, exception.getStatus());
         assertEquals("Testing not-acceptable", errorsMessage(exception));
@@ -138,13 +140,13 @@ public class ResponseTest {
     }
 
     @Test
-    void testForbiddenWithoutResponse(){
+    void testForbiddenWithoutResponse() {
         HttpClientResponseException exception = assertThrows(HttpClientResponseException.class, client::forbiddenWithoutResponse);
         assertEquals(HttpStatus.FORBIDDEN, exception.getStatus());
     }
 
     @Test
-    void testNotAcceptableWithoutResponse(){
+    void testNotAcceptableWithoutResponse() {
         HttpClientResponseException exception = assertThrows(HttpClientResponseException.class, client::notAcceptableWithoutResponse);
         assertEquals(HttpStatus.NOT_ACCEPTABLE, exception.getStatus());
     }

@@ -4,6 +4,7 @@ import io.micronaut.context.annotation.Value;
 import io.micronaut.http.annotation.QueryValue;
 import io.micronaut.scheduling.TaskExecutors;
 import jakarta.inject.Named;
+import jakarta.validation.constraints.Min;
 import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DefaultValue;
@@ -24,7 +25,6 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.junit.jupiter.api.Assertions;
 
-import jakarta.validation.constraints.Min;
 import java.util.concurrent.ExecutorService;
 
 @Path("/notifications")
@@ -53,8 +53,8 @@ public class NotificationsResource {
     @Produces(MediaType.APPLICATION_JSON)
     public Response getNotification(@Min(1) @PathParam("id") int id) {
         return Response.ok()
-                .entity(new Notification(id, "john", "test notification"))
-                .build();
+            .entity(new Notification(id, "john", "test notification"))
+            .build();
     }
 
     /**
@@ -66,8 +66,8 @@ public class NotificationsResource {
     @Produces(MediaType.APPLICATION_JSON)
     public Response getNotificationV2(@Min(1) @PathParam("newId") int id) {
         return Response.ok()
-                .entity(new Notification(id, "john", "test notification"))
-                .build();
+            .entity(new Notification(id, "john", "test notification"))
+            .build();
     }
 
     @GET
@@ -75,8 +75,8 @@ public class NotificationsResource {
     @Produces(MediaType.APPLICATION_JSON)
     public Response getDefault(@DefaultValue("10") @QueryValue("id") int id) {
         return Response.ok()
-                .entity(new Notification(id, "john", "test notification"))
-                .build();
+            .entity(new Notification(id, "john", "test notification"))
+            .build();
     }
 
     @POST
@@ -89,7 +89,7 @@ public class NotificationsResource {
     @GET
     @Path("/bad-request")
     @Produces(MediaType.APPLICATION_JSON)
-    public Response badRequest(){
+    public Response badRequest() {
         throw new BadRequestException("Testing bad-request", Response.status(Response.Status.BAD_REQUEST).build());
     }
 
@@ -110,14 +110,14 @@ public class NotificationsResource {
     @GET
     @Path("/not-allowed")
     @Produces(MediaType.APPLICATION_JSON)
-    public Response notAllowed(){
+    public Response notAllowed() {
         throw new NotAllowedException("Testing not-allowed", Response.status(Response.Status.METHOD_NOT_ALLOWED).build());
     }
 
     @GET
     @Path("/not-authorized")
     @Produces(MediaType.APPLICATION_JSON)
-    public Response notAuthorized(){
+    public Response notAuthorized() {
         throw new NotAuthorizedException("Testing not-authorized", Response.status(Response.Status.UNAUTHORIZED).build());
     }
 

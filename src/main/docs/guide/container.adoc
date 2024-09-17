@@ -2,7 +2,7 @@ Micronaut JAX-RS supports using JAX-RS annotations to define controllers.
 
 Include the following server dependency:
 
-dependency:micronaut-jaxrs-server[scope="implementation", groupId="io.micronaut.jaxrs"]
+dependency:micronaut-jaxrs-server[scope="implementation",groupId="io.micronaut.jaxrs"]
 
 ==== Supported Annotations
 
@@ -78,7 +78,6 @@ Micronaut JAX-RS works by converting (at compilation time) a JAX-RS annotation d
 
 |===
 
-
 ==== Injectable Parameter Types
 
 In addition to the supported JAX-RS annotations you can use the following JAX-RS types as parameter types to resources or client definitions:
@@ -95,14 +94,12 @@ You can also use the link:{jaxrsapi}/jakarta/ws/rs/core/Context.html[@Context] a
 
 NOTE: Parameter binding to constructor argument of resource types is not supported at this time.
 
-
 ==== ResourceInfo
 
 link:{jaxrsapi}jakarta/ws/rs/container/ResourceInfo.html[ResourceInfo] is a JAX-RS context which can be injected to check which resource class and method are about to be invoked.
 This is supported in the micronaut-jaxrs module via the link:{micronautapi}runtime/http/scope/RequestScope.html[`@RequestScope`] bean link:{api}/io/micronaut/jaxrs/runtime/core/JaxRsResourceInfo.html[`JaxRsResourceInfo`].
 
 See the https://guides.micronaut.io/latest/micronaut-scope-types.html[Scope type guide] for more information on using RequestScope beans.
-
 
 ==== Filters
 
@@ -128,9 +125,10 @@ When injecting the link:{jaxrsapi}/jakarta/ws/rs/core/SecurityContext.html[Secur
 
 To integrate the JAX-RS support with Micronaut Security add the following dependency:
 
-dependency:micronaut-jaxrs-server-security[scope="implementation", groupId="io.micronaut.jaxrs"]
+dependency:micronaut-jaxrs-server-security[scope="implementation",groupId="io.micronaut.jaxrs"]
 
-With the above dependency in place the `SecurityContext.isUserInRole` method will return `true` if the role is found within Micronaut Security's https://micronaut-projects.github.io/micronaut-security/latest/api/io/micronaut/security/authentication/Authentication.html#getRoles--[Authentication.getRoles()] method. See https://micronaut-projects.github.io/micronaut-security/latest/guide/#retrievingAuthenticatedUser[Retrieving the authenticated user] for more information.
+With the above dependency in place the `SecurityContext.isUserInRole` method will return `true` if the role is found within Micronaut Security's https://micronaut-projects.github.io/micronaut-security/latest/api/io/micronaut/security/authentication/Authentication.html#getRoles--[Authentication.getRoles()] method.
+See https://micronaut-projects.github.io/micronaut-security/latest/guide/#retrievingAuthenticatedUser[Retrieving the authenticated user] for more information.
 
 ==== Supported Return Types
 

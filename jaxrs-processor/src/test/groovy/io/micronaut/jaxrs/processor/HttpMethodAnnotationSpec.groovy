@@ -378,7 +378,7 @@ class Test implements TestService {
 
     void "test mapping path specified with @Path"() {
         given:
-            def definition = buildBeanDefinition('test.Test', '''
+        def definition = buildBeanDefinition('test.Test', '''
 package test;
 
 @jakarta.ws.rs.Path("/base-path")
@@ -392,16 +392,16 @@ public class Test {
 }
 ''')
         expect:
-            definition.stringValue(Controller).get() == '/base-path'
-            definition.stringValue(UriMapping).get() == '/base-path'
+        definition.stringValue(Controller).get() == '/base-path'
+        definition.stringValue(UriMapping).get() == '/base-path'
         and:
-            def method = definition.getRequiredMethod('get')
-            method.stringValue(HttpMethodMapping).get() == '/method-path'
+        def method = definition.getRequiredMethod('get')
+        method.stringValue(HttpMethodMapping).get() == '/method-path'
     }
 
     void "test mapped annotation from interface for client"() {
         given:
-            def definition = buildBeanDefinition('test.Test$Intercepted', """
+        def definition = buildBeanDefinition('test.Test$Intercepted', """
 package test;
 
 interface TestService {

@@ -17,9 +17,9 @@ class ServerCookieSpec extends Specification {
         sb.toString() == expected
 
         where:
-        isSecure    || expected
-        true        || "name=value; Version=1; Comment=comment; Domain=domain; Max-Age=0; Path=path; Secure"
-        false       || "name=value; Version=1; Comment=comment; Domain=domain; Max-Age=0; Path=path"
+        isSecure || expected
+        true     || "name=value; Version=1; Comment=comment; Domain=domain; Max-Age=0; Path=path; Secure"
+        false    || "name=value; Version=1; Comment=comment; Domain=domain; Max-Age=0; Path=path"
     }
 
     @Unroll

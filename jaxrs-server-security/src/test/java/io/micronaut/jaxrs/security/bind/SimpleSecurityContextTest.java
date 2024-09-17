@@ -40,9 +40,9 @@ class SimpleSecurityContextTest {
     @Test
     void testSecurityContext(@Client("/") HttpClient client) {
         MutableHttpRequest<Object> request = HttpRequest.GET("/secured")
-                .basicAuth("fred", "ok");
+            .basicAuth("fred", "ok");
         Map<String, String> result = client.toBlocking().retrieve(request,
-                Argument.mapOf(String.class, String.class)
+            Argument.mapOf(String.class, String.class)
         );
 
         assertFalse(result.isEmpty());
@@ -83,12 +83,12 @@ class SecureResource {
         SecurityContext context2 // test with and without @Context
     ) {
         return Map.of(
-                "secure", String.valueOf(context.isSecure()),
-                "hasRole", String.valueOf(context.isUserInRole("admin")),
-                "principal", context.getUserPrincipal().getName(),
-                "context2.secure", String.valueOf(context2.isSecure()),
-                "context2.hasRole", String.valueOf(context2.isUserInRole("admin")),
-                "context2.principal", context2.getUserPrincipal().getName()
+            "secure", String.valueOf(context.isSecure()),
+            "hasRole", String.valueOf(context.isUserInRole("admin")),
+            "principal", context.getUserPrincipal().getName(),
+            "context2.secure", String.valueOf(context2.isSecure()),
+            "context2.hasRole", String.valueOf(context2.isUserInRole("admin")),
+            "context2.principal", context2.getUserPrincipal().getName()
         );
     }
 }

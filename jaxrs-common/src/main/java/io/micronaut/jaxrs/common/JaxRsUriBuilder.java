@@ -78,6 +78,7 @@ final class JaxRsUriBuilder extends UriBuilder {
 
     private MultiQueryParamMode queryParamMode = MultiQueryParamMode.MULTI_PAIRS;
 
+    @Override
     public UriBuilder clone() {
         JaxRsUriBuilder impl = new JaxRsUriBuilder();
         impl.host = host;
@@ -255,6 +256,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         return this;
     }
 
+    @Override
     public UriBuilder uri(String uriTemplate) throws IllegalArgumentException {
         return uriTemplate(uriTemplate);
     }
@@ -263,6 +265,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         return uriTemplate(uriTemplate);
     }
 
+    @Override
     public UriBuilder uri(URI uri) throws IllegalArgumentException {
         if (uri == null) {
             throw new IllegalArgumentException("uri cannot be null");
@@ -320,11 +323,13 @@ final class JaxRsUriBuilder extends UriBuilder {
         return this;
     }
 
+    @Override
     public UriBuilder scheme(String scheme) throws IllegalArgumentException {
         this.scheme = scheme;
         return this;
     }
 
+    @Override
     public UriBuilder schemeSpecificPart(String ssp) throws IllegalArgumentException {
         if (ssp == null) {
             throw new IllegalArgumentException("ssp cannot be null");
@@ -354,11 +359,13 @@ final class JaxRsUriBuilder extends UriBuilder {
         return this;
     }
 
+    @Override
     public UriBuilder userInfo(String ui) {
         this.userInfo = ui;
         return this;
     }
 
+    @Override
     public UriBuilder host(String host) throws IllegalArgumentException {
         if (host != null && host.isEmpty()) {
             throw new IllegalArgumentException("invalid host");
@@ -367,6 +374,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         return this;
     }
 
+    @Override
     public UriBuilder port(int port) throws IllegalArgumentException {
         if (port < -1) {
             throw new IllegalArgumentException("invalid port");
@@ -417,6 +425,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         return path.toString();
     }
 
+    @Override
     public UriBuilder path(String segment) throws IllegalArgumentException {
         if (segment == null) {
             throw new IllegalArgumentException("segment was null");
@@ -426,6 +435,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         return this;
     }
 
+    @Override
     @SuppressWarnings("unchecked")
     public UriBuilder path(Class resource) throws IllegalArgumentException {
         if (resource == null) {
@@ -434,7 +444,7 @@ final class JaxRsUriBuilder extends UriBuilder {
 
         Path ann = (Path) resource.getAnnotation(Path.class);
         if (ann != null) {
-            String[] segments = new String[]{ann.value()};
+            String[] segments = new String[] {ann.value()};
             path = paths(true, path, segments);
         } else {
             throw new IllegalArgumentException("class must be annotated with @Path");
@@ -442,6 +452,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         return this;
     }
 
+    @Override
     public UriBuilder path(Class resource, String method) throws IllegalArgumentException {
         if (resource == null) {
             throw new IllegalArgumentException("path is null");
@@ -467,6 +478,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         return path(theMethod);
     }
 
+    @Override
     public UriBuilder path(Method method) throws IllegalArgumentException {
         if (method == null) {
             throw new IllegalArgumentException("method is null");
@@ -480,6 +492,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         return this;
     }
 
+    @Override
     public UriBuilder replaceMatrix(String matrix) throws IllegalArgumentException {
         if (matrix == null) {
             matrix = "";
@@ -506,6 +519,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         return this;
     }
 
+    @Override
     public UriBuilder replaceQuery(String query) throws IllegalArgumentException {
         if (query == null || query.isEmpty()) {
             this.query = null;
@@ -515,6 +529,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         return this;
     }
 
+    @Override
     public UriBuilder fragment(String fragment) throws IllegalArgumentException {
         if (fragment == null) {
             this.fragment = null;
@@ -541,6 +556,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         return this;
     }
 
+    @Override
     public URI buildFromMap(Map<String, ?> values) throws IllegalArgumentException, UriBuilderException {
         if (values == null) {
             throw new IllegalArgumentException("Values parameter is null");
@@ -548,6 +564,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         return buildUriFromMap(values, false, true);
     }
 
+    @Override
     public URI buildFromEncodedMap(Map<String, ?> values) throws IllegalArgumentException, UriBuilderException {
         if (values == null) {
             throw new IllegalArgumentException("Values parameter is null");
@@ -555,6 +572,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         return buildUriFromMap(values, true, false);
     }
 
+    @Override
     public URI buildFromMap(Map<String, ?> values, boolean encodeSlashInPath)
         throws IllegalArgumentException, UriBuilderException {
         if (values == null) {
@@ -785,13 +803,13 @@ final class JaxRsUriBuilder extends UriBuilder {
             String param = matcher.group(1);
             if (set.contains(param)) {
                 continue;
-            } else {
-                set.add(param);
-                params.add(param);
             }
+            set.add(param);
+            params.add(param);
         }
     }
 
+    @Override
     public URI build(Object... values) throws IllegalArgumentException, UriBuilderException {
         if (values == null) {
             throw new IllegalArgumentException("Values parameter is null");
@@ -810,6 +828,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         }
     }
 
+    @Override
     public UriBuilder matrixParam(String name, Object... values) throws IllegalArgumentException {
         if (name == null) {
             throw new IllegalArgumentException("Name parameter is null");
@@ -827,6 +846,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         return this;
     }
 
+    @Override
     public UriBuilder replaceMatrixParam(String name, Object... values) throws IllegalArgumentException {
         if (name == null) {
             throw new IllegalArgumentException("Name parameter is null");
@@ -993,6 +1013,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         return this;
     }
 
+    @Override
     public UriBuilder queryParam(String name, Object... values) throws IllegalArgumentException {
         if (name == null) {
             throw new IllegalArgumentException("Name parameter is null");
@@ -1044,6 +1065,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         return values.length == 1 ? "=" : "[]=";
     }
 
+    @Override
     public UriBuilder replaceQueryParam(String name, Object... values) throws IllegalArgumentException {
         if (name == null) {
             throw new IllegalArgumentException("Name parameter is null");
@@ -1111,6 +1133,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         return fragment;
     }
 
+    @Override
     public UriBuilder segment(String... segments) throws IllegalArgumentException {
         if (segments == null) {
             throw new IllegalArgumentException("Segments parameter is null");
@@ -1124,6 +1147,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         return this;
     }
 
+    @Override
     public URI buildFromEncoded(Object... values) throws IllegalArgumentException, UriBuilderException {
         if (values == null) {
             throw new IllegalArgumentException("Values parameter is null");
@@ -1132,6 +1156,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         return buildFromValues(false, true, values);
     }
 
+    @Override
     public UriBuilder replacePath(String path) {
         if (path == null) {
             this.path = null;
@@ -1141,6 +1166,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         return this;
     }
 
+    @Override
     public URI build(Object[] values, boolean encodeSlashInPath) throws IllegalArgumentException, UriBuilderException {
         if (values == null) {
             throw new IllegalArgumentException("Values parameter is null");
@@ -1149,10 +1175,12 @@ final class JaxRsUriBuilder extends UriBuilder {
         return buildFromValues(encodeSlashInPath, false, values);
     }
 
+    @Override
     public String toTemplate() {
         return buildString(Map.of(), true, true, true);
     }
 
+    @Override
     public UriBuilder resolveTemplate(String name, Object value) throws IllegalArgumentException {
         if (name == null) {
             throw new IllegalArgumentException("Name parameter is null");
@@ -1163,6 +1191,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         return resolveTemplates(Map.of(name, value));
     }
 
+    @Override
     public UriBuilder resolveTemplates(Map<String, Object> templateValues) throws IllegalArgumentException {
         if (templateValues == null) {
             throw new IllegalArgumentException("TemplateValues parameter is null");
@@ -1172,6 +1201,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         return uriTemplate(buildCharSequence(templateValues, false, true, true));
     }
 
+    @Override
     public UriBuilder resolveTemplate(String name, Object value, boolean encodeSlashInPath) throws IllegalArgumentException {
         if (name == null) {
             throw new IllegalArgumentException("Name parameter is null");
@@ -1183,6 +1213,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         return uriTemplate(buildCharSequence(Map.of(name, value), false, true, encodeSlashInPath));
     }
 
+    @Override
     public UriBuilder resolveTemplateFromEncoded(String name, Object value) throws IllegalArgumentException {
         if (name == null) {
             throw new IllegalArgumentException("Name parameter is null");
@@ -1194,6 +1225,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         return uriTemplate(buildCharSequence(Map.of(name, value), true, true, true));
     }
 
+    @Override
     public UriBuilder resolveTemplates(Map<String, Object> templateValues, boolean encodeSlashInPath) throws IllegalArgumentException {
         if (templateValues == null) {
             throw new IllegalArgumentException("TemplateValues parameter is null");
@@ -1203,6 +1235,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         return uriTemplate(buildCharSequence(templateValues, false, true, encodeSlashInPath));
     }
 
+    @Override
     public UriBuilder resolveTemplatesFromEncoded(Map<String, Object> templateValues) throws IllegalArgumentException {
         if (templateValues == null) {
             throw new IllegalArgumentException("TemplateValues parameter is null");
@@ -1284,6 +1317,7 @@ final class JaxRsUriBuilder extends UriBuilder {
             this.parameterValues = parameterValues;
         }
 
+        @Override
         public Object get(Object key) {
             Object object;
             if (!super.containsKey(key) && this.index != this.parameterValues.length) {
@@ -1295,6 +1329,7 @@ final class JaxRsUriBuilder extends UriBuilder {
             return object;
         }
 
+        @Override
         public boolean containsKey(Object key) {
             boolean containsKey = super.containsKey(key);
             if (!containsKey && this.index != this.parameterValues.length) {

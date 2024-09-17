@@ -47,7 +47,7 @@ public class HeaderParamMapper implements NamedAnnotationMapper {
         final AnnotationValueBuilder<Header> builder = AnnotationValue.builder(Header.class);
         annotation.stringValue().ifPresent(builder::value);
         return Collections.singletonList(
-                builder.build()
+            builder.build()
         );
     }
 }

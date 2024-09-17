@@ -15,11 +15,6 @@
  */
 package io.micronaut.jaxrs.runtime.ext.bind;
 
-import java.util.Collection;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-
 import io.micronaut.context.BeanContext;
 import io.micronaut.context.Qualifier;
 import io.micronaut.core.convert.ArgumentConversionContext;
@@ -31,6 +26,11 @@ import io.micronaut.inject.qualifiers.Qualifiers;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.core.Context;
+
+import java.util.Collection;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Handles the JAX-RS {@code Context} annotation binding.
@@ -56,9 +56,9 @@ public class ContextAnnotationBinder<T> implements AnnotatedRequestArgumentBinde
     protected ContextAnnotationBinder(BeanContext beanContext, Collection<TypedRequestArgumentBinder<?>> argumentBinders) {
         this.beanContext = beanContext;
         this.argBinders = argumentBinders.stream().collect(Collectors.toMap(
-                argBinder -> argBinder.argumentType().getType(),
-                Function.identity(),
-                (dup1, dup2) -> dup1));
+            argBinder -> argBinder.argumentType().getType(),
+            Function.identity(),
+            (dup1, dup2) -> dup1));
     }
 
     @Override

@@ -34,6 +34,7 @@ final class ObjectToStringDelegate implements RuntimeDelegate.HeaderDelegate<Obj
     private ObjectToStringDelegate() {
     }
 
+    @Override
     public Object fromString(String value) {
         if (value == null) {
             throw new IllegalArgumentException("Value cannot be null");
@@ -41,6 +42,7 @@ final class ObjectToStringDelegate implements RuntimeDelegate.HeaderDelegate<Obj
         throw new IllegalArgumentException("Not supported");
     }
 
+    @Override
     public String toString(Object value) {
         if (value == null) {
             throw new IllegalArgumentException("Value cannot be null");

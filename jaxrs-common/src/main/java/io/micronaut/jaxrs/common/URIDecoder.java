@@ -35,7 +35,7 @@ final class URIDecoder {
     }
 
     /**
-     * Decodes a segment of an URI encoded by a browser.
+     * Decodes a segment of a URI encoded by a browser.
      * <p>
      * The string is expected to be encoded as per RFC 3986, Section 2. This is the encoding used by JavaScript functions
      * encodeURI and encodeURIComponent, but not escape. For example in this encoding, é (in Unicode U+00E9 or in
@@ -51,7 +51,7 @@ final class URIDecoder {
     }
 
     /**
-     * Decodes a segment of an URI encoded by a browser.
+     * Decodes a segment of a URI encoded by a browser.
      * <p>
      * The string is expected to be encoded as per RFC 3986, Section 2. This is the encoding used by JavaScript functions
      * encodeURI and encodeURIComponent, but not escape. For example in this encoding, é (in Unicode U+00E9 or in
