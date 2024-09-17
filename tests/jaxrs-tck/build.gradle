@@ -18,16 +18,17 @@ dependencies {
     implementation projects.micronautJaxrsServer
     implementation projects.micronautJaxrsClient
     implementation projects.micronautJaxrsProcessor
-
     implementation libs.jakarta.jaxrs.tck.tests
-    testImplementation libs.junit.jupiter.engine
-    testImplementation libs.junit.jupiter.api
-    testImplementation libs.junit.platform.suite.engine
-    implementation 'org.slf4j:jul-to-slf4j:2.0.13'
-    testRuntimeOnly(mnLogging.logback.classic)
+    implementation mnLogging.slf4j.jul.to.slf4j
+
     runtimeOnly(mnLogging.logback.classic)
 
+    testImplementation mnTest.junit.jupiter.api
+    testImplementation libs.junit.platform.suite.engine
     testImplementation(files('jakarta-restful-ws-tck-4.0.0-SNAPSHOT-sources.jar'))
+
+    testRuntimeOnly mnLogging.logback.classic
+    testRuntimeOnly mnTest.junit.jupiter.engine
 }
 
 test {

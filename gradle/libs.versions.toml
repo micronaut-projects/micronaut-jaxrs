@@ -1,9 +1,6 @@
 [versions]
 managed-jaxrs-api = "3.1.0"
 
-groovy = "4.0.18"
-spock = "2.3-groovy-4.0"
-
 micronaut = "4.6.5"
 micronaut-docs = "2.0.0"
 micronaut-test = "4.5.0"
@@ -25,9 +22,5 @@ micronaut-validation = { module = "io.micronaut.validation:micronaut-validation-
 
 managed-jaxrs-api = { module = "jakarta.ws.rs:jakarta.ws.rs-api", version.ref = "managed-jaxrs-api" }
 
-junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine" }
-junit-jupiter-params = { module = "org.junit.jupiter:junit-jupiter-params" }
-junit-jupiter-api = { module = "org.junit.jupiter:junit-jupiter-api" }
 junit-platform-suite-engine = { module = "org.junit.platform:junit-platform-suite-engine" }
-
 jakarta-jaxrs-tck-tests = { module = 'jakarta.ws.rs:jakarta-restful-ws-tck', version.ref = "jakarta-jaxrs-tck" }
