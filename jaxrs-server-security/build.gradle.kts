@@ -21,5 +21,5 @@ dependencies {
     testImplementation(mnTest.micronaut.test.junit5)
     testImplementation(mnSerde.micronaut.serde.jackson)
 
-    testRuntimeOnly(libs.junit.jupiter.engine)
+    testRuntimeOnly(mnTest.junit.jupiter.engine)
 }
