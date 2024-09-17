@@ -122,6 +122,9 @@ ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT#responseCreatedRelativeUR
 # createEndpoint() unsupported
 ee.jakarta.tck.ws.rs.api.rs.ext.runtimedelegate.create.JAXRSClientIT#createEndpointThrowsIllegalArgumentExceptionTest
 
+# TCK BUG Test assumes header `allow` with upper case
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#optionsOnSubResourceTest
+
 # Sub resources
 ee.jakarta.tck.ws.rs.ee.rs.headerparam.sub.JAXRSSubClientIT
 ee.jakarta.tck.ws.rs.ee.rs.formparam.locator.JAXRSLocatorClientIT
