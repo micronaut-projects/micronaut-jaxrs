@@ -25,7 +25,11 @@ dependencies {
 
     testImplementation mnTest.junit.jupiter.api
     testImplementation libs.junit.platform.suite.engine
-    testImplementation(files('jakarta-restful-ws-tck-4.0.0-SNAPSHOT-sources.jar'))
+    testImplementation(libs.jakarta.jaxrs.tck.tests) {
+        artifact {
+            classifier = "sources"
+        }
+    }
 
     testRuntimeOnly mnLogging.logback.classic
     testRuntimeOnly mnTest.junit.jupiter.engine
