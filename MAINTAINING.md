@@ -120,12 +120,12 @@ source of truth for certain files. It is used as a template to create new repos,
 template repo will get propagated automatically. The files propagated are:
 
 * Workflow files (`.github/workflows/*`). They are copied using rsync"
-    * `central-sync.yml`.
-    * `dependency-update.yml`.
-    * `graalvm.yml`.
-    * `gradle.yml`.
-    * `release.yml`.
-    * `release-notes.yml`.
+  * `central-sync.yml`.
+  * `dependency-update.yml`.
+  * `graalvm.yml`.
+  * `gradle.yml`.
+  * `release.yml`.
+  * `release-notes.yml`.
 * Renovate configuration (`.github/renovate.json`).
 * Gradle wrapper.
 * `.gitignore`.
@@ -177,8 +177,8 @@ will kick off, performing the following steps:
 * Generates documentation guide and publishes it to the `gh-pages` branch.
 * Sends a pull request to Core to update the BOM.
 * Post-release:
-    * Determines the next patch version, and sets it as a `SNAPSHOT` version.
-    * Closes the milestone that matches the release version, and creates a new one for the next patch.
+  * Determines the next patch version, and sets it as a `SNAPSHOT` version.
+  * Closes the milestone that matches the release version, and creates a new one for the next patch.
 
 If everything goes well, you now need to manually trigger the Maven Central publishing workflow via the GitHub UI.
 
@@ -197,14 +197,14 @@ Micronaut `2.2.0` BOM. If the next version you want to publish is:
 
 * A new patch release (`1.0.1`): simply publish the existing draft release.
 * A new minor release (`1.1.0`):
-    * Before the release, push a `1.0.x` branch off `master`.
-    * Bump the version in master to `1.1.0-SNAPSHOT`.
-    * Set the `githubCoreBranch` property to `2.3.x` (or `3.0.x` if it will be the next one).
-    * Edit the draft release setting the version to `1.1.0` in the release title, body, tag, etc.
-    * Publish the release.
+  * Before the release, push a `1.0.x` branch off `master`.
+  * Bump the version in master to `1.1.0-SNAPSHOT`.
+  * Set the `githubCoreBranch` property to `2.3.x` (or `3.0.x` if it will be the next one).
+  * Edit the draft release setting the version to `1.1.0` in the release title, body, tag, etc.
+  * Publish the release.
 * A new major release (`2.0.0`):
-    * Before the release, push a `1.0.x` branch off `master`.
-    * Bump the version in master to `2.0.0-SNAPSHOT`.
-    * Set the `githubCoreBranch` property to `3.0.x` (or `2.3.x` if this new major version doesn't introduce breaking changes).
-    * Edit the draft release setting the version to `2.0.0` in the release title, body, tag, etc.
-    * Publish the release.
+  * Before the release, push a `1.0.x` branch off `master`.
+  * Bump the version in master to `2.0.0-SNAPSHOT`.
+  * Set the `githubCoreBranch` property to `3.0.x` (or `2.3.x` if this new major version doesn't introduce breaking changes).
+  * Edit the draft release setting the version to `2.0.0` in the release title, body, tag, etc.
+  * Publish the release.
