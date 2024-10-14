@@ -54,31 +54,26 @@ public final class JaxRsMessageBodyWriter<T> implements MessageBodyWriter<T> {
     private final List<MediaType> produces;
     private final jakarta.ws.rs.ext.MessageBodyWriter<T> delegate;
     private final List<WriterInterceptor> writerInterceptors;
-    @Nullable
-    private final RouteReturnTypeProvider routeReturnTypeProvider;
 
     @Inject
     public JaxRsMessageBodyWriter(BeanRegistration<jakarta.ws.rs.ext.MessageBodyWriter<T>> beanRegistration,
-                                  List<WriterInterceptor> writerInterceptors,
-                                  @Nullable RouteReturnTypeProvider routeReturnTypeProvider) {
-        this(beanRegistration.getBeanDefinition(), beanRegistration.bean(), writerInterceptors, routeReturnTypeProvider);
+                                  List<WriterInterceptor> writerInterceptors) {
+        this(beanRegistration.getBeanDefinition(), beanRegistration.bean(), writerInterceptors);
     }
 
     public JaxRsMessageBodyWriter(AnnotationMetadata annotationMetadata,
                                   jakarta.ws.rs.ext.MessageBodyWriter<T> delegate,
-                                  List<WriterInterceptor> writerInterceptors,
-                                  @Nullable RouteReturnTypeProvider routeReturnTypeProvider) {
+                                  List<WriterInterceptor> writerInterceptors) {
         this.produces = asMediaTypes(annotationMetadata);
         this.delegate = delegate;
         this.writerInterceptors = writerInterceptors;
-        this.routeReturnTypeProvider = routeReturnTypeProvider;
         JaxRsUtils.sortByPriority(writerInterceptors);
     }
 
     public JaxRsMessageBodyWriter(Argument<?> writerArgument,
                                   jakarta.ws.rs.ext.MessageBodyWriter<T> delegate,
                                   List<WriterInterceptor> writerInterceptors) {
-        this(writerArgument.getAnnotationMetadata(), delegate, writerInterceptors, null);
+        this(writerArgument.getAnnotationMetadata(), delegate, writerInterceptors);
     }
 
     private static List<MediaType> asMediaTypes(AnnotationMetadata annotationMetadata) {
@@ -103,13 +98,6 @@ public final class JaxRsMessageBodyWriter<T> implements MessageBodyWriter<T> {
                         @NonNull MutableHeaders outgoingHeaders,
                         @NonNull OutputStream outputStream) throws CodecException {
         try {
-            if (type.getAnnotationMetadata().isEmpty() && routeReturnTypeProvider != null) {
-                // JaxRs expects all the annotation from the method
-                Argument<?> argument = routeReturnTypeProvider.provideReturnType();
-                if (argument != null && !argument.getAnnotationMetadata().isEmpty()) {
-                    type = Argument.of(type.getType(), argument.getAnnotationMetadata(), type.getTypeParameters());
-                }
-            }
             Iterator<WriterInterceptor> iterator = writerInterceptors.iterator();
             JaxRsMutableObjectHeadersMultivaluedMap httpHeaders = new JaxRsMutableObjectHeadersMultivaluedMap(outgoingHeaders);
             if (iterator.hasNext()) {
