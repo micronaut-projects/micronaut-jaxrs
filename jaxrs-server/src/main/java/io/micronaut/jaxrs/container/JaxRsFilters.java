@@ -73,7 +73,6 @@ final class JaxRsFilters {
 
     @Nullable
     @RequestFilter
-    @Order(Ordered.LOWEST_PRECEDENCE)
     HttpResponse<?> filterRequest(MutableHttpRequest<?> request) throws IOException {
         if (requestFilters.isEmpty()) {
             return null;
