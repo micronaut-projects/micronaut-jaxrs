@@ -35,6 +35,7 @@ import java.util.Optional;
 public class HttpHeadersBinder implements TypedRequestArgumentBinder<HttpHeaders> {
 
     public static final Argument<HttpHeaders> TYPE = Argument.of(HttpHeaders.class);
+    public static final String HEADERS_KEY = HttpHeaders.class.getName();
 
     @Override
     public Argument<HttpHeaders> argumentType() {
@@ -43,6 +44,10 @@ public class HttpHeadersBinder implements TypedRequestArgumentBinder<HttpHeaders
 
     @Override
     public BindingResult<HttpHeaders> bind(ArgumentConversionContext<HttpHeaders> context, HttpRequest<?> source) {
+        Object jaxRxHeaders = source.getAttribute(HEADERS_KEY).orElse(null);
+        if (jaxRxHeaders instanceof io.micronaut.http.HttpHeaders httpHeaders) {
+            return () -> Optional.of(JaxRsHttpHeaders.forRequest(httpHeaders));
+        }
         return () -> Optional.of(JaxRsHttpHeaders.forRequest(source.getHeaders()));
     }
 }
