@@ -17,8 +17,6 @@ package io.micronaut.jaxrs.container;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.Nullable;
-import io.micronaut.core.annotation.Order;
-import io.micronaut.core.order.Ordered;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpAttributes;
 import io.micronaut.http.HttpMethod;
