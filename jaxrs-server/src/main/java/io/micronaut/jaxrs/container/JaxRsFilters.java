@@ -17,6 +17,8 @@ package io.micronaut.jaxrs.container;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.Nullable;
+import io.micronaut.core.annotation.Order;
+import io.micronaut.core.order.Ordered;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpAttributes;
 import io.micronaut.http.HttpMethod;
@@ -70,6 +72,14 @@ final class JaxRsFilters {
 
     @Nullable
     @RequestFilter
+    @Order(Ordered.LOWEST_PRECEDENCE - 1)
+    HttpRequest<?> prepareRequest(MutableHttpRequest<?> request) {
+        return requestFilters.isEmpty() ? null : request;
+    }
+
+    @Nullable
+    @RequestFilter
+    @Order(Ordered.LOWEST_PRECEDENCE)
     HttpResponse<?> filterRequest(MutableHttpRequest<?> request) throws IOException {
         if (requestFilters.isEmpty()) {
             return null;
