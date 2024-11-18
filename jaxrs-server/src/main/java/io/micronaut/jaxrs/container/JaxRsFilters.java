@@ -33,6 +33,7 @@ import io.micronaut.jaxrs.common.JaxRsGenericEntity;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import io.micronaut.jaxrs.common.JaxRsResponse;
 import io.micronaut.jaxrs.common.JaxRsUtils;
+import io.micronaut.jaxrs.runtime.ext.bind.HttpHeadersBinder;
 import io.micronaut.web.router.RouteInfo;
 import jakarta.ws.rs.container.ContainerRequestFilter;
 import jakarta.ws.rs.container.ContainerResponseFilter;
@@ -78,6 +79,7 @@ final class JaxRsFilters {
         if (!containerResponseFilters.isEmpty()) {
             request.setAttribute(REQUEST_CONTEXT_KEY, requestContext);
         }
+        request.setAttribute(HttpHeadersBinder.HEADERS_KEY, request.getHeaders());
         for (ContainerRequestFilter requestFilter : requestFilters) {
             requestFilter.filter(requestContext);
             Response response = requestContext.getResponse();
