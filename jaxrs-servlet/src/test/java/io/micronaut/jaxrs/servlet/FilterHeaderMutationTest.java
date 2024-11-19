@@ -3,6 +3,10 @@ package io.micronaut.jaxrs.servlet;
 import io.micronaut.http.client.HttpClient;
 import io.micronaut.http.client.annotation.Client;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
+import jakarta.servlet.ServletConfig;
+import jakarta.servlet.ServletContext;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
@@ -28,8 +32,16 @@ public class FilterHeaderMutationTest {
 
         @GET
         @Produces("text/plain")
-        public String get(HttpHeaders httpHeaders) {
+        public String get(HttpHeaders httpHeaders,
+                          HttpServletRequest request,
+                          HttpServletResponse response,
+                          ServletConfig config,
+                          ServletContext servletContext) throws IOException {
             String header = httpHeaders.getHeaderString("foo");
+            Assertions.assertNotNull(response);
+            Assertions.assertNotNull(request);
+            Assertions.assertNotNull(config);
+            Assertions.assertNotNull(servletContext);
             return header != null ? header : "Unknown";
         }
     }

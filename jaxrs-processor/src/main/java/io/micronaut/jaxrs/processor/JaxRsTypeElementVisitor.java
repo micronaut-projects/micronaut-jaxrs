@@ -89,12 +89,18 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
 
     // Backwards compatibility
     @NextMajorVersion("Allow only inject values annotated with @Context")
-    private final List<String> JAX_RS_BINDING_TYPES = Stream.of(
-        HttpHeaders.class,
-        Cookie.class,
-        SecurityContext.class,
-        UriInfo.class
-    ).map(Class::getName).toList();
+    private final List<String> JAX_RS_BINDING_TYPES = List.of(
+        HttpHeaders.class.getName(),
+        Cookie.class.getName(),
+        SecurityContext.class.getName(),
+        UriInfo.class.getName(),
+        "jakarta.servlet.ServletContext",
+        "jakarta.servlet.ServletRequest",
+        "jakarta.servlet.http.HttpServletRequest",
+        "jakarta.servlet.ServletResponse",
+        "jakarta.servlet.http.HttpServletResponse",
+        "jakarta.servlet.ServletConfig"
+    );
 
     @Override
     public int getOrder() {
