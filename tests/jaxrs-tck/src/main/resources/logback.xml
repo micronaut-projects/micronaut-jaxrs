@@ -16,5 +16,7 @@
     <logger name="org.jboss.arquillian" level="debug"/>
     <logger name="io.micronaut.http" level="trace"/>
     <logger name="io.micronaut.http.client" level="trace"/>
+    <logger name="io.micronaut.http.body" level="info"/>
+    <logger name="io.micronaut.jaxrs" level="debug"/>
 
 </configuration>

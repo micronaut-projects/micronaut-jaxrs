@@ -37,14 +37,14 @@ import java.util.List;
 @Singleton
 final class JaxRsContextUriInfo implements UriInfo {
 
-    private final ApplicationPathProvider applicationPathProvider;
+    private final ApplicationProvider applicationProvider;
 
-    JaxRsContextUriInfo(ApplicationPathProvider applicationPathProvider) {
-        this.applicationPathProvider = applicationPathProvider;
+    JaxRsContextUriInfo(ApplicationProvider applicationProvider) {
+        this.applicationProvider = applicationProvider;
     }
 
     private UriInfoImpl getUriInfo() {
-        return new UriInfoImpl(ServerRequestContext.currentRequest().get(), applicationPathProvider.getPath());
+        return new UriInfoImpl(ServerRequestContext.currentRequest().get(), applicationProvider.getPath());
     }
 
     @Override

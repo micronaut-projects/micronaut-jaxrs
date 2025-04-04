@@ -13,13 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.micronaut.jaxrs.common;
+package io.micronaut.jaxrs.common.body.standard;
 
 import io.micronaut.context.annotation.Prototype;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.annotation.Order;
 import io.micronaut.core.convert.ConversionService;
+import io.micronaut.core.order.Ordered;
 import io.micronaut.http.CaseInsensitiveMutableHttpHeaders;
 import io.micronaut.http.body.MessageBodyWriter;
+import io.micronaut.jaxrs.common.JaxRsUtils;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
@@ -40,6 +43,7 @@ import java.util.Optional;
  * @author Denis Stepanov
  * @since 4.6
  */
+@Order(Ordered.LOWEST_PRECEDENCE)
 @Prototype
 @Internal
 public final class JaxRsReaderMessageBodyReader implements MessageBodyReader<Reader> {

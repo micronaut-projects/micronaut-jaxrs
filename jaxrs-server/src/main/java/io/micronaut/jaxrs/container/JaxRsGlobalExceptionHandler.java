@@ -18,6 +18,7 @@ package io.micronaut.jaxrs.container;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
+import io.micronaut.http.HttpStatus;
 import io.micronaut.http.annotation.Produces;
 import io.micronaut.http.server.exceptions.ExceptionHandler;
 import io.micronaut.http.server.exceptions.response.ErrorContext;
@@ -27,6 +28,8 @@ import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Providers;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Handles JAX-RS exceptions that occur during the execution of an HTTP request.
@@ -38,6 +41,8 @@ import jakarta.ws.rs.ext.Providers;
 @Produces
 @Internal
 final class JaxRsGlobalExceptionHandler implements ExceptionHandler<Throwable, HttpResponse<?>> {
+    private static final Logger LOG = LoggerFactory.getLogger(JaxRsGlobalExceptionHandler.class);
+    private static final String USED_EXCEPTION_MAPPER = "INTERNAL_MICRONAUT_JAXRS_USED_EXCEPTION_MAPPER";
     private final ErrorResponseProcessor<?> responseProcessor;
     private final Providers providers;
 
@@ -55,8 +60,17 @@ final class JaxRsGlobalExceptionHandler implements ExceptionHandler<Throwable, H
 
     @Override
     public HttpResponse<?> handle(HttpRequest request, Throwable exception) {
+        if (LOG.isDebugEnabled()) {
+            LOG.debug(exception.getMessage(), exception);
+        }
         ExceptionMapper exceptionMapper = providers.getExceptionMapper(exception.getClass());
         if (exceptionMapper != null) {
+            String exceptionMapperName = exceptionMapper.getClass().getName();
+            Object previousMapper = request.getAttributes().get(USED_EXCEPTION_MAPPER, String.class, null);
+            if (exceptionMapperName.equals(previousMapper)) {
+                return HttpResponse.status(HttpStatus.INTERNAL_SERVER_ERROR);
+            }
+            request.getAttributes().put(USED_EXCEPTION_MAPPER, exceptionMapperName);
             return ((JaxRsMutableResponse) exceptionMapper.toResponse(exception)).getResponse();
         }
         return responseProcessor.processResponse(ErrorContext.builder(request)

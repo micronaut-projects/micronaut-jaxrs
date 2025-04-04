@@ -30,6 +30,7 @@ import io.micronaut.http.MutableHttpRequest;
 import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.http.client.exceptions.HttpClientResponseException;
 import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
+import io.micronaut.jaxrs.common.JaxRsIOException;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import io.micronaut.jaxrs.common.JaxRsResponse;
 import jakarta.ws.rs.ProcessingException;
@@ -264,6 +265,8 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
                         return type.getType().equals(Response.class);
                     }
                 });
+        } catch (JaxRsIOException e) {
+            future.completeExceptionally(new ProcessingException(e.getCause()));
         } catch (Exception e) {
             future.completeExceptionally(new ProcessingException(e));
         }

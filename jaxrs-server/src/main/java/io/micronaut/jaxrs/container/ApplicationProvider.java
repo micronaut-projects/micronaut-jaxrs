@@ -17,6 +17,8 @@ package io.micronaut.jaxrs.container;
 
 import io.micronaut.context.BeanContext;
 import io.micronaut.context.annotation.Value;
+import io.micronaut.core.annotation.AnnotationMetadata;
+import io.micronaut.core.annotation.AnnotationMetadataProvider;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.NonNull;
 import io.micronaut.core.annotation.Nullable;
@@ -35,9 +37,10 @@ import java.nio.charset.StandardCharsets;
  */
 @Internal
 @Singleton
-public final class ApplicationPathProvider {
+public final class ApplicationProvider {
 
     private final String path;
+    private final AnnotationMetadata annotationMetadata;
 
     /**
      * Constructs a new uri naming strategy for the given property.
@@ -46,12 +49,16 @@ public final class ApplicationPathProvider {
      * @param contextPath The context path
      */
 
-    ApplicationPathProvider(BeanContext beanContext,
-                            @Value("${micronaut.server.context-path}") @Nullable String contextPath) {
-        String applicationPath = beanContext.findBeanDefinition(Application.class).flatMap(bd -> bd.stringValue(ApplicationPath.class))
+    ApplicationProvider(BeanContext beanContext,
+                        @Value("${micronaut.server.context-path}") @Nullable String contextPath) {
+        this.annotationMetadata = beanContext.findBeanDefinition(Application.class)
+            .map(AnnotationMetadataProvider::getAnnotationMetadata)
+            .orElse(AnnotationMetadata.EMPTY_METADATA);
+        String applicationPath = annotationMetadata.stringValue(ApplicationPath.class)
             .map(path -> URLDecoder.decode(path, StandardCharsets.UTF_8))
             .orElse("/");
         this.path = concatContextPath(contextPath, applicationPath);
+
     }
 
     /**
@@ -60,6 +67,14 @@ public final class ApplicationPathProvider {
     @NonNull
     public String getPath() {
         return path;
+    }
+
+    /**
+     * @return The annotationMetadata
+     */
+    @NonNull
+    public AnnotationMetadata getAnnotationMetadata() {
+        return annotationMetadata;
     }
 
     @NonNull

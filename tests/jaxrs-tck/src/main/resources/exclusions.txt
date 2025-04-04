@@ -1,6 +1,3 @@
-# Support returning nulls
-ee.jakarta.tck.ws.rs.spec.returntype.JAXRSClientIT
-
 # matching weirdness
 ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#locatorNameTooLongAgainTest
 ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#slashUriTest
@@ -39,27 +36,26 @@ ee.jakarta.tck.ws.rs.spec.filter.interceptor.JAXRSClientIT
 # Security
 ee.jakarta.tck.ws.rs.ee.rs.container.requestcontext.security.JAXRSClientIT
 
-# Named interceptors
-ee.jakarta.tck.ws.rs.spec.filter.namebinding.JAXRSClientIT
+# Support multiple context beans
 ee.jakarta.tck.ws.rs.spec.context.server.JAXRSClientIT
 
 ee.jakarta.tck.ws.rs.jaxrs21.spec.classsubresourcelocator.JAXRSClientIT
 
-# Container interceptors
-ee.jakarta.tck.ws.rs.spec.filter.exception.JAXRSClientIT
+# Remove after https://github.com/micronaut-projects/micronaut-core/pull/11723
+ee.jakarta.tck.ws.rs.spec.filter.exception.JAXRSClientIT#throwExceptionOnPreMatchingFilterTest
+ee.jakarta.tck.ws.rs.spec.filter.exception.JAXRSClientIT#throwNoExceptionFromPostMatchingFilterFirstFromPreMatchingFilterTest
+ee.jakarta.tck.ws.rs.spec.filter.exception.JAXRSClientIT#throwSecondExceptionFromInterceptorFirstFromPreMatchingFilterTest
 
 # Body writers / readers priority with produces
 ee.jakarta.tck.ws.rs.servlet3.rs.ext.paramconverter.autodiscovery.JAXRSClientIT
 ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT
 ee.jakarta.tck.ws.rs.spec.client.typedentitieswithxmlbinding.JAXRSClientIT
 
-# Internal (standard) writers / readers should have a priority
-ee.jakarta.tck.ws.rs.spec.provider.standardhaspriority.JAXRSClientIT
+# Standard writers / readers cannot be replaced - support JAXBElement
+ee.jakarta.tck.ws.rs.spec.provider.standardhaspriority.JAXRSClientIT#readWriteJaxbProviderTest
 
 # Support @ConstrainedTo(value = RuntimeType.SERVER)
 ee.jakarta.tck.ws.rs.ee.rs.constrainedto.JAXRSClientIT
-
-ee.jakarta.tck.ws.rs.spec.filter.globalbinding.JAXRSClientIT
 
 # Dynamic features not supported
 ee.jakarta.tck.ws.rs.spec.filter.dynamicfeature.JAXRSClientIT
@@ -132,8 +128,14 @@ ee.jakarta.tck.ws.rs.ee.rs.formparam.sub.JAXRSSubClientIT
 ee.jakarta.tck.ws.rs.ee.rs.get.JAXRSClientIT#dynamicGetTest
 ee.jakarta.tck.ws.rs.ee.rs.get.JAXRSClientIT#recursiveResourceLocatorTest
 
-# Receive MultivaluedMap as a form body
+# Receive MultivaluedMap as a form body - FIX writing byte[] form data in Core
 ee.jakarta.tck.ws.rs.spec.provider.standardwithjaxrsclient.JAXRSClientIT#mapElementProviderTest
+ee.jakarta.tck.ws.rs.spec.provider.standardhaspriority.JAXRSClientIT#readWriteMapProviderTest
+ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT#clientMultivaluedMapWriterTest
+ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT#clientStreamingOutputWriterTest
+
+# Investigate ACCEPT should produce CONTENT-TYPE
+ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT#clientMultivaluedMapReaderTest
 
 # Fake response 1 to String incorrectly converts
 ee.jakarta.tck.ws.rs.api.client.clientrequestcontext.JAXRSClientIT#getPropertyNamesIsImmutableTest
@@ -147,13 +149,6 @@ ee.jakarta.tck.ws.rs.spec.provider.writer.JAXRSClientIT#responseSubClassTest
 ee.jakarta.tck.ws.rs.spec.provider.writer.JAXRSClientIT#supportAllTest
 ee.jakarta.tck.ws.rs.spec.provider.writer.JAXRSClientIT#supportXmlByXmlWriterTest
 ee.jakarta.tck.ws.rs.spec.provider.writer.JAXRSClientIT#supportXmlByDefaultWriterTest
-
-# Filter abortWith doesn't trigger interceptors...
-ee.jakarta.tck.ws.rs.api.rs.ext.interceptor.reader.interceptorcontext.JAXRSClientIT#setTypeTest
-
-# Not supported to access / replace OutputStream in ContainerResponseContext
-ee.jakarta.tck.ws.rs.ee.rs.container.responsecontext.JAXRSClientIT#setEntityStreamTest
-ee.jakarta.tck.ws.rs.ee.rs.container.responsecontext.JAXRSClientIT#getEntityStreamTest
 
 # Not supported to change the method in ClientRequestContext
 ee.jakarta.tck.ws.rs.ee.rs.client.clientrequestcontext.JAXRSClientIT#setMethodTest
@@ -177,10 +172,6 @@ ee.jakarta.tck.ws.rs.ee.rs.ext.interceptor.containerwriter.writerinterceptorcont
 ee.jakarta.tck.ws.rs.ee.rs.ext.interceptor.containerreader.readerinterceptorcontext.JAXRSClientIT
 ee.jakarta.tck.ws.rs.ee.rs.ext.interceptor.containerwriter.interceptorcontext.JAXRSClientIT
 
-# Support MultivaluedMap as a form body in controllers
-ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT#clientMultivaluedMapReaderTest
-ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT#clientStreamingOutputWriterTest
-
 # HttpServletRequest
 ee.jakarta.tck.ws.rs.ee.rs.container.requestcontext.JAXRSClientIT
 
@@ -190,16 +181,16 @@ ee.jakarta.tck.ws.rs.ee.rs.container.responsecontext.JAXRSClientIT#getEntityAnno
 # Client body readers / writers with @Context annotations
 ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT#bodyReaderTest
 
-# synthesizeAll annotations class doesn't match
+# JAX-RS Body readers / writers expect the resource method annotations merged with the body argument
 ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#readEntityFromBodyTest
 ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#readEntityFromHeaderTest
 ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#readEntityIOExceptionTest
 ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#readEntityWebException410Test
 
-# Writer is expecting annotations from the controller method
-ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#writeBodyEntityUsingWriterTest
-ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#writeHeaderEntityUsingWriterTest
-ee.jakarta.tck.ws.rs.spec.provider.overridestandard.JAXRSClientIT
+# Support a special way to resolve body readers / writers
+ee.jakarta.tck.ws.rs.spec.provider.overridestandard.JAXRSClientIT#readWriteByteArrayProviderTest
+ee.jakarta.tck.ws.rs.spec.provider.overridestandard.JAXRSClientIT#readWriteInputStreamProviderTest
+ee.jakarta.tck.ws.rs.spec.provider.overridestandard.JAXRSClientIT#readWriteMapProviderTest
 
 # TCK BUG @Path without a HTTP method annotation it's only allowed because of the subresource support
 ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#webApplicationExceptionHasResponseWithoutEntityDoesUseMapperTest
@@ -220,16 +211,6 @@ ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#cookieTest
 ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#getCookiesTest
 ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT#cookieTest
 ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT#getCookiesTest
-
-# GenericEntity serializer
-ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#acceptedGenericEntityTest
-ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT#acceptedGenericEntityTest
-ee.jakarta.tck.ws.rs.ee.resource.java2entity.JAXRSClientIT#genericEntityTest
-ee.jakarta.tck.ws.rs.ee.resource.java2entity.JAXRSClientIT#responseGenericEntityTest
-
-# Encoder for */*
-ee.jakarta.tck.ws.rs.ee.resource.java2entity.JAXRSClientIT#directClassTypeTest
-ee.jakarta.tck.ws.rs.ee.resource.java2entity.JAXRSClientIT#responseDirectClassTypeTest
 
 # media type behavior
 ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#clientAnyPreferenceTest

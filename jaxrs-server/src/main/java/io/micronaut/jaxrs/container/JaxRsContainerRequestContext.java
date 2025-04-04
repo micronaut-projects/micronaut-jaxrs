@@ -53,13 +53,13 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
     private final MutableHttpRequest<?> mutableHttpRequest;
     private final JaxRsHttpHeaders jaxRsHttpHeaders;
     private Response response;
-    private final ApplicationPathProvider applicationPathProvider;
+    private final ApplicationProvider applicationProvider;
     private boolean finished;
     private final boolean preMatching = false; // TODO: Support pre matching in Micronaut
 
-    JaxRsContainerRequestContext(MutableHttpRequest<?> mutableHttpRequest, ApplicationPathProvider applicationPathProvider) {
+    JaxRsContainerRequestContext(MutableHttpRequest<?> mutableHttpRequest, ApplicationProvider applicationProvider) {
         this.mutableHttpRequest = mutableHttpRequest;
-        this.applicationPathProvider = applicationPathProvider;
+        this.applicationProvider = applicationProvider;
         this.jaxRsHttpHeaders = JaxRsMutableHttpHeaders.forRequest(mutableHttpRequest.getHeaders());
     }
 
@@ -90,7 +90,7 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
 
     @Override
     public UriInfo getUriInfo() {
-        return new UriInfoImpl(mutableHttpRequest, applicationPathProvider.getPath());
+        return new UriInfoImpl(mutableHttpRequest, applicationProvider.getPath());
     }
 
     @Override

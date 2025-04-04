@@ -17,11 +17,11 @@ package io.micronaut.jaxrs.container;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.Nullable;
-import io.micronaut.http.HttpAttributes;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.runtime.http.scope.RequestAware;
 import io.micronaut.runtime.http.scope.RequestScope;
 import io.micronaut.web.router.MethodBasedRouteInfo;
+import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.RouteInfo;
 import io.micronaut.web.router.RouteMatch;
 import jakarta.ws.rs.container.ResourceInfo;
@@ -43,7 +43,7 @@ public class JaxRsResourceInfo implements RequestAware, ResourceInfo {
 
     @Override
     public void setRequest(HttpRequest<?> request) {
-        routeInfo = request.getAttribute(HttpAttributes.ROUTE_MATCH, RouteMatch.class).map(RouteMatch::getRouteInfo).orElse(null);
+        routeInfo = RouteAttributes.getRouteMatch(request).map(RouteMatch::getRouteInfo).orElse(null);
     }
 
     @Nullable

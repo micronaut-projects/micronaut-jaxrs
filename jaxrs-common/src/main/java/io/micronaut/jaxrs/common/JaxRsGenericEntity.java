@@ -17,9 +17,10 @@ package io.micronaut.jaxrs.common;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.type.Argument;
-import jakarta.inject.Singleton;
 import jakarta.ws.rs.core.GenericEntity;
 
+import java.io.ByteArrayOutputStream;
+import java.io.OutputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 
@@ -30,23 +31,39 @@ import java.lang.reflect.Type;
  * @author Denis Stepanov
  * @since 4.6
  */
-@Singleton
 @Internal
 public final class JaxRsGenericEntity<T> extends GenericEntity<T> {
 
-    private final Annotation[] annotations;
+    private final Argument<T> argument;
+    private final ByteArrayOutputStream delegateEntityStream;
+    private final OutputStream customEntityStream;
+
+    public JaxRsGenericEntity(T entity,
+                              Argument<T> argument,
+                              ByteArrayOutputStream delegateEntityStream,
+                              OutputStream customEntityStream) {
+        super(entity, argument.getType());
+        this.argument = argument;
+        this.delegateEntityStream = delegateEntityStream;
+        this.customEntityStream = customEntityStream;
+    }
 
     JaxRsGenericEntity(T entity, Annotation[] annotations) {
         super(entity, entity.getClass());
-        this.annotations = annotations;
-    }
-
-    public JaxRsGenericEntity(T entity, Type genericType, Annotation[] annotations) {
-        super(entity, genericType);
-        this.annotations = annotations;
+        this.argument = JaxRsArgumentUtil.from(this, annotations);
+        this.delegateEntityStream = null;
+        this.customEntityStream = null;
     }
 
     public Argument<T> asArgument() {
-        return JaxRsArgumentUtil.from(this, annotations);
+        return argument;
+    }
+
+    public ByteArrayOutputStream getDelegateEntityStream() {
+        return delegateEntityStream;
+    }
+
+    public OutputStream getCustomEntityStream() {
+        return customEntityStream;
     }
 }

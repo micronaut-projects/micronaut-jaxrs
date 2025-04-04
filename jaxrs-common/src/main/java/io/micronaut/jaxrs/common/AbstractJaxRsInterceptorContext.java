@@ -49,22 +49,25 @@ abstract sealed class AbstractJaxRsInterceptorContext implements InterceptorCont
         this.mediaType = mediaType;
     }
 
-    public final <T> Argument<T> asArgument() {
+    public final Argument<?> asArgument() {
         if (type == null && genericType == null && annotations == null) {
-            return (Argument<T>) argument;
+            return argument;
         }
         AnnotationMetadata annotationMetadata = annotations == null ? argument.getAnnotationMetadata() : JaxRsArgumentUtil.createAnnotationMetadata(annotations);
-        if (genericType != null) {
-            Argument<?> genericArgument = Argument.of(genericType);
-            return (Argument<T>) Argument.of(genericArgument.getType(),
+        if (type != null && genericType != null) {
+            return Argument.of(
+                type,
                 annotationMetadata,
-                genericArgument.getTypeParameters()
+                Argument.of(genericType)
             );
         }
-        if (type != null) {
-            return (Argument<T>) Argument.of(type, annotationMetadata);
+        if (genericType != null) {
+            return Argument.of(genericType).withAnnotationMetadata(annotationMetadata);
         }
-        return (Argument<T>) Argument.of(argument.getType(), annotationMetadata, argument.getTypeParameters());
+        if (type != null) {
+            return Argument.of(type, annotationMetadata);
+        }
+        return argument.withAnnotationMetadata(annotationMetadata);
     }
 
     @Override
