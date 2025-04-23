@@ -16,6 +16,7 @@
 package io.micronaut.jaxrs.common;
 
 import io.micronaut.core.annotation.AnnotationMetadata;
+import io.micronaut.core.annotation.Internal;
 
 import java.util.function.Predicate;
 
@@ -25,5 +26,6 @@ import java.util.function.Predicate;
  * @author Denis Stepanov
  * @since 4.9
  */
+@Internal
 public interface NameBindingPredicate extends Predicate<AnnotationMetadata> {
 }
