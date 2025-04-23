@@ -22,7 +22,6 @@ import jakarta.ws.rs.core.GenericEntity;
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
 import java.lang.annotation.Annotation;
-import java.lang.reflect.Type;
 
 /**
  * The simple variation of {@link GenericEntity}.
