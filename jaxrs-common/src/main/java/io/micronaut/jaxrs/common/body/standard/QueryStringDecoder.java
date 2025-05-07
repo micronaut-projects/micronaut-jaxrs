@@ -66,7 +66,6 @@ import static io.micronaut.core.util.StringUtils.SPACE;
  * integer parameter.
  *
  * Note: Forked from Netty core.
- * This class is used internally by other Micronaut Modules. Don't reduce visibility.
  */
 @Internal
 final class QueryStringDecoder {
