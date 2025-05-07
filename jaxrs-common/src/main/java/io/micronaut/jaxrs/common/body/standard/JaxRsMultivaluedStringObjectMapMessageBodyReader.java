@@ -52,11 +52,7 @@ import java.util.Map;
 @Prototype
 public final class JaxRsMultivaluedStringObjectMapMessageBodyReader implements MessageBodyReader<MultivaluedMap<String, Object>> {
 
-    private final FormUrlEncodedDecoder formUrlEncodedDecoder;
-
-    public JaxRsMultivaluedStringObjectMapMessageBodyReader(FormUrlEncodedDecoder formUrlEncodedDecoder) {
-        this.formUrlEncodedDecoder = formUrlEncodedDecoder;
-    }
+    private final FormUrlEncodedDecoder formUrlEncodedDecoder = new DefaultFormUrlEncodedDecoder();
 
     @Override
     public boolean isReadable(@NonNull Argument<MultivaluedMap<String, Object>> type, @Nullable MediaType mediaType) {

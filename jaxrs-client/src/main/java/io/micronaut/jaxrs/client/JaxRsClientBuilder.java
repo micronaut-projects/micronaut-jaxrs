@@ -26,7 +26,6 @@ import io.micronaut.http.body.MessageBodyReader;
 import io.micronaut.http.body.MessageBodyWriter;
 import io.micronaut.http.client.DefaultHttpClientConfiguration;
 import io.micronaut.http.client.netty.DefaultHttpClient;
-import io.micronaut.http.uri.FormUrlEncodedDecoderUtil;
 import io.micronaut.jaxrs.common.body.standard.JaxRsInputStreamMessageBodyReader;
 import io.micronaut.jaxrs.common.body.standard.JaxRsInputStreamMessageBodyWriter;
 import io.micronaut.jaxrs.common.body.standard.JaxRsMultivaluedMapMessageBodyWriter;
@@ -113,8 +112,8 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
         jaxRsConfiguration.register(new JaxRsInputStreamMessageBodyReader());
         jaxRsConfiguration.register(new JaxRsStreamingOutputMessageBodyWriter<>());
         jaxRsConfiguration.register(new JaxRsMultivaluedMapMessageBodyWriter());
-        jaxRsConfiguration.register(new JaxRsMultivaluedStringObjectMapMessageBodyReader(FormUrlEncodedDecoderUtil.build()));
-        jaxRsConfiguration.register(new JaxRsMultivaluedStringStringMapMessageBodyReader(FormUrlEncodedDecoderUtil.build()));
+        jaxRsConfiguration.register(new JaxRsMultivaluedStringObjectMapMessageBodyReader());
+        jaxRsConfiguration.register(new JaxRsMultivaluedStringStringMapMessageBodyReader());
 
         if (TESTING_MIN_CLIENTS > 0) {
             TESTING_CLIENTS.removeIf(w -> w.get() == null);
