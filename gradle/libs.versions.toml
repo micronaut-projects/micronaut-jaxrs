@@ -5,8 +5,13 @@ micronaut = "4.8.7"
 micronaut-docs = "2.0.0"
 micronaut-test = "4.7.0"
 micronaut-logging = "1.6.0"
+<<<<<<< HEAD
 micronaut-security = "4.12.1"
 micronaut-serde = "2.14.0"
+=======
+micronaut-security = "4.11.3"
+micronaut-serde = "2.14.1"
+>>>>>>> 7d88df0 (fix(deps): update dependency io.micronaut.serde:micronaut-serde-bom to v2.14.1 (#546))
 micronaut-servlet = "5.0.0"
 micronaut-validation = "4.9.0"
 jakarta-jaxrs-tck = "4.0.1"
