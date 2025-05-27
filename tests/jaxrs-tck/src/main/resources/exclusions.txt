@@ -41,11 +41,6 @@ ee.jakarta.tck.ws.rs.spec.context.server.JAXRSClientIT
 
 ee.jakarta.tck.ws.rs.jaxrs21.spec.classsubresourcelocator.JAXRSClientIT
 
-# Remove after https://github.com/micronaut-projects/micronaut-core/pull/11723
-ee.jakarta.tck.ws.rs.spec.filter.exception.JAXRSClientIT#throwExceptionOnPreMatchingFilterTest
-ee.jakarta.tck.ws.rs.spec.filter.exception.JAXRSClientIT#throwNoExceptionFromPostMatchingFilterFirstFromPreMatchingFilterTest
-ee.jakarta.tck.ws.rs.spec.filter.exception.JAXRSClientIT#throwSecondExceptionFromInterceptorFirstFromPreMatchingFilterTest
-
 # Body writers / readers priority with produces
 ee.jakarta.tck.ws.rs.servlet3.rs.ext.paramconverter.autodiscovery.JAXRSClientIT
 ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT

@@ -86,10 +86,11 @@ final class JaxRsFilters {
     }
 
     @ResponseFilter
-    MutableHttpResponse<?> filterResponse(RouteInfo<?> routeInfo,
+    @io.micronaut.http.server.annotation.PreMatching
+    MutableHttpResponse<?> filterResponse(@Nullable RouteInfo<?> routeInfo,
                                           HttpRequest<?> request,
                                           MutableHttpResponse<?> mutableHttpResponse) throws IOException {
-        if (!routeInfo.getAnnotationMetadata().hasAnnotation(Path.class)) {
+        if (routeInfo != null && !routeInfo.getAnnotationMetadata().hasAnnotation(Path.class)) {
             // Intercept only JaxRs routes
             return mutableHttpResponse;
         }
@@ -119,7 +120,7 @@ final class JaxRsFilters {
             body = genericEntity.getEntity();
             bodyArgument = JaxRsArgumentUtil.from(genericEntity);
             mutableHttpResponse.body(genericEntity.getEntity());
-        } else if (body != null) {
+        } else if (body != null && routeInfo != null) {
             bodyArgument = routeInfo.getResponseBodyType();
         } else {
             bodyArgument = Argument.OBJECT_ARGUMENT;
@@ -128,7 +129,7 @@ final class JaxRsFilters {
             bodyArgument = Argument.of(body.getClass(), bodyArgument.getAnnotationMetadata());
         }
 
-        Argument<?> returnType = routeInfo.getReturnType().asArgument();
+        Argument<?> returnType = routeInfo == null ? Argument.VOID : routeInfo.getReturnType().asArgument();
         if (bodyArgument == null) {
             bodyArgument = returnType;
         } else {
