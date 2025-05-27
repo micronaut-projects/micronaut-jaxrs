@@ -37,7 +37,7 @@ import java.nio.charset.StandardCharsets;
  */
 @Internal
 @Singleton
-public final class ApplicationProvider {
+public final class ApplicationProvider implements AnnotationMetadataProvider {
 
     private final String path;
     private final AnnotationMetadata annotationMetadata;
