@@ -144,7 +144,7 @@ final class JaxRsFilters {
             mutableAnnotationMetadata.addAnnotationMetadata(MutableAnnotationMetadata.of(bodyArgument.getAnnotationMetadata()));
             bodyArgument = Argument.of(bodyArgument.getType(), mutableAnnotationMetadata, bodyArgument.getTypeParameters());
         }
-        ByteArrayOutputStream delegateEntitytStream = null;
+        ByteArrayOutputStream delegateEntityStream = null;
         OutputStream customEntityStream = null;
         if (!containerResponseFilters.isEmpty()) {
             JaxRsContainerRequestContext requestContext = request.getAttribute(REQUEST_CONTEXT_KEY, JaxRsContainerRequestContext.class)
