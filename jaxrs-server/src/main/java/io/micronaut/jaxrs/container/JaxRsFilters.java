@@ -87,6 +87,12 @@ final class JaxRsFilters {
 
     @ResponseFilter
     @io.micronaut.http.server.annotation.PreMatching
+    MutableHttpResponse<?> filterResponsePreMatch(HttpRequest<?> request,
+                                                  MutableHttpResponse<?> mutableHttpResponse) throws IOException {
+        return filterResponse(null, request, mutableHttpResponse);
+    }
+
+    @ResponseFilter
     MutableHttpResponse<?> filterResponse(@Nullable RouteInfo<?> routeInfo,
                                           HttpRequest<?> request,
                                           MutableHttpResponse<?> mutableHttpResponse) throws IOException {
