@@ -62,7 +62,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Stream;
 
 /**
  * A type element visitor that turns a JAX-RS path into a controller.
@@ -84,7 +83,8 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         MatrixParam.class,
         PathParam.class,
         CookieParam.class,
-        BeanParam.class
+        BeanParam.class,
+        Context.class
     );
 
     // Backwards compatibility

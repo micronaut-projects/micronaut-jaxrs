@@ -26,11 +26,14 @@ import io.micronaut.http.body.MessageBodyReader;
 import io.micronaut.http.body.MessageBodyWriter;
 import io.micronaut.http.client.DefaultHttpClientConfiguration;
 import io.micronaut.http.client.netty.DefaultHttpClient;
-import io.micronaut.jaxrs.common.JaxRsInputStreamMessageBodyReader;
-import io.micronaut.jaxrs.common.JaxRsInputStreamMessageBodyWriter;
-import io.micronaut.jaxrs.common.JaxRsReaderMessageBodyReader;
-import io.micronaut.jaxrs.common.JaxRsReaderMessageBodyWriter;
-import io.micronaut.jaxrs.common.JaxRsStreamingOutputMessageBodyWriter;
+import io.micronaut.jaxrs.common.body.standard.JaxRsInputStreamMessageBodyReader;
+import io.micronaut.jaxrs.common.body.standard.JaxRsInputStreamMessageBodyWriter;
+import io.micronaut.jaxrs.common.body.standard.JaxRsMultivaluedMapMessageBodyWriter;
+import io.micronaut.jaxrs.common.body.standard.JaxRsMultivaluedStringObjectMapMessageBodyReader;
+import io.micronaut.jaxrs.common.body.standard.JaxRsMultivaluedStringStringMapMessageBodyReader;
+import io.micronaut.jaxrs.common.body.standard.JaxRsReaderMessageBodyReader;
+import io.micronaut.jaxrs.common.body.standard.JaxRsReaderMessageBodyWriter;
+import io.micronaut.jaxrs.common.body.standard.JaxRsStreamingOutputMessageBodyWriter;
 import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.client.ClientBuilder;
 import jakarta.ws.rs.client.Entity;
@@ -108,6 +111,9 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
         jaxRsConfiguration.register(new JaxRsInputStreamMessageBodyWriter<>());
         jaxRsConfiguration.register(new JaxRsInputStreamMessageBodyReader());
         jaxRsConfiguration.register(new JaxRsStreamingOutputMessageBodyWriter<>());
+        jaxRsConfiguration.register(new JaxRsMultivaluedMapMessageBodyWriter());
+        jaxRsConfiguration.register(new JaxRsMultivaluedStringObjectMapMessageBodyReader());
+        jaxRsConfiguration.register(new JaxRsMultivaluedStringStringMapMessageBodyReader());
 
         if (TESTING_MIN_CLIENTS > 0) {
             TESTING_CLIENTS.removeIf(w -> w.get() == null);

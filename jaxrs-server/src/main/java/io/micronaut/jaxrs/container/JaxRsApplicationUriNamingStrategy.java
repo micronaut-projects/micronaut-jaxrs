@@ -47,8 +47,8 @@ public final class JaxRsApplicationUriNamingStrategy extends HyphenatedUriNaming
     private final String contextPath;
 
     @Inject
-    public JaxRsApplicationUriNamingStrategy(ApplicationPathProvider applicationPathProvider) {
-        this.contextPath = applicationPathProvider.getPath();
+    public JaxRsApplicationUriNamingStrategy(ApplicationProvider applicationProvider) {
+        this.contextPath = applicationProvider.getPath();
     }
 
     @Deprecated

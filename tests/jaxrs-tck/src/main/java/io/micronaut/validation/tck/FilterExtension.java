@@ -34,14 +34,14 @@ public class FilterExtension implements ExecutionCondition {
 //            return DISABLED;
 //        }
 
-//        if (testClass != ee.jakarta.tck.ws.rs.jaxrs21.ee.priority.JAXRSClientIT.class) {
+//        if (testClass != ee.jakarta.tck.ws.rs.spec.filter.globalbinding.JAXRSClientIT.class) {
 //            return DISABLED;
 //        }
         String id = testClass.getName() + context.getTestMethod().map(method -> "#" + method.getName()).orElse("");
         if (disabledTests.contains(id)) {
             return DISABLED;
         }
-//        if ("wrongAppNameTest".equals(testMethodName) || testMethodName.isEmpty()) {
+//        if ("globalBoundResourceTest".equals(testMethodName) || testMethodName.isEmpty()) {
 //            return ConditionEvaluationResult.enabled(null);
 //        } else if (true) {
 //            return DISABLED;

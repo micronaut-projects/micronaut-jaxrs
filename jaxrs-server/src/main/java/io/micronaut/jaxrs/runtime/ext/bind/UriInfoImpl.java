@@ -19,8 +19,8 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.NonNull;
 import io.micronaut.core.annotation.Nullable;
 import io.micronaut.core.util.StringUtils;
-import io.micronaut.http.HttpAttributes;
 import io.micronaut.http.HttpRequest;
+import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.RouteMatch;
 import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.core.MultivaluedMap;
@@ -177,7 +177,7 @@ public final class UriInfoImpl implements UriInfo {
 
     @Override
     public MultivaluedMap<String, String> getPathParameters(boolean decode) {
-        RouteMatch<?> match = request.getAttribute(HttpAttributes.ROUTE_MATCH, RouteMatch.class)
+        RouteMatch<?> match = RouteAttributes.getRouteMatch(request)
             .orElseThrow(() -> new IllegalStateException("Route match not available!"));
         MultivaluedMap<String, String> map = new MultivaluedHashMap<>();
         if (decode) {
