@@ -82,8 +82,7 @@ loadScripts(document, 'script');</script>
 <dd><code>T</code> - The entity type</dd>
 </dl>
 <hr>
-<div class="type-signature"><span class="annotations">@Singleton
-<a href="https://docs.micronaut.io/latest/api/io/micronaut/core/annotation/Internal.html" title="class or interface in io.micronaut.core.annotation" class="external-link">@Internal</a>
+<div class="type-signature"><span class="annotations"><a href="https://docs.micronaut.io/latest/api/io/micronaut/core/annotation/Internal.html" title="class or interface in io.micronaut.core.annotation" class="external-link">@Internal</a>
 </span><span class="modifiers">public final class </span><span class="element-name type-name-label">JaxRsGenericEntity&lt;T&gt;</span>
 <span class="extends-implements">extends <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/core/GenericEntity.html" title="class or interface in jakarta.ws.rs.core" class="external-link">GenericEntity</a>&lt;T&gt;</span></div>
 <div class="block">The simple variation of <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/core/GenericEntity.html" title="class or interface in jakarta.ws.rs.core" class="external-link"><code>GenericEntity</code></a>.</div>
@@ -104,9 +103,10 @@ loadScripts(document, 'script');</script>
 <div class="summary-table two-column-summary">
 <div class="table-header col-first">Constructor</div>
 <div class="table-header col-last">Description</div>
-<div class="col-constructor-name even-row-color"><code><a href="#%3Cinit%3E(T,java.lang.reflect.Type,java.lang.annotation.Annotation%5B%5D)" class="member-name-link">JaxRsGenericEntity</a><wbr>(<a href="JaxRsGenericEntity.html" title="type parameter in JaxRsGenericEntity">T</a>&nbsp;entity,
- <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/reflect/Type.html" title="class or interface in java.lang.reflect" class="external-link">Type</a>&nbsp;genericType,
- <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/annotation/Annotation.html" title="class or interface in java.lang.annotation" class="external-link">Annotation</a>[]&nbsp;annotations)</code></div>
+<div class="col-constructor-name even-row-color"><code><a href="#%3Cinit%3E(T,io.micronaut.core.type.Argument,java.io.ByteArrayOutputStream,java.io.OutputStream)" class="member-name-link">JaxRsGenericEntity</a><wbr>(<a href="JaxRsGenericEntity.html" title="type parameter in JaxRsGenericEntity">T</a>&nbsp;entity,
+ <a href="https://docs.micronaut.io/latest/api/io/micronaut/core/type/Argument.html" title="class or interface in io.micronaut.core.type" class="external-link">Argument</a>&lt;<a href="JaxRsGenericEntity.html" title="type parameter in JaxRsGenericEntity">T</a>&gt;&nbsp;argument,
+ <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/io/ByteArrayOutputStream.html" title="class or interface in java.io" class="external-link">ByteArrayOutputStream</a>&nbsp;delegateEntityStream,
+ <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/io/OutputStream.html" title="class or interface in java.io" class="external-link">OutputStream</a>&nbsp;customEntityStream)</code></div>
 <div class="col-last even-row-color">&nbsp;</div>
 </div>
 </section>
@@ -124,6 +124,12 @@ loadScripts(document, 'script');</script>
 <div class="table-header col-last">Description</div>
 <div class="col-first even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="https://docs.micronaut.io/latest/api/io/micronaut/core/type/Argument.html" title="class or interface in io.micronaut.core.type" class="external-link">Argument</a>&lt;<a href="JaxRsGenericEntity.html" title="type parameter in JaxRsGenericEntity">T</a>&gt;</code></div>
 <div class="col-second even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#asArgument()" class="member-name-link">asArgument</a>()</code></div>
+<div class="col-last even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4">&nbsp;</div>
+<div class="col-first odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/io/OutputStream.html" title="class or interface in java.io" class="external-link">OutputStream</a></code></div>
+<div class="col-second odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#getCustomEntityStream()" class="member-name-link">getCustomEntityStream</a>()</code></div>
+<div class="col-last odd-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4">&nbsp;</div>
+<div class="col-first even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/io/ByteArrayOutputStream.html" title="class or interface in java.io" class="external-link">ByteArrayOutputStream</a></code></div>
+<div class="col-second even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4"><code><a href="#getDelegateEntityStream()" class="member-name-link">getDelegateEntityStream</a>()</code></div>
 <div class="col-last even-row-color method-summary-table method-summary-table-tab2 method-summary-table-tab4">&nbsp;</div>
 </div>
 </div>
@@ -146,11 +152,12 @@ loadScripts(document, 'script');</script>
 <h2>Constructor Details</h2>
 <ul class="member-list">
 <li>
-<section class="detail" id="&lt;init&gt;(T,java.lang.reflect.Type,java.lang.annotation.Annotation[])">
-<h3 id="&lt;init&gt;(java.lang.Object,java.lang.reflect.Type,java.lang.annotation.Annotation[])">JaxRsGenericEntity</h3>
+<section class="detail" id="&lt;init&gt;(T,io.micronaut.core.type.Argument,java.io.ByteArrayOutputStream,java.io.OutputStream)">
+<h3 id="&lt;init&gt;(java.lang.Object,io.micronaut.core.type.Argument,java.io.ByteArrayOutputStream,java.io.OutputStream)">JaxRsGenericEntity</h3>
 <div class="member-signature"><span class="modifiers">public</span>&nbsp;<span class="element-name">JaxRsGenericEntity</span><wbr><span class="parameters">(<a href="JaxRsGenericEntity.html" title="type parameter in JaxRsGenericEntity">T</a>&nbsp;entity,
- <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/reflect/Type.html" title="class or interface in java.lang.reflect" class="external-link">Type</a>&nbsp;genericType,
- <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/annotation/Annotation.html" title="class or interface in java.lang.annotation" class="external-link">Annotation</a>[]&nbsp;annotations)</span></div>
+ <a href="https://docs.micronaut.io/latest/api/io/micronaut/core/type/Argument.html" title="class or interface in io.micronaut.core.type" class="external-link">Argument</a>&lt;<a href="JaxRsGenericEntity.html" title="type parameter in JaxRsGenericEntity">T</a>&gt;&nbsp;argument,
+ <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/io/ByteArrayOutputStream.html" title="class or interface in java.io" class="external-link">ByteArrayOutputStream</a>&nbsp;delegateEntityStream,
+ <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/io/OutputStream.html" title="class or interface in java.io" class="external-link">OutputStream</a>&nbsp;customEntityStream)</span></div>
 </section>
 </li>
 </ul>
@@ -165,6 +172,18 @@ loadScripts(document, 'script');</script>
 <section class="detail" id="asArgument()">
 <h3>asArgument</h3>
 <div class="member-signature"><span class="modifiers">public</span>&nbsp;<span class="return-type"><a href="https://docs.micronaut.io/latest/api/io/micronaut/core/type/Argument.html" title="class or interface in io.micronaut.core.type" class="external-link">Argument</a>&lt;<a href="JaxRsGenericEntity.html" title="type parameter in JaxRsGenericEntity">T</a>&gt;</span>&nbsp;<span class="element-name">asArgument</span>()</div>
+</section>
+</li>
+<li>
+<section class="detail" id="getDelegateEntityStream()">
+<h3>getDelegateEntityStream</h3>
+<div class="member-signature"><span class="modifiers">public</span>&nbsp;<span class="return-type"><a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/io/ByteArrayOutputStream.html" title="class or interface in java.io" class="external-link">ByteArrayOutputStream</a></span>&nbsp;<span class="element-name">getDelegateEntityStream</span>()</div>
+</section>
+</li>
+<li>
+<section class="detail" id="getCustomEntityStream()">
+<h3>getCustomEntityStream</h3>
+<div class="member-signature"><span class="modifiers">public</span>&nbsp;<span class="return-type"><a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/io/OutputStream.html" title="class or interface in java.io" class="external-link">OutputStream</a></span>&nbsp;<span class="element-name">getCustomEntityStream</span>()</div>
 </section>
 </li>
 </ul>

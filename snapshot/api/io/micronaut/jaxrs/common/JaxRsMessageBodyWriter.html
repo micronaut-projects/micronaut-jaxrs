@@ -85,9 +85,6 @@ loadScripts(document, 'script');</script>
 </dl>
 <hr>
 <div class="type-signature"><span class="annotations"><a href="https://docs.micronaut.io/latest/api/io/micronaut/core/annotation/Internal.html" title="class or interface in io.micronaut.core.annotation" class="external-link">@Internal</a>
-@Singleton
-<a href="https://docs.micronaut.io/latest/api/io/micronaut/context/annotation/EachBean.html" title="class or interface in io.micronaut.context.annotation" class="external-link">@EachBean</a>(<a href="https://docs.micronaut.io/latest/api/io/micronaut/context/annotation/EachBean.html#value()" title="class or interface in io.micronaut.context.annotation" class="external-link">value</a>=<a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/ext/MessageBodyWriter.html" title="class or interface in jakarta.ws.rs.ext" class="external-link">jakarta.ws.rs.ext.MessageBodyWriter.class</a>,
-          <a href="https://docs.micronaut.io/latest/api/io/micronaut/context/annotation/EachBean.html#remapGenerics()" title="class or interface in io.micronaut.context.annotation" class="external-link">remapGenerics</a>=)
 </span><span class="modifiers">public final class </span><span class="element-name type-name-label">JaxRsMessageBodyWriter&lt;T&gt;</span>
 <span class="extends-implements">extends <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Object.html" title="class or interface in java.lang" class="external-link">Object</a>
 implements <a href="https://docs.micronaut.io/latest/api/io/micronaut/http/body/MessageBodyWriter.html" title="class or interface in io.micronaut.http.body" class="external-link">MessageBodyWriter</a>&lt;T&gt;</span></div>
@@ -109,17 +106,12 @@ implements <a href="https://docs.micronaut.io/latest/api/io/micronaut/http/body/
 <div class="summary-table two-column-summary">
 <div class="table-header col-first">Constructor</div>
 <div class="table-header col-last">Description</div>
-<div class="col-constructor-name even-row-color"><code><a href="#%3Cinit%3E(io.micronaut.context.BeanRegistration,java.util.List)" class="member-name-link">JaxRsMessageBodyWriter</a><wbr>(<a href="https://docs.micronaut.io/latest/api/io/micronaut/context/BeanRegistration.html" title="class or interface in io.micronaut.context" class="external-link">BeanRegistration</a>&lt;<a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/ext/MessageBodyWriter.html" title="class or interface in jakarta.ws.rs.ext" class="external-link">MessageBodyWriter</a>&lt;<a href="JaxRsMessageBodyWriter.html" title="type parameter in JaxRsMessageBodyWriter">T</a>&gt;&gt;&nbsp;beanRegistration,
- <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/List.html" title="class or interface in java.util" class="external-link">List</a>&lt;<a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/ext/WriterInterceptor.html" title="class or interface in jakarta.ws.rs.ext" class="external-link">WriterInterceptor</a>&gt;&nbsp;writerInterceptors)</code></div>
+<div class="col-constructor-name even-row-color"><code><a href="#%3Cinit%3E(io.micronaut.core.annotation.AnnotationMetadata,jakarta.ws.rs.ext.MessageBodyWriter)" class="member-name-link">JaxRsMessageBodyWriter</a><wbr>(<a href="https://docs.micronaut.io/latest/api/io/micronaut/core/annotation/AnnotationMetadata.html" title="class or interface in io.micronaut.core.annotation" class="external-link">AnnotationMetadata</a>&nbsp;annotationMetadata,
+ <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/ext/MessageBodyWriter.html" title="class or interface in jakarta.ws.rs.ext" class="external-link">MessageBodyWriter</a>&lt;<a href="JaxRsMessageBodyWriter.html" title="type parameter in JaxRsMessageBodyWriter">T</a>&gt;&nbsp;delegate)</code></div>
 <div class="col-last even-row-color">&nbsp;</div>
-<div class="col-constructor-name odd-row-color"><code><a href="#%3Cinit%3E(io.micronaut.core.annotation.AnnotationMetadata,jakarta.ws.rs.ext.MessageBodyWriter,java.util.List)" class="member-name-link">JaxRsMessageBodyWriter</a><wbr>(<a href="https://docs.micronaut.io/latest/api/io/micronaut/core/annotation/AnnotationMetadata.html" title="class or interface in io.micronaut.core.annotation" class="external-link">AnnotationMetadata</a>&nbsp;annotationMetadata,
- <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/ext/MessageBodyWriter.html" title="class or interface in jakarta.ws.rs.ext" class="external-link">MessageBodyWriter</a>&lt;<a href="JaxRsMessageBodyWriter.html" title="type parameter in JaxRsMessageBodyWriter">T</a>&gt;&nbsp;delegate,
- <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/List.html" title="class or interface in java.util" class="external-link">List</a>&lt;<a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/ext/WriterInterceptor.html" title="class or interface in jakarta.ws.rs.ext" class="external-link">WriterInterceptor</a>&gt;&nbsp;writerInterceptors)</code></div>
+<div class="col-constructor-name odd-row-color"><code><a href="#%3Cinit%3E(java.util.List,jakarta.ws.rs.ext.MessageBodyWriter)" class="member-name-link">JaxRsMessageBodyWriter</a><wbr>(<a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/List.html" title="class or interface in java.util" class="external-link">List</a>&lt;<a href="https://docs.micronaut.io/latest/api/io/micronaut/http/MediaType.html" title="class or interface in io.micronaut.http" class="external-link">MediaType</a>&gt;&nbsp;produces,
+ <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/ext/MessageBodyWriter.html" title="class or interface in jakarta.ws.rs.ext" class="external-link">MessageBodyWriter</a>&lt;<a href="JaxRsMessageBodyWriter.html" title="type parameter in JaxRsMessageBodyWriter">T</a>&gt;&nbsp;delegate)</code></div>
 <div class="col-last odd-row-color">&nbsp;</div>
-<div class="col-constructor-name even-row-color"><code><a href="#%3Cinit%3E(io.micronaut.core.type.Argument,jakarta.ws.rs.ext.MessageBodyWriter,java.util.List)" class="member-name-link">JaxRsMessageBodyWriter</a><wbr>(<a href="https://docs.micronaut.io/latest/api/io/micronaut/core/type/Argument.html" title="class or interface in io.micronaut.core.type" class="external-link">Argument</a>&lt;?&gt;&nbsp;writerArgument,
- <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/ext/MessageBodyWriter.html" title="class or interface in jakarta.ws.rs.ext" class="external-link">MessageBodyWriter</a>&lt;<a href="JaxRsMessageBodyWriter.html" title="type parameter in JaxRsMessageBodyWriter">T</a>&gt;&nbsp;delegate,
- <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/List.html" title="class or interface in java.util" class="external-link">List</a>&lt;<a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/ext/WriterInterceptor.html" title="class or interface in jakarta.ws.rs.ext" class="external-link">WriterInterceptor</a>&gt;&nbsp;writerInterceptors)</code></div>
-<div class="col-last even-row-color">&nbsp;</div>
 </div>
 </section>
 </li>
@@ -166,27 +158,17 @@ implements <a href="https://docs.micronaut.io/latest/api/io/micronaut/http/body/
 <h2>Constructor Details</h2>
 <ul class="member-list">
 <li>
-<section class="detail" id="&lt;init&gt;(io.micronaut.context.BeanRegistration,java.util.List)">
+<section class="detail" id="&lt;init&gt;(java.util.List,jakarta.ws.rs.ext.MessageBodyWriter)">
 <h3>JaxRsMessageBodyWriter</h3>
-<div class="member-signature"><span class="annotations">@Inject
-</span><span class="modifiers">public</span>&nbsp;<span class="element-name">JaxRsMessageBodyWriter</span><wbr><span class="parameters">(<a href="https://docs.micronaut.io/latest/api/io/micronaut/context/BeanRegistration.html" title="class or interface in io.micronaut.context" class="external-link">BeanRegistration</a>&lt;<a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/ext/MessageBodyWriter.html" title="class or interface in jakarta.ws.rs.ext" class="external-link">MessageBodyWriter</a>&lt;<a href="JaxRsMessageBodyWriter.html" title="type parameter in JaxRsMessageBodyWriter">T</a>&gt;&gt;&nbsp;beanRegistration,
- <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/List.html" title="class or interface in java.util" class="external-link">List</a>&lt;<a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/ext/WriterInterceptor.html" title="class or interface in jakarta.ws.rs.ext" class="external-link">WriterInterceptor</a>&gt;&nbsp;writerInterceptors)</span></div>
+<div class="member-signature"><span class="modifiers">public</span>&nbsp;<span class="element-name">JaxRsMessageBodyWriter</span><wbr><span class="parameters">(<a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/List.html" title="class or interface in java.util" class="external-link">List</a>&lt;<a href="https://docs.micronaut.io/latest/api/io/micronaut/http/MediaType.html" title="class or interface in io.micronaut.http" class="external-link">MediaType</a>&gt;&nbsp;produces,
+ <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/ext/MessageBodyWriter.html" title="class or interface in jakarta.ws.rs.ext" class="external-link">MessageBodyWriter</a>&lt;<a href="JaxRsMessageBodyWriter.html" title="type parameter in JaxRsMessageBodyWriter">T</a>&gt;&nbsp;delegate)</span></div>
 </section>
 </li>
 <li>
-<section class="detail" id="&lt;init&gt;(io.micronaut.core.annotation.AnnotationMetadata,jakarta.ws.rs.ext.MessageBodyWriter,java.util.List)">
+<section class="detail" id="&lt;init&gt;(io.micronaut.core.annotation.AnnotationMetadata,jakarta.ws.rs.ext.MessageBodyWriter)">
 <h3>JaxRsMessageBodyWriter</h3>
 <div class="member-signature"><span class="modifiers">public</span>&nbsp;<span class="element-name">JaxRsMessageBodyWriter</span><wbr><span class="parameters">(<a href="https://docs.micronaut.io/latest/api/io/micronaut/core/annotation/AnnotationMetadata.html" title="class or interface in io.micronaut.core.annotation" class="external-link">AnnotationMetadata</a>&nbsp;annotationMetadata,
- <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/ext/MessageBodyWriter.html" title="class or interface in jakarta.ws.rs.ext" class="external-link">MessageBodyWriter</a>&lt;<a href="JaxRsMessageBodyWriter.html" title="type parameter in JaxRsMessageBodyWriter">T</a>&gt;&nbsp;delegate,
- <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/List.html" title="class or interface in java.util" class="external-link">List</a>&lt;<a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/ext/WriterInterceptor.html" title="class or interface in jakarta.ws.rs.ext" class="external-link">WriterInterceptor</a>&gt;&nbsp;writerInterceptors)</span></div>
-</section>
-</li>
-<li>
-<section class="detail" id="&lt;init&gt;(io.micronaut.core.type.Argument,jakarta.ws.rs.ext.MessageBodyWriter,java.util.List)">
-<h3>JaxRsMessageBodyWriter</h3>
-<div class="member-signature"><span class="modifiers">public</span>&nbsp;<span class="element-name">JaxRsMessageBodyWriter</span><wbr><span class="parameters">(<a href="https://docs.micronaut.io/latest/api/io/micronaut/core/type/Argument.html" title="class or interface in io.micronaut.core.type" class="external-link">Argument</a>&lt;?&gt;&nbsp;writerArgument,
- <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/ext/MessageBodyWriter.html" title="class or interface in jakarta.ws.rs.ext" class="external-link">MessageBodyWriter</a>&lt;<a href="JaxRsMessageBodyWriter.html" title="type parameter in JaxRsMessageBodyWriter">T</a>&gt;&nbsp;delegate,
- <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/List.html" title="class or interface in java.util" class="external-link">List</a>&lt;<a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/ext/WriterInterceptor.html" title="class or interface in jakarta.ws.rs.ext" class="external-link">WriterInterceptor</a>&gt;&nbsp;writerInterceptors)</span></div>
+ <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/ext/MessageBodyWriter.html" title="class or interface in jakarta.ws.rs.ext" class="external-link">MessageBodyWriter</a>&lt;<a href="JaxRsMessageBodyWriter.html" title="type parameter in JaxRsMessageBodyWriter">T</a>&gt;&nbsp;delegate)</span></div>
 </section>
 </li>
 </ul>

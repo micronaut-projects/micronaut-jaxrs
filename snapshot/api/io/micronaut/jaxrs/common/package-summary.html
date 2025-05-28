@@ -77,7 +77,7 @@ loadScripts(document, 'script');</script>
 <ul class="summary-list">
 <li>
 <div id="class-summary">
-<div class="table-tabs" role="tablist" aria-orientation="horizontal"><button id="class-summary-tab0" role="tab" aria-selected="true" aria-controls="class-summary.tabpanel" tabindex="0" onkeydown="switchTab(event)" onclick="show('class-summary', 'class-summary', 2)" class="active-table-tab">All Classes and Interfaces</button><button id="class-summary-tab1" role="tab" aria-selected="false" aria-controls="class-summary.tabpanel" tabindex="-1" onkeydown="switchTab(event)" onclick="show('class-summary', 'class-summary-tab1', 2)" class="table-tab">Interfaces</button><button id="class-summary-tab2" role="tab" aria-selected="false" aria-controls="class-summary.tabpanel" tabindex="-1" onkeydown="switchTab(event)" onclick="show('class-summary', 'class-summary-tab2', 2)" class="table-tab">Classes</button><button id="class-summary-tab4" role="tab" aria-selected="false" aria-controls="class-summary.tabpanel" tabindex="-1" onkeydown="switchTab(event)" onclick="show('class-summary', 'class-summary-tab4', 2)" class="table-tab">Record Classes</button></div>
+<div class="table-tabs" role="tablist" aria-orientation="horizontal"><button id="class-summary-tab0" role="tab" aria-selected="true" aria-controls="class-summary.tabpanel" tabindex="0" onkeydown="switchTab(event)" onclick="show('class-summary', 'class-summary', 2)" class="active-table-tab">All Classes and Interfaces</button><button id="class-summary-tab1" role="tab" aria-selected="false" aria-controls="class-summary.tabpanel" tabindex="-1" onkeydown="switchTab(event)" onclick="show('class-summary', 'class-summary-tab1', 2)" class="table-tab">Interfaces</button><button id="class-summary-tab2" role="tab" aria-selected="false" aria-controls="class-summary.tabpanel" tabindex="-1" onkeydown="switchTab(event)" onclick="show('class-summary', 'class-summary-tab2', 2)" class="table-tab">Classes</button><button id="class-summary-tab4" role="tab" aria-selected="false" aria-controls="class-summary.tabpanel" tabindex="-1" onkeydown="switchTab(event)" onclick="show('class-summary', 'class-summary-tab4', 2)" class="table-tab">Record Classes</button><button id="class-summary-tab5" role="tab" aria-selected="false" aria-controls="class-summary.tabpanel" tabindex="-1" onkeydown="switchTab(event)" onclick="show('class-summary', 'class-summary-tab5', 2)" class="table-tab">Exceptions</button></div>
 <div id="class-summary.tabpanel" role="tabpanel">
 <div class="summary-table two-column-summary" aria-labelledby="class-summary-tab0">
 <div class="table-header col-first">Class</div>
@@ -93,14 +93,6 @@ loadScripts(document, 'script');</script>
 <div class="col-first even-row-color class-summary class-summary-tab2"><a href="HttpMessageEntityReader.html" title="class in io.micronaut.jaxrs.common">HttpMessageEntityReader</a></div>
 <div class="col-last even-row-color class-summary class-summary-tab2">
 <div class="block">En entity reader.</div>
-</div>
-<div class="col-first odd-row-color class-summary class-summary-tab2"><a href="InterceptedMessageBodyReader.html" title="class in io.micronaut.jaxrs.common">InterceptedMessageBodyReader</a>&lt;T&gt;</div>
-<div class="col-last odd-row-color class-summary class-summary-tab2">
-<div class="block">The Micronaut body reader with JAX-RS interceptors.</div>
-</div>
-<div class="col-first even-row-color class-summary class-summary-tab2"><a href="InterceptedMessageBodyWriter.html" title="class in io.micronaut.jaxrs.common">InterceptedMessageBodyWriter</a>&lt;T&gt;</div>
-<div class="col-last even-row-color class-summary class-summary-tab2">
-<div class="block">The Micronaut body writer with JAX-RS interceptors.</div>
 </div>
 <div class="col-first odd-row-color class-summary class-summary-tab2"><a href="JaxRsArgumentUtil.html" title="class in io.micronaut.jaxrs.common">JaxRsArgumentUtil</a></div>
 <div class="col-last odd-row-color class-summary class-summary-tab2">
@@ -126,13 +118,21 @@ loadScripts(document, 'script');</script>
 <div class="col-last even-row-color class-summary class-summary-tab2">
 <div class="block">Adapter class for JAR-RS headers.</div>
 </div>
-<div class="col-first odd-row-color class-summary class-summary-tab2"><a href="JaxRsInputStreamMessageBodyReader.html" title="class in io.micronaut.jaxrs.common">JaxRsInputStreamMessageBodyReader</a></div>
+<div class="col-first odd-row-color class-summary class-summary-tab2"><a href="JaxRsInterceptedRead.html" title="class in io.micronaut.jaxrs.common">JaxRsInterceptedRead</a>&lt;T&gt;</div>
 <div class="col-last odd-row-color class-summary class-summary-tab2">
-<div class="block">The implementation of <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/ext/MessageBodyReader.html" title="class or interface in jakarta.ws.rs.ext" class="external-link"><code>MessageBodyReader</code></a> for <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/io/InputStream.html" title="class or interface in java.io" class="external-link"><code>InputStream</code></a>.</div>
+<div class="block">The JAX-RS body read interceptor.</div>
 </div>
-<div class="col-first even-row-color class-summary class-summary-tab2"><a href="JaxRsInputStreamMessageBodyWriter.html" title="class in io.micronaut.jaxrs.common">JaxRsInputStreamMessageBodyWriter</a>&lt;T extends <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/io/InputStream.html" title="class or interface in java.io" class="external-link">InputStream</a>&gt;</div>
+<div class="col-first even-row-color class-summary class-summary-tab2"><a href="JaxRsInterceptedWrite.html" title="class in io.micronaut.jaxrs.common">JaxRsInterceptedWrite</a>&lt;T&gt;</div>
 <div class="col-last even-row-color class-summary class-summary-tab2">
-<div class="block">The implementation of <a href="https://docs.micronaut.io/latest/api/io/micronaut/http/body/MessageBodyWriter.html" title="class or interface in io.micronaut.http.body" class="external-link"><code>MessageBodyWriter</code></a> for <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/io/InputStream.html" title="class or interface in java.io" class="external-link"><code>InputStream</code></a>.</div>
+<div class="block">The JAX-RS body write interceptor.</div>
+</div>
+<div class="col-first odd-row-color class-summary class-summary-tab5"><a href="JaxRsIOException.html" title="class in io.micronaut.jaxrs.common">JaxRsIOException</a></div>
+<div class="col-last odd-row-color class-summary class-summary-tab5">
+<div class="block">The wrapper for <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/io/IOException.html" title="class or interface in java.io" class="external-link"><code>IOException</code></a> thrown in Micronaut Body readers / writers.</div>
+</div>
+<div class="col-first even-row-color class-summary class-summary-tab2"><a href="JaxRsMessageBodyHandlerRegistry.html" title="class in io.micronaut.jaxrs.common">JaxRsMessageBodyHandlerRegistry</a></div>
+<div class="col-last even-row-color class-summary class-summary-tab2">
+<div class="block">Stores JAX-RS message body readers and writers.</div>
 </div>
 <div class="col-first odd-row-color class-summary class-summary-tab2"><a href="JaxRsMessageBodyReader.html" title="class in io.micronaut.jaxrs.common">JaxRsMessageBodyReader</a>&lt;T&gt;</div>
 <div class="col-last odd-row-color class-summary class-summary-tab2">
@@ -174,29 +174,21 @@ loadScripts(document, 'script');</script>
 <div class="col-last even-row-color class-summary class-summary-tab1">
 <div class="block">The reader.</div>
 </div>
-<div class="col-first odd-row-color class-summary class-summary-tab2"><a href="JaxRsReaderMessageBodyReader.html" title="class in io.micronaut.jaxrs.common">JaxRsReaderMessageBodyReader</a></div>
-<div class="col-last odd-row-color class-summary class-summary-tab2">
-<div class="block">The implementation of <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/ext/MessageBodyReader.html" title="class or interface in jakarta.ws.rs.ext" class="external-link"><code>MessageBodyReader</code></a> for <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/io/Reader.html" title="class or interface in java.io" class="external-link"><code>Reader</code></a>.</div>
-</div>
-<div class="col-first even-row-color class-summary class-summary-tab2"><a href="JaxRsReaderMessageBodyWriter.html" title="class in io.micronaut.jaxrs.common">JaxRsReaderMessageBodyWriter</a></div>
-<div class="col-last even-row-color class-summary class-summary-tab2">
-<div class="block">The implementation of <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/ext/MessageBodyWriter.html" title="class or interface in jakarta.ws.rs.ext" class="external-link"><code>MessageBodyWriter</code></a> for <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/io/Reader.html" title="class or interface in java.io" class="external-link"><code>Reader</code></a>.</div>
-</div>
 <div class="col-first odd-row-color class-summary class-summary-tab2"><a href="JaxRsResponse.html" title="class in io.micronaut.jaxrs.common">JaxRsResponse</a></div>
 <div class="col-last odd-row-color class-summary class-summary-tab2">
 <div class="block">Adapter for JAX-RS and final Micronaut response.</div>
 </div>
-<div class="col-first even-row-color class-summary class-summary-tab2"><a href="JaxRsStreamingOutputMessageBodyWriter.html" title="class in io.micronaut.jaxrs.common">JaxRsStreamingOutputMessageBodyWriter</a>&lt;T extends <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/core/StreamingOutput.html" title="class or interface in jakarta.ws.rs.core" class="external-link">StreamingOutput</a>&gt;</div>
+<div class="col-first even-row-color class-summary class-summary-tab2"><a href="JaxRsUtils.html" title="class in io.micronaut.jaxrs.common">JaxRsUtils</a></div>
 <div class="col-last even-row-color class-summary class-summary-tab2">
-<div class="block">The implementation of <a href="https://docs.micronaut.io/latest/api/io/micronaut/http/body/MessageBodyWriter.html" title="class or interface in io.micronaut.http.body" class="external-link"><code>MessageBodyWriter</code></a> for <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/core/StreamingOutput.html" title="class or interface in jakarta.ws.rs.core" class="external-link"><code>StreamingOutput</code></a>.</div>
-</div>
-<div class="col-first odd-row-color class-summary class-summary-tab2"><a href="JaxRsUtils.html" title="class in io.micronaut.jaxrs.common">JaxRsUtils</a></div>
-<div class="col-last odd-row-color class-summary class-summary-tab2">
 <div class="block">The JAX-RS utils.</div>
 </div>
-<div class="col-first even-row-color class-summary class-summary-tab2"><a href="MicronautRuntimeDelegate.html" title="class in io.micronaut.jaxrs.common">MicronautRuntimeDelegate</a></div>
-<div class="col-last even-row-color class-summary class-summary-tab2">
+<div class="col-first odd-row-color class-summary class-summary-tab2"><a href="MicronautRuntimeDelegate.html" title="class in io.micronaut.jaxrs.common">MicronautRuntimeDelegate</a></div>
+<div class="col-last odd-row-color class-summary class-summary-tab2">
 <div class="block">RuntimeDelegate implementation for JAX-RS.</div>
+</div>
+<div class="col-first even-row-color class-summary class-summary-tab1"><a href="NameBindingPredicate.html" title="interface in io.micronaut.jaxrs.common">NameBindingPredicate</a></div>
+<div class="col-last even-row-color class-summary class-summary-tab1">
+<div class="block">The predicate that checks for <a href="https://jakarta.ee/specifications/restful-ws/3.0/apidocs/jakarta/ws/rs/NameBinding.html" title="class or interface in jakarta.ws.rs" class="external-link"><code>NameBinding</code></a> usage on the component.</div>
 </div>
 </div>
 </div>
