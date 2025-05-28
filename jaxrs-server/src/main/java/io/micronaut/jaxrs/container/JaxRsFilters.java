@@ -160,14 +160,14 @@ final class JaxRsFilters {
             }
             bodyArgument = responseContext.getBodyArgument();
             body = responseContext.getEntity();
-            delegateEntitytStream = responseContext.getDelegateEntityStream();
+            delegateEntityStream = responseContext.getDelegateEntityStream();
             customEntityStream = responseContext.getCustomEntityStream();
         }
         if (body != null) {
             mutableHttpResponse.body(new JaxRsGenericEntity<>(
                 body,
                 (Argument<? super Object>) bodyArgument,
-                delegateEntitytStream,
+                delegateEntityStream,
                 customEntityStream)
             );
         }
