@@ -15,8 +15,6 @@
  */
 package io.micronaut.jaxrs.common;
 
-import io.micronaut.context.BeanRegistration;
-import io.micronaut.context.annotation.EachBean;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.Internal;
@@ -28,15 +26,11 @@ import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.body.MessageBodyWriter;
 import io.micronaut.http.codec.CodecException;
-import jakarta.inject.Inject;
-import jakarta.inject.Singleton;
 import jakarta.ws.rs.Produces;
-import jakarta.ws.rs.ext.WriterInterceptor;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -47,33 +41,18 @@ import java.util.List;
  * @since 4.6.0
  */
 @Internal
-@Singleton
-@EachBean(value = jakarta.ws.rs.ext.MessageBodyWriter.class, remapGenerics = @EachBean.RemapGeneric(name = "T", type = MessageBodyWriter.class))
 public final class JaxRsMessageBodyWriter<T> implements MessageBodyWriter<T> {
 
     private final List<MediaType> produces;
     private final jakarta.ws.rs.ext.MessageBodyWriter<T> delegate;
-    private final List<WriterInterceptor> writerInterceptors;
 
-    @Inject
-    public JaxRsMessageBodyWriter(BeanRegistration<jakarta.ws.rs.ext.MessageBodyWriter<T>> beanRegistration,
-                                  List<WriterInterceptor> writerInterceptors) {
-        this(beanRegistration.getBeanDefinition(), beanRegistration.bean(), writerInterceptors);
-    }
-
-    public JaxRsMessageBodyWriter(AnnotationMetadata annotationMetadata,
-                                  jakarta.ws.rs.ext.MessageBodyWriter<T> delegate,
-                                  List<WriterInterceptor> writerInterceptors) {
-        this.produces = asMediaTypes(annotationMetadata);
+    public JaxRsMessageBodyWriter(List<MediaType> produces, jakarta.ws.rs.ext.MessageBodyWriter<T> delegate) {
+        this.produces = produces;
         this.delegate = delegate;
-        this.writerInterceptors = writerInterceptors;
-        JaxRsUtils.sortByPriority(writerInterceptors);
     }
 
-    public JaxRsMessageBodyWriter(Argument<?> writerArgument,
-                                  jakarta.ws.rs.ext.MessageBodyWriter<T> delegate,
-                                  List<WriterInterceptor> writerInterceptors) {
-        this(writerArgument.getAnnotationMetadata(), delegate, writerInterceptors);
+    public JaxRsMessageBodyWriter(AnnotationMetadata annotationMetadata, jakarta.ws.rs.ext.MessageBodyWriter<T> delegate) {
+        this(asMediaTypes(annotationMetadata), delegate);
     }
 
     private static List<MediaType> asMediaTypes(AnnotationMetadata annotationMetadata) {
@@ -98,28 +77,7 @@ public final class JaxRsMessageBodyWriter<T> implements MessageBodyWriter<T> {
                         @NonNull MutableHeaders outgoingHeaders,
                         @NonNull OutputStream outputStream) throws CodecException {
         try {
-            Iterator<WriterInterceptor> iterator = writerInterceptors.iterator();
             JaxRsMutableObjectHeadersMultivaluedMap httpHeaders = new JaxRsMutableObjectHeadersMultivaluedMap(outgoingHeaders);
-            if (iterator.hasNext()) {
-                JaxRsWriterInterceptorContext context = new JaxRsWriterInterceptorContext(iterator,
-                    ctx -> delegate.writeTo(
-                        (T) ctx.getEntity(),
-                        ctx.getType(),
-                        ctx.getGenericType(),
-                        ctx.getAnnotations(),
-                        ctx.getMediaType(),
-                        httpHeaders,
-                        ctx.getOutputStream()
-                    ),
-                    type,
-                    JaxRsUtils.convert(mediaType),
-                    httpHeaders,
-                    object,
-                    outputStream
-                );
-                iterator.next().aroundWriteTo(context);
-                return;
-            }
             delegate.writeTo(object,
                 type.getType(),
                 type.asType(),
@@ -138,7 +96,7 @@ public final class JaxRsMessageBodyWriter<T> implements MessageBodyWriter<T> {
                 }
             }
         } catch (IOException e) {
-            throw new CodecException("Cannot write to", e);
+            throw new JaxRsIOException("Cannot write to", e);
         }
     }
 

@@ -23,6 +23,7 @@ import io.micronaut.http.HttpResponse;
 import io.micronaut.http.HttpResponseProvider;
 import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.EntityTag;
+import jakarta.ws.rs.core.GenericEntity;
 import jakarta.ws.rs.core.GenericType;
 import jakarta.ws.rs.core.Link;
 import jakarta.ws.rs.core.MediaType;
@@ -122,7 +123,11 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
     @Override
     public Object getEntity() {
         checkCanReadEntity();
-        return response.body();
+        Object body = response.body();
+        if (body instanceof GenericEntity<?> genericEntity) {
+            return genericEntity.getEntity();
+        }
+        return body;
     }
 
     /**
@@ -190,7 +195,7 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
             if (body.isEmpty()) {
                 return false;
             }
-            buffer = body.orElse(new byte[] {});
+            buffer = body.orElse(new byte[]{});
             buffered = true;
         }
         return buffered;

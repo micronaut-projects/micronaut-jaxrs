@@ -15,6 +15,7 @@
  */
 package io.micronaut.jaxrs.common;
 
+import io.micronaut.context.BeanRegistration;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.MediaType;
 import jakarta.annotation.Priority;
@@ -36,8 +37,24 @@ public final class JaxRsUtils {
         sortByPriority(values, false);
     }
 
+    public static <T> void sortRegistrationsByPriority(List<BeanRegistration<T>> values) {
+        sortByPriority(values, false);
+    }
+
     public static <T> void sortByPriorityReversed(List<T> values) {
         sortByPriority(values, true);
+    }
+
+    public static <T> void sortRegistrationsByPriorityReversed(List<BeanRegistration<T>> values) {
+        sortRegistrationsByPriority(values, true);
+    }
+
+    private static <T> void sortRegistrationsByPriority(List<BeanRegistration<T>> values, boolean reverse) {
+        Comparator<BeanRegistration<T>> comparator = Comparator.comparingInt(BeanRegistration::getOrder);
+        if (reverse) {
+            comparator = comparator.reversed();
+        }
+        values.sort(comparator);
     }
 
     private static <T> void sortByPriority(List<T> values, boolean reverse) {

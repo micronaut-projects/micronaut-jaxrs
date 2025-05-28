@@ -17,11 +17,14 @@ package io.micronaut.jaxrs.client;
 
 import io.micronaut.context.AnnotationReflectionUtils;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.annotation.Nullable;
 import io.micronaut.core.io.buffer.ByteBuffer;
 import io.micronaut.core.order.OrderUtil;
 import io.micronaut.core.reflect.ReflectionUtils;
 import io.micronaut.core.type.Argument;
+import io.micronaut.core.type.Headers;
 import io.micronaut.core.type.MutableHeaders;
+import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpMessage;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.MutableHttpMessage;
@@ -29,13 +32,11 @@ import io.micronaut.http.body.TypedMessageBodyReader;
 import io.micronaut.http.body.TypedMessageBodyWriter;
 import io.micronaut.jaxrs.common.ByteArrayByteBuffer;
 import io.micronaut.jaxrs.common.HttpMessageEntityReader;
-import io.micronaut.jaxrs.common.InterceptedMessageBodyReader;
-import io.micronaut.jaxrs.common.InterceptedMessageBodyWriter;
+import io.micronaut.jaxrs.common.JaxRsInterceptedRead;
+import io.micronaut.jaxrs.common.JaxRsInterceptedWrite;
 import io.micronaut.jaxrs.common.JaxRsMessageBodyReader;
 import io.micronaut.jaxrs.common.JaxRsMessageBodyReaderDefinition;
 import io.micronaut.jaxrs.common.JaxRsMessageBodyWriter;
-import io.micronaut.jaxrs.common.JaxRsMutableHeadersMultivaluedMap;
-import io.micronaut.jaxrs.common.JaxRsReaderInterceptorContext;
 import io.micronaut.jaxrs.common.JaxRsUtils;
 import jakarta.ws.rs.RuntimeType;
 import jakarta.ws.rs.client.ClientRequestFilter;
@@ -50,21 +51,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
+import java.io.OutputStream;
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -241,7 +241,6 @@ final class JaxRsConfiguration implements Configuration {
     private List<WriterInterceptor> getWriterInterceptors() {
         if (writerInterceptors == null) {
             writerInterceptors = getComponentOfType(WriterInterceptor.class);
-            Collections.reverse(writerInterceptors);
         }
         return writerInterceptors;
     }
@@ -249,13 +248,12 @@ final class JaxRsConfiguration implements Configuration {
     private List<JaxRsMessageBodyReaderDefinition> getReaders() {
         if (readers == null) {
             readers = new ArrayList<>();
-            List<ReaderInterceptor> readerInterceptors = getReaderInterceptors();
             for (JaxRsConfiguration.Component component : components) {
                 MessageBodyReader<?> reader = component.tryGet(MessageBodyReader.class);
                 if (reader != null) {
                     readers.add(new JaxRsMessageBodyReaderDefinition(
                         AnnotationReflectionUtils.resolveGenericToArgument(reader.getClass(), MessageBodyReader.class).getTypeParameters()[0],
-                        new JaxRsMessageBodyReader<>(reader, readerInterceptors),
+                        new JaxRsMessageBodyReader<>(reader),
                         component.priority() == 0 ? JaxRsUtils.getPriorityOrder(reader) : component.priority()
                     ));
                 }
@@ -265,13 +263,13 @@ final class JaxRsConfiguration implements Configuration {
                         Argument<?> type = typedMessageBodyReader.getType();
                         readers.add(new JaxRsMessageBodyReaderDefinition(
                             type,
-                            new InterceptedMessageBodyReader<>(type.getType(), micronautReader, readerInterceptors),
+                            micronautReader,
                             component.priority() == 0 ? JaxRsUtils.getPriorityOrder(micronautReader) : component.priority()
                         ));
                     } else {
                         readers.add(new JaxRsMessageBodyReaderDefinition(
                             AnnotationReflectionUtils.resolveGenericToArgument(micronautReader.getClass(), io.micronaut.http.body.MessageBodyReader.class).getTypeParameters()[0],
-                            new InterceptedMessageBodyReader<>(null, micronautReader, readerInterceptors),
+                            micronautReader,
                             component.priority() == 0 ? JaxRsUtils.getPriorityOrder(micronautReader) : component.priority()
                         ));
                     }
@@ -285,14 +283,13 @@ final class JaxRsConfiguration implements Configuration {
     private List<JaxRsMessageBodyWriterDefinition> getWriters() {
         if (writers == null) {
             writers = new ArrayList<>();
-            List<WriterInterceptor> writerInterceptors = getWriterInterceptors();
             for (JaxRsConfiguration.Component component : components) {
                 MessageBodyWriter<?> writer = component.tryGet(MessageBodyWriter.class);
                 if (writer != null) {
                     Argument<MessageBodyWriter> messageBodyWriterArgument = AnnotationReflectionUtils.resolveGenericToArgument(writer.getClass(), MessageBodyWriter.class);
                     writers.add(new JaxRsMessageBodyWriterDefinition(
                         messageBodyWriterArgument.getTypeParameters()[0],
-                        new JaxRsMessageBodyWriter<>(messageBodyWriterArgument, writer, writerInterceptors),
+                        new JaxRsMessageBodyWriter<>(messageBodyWriterArgument.getAnnotationMetadata(), (MessageBodyWriter<Object>) writer),
                         component.priority() == 0 ? JaxRsUtils.getPriorityOrder(writer) : component.priority()
                     ));
                 }
@@ -302,13 +299,13 @@ final class JaxRsConfiguration implements Configuration {
                         Argument<?> type = typedMessageBodyWriter.getType();
                         writers.add(new JaxRsMessageBodyWriterDefinition(
                             type,
-                            new InterceptedMessageBodyWriter<>(type.getType(), micronautWriter, writerInterceptors),
+                            micronautWriter,
                             component.priority() == 0 ? JaxRsUtils.getPriorityOrder(micronautWriter) : component.priority()
                         ));
                     } else {
                         writers.add(new JaxRsMessageBodyWriterDefinition(
                             AnnotationReflectionUtils.resolveGenericToArgument(micronautWriter.getClass(), io.micronaut.http.body.MessageBodyWriter.class).getTypeParameters()[0],
-                            new InterceptedMessageBodyWriter<>(null, micronautWriter, writerInterceptors),
+                            micronautWriter,
                             component.priority() == 0 ? JaxRsUtils.getPriorityOrder(micronautWriter) : component.priority()
                         ));
                     }
@@ -328,73 +325,44 @@ final class JaxRsConfiguration implements Configuration {
                     .or(() -> message.getBody(byte[].class).map(ByteArrayByteBuffer::new))
                     .orElse(null);
                 if (byteBuffer != null) {
-                    List<JaxRsMessageBodyReaderDefinition> readers = getReaders();
-                    if (!readers.isEmpty()) {
-                        io.micronaut.http.MediaType mediaType = message.getContentType().orElse(MediaType.ALL_TYPE);
-                        for (JaxRsMessageBodyReaderDefinition readerDef : readers) {
-                            io.micronaut.http.body.MessageBodyReader<T> reader = (io.micronaut.http.body.MessageBodyReader<T>) readerDef.messageBodyReader();
-                            if (entityType.isAssignableFrom(readerDef.type()) && reader.isReadable(entityType, mediaType)) {
-                                return reader.read(entityType, mediaType, message.getHeaders(), byteBuffer);
-                            }
-                        }
-                    }
-                    Iterator<ReaderInterceptor> readerInterceptor = getReaderInterceptors().iterator();
+                    List<ReaderInterceptor> readerInterceptors = getReaderInterceptors();
                     io.micronaut.http.MediaType mediaType = message.getContentType().orElse(MediaType.ALL_TYPE);
-                    if (readerInterceptor.hasNext()) {
-                        JaxRsReaderInterceptorContext context = new JaxRsReaderInterceptorContext(readerInterceptor,
-                            ctx -> {
-                                if (!readers.isEmpty()) {
-                                    for (JaxRsMessageBodyReaderDefinition readerDef : readers) {
-                                        io.micronaut.http.body.MessageBodyReader<?> reader = readerDef.messageBodyReader();
-                                        if (reader instanceof JaxRsMessageBodyReader<?> jaxRsMessageBodyReader) {
-                                            MessageBodyReader<?> delegate = jaxRsMessageBodyReader.getDelegate();
-                                            if (delegate.isReadable(ctx.getType(), ctx.getGenericType(), ctx.getAnnotations(), ctx.getMediaType())) {
-                                                return delegate.readFrom(
-                                                    (Class) ctx.getType(),
-                                                    ctx.getGenericType(),
-                                                    ctx.getAnnotations(),
-                                                    ctx.getMediaType(),
-                                                    ctx.getHeaders(),
-                                                    ctx.getInputStream()
-                                                );
-                                            }
-                                        } else {
-                                            Argument argument = ctx.asArgument();
-                                            jakarta.ws.rs.core.MediaType mediaType1 = ctx.getMediaType();
-                                            MediaType mt = JaxRsUtils.convert(mediaType1);
-                                            if (reader.isReadable(argument, mt)) {
-                                                return reader.read(argument, mt, message.getHeaders(), byteBuffer);
-                                            }
-                                        }
-                                    }
-                                }
-                                if (ctx.getInputStream() != null) {
-                                    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-                                    try (InputStream is = ctx.getInputStream()) {
-                                        while (is.available() > 0) {
-                                            outputStream.write(is.read());
-                                        }
-                                    }
-                                    return super.readEntity(new ByteArrayByteBuffer<>(outputStream.toByteArray()), Argument.of(ctx.getType()));
-                                } else {
-                                    return super.readEntity(message, Argument.of(ctx.getType()));
-                                }
-                            },
-                            entityType,
-                            JaxRsUtils.convert(mediaType),
-                            new JaxRsMutableHeadersMultivaluedMap((MutableHeaders) message.getHeaders()),
-                            byteBuffer.toInputStream()
-                        );
-                        try {
-                            return (T) readerInterceptor.next().aroundReadFrom(context);
-                        } catch (IOException e) {
-                            throw new UncheckedIOException(e);
+                    HttpHeaders headers = message.getHeaders();
+                    if (readerInterceptors.isEmpty()) {
+                        io.micronaut.http.body.MessageBodyReader<T> reader = findReader(entityType, mediaType);
+                        if (reader != null) {
+                            return reader.read(entityType, mediaType, headers, byteBuffer);
                         }
+                    } else {
+                        return new JaxRsInterceptedRead<T>(readerInterceptors) {
+
+                            @Override
+                            protected T readFromAfterInterception(Argument<Object> type, MediaType mediaType, Headers httpHeaders, InputStream inputStream) {
+                                io.micronaut.http.body.MessageBodyReader<Object> reader = findReader(type, mediaType);
+                                if (reader != null) {
+                                    return (T) reader.read(type, mediaType, headers, inputStream);
+                                }
+                                throw new IllegalStateException("No reader found for type " + type.getType() + " and mediaType " + mediaType);
+                            }
+
+                        }.intercept(entityType, mediaType, headers, byteBuffer.toInputStream());
                     }
                 }
                 return super.readEntity(message, entityType);
             }
         };
+    }
+
+    @Nullable
+    private <T> io.micronaut.http.body.MessageBodyReader<T> findReader(Argument<T> argument,
+                                                                       MediaType mediaType) {
+        for (JaxRsMessageBodyReaderDefinition readerDer : getReaders()) {
+            io.micronaut.http.body.MessageBodyReader<T> reader = (io.micronaut.http.body.MessageBodyReader<T>) readerDer.messageBodyReader();
+            if (readerDer.type().isAssignableFrom(argument.getType()) && reader.isReadable(argument, mediaType)) {
+                return reader;
+            }
+        }
+        return null;
     }
 
     <T> void writeBody(MutableHttpMessage<?> mutableHttpMessage, Argument<T> bodyArgument, T body) {
@@ -403,22 +371,49 @@ final class JaxRsConfiguration implements Configuration {
         }
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         io.micronaut.http.MediaType mediaType = mutableHttpMessage.getContentType().orElse(MediaType.ALL_TYPE);
-        boolean written = false;
-        for (JaxRsMessageBodyWriterDefinition writerDef : getWriters()) {
-            io.micronaut.http.body.MessageBodyWriter<T> writer = (io.micronaut.http.body.MessageBodyWriter<T>) writerDef.messageBodyWriter();
-            if (writerDef.type().isAssignableFrom(bodyArgument.getType()) && writer.isWriteable(bodyArgument, mediaType)) {
+
+        final AtomicBoolean written = new AtomicBoolean(false);
+        List<WriterInterceptor> writerInterceptors = getWriterInterceptors();
+        if (writerInterceptors.isEmpty()) {
+            io.micronaut.http.body.MessageBodyWriter<T> writer = findWriter(bodyArgument, mediaType);
+            if (writer != null) {
                 writer.writeTo(bodyArgument, mediaType, body, mutableHttpMessage.getHeaders(), outputStream);
-                written = true;
-                break;
+                written.set(true);
             }
+        } else {
+            new JaxRsInterceptedWrite<T>(writerInterceptors) {
+
+                @Override
+                protected void writeToAfterInterception(Argument<Object> argument, MediaType mediaType, Object entity, MutableHeaders outgoingHeaders, OutputStream outputStream) {
+                    io.micronaut.http.body.MessageBodyWriter<Object> writer = findWriter(argument, mediaType);
+                    if (writer != null) {
+                        writer.writeTo(argument, mediaType, entity, mutableHttpMessage.getHeaders(), outputStream);
+                        written.set(true);
+                    }
+                }
+
+            }.intercept(bodyArgument, mediaType, body, mutableHttpMessage.getHeaders(), outputStream);
         }
-        if (written) {
+
+        if (written.get()) {
             mutableHttpMessage.body(outputStream.toByteArray());
         } else if (!getWriterInterceptors().isEmpty()) {
             throw new IllegalStateException("Unknown entity type " + bodyArgument.getType());
         } else {
             mutableHttpMessage.body(body);
         }
+    }
+
+    @Nullable
+    private <T> io.micronaut.http.body.MessageBodyWriter<T> findWriter(Argument<T> argument,
+                                                                       MediaType mediaType) {
+        for (JaxRsMessageBodyWriterDefinition writerDef : getWriters()) {
+            io.micronaut.http.body.MessageBodyWriter<T> writer = (io.micronaut.http.body.MessageBodyWriter<T>) writerDef.messageBodyWriter();
+            if (writerDef.type().isAssignableFrom(argument.getType()) && writer.isWriteable(argument, mediaType)) {
+                return writer;
+            }
+        }
+        return null;
     }
 
     public List<ClientRequestFilter> getRequestFilters() {

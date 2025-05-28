@@ -13,57 +13,50 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.micronaut.jaxrs.common;
+package io.micronaut.jaxrs.common.body.standard;
 
+import io.micronaut.context.annotation.Prototype;
 import io.micronaut.core.annotation.Internal;
-import io.micronaut.core.convert.ConversionService;
-import io.micronaut.http.CaseInsensitiveMutableHttpHeaders;
-import jakarta.inject.Singleton;
+import io.micronaut.core.annotation.Order;
+import io.micronaut.core.order.Ordered;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.ext.MessageBodyWriter;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-import java.io.Reader;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
-import java.util.Map;
 
 /**
- * The implementation of {@link MessageBodyWriter} for {@link Reader}.
+ * The implementation of {@link MessageBodyWriter} for {@link InputStream}.
  *
+ * @param <T> The input type
  * @author Denis Stepanov
  * @since 4.6
  */
-@Singleton
+@Order(Ordered.LOWEST_PRECEDENCE)
+@Prototype
 @Internal
-public final class JaxRsReaderMessageBodyWriter implements MessageBodyWriter<Reader> {
+public final class JaxRsInputStreamMessageBodyWriter<T extends InputStream> implements MessageBodyWriter<T> {
 
     @Override
     public boolean isWriteable(Class<?> type, Type genericType, Annotation[] annotations, jakarta.ws.rs.core.MediaType mediaType) {
-        return Reader.class.isAssignableFrom(type);
+        return InputStream.class.isAssignableFrom(type);
     }
 
     @Override
-    public void writeTo(Reader reader,
+    public void writeTo(T inputStream,
                         Class<?> type,
                         Type genericType,
                         Annotation[] annotations,
                         jakarta.ws.rs.core.MediaType mediaType,
                         MultivaluedMap<String, Object> httpHeaders,
                         OutputStream entityStream) throws IOException, WebApplicationException {
-        Charset charset = io.micronaut.http.body.MessageBodyWriter.
-            findCharset(JaxRsUtils.convert(mediaType), new CaseInsensitiveMutableHttpHeaders((Map) httpHeaders, ConversionService.SHARED))
-            .orElse(StandardCharsets.UTF_8);
-        try (OutputStreamWriter out = new OutputStreamWriter(entityStream, charset)) {
-            reader.transferTo(out);
-        }
+        inputStream.transferTo(entityStream);
         try {
-            reader.close();
+            inputStream.close();
         } catch (IOException ignore) {
             // Ignore
         }

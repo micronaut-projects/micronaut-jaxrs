@@ -13,21 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.micronaut.jaxrs.common;
+package io.micronaut.jaxrs.common.body.standard;
 
 import io.micronaut.context.annotation.Prototype;
 import io.micronaut.core.annotation.Internal;
-import io.micronaut.core.annotation.NonNull;
-import io.micronaut.core.annotation.Nullable;
-import io.micronaut.core.type.Argument;
-import io.micronaut.core.type.MutableHeaders;
-import io.micronaut.http.MediaType;
-import io.micronaut.http.body.MessageBodyWriter;
-import io.micronaut.http.codec.CodecException;
+import io.micronaut.core.annotation.Order;
+import io.micronaut.core.order.Ordered;
+import jakarta.ws.rs.WebApplicationException;
+import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.StreamingOutput;
+import jakarta.ws.rs.ext.MessageBodyWriter;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Type;
 
 /**
  * The implementation of {@link MessageBodyWriter} for {@link StreamingOutput}.
@@ -36,24 +36,18 @@ import java.io.OutputStream;
  * @author Denis Stepanov
  * @since 4.6
  */
+@Order(Ordered.LOWEST_PRECEDENCE)
 @Prototype
 @Internal
 public final class JaxRsStreamingOutputMessageBodyWriter<T extends StreamingOutput> implements MessageBodyWriter<T> {
+
     @Override
-    public boolean isWriteable(@NonNull Argument<T> type, @Nullable MediaType mediaType) {
-        return StreamingOutput.class.isAssignableFrom(type.getType());
+    public boolean isWriteable(Class<?> type, Type genericType, Annotation[] annotations, jakarta.ws.rs.core.MediaType mediaType) {
+        return StreamingOutput.class.isAssignableFrom(type);
     }
 
     @Override
-    public void writeTo(@NonNull Argument<T> type,
-                        @NonNull MediaType mediaType,
-                        T streamingOutput,
-                        @NonNull MutableHeaders outgoingHeaders,
-                        @NonNull OutputStream outputStream) throws CodecException {
-        try {
-            streamingOutput.write(outputStream);
-        } catch (IOException e) {
-            throw new CodecException("Cannot write", e);
-        }
+    public void writeTo(T streamingOutput, Class<?> type, Type genericType, Annotation[] annotations, jakarta.ws.rs.core.MediaType mediaType, MultivaluedMap<String, Object> httpHeaders, OutputStream entityStream) throws IOException, WebApplicationException {
+        streamingOutput.write(entityStream);
     }
 }

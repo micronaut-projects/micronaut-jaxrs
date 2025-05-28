@@ -30,6 +30,7 @@ import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.NewCookie;
 import jakarta.ws.rs.core.Response;
 
+import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
@@ -52,6 +53,8 @@ final class JaxRsContainerResponseContext implements ContainerResponseContext {
     private final MutableHttpResponse<?> mutableHttpResponse;
     private final JaxRsMutableResponse jaxRsMutableResponse;
     private Argument<?> bodyArgument;
+    private ByteArrayOutputStream delegateEntityStream;
+    private OutputStream customEntityStream;
 
     public JaxRsContainerResponseContext(MutableHttpResponse<?> mutableHttpResponse, Argument<?> bodyArgument) {
         this.mutableHttpResponse = mutableHttpResponse;
@@ -210,12 +213,26 @@ final class JaxRsContainerResponseContext implements ContainerResponseContext {
 
     @Override
     public OutputStream getEntityStream() {
-        throw new UnsupportedOperationException();
+        if (customEntityStream != null) {
+            return customEntityStream;
+        }
+        if (delegateEntityStream == null) {
+            delegateEntityStream = new ByteArrayOutputStream();
+        }
+        return delegateEntityStream;
+    }
+
+    public ByteArrayOutputStream getDelegateEntityStream() {
+        return delegateEntityStream;
+    }
+
+    public OutputStream getCustomEntityStream() {
+        return customEntityStream;
     }
 
     @Override
     public void setEntityStream(OutputStream outputStream) {
-        throw new UnsupportedOperationException();
+        this.customEntityStream = outputStream;
     }
 
     public Argument<?> getBodyArgument() {

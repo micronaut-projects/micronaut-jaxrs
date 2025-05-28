@@ -18,6 +18,7 @@ package io.micronaut.jaxrs.common;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.util.ArgumentUtils;
 import io.micronaut.http.HttpResponse;
+import io.micronaut.http.HttpStatus;
 import io.micronaut.http.MutableHttpHeaders;
 import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.http.cookie.Cookie;
@@ -91,6 +92,9 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
     @Override
     public Response.ResponseBuilder entity(Object entity) {
         response.body(entity);
+        if (entity == null && response.getStatus() == HttpStatus.OK) {
+            response.status(Response.Status.NO_CONTENT.getStatusCode());
+        }
         return this;
     }
 
