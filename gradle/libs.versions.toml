@@ -5,6 +5,7 @@ micronaut = "4.9.0"
 micronaut-docs = "2.0.0"
 micronaut-test = "4.7.0"
 <<<<<<< HEAD
+<<<<<<< HEAD
 micronaut-logging = "1.6.0"
 <<<<<<< HEAD
 micronaut-security = "4.12.1"
@@ -13,7 +14,10 @@ micronaut-serde = "2.14.0"
 =======
 >>>>>>> 773e04d (logging 1.7.0)
 micronaut-security = "4.11.3"
+=======
+>>>>>>> 7792f91 (security 4.12.2)
 micronaut-logging = "1.7.0"
+micronaut-security = "4.12.2"
 micronaut-serde = "2.14.1"
 <<<<<<< HEAD
 >>>>>>> 7d88df0 (fix(deps): update dependency io.micronaut.serde:micronaut-serde-bom to v2.14.1 (#546))
