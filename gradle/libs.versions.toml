@@ -4,31 +4,10 @@ managed-jaxrs-api = "3.1.0"
 micronaut = "4.9.0"
 micronaut-docs = "2.0.0"
 micronaut-test = "4.7.0"
-<<<<<<< HEAD
-<<<<<<< HEAD
-micronaut-logging = "1.6.0"
-<<<<<<< HEAD
-micronaut-security = "4.12.1"
-micronaut-serde = "2.14.0"
-=======
-=======
->>>>>>> 773e04d (logging 1.7.0)
-micronaut-security = "4.11.3"
-=======
->>>>>>> 7792f91 (security 4.12.2)
-micronaut-logging = "1.7.0"
 micronaut-security = "4.12.2"
 micronaut-serde = "2.14.1"
-<<<<<<< HEAD
-<<<<<<< HEAD
->>>>>>> 7d88df0 (fix(deps): update dependency io.micronaut.serde:micronaut-serde-bom to v2.14.1 (#546))
-micronaut-servlet = "5.0.0"
-=======
-micronaut-servlet = "5.2.2"
->>>>>>> bbf5294 (Implement more features (#539))
-=======
+micronaut-logging = "1.7.0"
 micronaut-servlet = "5.3.1"
->>>>>>> 31ea2f6 (servlet 5.3.1)
 micronaut-validation = "4.9.0"
 jakarta-jaxrs-tck = "4.0.1"
 sonatype-scan = "3.0.0"
