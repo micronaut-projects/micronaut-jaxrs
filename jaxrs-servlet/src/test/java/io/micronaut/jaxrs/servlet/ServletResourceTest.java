@@ -27,6 +27,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Optional;
 
 @MicronautTest
 @Property(name = "micronaut.server.testing.async", value = "false")
@@ -53,6 +54,14 @@ public class ServletResourceTest {
             getResponse.header(HttpHeaders.CONTENT_TYPE)
         );
     }
+
+    @Test
+    void testPaginatedCollection() {
+        BlockingHttpClient blockingClient = client.toBlocking();
+        HttpResponse<PaginatedCollection<Item>> response = blockingClient.exchange(HttpRequest.GET("/items"), PaginatedCollection.asArgument(Item.class));
+        Optional<PaginatedCollection<Item>> resultOpt = response.getBody();
+        Assertions.assertTrue(resultOpt.isPresent());
+    }
 }
 
 @Path("/servlet-test")
@@ -64,6 +73,13 @@ class ServletResource {
         return Response
             .accepted("ok")
             .header(HttpHeaders.CONTENT_TYPE, "text/plain;charset=utf-8").build();
+    }
+
+    @GET
+    @Path("/items")
+    @Produces({ "application/json" })
+    public PaginatedCollection<Item> listItems() {
+        return new PaginatedCollection<>(new Item("item1"));
     }
 
     @POST
@@ -97,3 +113,6 @@ class ServletResource {
 @Serdeable
 record Foo(String name) {
 }
+
+@Serdeable
+record Item(String name) {}
