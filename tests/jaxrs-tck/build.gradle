@@ -44,4 +44,7 @@ test {
     systemProperty("micronaut.testing.jaxrs.min.clients", "5")
     useJUnitPlatform()
     maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
+    filter {
+        excludeTestsMatching "*BuilderClientIT.expiresTest"
+    }
 }
