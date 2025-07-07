@@ -123,7 +123,7 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements MessageBodyWriter<
                 throw new CodecException("Could not find MessageBodyWriter for media type " + mediaType + " for argument " + argument);
             }
         } else {
-            writer.get().writeTo(argument, mediaType, entity, outgoingHeaders, outputStream);
+            writer.get().createSpecific(argument).writeTo(argument, mediaType, entity, outgoingHeaders, outputStream);
         }
     }
 
