@@ -292,17 +292,23 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
             if (writerInterceptorsRegistrations.isEmpty()) {
                 writeInner();
             } else {
-                new JaxRsInterceptedWrite<T, ByteBodyState>(writerInterceptorsRegistrations, nameBindingPredicate) {
+                try {
+                    new JaxRsInterceptedWrite<T, ByteBodyState>(writerInterceptorsRegistrations, nameBindingPredicate) {
 
-                    @Override
-                    protected void writeToAfterInterception(Argument<Object> argument,
-                                                            MediaType mediaType,
-                                                            ByteBodyState state) {
-                        ByteBodyState.this.argument = (Argument<T>) argument;
-                        ByteBodyState.this.mediaType = mediaType;
-                        writeInner();
-                    }
-                }.intercept(argument, mediaType, this);
+                        @Override
+                        protected void writeToAfterInterception(Argument<Object> argument,
+                                                                MediaType mediaType,
+                                                                ByteBodyState state) {
+                            ByteBodyState.this.argument = (Argument<T>) argument;
+                            ByteBodyState.this.mediaType = mediaType;
+                            writeInner();
+                        }
+                    }.intercept(argument, mediaType, this);
+                } catch (CodecException e) {
+                    throw e;
+                } catch (Exception e) {
+                    throw new CodecException("Failed to run JAX-RS WriterInterceptor", e);
+                }
             }
             if (outputIntercepted) {
                 finishIntercepted();
