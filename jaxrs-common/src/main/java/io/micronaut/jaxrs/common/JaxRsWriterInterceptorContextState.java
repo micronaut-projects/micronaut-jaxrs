@@ -33,26 +33,31 @@ import java.io.OutputStream;
 public sealed interface JaxRsWriterInterceptorContextState permits JaxRsGenericEntityMessageBodyWriter.ByteBodyState, JaxRsWriterInterceptorContextState.ClassicState {
     /**
      * @see WriterInterceptorContext#getEntity()
+     * @return The response entity
      */
     Object getEntity();
 
     /**
      * @see WriterInterceptorContext#setEntity(Object)
+     * @param entity The response entity
      */
     void setEntity(Object entity);
 
     /**
      * @see WriterInterceptorContext#getOutputStream()
+     * @return The response stream
      */
     OutputStream getOutputStream();
 
     /**
      * @see WriterInterceptorContext#setOutputStream(OutputStream)
+     * @param outputStream The response stream
      */
     void setOutputStream(OutputStream outputStream);
 
     /**
      * @see WriterInterceptorContext#getHeaders()
+     * @return The response headers
      */
     MultivaluedMap<String, Object> getHeaders();
 

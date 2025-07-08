@@ -33,6 +33,7 @@ import java.util.List;
  * The JAX-RS body write interceptor.
  *
  * @param <T> The type
+ * @param <S> The context state implementation
  * @author Denis Stepanov
  * @since 4.9.0
  */
@@ -104,6 +105,7 @@ public abstract class JaxRsInterceptedWrite<T, S extends JaxRsWriterInterceptorC
      *
      * @param argument        The argument
      * @param mediaType       The media type
+     * @param state           The state (same as passed into {@link #intercept})
      */
     protected abstract void writeToAfterInterception(@NonNull Argument<Object> argument,
                                                      @NonNull MediaType mediaType,
