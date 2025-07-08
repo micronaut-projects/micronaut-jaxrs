@@ -38,23 +38,17 @@ final class JaxRsWriterInterceptorContext extends AbstractJaxRsInterceptorContex
 
     private final Iterator<WriterInterceptor> interceptors;
     private final IOProceedCallback interceptedSupplier;
-    private final MultivaluedMap<String, Object> headers;
-    private Object entity;
-    private OutputStream outputStream;
+    private final JaxRsWriterInterceptorContextState state;
 
     JaxRsWriterInterceptorContext(Iterator<WriterInterceptor> interceptors,
                                   IOProceedCallback interceptedCallback,
                                   Argument<?> argument,
                                   MediaType mediaType,
-                                  MultivaluedMap<String, Object> headers,
-                                  Object entity,
-                                  OutputStream outputStream) {
+                                  JaxRsWriterInterceptorContextState state) {
         super(argument, mediaType);
         this.interceptors = interceptors;
         this.interceptedSupplier = interceptedCallback;
-        this.headers = headers;
-        this.entity = entity;
-        this.outputStream = outputStream;
+        this.state = state;
     }
 
     @Override
@@ -68,27 +62,27 @@ final class JaxRsWriterInterceptorContext extends AbstractJaxRsInterceptorContex
 
     @Override
     public Object getEntity() {
-        return entity;
+        return state.getEntity();
     }
 
     @Override
     public void setEntity(Object entity) {
-        this.entity = entity;
+        state.setEntity(entity);
     }
 
     @Override
     public OutputStream getOutputStream() {
-        return outputStream;
+        return state.getOutputStream();
     }
 
     @Override
     public void setOutputStream(OutputStream os) {
-        this.outputStream = os;
+        state.setOutputStream(os);
     }
 
     @Override
     public MultivaluedMap<String, Object> getHeaders() {
-        return headers;
+        return state.getHeaders();
     }
 
     /**
