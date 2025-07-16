@@ -23,7 +23,6 @@ import io.micronaut.core.order.OrderUtil;
 import io.micronaut.core.reflect.ReflectionUtils;
 import io.micronaut.core.type.Argument;
 import io.micronaut.core.type.Headers;
-import io.micronaut.core.type.MutableHeaders;
 import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpMessage;
 import io.micronaut.http.MediaType;
@@ -38,6 +37,7 @@ import io.micronaut.jaxrs.common.JaxRsMessageBodyReader;
 import io.micronaut.jaxrs.common.JaxRsMessageBodyReaderDefinition;
 import io.micronaut.jaxrs.common.JaxRsMessageBodyWriter;
 import io.micronaut.jaxrs.common.JaxRsUtils;
+import io.micronaut.jaxrs.common.JaxRsWriterInterceptorContextState;
 import jakarta.ws.rs.RuntimeType;
 import jakarta.ws.rs.client.ClientRequestFilter;
 import jakarta.ws.rs.client.ClientResponseFilter;
@@ -52,7 +52,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -381,18 +380,18 @@ final class JaxRsConfiguration implements Configuration {
                 written.set(true);
             }
         } else {
-            new JaxRsInterceptedWrite<T>(writerInterceptors) {
+            new JaxRsInterceptedWrite<T, JaxRsWriterInterceptorContextState.ClassicState>(writerInterceptors) {
 
                 @Override
-                protected void writeToAfterInterception(Argument<Object> argument, MediaType mediaType, Object entity, MutableHeaders outgoingHeaders, OutputStream outputStream) {
+                protected void writeToAfterInterception(Argument<Object> argument, MediaType mediaType, JaxRsWriterInterceptorContextState.ClassicState state) {
                     io.micronaut.http.body.MessageBodyWriter<Object> writer = findWriter(argument, mediaType);
                     if (writer != null) {
-                        writer.writeTo(argument, mediaType, entity, mutableHttpMessage.getHeaders(), outputStream);
+                        writer.writeTo(argument, mediaType, state.getEntity(), mutableHttpMessage.getHeaders(), state.getOutputStream());
                         written.set(true);
                     }
                 }
 
-            }.intercept(bodyArgument, mediaType, body, mutableHttpMessage.getHeaders(), outputStream);
+            }.intercept(bodyArgument, mediaType, new JaxRsWriterInterceptorContextState.ClassicState(mutableHttpMessage.getHeaders(), body, outputStream));
         }
 
         if (written.get()) {

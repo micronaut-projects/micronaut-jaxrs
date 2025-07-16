@@ -20,13 +20,11 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.NonNull;
 import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.type.Argument;
-import io.micronaut.core.type.MutableHeaders;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.codec.CodecException;
 import jakarta.ws.rs.ext.WriterInterceptor;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -35,11 +33,12 @@ import java.util.List;
  * The JAX-RS body write interceptor.
  *
  * @param <T> The type
+ * @param <S> The context state implementation
  * @author Denis Stepanov
  * @since 4.9.0
  */
 @Internal
-public abstract class JaxRsInterceptedWrite<T> {
+public abstract class JaxRsInterceptedWrite<T, S extends JaxRsWriterInterceptorContextState> {
 
     private final List<BeanRegistration<WriterInterceptor>> writerInterceptorsRegistrations;
     private final NameBindingPredicate nameBindingPredicate;
@@ -63,16 +62,13 @@ public abstract class JaxRsInterceptedWrite<T> {
 
     public final void intercept(@NonNull Argument<T> type,
                                 @NonNull MediaType mediaType,
-                                T entity,
-                                @NonNull MutableHeaders outgoingHeaders,
-                                @NonNull OutputStream outputStream) throws CodecException {
+                                S state) throws CodecException {
         try {
             List<WriterInterceptor> writerInterceptors = writerInterceptorsRegistrations.stream()
                 .filter(br -> nameBindingPredicate.test(br.getBeanDefinition()))
                 .map(BeanRegistration::getBean)
                 .toList();
             Iterator<WriterInterceptor> iterator = writerInterceptors.iterator();
-            JaxRsMutableObjectHeadersMultivaluedMap httpHeaders = new JaxRsMutableObjectHeadersMultivaluedMap(outgoingHeaders);
             if (iterator.hasNext()) {
                 JaxRsWriterInterceptorContext context = new JaxRsWriterInterceptorContext(iterator,
                     ctx -> {
@@ -80,28 +76,23 @@ public abstract class JaxRsInterceptedWrite<T> {
                         Object newEntity = ctx.getEntity();
                         if (!argument.isInstance(newEntity)) {
                             newEntity = ConversionService.SHARED.convertRequired(newEntity, argument.getType());
+                            ctx.setEntity(newEntity);
                         }
                         writeToAfterInterception(
                             argument,
                             JaxRsUtils.convert(ctx.getMediaType()),
-                            newEntity,
-                            outgoingHeaders,
-                            ctx.getOutputStream());
+                            state);
                     },
                     type,
                     JaxRsUtils.convert(mediaType),
-                    httpHeaders,
-                    entity,
-                    outputStream
+                    state
                 );
                 iterator.next().aroundWriteTo(context);
             } else {
                 writeToAfterInterception(
                     (Argument<Object>) type,
                     mediaType,
-                    entity,
-                    outgoingHeaders,
-                    outputStream);
+                    state);
             }
         } catch (IOException e) {
             throw new JaxRsIOException(e);
@@ -114,14 +105,10 @@ public abstract class JaxRsInterceptedWrite<T> {
      *
      * @param argument        The argument
      * @param mediaType       The media type
-     * @param entity          The entity
-     * @param outgoingHeaders The headers
-     * @param outputStream    The output stream
+     * @param state           The state (same as passed into {@link #intercept})
      */
     protected abstract void writeToAfterInterception(@NonNull Argument<Object> argument,
                                                      @NonNull MediaType mediaType,
-                                                     Object entity,
-                                                     @NonNull MutableHeaders outgoingHeaders,
-                                                     @NonNull OutputStream outputStream);
+                                                     S state);
 
 }
