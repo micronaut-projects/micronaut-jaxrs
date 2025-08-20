@@ -18,7 +18,6 @@ package io.micronaut.jaxrs.container;
 import io.micronaut.context.BeanContext;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.type.Argument;
-import io.micronaut.inject.BeanDefinition;
 import io.micronaut.inject.qualifiers.MatchArgumentQualifier;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.WebApplicationException;
@@ -36,7 +35,6 @@ import java.io.OutputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.util.Collection;
-import java.util.List;
 
 /**
  * The JAX-RS {@link Providers}.

@@ -41,10 +41,6 @@ ee.jakarta.tck.ws.rs.spec.context.server.JAXRSClientIT
 
 ee.jakarta.tck.ws.rs.jaxrs21.spec.classsubresourcelocator.JAXRSClientIT
 
-# Body writers / readers priority with produces
-ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT
-ee.jakarta.tck.ws.rs.spec.client.typedentitieswithxmlbinding.JAXRSClientIT
-
 # Standard writers / readers cannot be replaced - support JAXBElement
 ee.jakarta.tck.ws.rs.spec.provider.standardhaspriority.JAXRSClientIT#readWriteJaxbProviderTest
 
@@ -253,6 +249,7 @@ ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#classProduces
 # JAXB
 ee.jakarta.tck.ws.rs.spec.provider.standardwithxmlbinding.JAXRSClientIT
 ee.jakarta.tck.ws.rs.spec.provider.jaxbcontext.JAXRSClientIT
+ee.jakarta.tck.ws.rs.spec.client.typedentitieswithxmlbinding.JAXRSClientIT
 
 # request-scoped bean fields
 ee.jakarta.tck.ws.rs.ee.rs.headerparam.JAXRSClientIT
@@ -278,6 +275,7 @@ ee.jakarta.tck.ws.rs.ee.rs.matrixparam.sub.JAXRSSubClientIT
 ee.jakarta.tck.ws.rs.ee.rs.ext.paramconverter.JAXRSClientIT
 
 # BeanParam
+ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT
 ee.jakarta.tck.ws.rs.ee.rs.beanparam.cookie.plain.JAXRSClientIT
 ee.jakarta.tck.ws.rs.ee.rs.beanparam.path.plain.JAXRSClientIT
 ee.jakarta.tck.ws.rs.ee.rs.beanparam.header.plain.JAXRSClientIT

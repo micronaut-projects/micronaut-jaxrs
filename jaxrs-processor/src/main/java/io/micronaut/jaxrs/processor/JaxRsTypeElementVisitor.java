@@ -30,7 +30,6 @@ import io.micronaut.http.annotation.CookieValue;
 import io.micronaut.http.annotation.Header;
 import io.micronaut.http.annotation.PathVariable;
 import io.micronaut.http.annotation.Produces;
-import io.micronaut.http.annotation.QueryValue;
 import io.micronaut.http.annotation.UriMapping;
 import io.micronaut.inject.ast.ClassElement;
 import io.micronaut.inject.ast.FieldElement;

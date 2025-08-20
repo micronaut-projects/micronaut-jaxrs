@@ -44,7 +44,7 @@ class Test {
         PathParam   | PathVariable | "test"
         HeaderParam | Header       | "test"
         CookieParam | CookieValue  | "test"
-        QueryParam  | QueryValue   | "test"
+        QueryParam  | QueryParam   | "test"
         FormParam   | QueryValue   | "test"
     }
 
