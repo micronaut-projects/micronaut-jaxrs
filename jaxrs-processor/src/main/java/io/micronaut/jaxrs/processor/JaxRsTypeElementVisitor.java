@@ -16,6 +16,7 @@
 package io.micronaut.jaxrs.processor;
 
 import io.micronaut.core.annotation.AnnotationValue;
+import io.micronaut.core.annotation.AnnotationValueBuilder;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.NextMajorVersion;
 import io.micronaut.core.annotation.NonNull;
@@ -189,9 +190,34 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     private static void visitParamOrField(TypedElement parameter) {
         mapParam(parameter, HeaderParam.class, Header.class);
         mapParam(parameter, FormParam.class, Body.class);
-        mapParam(parameter, QueryParam.class, QueryValue.class);
         mapParam(parameter, CookieParam.class, CookieValue.class);
         mapParam(parameter, PathParam.class, PathVariable.class);
+        if (parameter.hasAnnotation(QueryParam.class)) {
+            annotateQueryParam(parameter);
+        }
+    }
+
+    private static void annotateQueryParam(TypedElement parameter) {
+        AnnotationValueBuilder<QueryParam> builder = AnnotationValue.builder(QueryParam.class);
+        annotateDefaultAndNullable(parameter, builder);
+        parameter.annotate(
+            builder
+            .stereotype(AnnotationValue.builder(Bindable.class).build()).build()
+        );
+    }
+
+    private static void annotateDefaultAndNullable(TypedElement parameter, AnnotationValueBuilder<?> builder) {
+        if (!parameter.isNonNull()) {
+            if (parameter.isPrimitive()) {
+                if (parameter.getType().isAssignable(boolean.class)) {
+                    builder.member("defaultValue", "false");
+                } else {
+                    builder.member("defaultValue", "0");
+                }
+            } else {
+                parameter.annotate(Nullable.class);
+            }
+        }
     }
 
     private static <P extends Annotation> void mapParam(TypedElement parameter, Class<P> jakartaAnnotation, Class<? extends Annotation> mnAnnotation) {
@@ -199,17 +225,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         if (ann != null) {
             parameter.annotate(mnAnnotation, builder -> {
                 ann.stringValue().ifPresent(builder::value);
-                if (!parameter.isNonNull()) {
-                    if (parameter.isPrimitive()) {
-                        if (parameter.getType().isAssignable(boolean.class)) {
-                            builder.member("defaultValue", "false");
-                        } else {
-                            builder.member("defaultValue", "0");
-                        }
-                    } else {
-                        parameter.annotate(Nullable.class);
-                    }
-                }
+                annotateDefaultAndNullable(parameter, builder);
             });
         }
     }

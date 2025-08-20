@@ -108,11 +108,6 @@ final class JaxRsProviders implements Providers {
             .orElse(null);
     }
 
-    private Argument<?> getExceptionType(BeanDefinition<ExceptionMapper> definition) {
-        List<Argument<?>> args = definition.getTypeArguments(ExceptionMapper.class);
-        return args.isEmpty() ? null : args.get(0);
-    }
-
     @Override
     public <T> ContextResolver<T> getContextResolver(Class<T> contextType, MediaType mediaType) {
         // "null if no matching context providers are found"
