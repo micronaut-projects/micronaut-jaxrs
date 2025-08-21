@@ -16,6 +16,8 @@
 package io.micronaut.jaxrs.client;
 
 import io.micronaut.context.AnnotationReflectionUtils;
+import io.micronaut.core.annotation.AnnotationMetadata;
+import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.Nullable;
 import io.micronaut.core.io.buffer.ByteBuffer;
@@ -29,6 +31,7 @@ import io.micronaut.http.MediaType;
 import io.micronaut.http.MutableHttpMessage;
 import io.micronaut.http.body.TypedMessageBodyReader;
 import io.micronaut.http.body.TypedMessageBodyWriter;
+import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.jaxrs.common.ByteArrayByteBuffer;
 import io.micronaut.jaxrs.common.HttpMessageEntityReader;
 import io.micronaut.jaxrs.common.JaxRsInterceptedRead;
@@ -38,6 +41,7 @@ import io.micronaut.jaxrs.common.JaxRsMessageBodyReaderDefinition;
 import io.micronaut.jaxrs.common.JaxRsMessageBodyWriter;
 import io.micronaut.jaxrs.common.JaxRsUtils;
 import io.micronaut.jaxrs.common.JaxRsWriterInterceptorContextState;
+import jakarta.ws.rs.ConstrainedTo;
 import jakarta.ws.rs.RuntimeType;
 import jakarta.ws.rs.client.ClientRequestFilter;
 import jakarta.ws.rs.client.ClientResponseFilter;
@@ -52,7 +56,10 @@ import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -250,6 +257,9 @@ final class JaxRsConfiguration implements Configuration {
             for (JaxRsConfiguration.Component component : components) {
                 MessageBodyReader<?> reader = component.tryGet(MessageBodyReader.class);
                 if (reader != null) {
+                    if (isNotConstrainedToClient(reader.getClass())) {
+                        continue;
+                    }
                     readers.add(new JaxRsMessageBodyReaderDefinition(
                         AnnotationReflectionUtils.resolveGenericToArgument(reader.getClass(), MessageBodyReader.class).getTypeParameters()[0],
                         new JaxRsMessageBodyReader<>(reader),
@@ -258,8 +268,14 @@ final class JaxRsConfiguration implements Configuration {
                 }
                 io.micronaut.http.body.MessageBodyReader<?> micronautReader = component.tryGet(io.micronaut.http.body.MessageBodyReader.class);
                 if (micronautReader != null) {
+                    if (isNotConstrainedToClient(micronautReader.getClass())) {
+                        continue;
+                    }
                     if (micronautReader instanceof TypedMessageBodyReader<?> typedMessageBodyReader) {
                         Argument<?> type = typedMessageBodyReader.getType();
+                        if (isNotConstrainedToClient(typedMessageBodyReader.getClass())) {
+                            continue;
+                        }
                         readers.add(new JaxRsMessageBodyReaderDefinition(
                             type,
                             micronautReader,
@@ -279,16 +295,34 @@ final class JaxRsConfiguration implements Configuration {
         return readers;
     }
 
+    private boolean isNotConstrainedToClient(Class<?> bodyHandler) {
+        AnnotationMetadata annotationMetadata = annotationMetadataOf(bodyHandler);
+        return isNotConstrainedToClient(annotationMetadata);
+    }
+
+    private boolean isNotConstrainedToClient(AnnotationMetadata annotationMetadata) {
+        AnnotationValue<ConstrainedTo> constrainedTo = annotationMetadata.getAnnotation(ConstrainedTo.class);
+        if (constrainedTo == null) {
+            return false;
+        }
+        Optional<RuntimeType> runtimeType = constrainedTo.enumValue(RuntimeType.class);
+        return runtimeType.isPresent() && runtimeType.get() != RuntimeType.CLIENT;
+    }
+
     private List<JaxRsMessageBodyWriterDefinition> getWriters() {
         if (writers == null) {
             writers = new ArrayList<>();
             for (JaxRsConfiguration.Component component : components) {
                 MessageBodyWriter<?> writer = component.tryGet(MessageBodyWriter.class);
                 if (writer != null) {
+                    AnnotationMetadata annotationMetadata = annotationMetadataOf(writer.getClass());
+                    if (isNotConstrainedToClient(annotationMetadata)) {
+                        continue;
+                    }
                     Argument<MessageBodyWriter> messageBodyWriterArgument = AnnotationReflectionUtils.resolveGenericToArgument(writer.getClass(), MessageBodyWriter.class);
                     writers.add(new JaxRsMessageBodyWriterDefinition(
                         messageBodyWriterArgument.getTypeParameters()[0],
-                        new JaxRsMessageBodyWriter<>(messageBodyWriterArgument.getAnnotationMetadata(), (MessageBodyWriter<Object>) writer),
+                        new JaxRsMessageBodyWriter<>(annotationMetadata, (MessageBodyWriter<Object>) writer),
                         component.priority() == 0 ? JaxRsUtils.getPriorityOrder(writer) : component.priority()
                     ));
                 }
@@ -313,6 +347,31 @@ final class JaxRsConfiguration implements Configuration {
             OrderUtil.sortOrdered(writers);
         }
         return writers;
+    }
+
+    private static AnnotationMetadata annotationMetadataOf(AnnotatedElement annotatedElement) {
+        // Use AnnotationReflectionUtils#annotationMetadataOf
+        Annotation[] annotations = annotatedElement.getAnnotations();
+        if (annotations.length == 0) {
+            return AnnotationMetadata.EMPTY_METADATA;
+        }
+        MutableAnnotationMetadata mutableAnnotationMetadata = new MutableAnnotationMetadata();
+        for (Annotation annotation : annotations) {
+            Map<CharSequence, Object> values = new LinkedHashMap<>();
+            Class<? extends Annotation> annotationType = annotation.annotationType();
+            Method[] methods = annotationType.getMethods();
+            for (Method method : methods) {
+                if (!method.getDeclaringClass().equals(annotationType)) {
+                    continue;
+                }
+                Object value = ReflectionUtils.invokeMethod(annotation, method);
+                if (value != null) {
+                    values.put(method.getName(), value);
+                }
+            }
+            mutableAnnotationMetadata.addAnnotation(annotationType.getName(), values);
+        }
+        return mutableAnnotationMetadata;
     }
 
     public HttpMessageEntityReader createHttpMessageEntityReader() {
@@ -355,6 +414,16 @@ final class JaxRsConfiguration implements Configuration {
     @Nullable
     private <T> io.micronaut.http.body.MessageBodyReader<T> findReader(Argument<T> argument,
                                                                        MediaType mediaType) {
+        // First, let's try to find JaxRs reader
+        for (JaxRsMessageBodyReaderDefinition readerDer : getReaders()) {
+            io.micronaut.http.body.MessageBodyReader<T> reader = (io.micronaut.http.body.MessageBodyReader<T>) readerDer.messageBodyReader();
+            if (reader instanceof JaxRsMessageBodyReader<?>) {
+                if (readerDer.type().isAssignableFrom(argument.getType()) && reader.isReadable(argument, mediaType)) {
+                    return reader;
+                }
+            }
+        }
+        // Find any kind of reader
         for (JaxRsMessageBodyReaderDefinition readerDer : getReaders()) {
             io.micronaut.http.body.MessageBodyReader<T> reader = (io.micronaut.http.body.MessageBodyReader<T>) readerDer.messageBodyReader();
             if (readerDer.type().isAssignableFrom(argument.getType()) && reader.isReadable(argument, mediaType)) {
@@ -406,6 +475,16 @@ final class JaxRsConfiguration implements Configuration {
     @Nullable
     private <T> io.micronaut.http.body.MessageBodyWriter<T> findWriter(Argument<T> argument,
                                                                        MediaType mediaType) {
+        // First, let's try to find JaxRs writer
+        for (JaxRsMessageBodyWriterDefinition writerDef : getWriters()) {
+            io.micronaut.http.body.MessageBodyWriter<T> writer = (io.micronaut.http.body.MessageBodyWriter<T>) writerDef.messageBodyWriter();
+            if (writer instanceof JaxRsMessageBodyWriter<?>) {
+                if (writerDef.type().isAssignableFrom(argument.getType()) && writer.isWriteable(argument, mediaType)) {
+                    return writer;
+                }
+            }
+        }
+        // Find any kind of writer
         for (JaxRsMessageBodyWriterDefinition writerDef : getWriters()) {
             io.micronaut.http.body.MessageBodyWriter<T> writer = (io.micronaut.http.body.MessageBodyWriter<T>) writerDef.messageBodyWriter();
             if (writerDef.type().isAssignableFrom(argument.getType()) && writer.isWriteable(argument, mediaType)) {

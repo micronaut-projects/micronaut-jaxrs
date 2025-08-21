@@ -55,12 +55,12 @@ import java.util.Optional;
 @Singleton
 final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter<GenericEntity<T>> {
 
-    private final JaxRsMessageBodyHandlerRegistry jaxRsMessageBodyHandlerRegistry;
+    private final JaxRsContainerMessageBodyHandlerRegistry jaxRsMessageBodyHandlerRegistry;
     private final MessageBodyHandlerRegistry registry;
     private final List<BeanRegistration<WriterInterceptor>> writerInterceptorsRegistrations;
     private final NameBindingPredicate nameBindingPredicate;
 
-    JaxRsGenericEntityMessageBodyWriter(JaxRsMessageBodyHandlerRegistry jaxRsMessageBodyHandlerRegistry,
+    JaxRsGenericEntityMessageBodyWriter(JaxRsContainerMessageBodyHandlerRegistry jaxRsMessageBodyHandlerRegistry,
                                         MessageBodyHandlerRegistry registry,
                                         List<BeanRegistration<WriterInterceptor>> writerInterceptorsRegistrations,
                                         NameBindingPredicate nameBindingPredicate) {
