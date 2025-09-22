@@ -10,7 +10,7 @@ micronaut-logging = "1.7.0"
 micronaut-servlet = "5.4.0"
 micronaut-validation = "4.9.0"
 jakarta-jaxrs-tck = "4.0.1"
-sonatype-scan = "3.0.0"
+sonatype-scan = "3.1.4"
 
 [libraries]
 
