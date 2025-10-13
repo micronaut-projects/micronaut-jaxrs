@@ -27,7 +27,7 @@ import io.micronaut.http.MediaType;
 import io.micronaut.http.body.MessageBodyReader;
 import io.micronaut.http.codec.CodecException;
 import io.micronaut.jaxrs.common.JaxRsInterceptedRead;
-import io.micronaut.jaxrs.common.JaxRsMessageBodyHandlerRegistry;
+import io.micronaut.jaxrs.common.JaxRsContainerMessageBodyHandlerRegistry;
 import io.micronaut.jaxrs.common.NameBindingPredicate;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.ext.ReaderInterceptor;
@@ -47,11 +47,11 @@ import java.util.Optional;
 @Singleton
 final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
 
-    private final JaxRsMessageBodyHandlerRegistry registry;
+    private final JaxRsContainerMessageBodyHandlerRegistry registry;
     private final List<BeanRegistration<ReaderInterceptor>> readerInterceptorsRegsRegistrations;
     private final NameBindingPredicate nameBindingPredicate;
 
-    public JaxRsMessageBodyReaders(JaxRsMessageBodyHandlerRegistry registry,
+    public JaxRsMessageBodyReaders(JaxRsContainerMessageBodyHandlerRegistry registry,
                                    List<BeanRegistration<ReaderInterceptor>> readerInterceptorsRegsRegistrations,
                                    NameBindingPredicate nameBindingPredicate) {
         this.registry = registry;

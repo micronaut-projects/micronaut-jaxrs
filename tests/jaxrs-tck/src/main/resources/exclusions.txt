@@ -41,16 +41,8 @@ ee.jakarta.tck.ws.rs.spec.context.server.JAXRSClientIT
 
 ee.jakarta.tck.ws.rs.jaxrs21.spec.classsubresourcelocator.JAXRSClientIT
 
-# Body writers / readers priority with produces
-ee.jakarta.tck.ws.rs.servlet3.rs.ext.paramconverter.autodiscovery.JAXRSClientIT
-ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT
-ee.jakarta.tck.ws.rs.spec.client.typedentitieswithxmlbinding.JAXRSClientIT
-
 # Standard writers / readers cannot be replaced - support JAXBElement
 ee.jakarta.tck.ws.rs.spec.provider.standardhaspriority.JAXRSClientIT#readWriteJaxbProviderTest
-
-# Support @ConstrainedTo(value = RuntimeType.SERVER)
-ee.jakarta.tck.ws.rs.ee.rs.constrainedto.JAXRSClientIT
 
 # Dynamic features not supported
 ee.jakarta.tck.ws.rs.spec.filter.dynamicfeature.JAXRSClientIT
@@ -238,9 +230,6 @@ ee.jakarta.tck.ws.rs.spec.template.JAXRSClientIT#Test2
 # Arquillian issue but test is likely broken anyway because we don't use jsonb
 ee.jakarta.tck.ws.rs.spec.contextprovider.JsonbContextProviderIT
 
-# param converters
-ee.jakarta.tck.ws.rs.jaxrs21.ee.priority.JAXRSClientIT#paramConverterPriorityTest
-
 # path param issues
 ee.jakarta.tck.ws.rs.jaxrs40.ee.rs.core.uriinfo.UriInfo40ClientIT
 
@@ -260,6 +249,7 @@ ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#classProduces
 # JAXB
 ee.jakarta.tck.ws.rs.spec.provider.standardwithxmlbinding.JAXRSClientIT
 ee.jakarta.tck.ws.rs.spec.provider.jaxbcontext.JAXRSClientIT
+ee.jakarta.tck.ws.rs.spec.client.typedentitieswithxmlbinding.JAXRSClientIT
 
 # request-scoped bean fields
 ee.jakarta.tck.ws.rs.ee.rs.headerparam.JAXRSClientIT
@@ -285,6 +275,7 @@ ee.jakarta.tck.ws.rs.ee.rs.matrixparam.sub.JAXRSSubClientIT
 ee.jakarta.tck.ws.rs.ee.rs.ext.paramconverter.JAXRSClientIT
 
 # BeanParam
+ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT
 ee.jakarta.tck.ws.rs.ee.rs.beanparam.cookie.plain.JAXRSClientIT
 ee.jakarta.tck.ws.rs.ee.rs.beanparam.path.plain.JAXRSClientIT
 ee.jakarta.tck.ws.rs.ee.rs.beanparam.header.plain.JAXRSClientIT

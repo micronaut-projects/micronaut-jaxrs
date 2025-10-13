@@ -105,8 +105,7 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
         jaxRsConfiguration.register(httpClient.getHandlerRegistry().findReader(Argument.of(byte[].class), List.of(MediaType.ALL_TYPE)).get());
         jaxRsConfiguration.register(httpClient.getHandlerRegistry().findWriter(Argument.STRING, List.of(MediaType.ALL_TYPE)).get());
         jaxRsConfiguration.register(httpClient.getHandlerRegistry().findWriter(Argument.of(byte[].class), List.of(MediaType.ALL_TYPE)).get());
-        jaxRsConfiguration.register(new JaxRsReaderMessageBodyWriter());
-        jaxRsConfiguration.register(new JaxRsReaderMessageBodyWriter());
+        jaxRsConfiguration.register(new JaxRsReaderMessageBodyWriter<>());
         jaxRsConfiguration.register(new JaxRsReaderMessageBodyReader());
         jaxRsConfiguration.register(new JaxRsInputStreamMessageBodyWriter<>());
         jaxRsConfiguration.register(new JaxRsInputStreamMessageBodyReader());

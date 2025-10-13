@@ -17,6 +17,8 @@ package io.micronaut.jaxrs.common;
 
 import io.micronaut.context.BeanContext;
 import io.micronaut.context.BeanRegistration;
+import io.micronaut.core.annotation.AnnotationMetadata;
+import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.NonNull;
 import io.micronaut.core.annotation.Nullable;
@@ -31,8 +33,10 @@ import io.micronaut.inject.qualifiers.FilteringQualifier;
 import io.micronaut.inject.qualifiers.MatchArgumentQualifier;
 import io.micronaut.inject.qualifiers.Qualifiers;
 import jakarta.inject.Singleton;
+import jakarta.ws.rs.ConstrainedTo;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.RuntimeType;
 import jakarta.ws.rs.ext.MessageBodyReader;
 import jakarta.ws.rs.ext.MessageBodyWriter;
 
@@ -57,7 +61,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Singleton
 @Internal
-public final class JaxRsMessageBodyHandlerRegistry {
+public final class JaxRsContainerMessageBodyHandlerRegistry {
     private static final io.micronaut.http.body.MessageBodyReader<Object> NO_READER = new NoReader();
     private static final io.micronaut.http.body.MessageBodyWriter<Object> NO_WRITER = new NoWriter();
     private final BeanContext beanLocator;
@@ -69,7 +73,7 @@ public final class JaxRsMessageBodyHandlerRegistry {
      *
      * @param beanLocators The bean locator.
      */
-    public JaxRsMessageBodyHandlerRegistry(BeanContext beanLocators) {
+    public JaxRsContainerMessageBodyHandlerRegistry(BeanContext beanLocators) {
         this.beanLocator = beanLocators;
     }
 
@@ -182,7 +186,15 @@ public final class JaxRsMessageBodyHandlerRegistry {
             List<K> all = new ArrayList<>(candidates.size());
             candidatesLoop:
             for (K candidate : candidates) {
-                String[] applicableTypes = candidate.getAnnotationMetadata().stringValues(annotationType);
+                AnnotationMetadata annotationMetadata = candidate.getAnnotationMetadata();
+                AnnotationValue<ConstrainedTo> constrainedTo = annotationMetadata.getAnnotation(ConstrainedTo.class);
+                if (constrainedTo != null) {
+                    Optional<RuntimeType> runtimeType = constrainedTo.enumValue(RuntimeType.class);
+                    if (runtimeType.isPresent() && runtimeType.get() != RuntimeType.SERVER) {
+                        continue;
+                    }
+                }
+                String[] applicableTypes = annotationMetadata.stringValues(annotationType);
                 if (applicableTypes.length == 0) {
                     all.add(candidate);
                     continue;
