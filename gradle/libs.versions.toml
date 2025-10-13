@@ -1,7 +1,6 @@
 [versions]
 managed-jaxrs-api = "3.1.0"
-
-micronaut = "4.9.10"
+micronaut = "4.9.12"
 micronaut-docs = "2.0.0"
 micronaut-test = "4.7.0"
 micronaut-security = "4.13.0"
@@ -10,7 +9,6 @@ micronaut-logging = "1.7.0"
 micronaut-servlet = "5.4.0"
 micronaut-validation = "4.9.0"
 jakarta-jaxrs-tck = "4.0.1"
-sonatype-scan = "3.0.0"
 
 [libraries]
 
@@ -24,4 +22,3 @@ managed-jaxrs-api = { module = "jakarta.ws.rs:jakarta.ws.rs-api", version.ref = 
 
 junit-platform-suite-engine = { module = "org.junit.platform:junit-platform-suite-engine" }
 jakarta-jaxrs-tck-tests = { module = 'jakarta.ws.rs:jakarta-restful-ws-tck', version.ref = "jakarta-jaxrs-tck" }
-sonatype-scan = { module = "org.sonatype.gradle.plugins:scan-gradle-plugin", version.ref = "sonatype-scan" }
