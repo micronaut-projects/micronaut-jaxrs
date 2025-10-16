@@ -21,5 +21,4 @@ dependencies {
 
     testRuntimeOnly(mnLogging.logback.classic)
     testRuntimeOnly(mnTest.junit.jupiter.engine)
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
