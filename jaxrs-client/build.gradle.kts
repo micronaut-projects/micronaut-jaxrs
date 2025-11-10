@@ -1,5 +1,6 @@
 plugins {
     id("io.micronaut.build.internal.jaxrs-module")
+    id ("io.micronaut.build.internal.java-base")
 }
 
 dependencies {
