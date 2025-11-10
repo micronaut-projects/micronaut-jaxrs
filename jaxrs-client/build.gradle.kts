@@ -10,4 +10,5 @@ dependencies {
     implementation(projects.micronautJaxrsCommon)
     implementation(mn.micronaut.http.client)
     implementation(mn.micronaut.buffer.netty)
+    implementation(libs.micronaut.reactor)
 }
