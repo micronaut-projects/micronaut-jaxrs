@@ -6,7 +6,7 @@ micronaut-test = "4.7.0"
 micronaut-security = "4.13.0"
 micronaut-serde = "2.15.0"
 micronaut-logging = "1.7.0"
-micronaut-servlet = "5.4.0"
+micronaut-servlet = "5.6.0"
 micronaut-validation = "4.9.0"
 jakarta-jaxrs-tck = "4.0.1"
 
