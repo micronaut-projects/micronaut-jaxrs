@@ -16,7 +16,7 @@
 package io.micronaut.jaxrs.common;
 
 import io.micronaut.core.annotation.Internal;
-import io.micronaut.core.annotation.NonNull;
+import org.jspecify.annotations.NonNull;
 import jakarta.ws.rs.SeBootstrap;
 import jakarta.ws.rs.core.Application;
 import jakarta.ws.rs.core.CacheControl;

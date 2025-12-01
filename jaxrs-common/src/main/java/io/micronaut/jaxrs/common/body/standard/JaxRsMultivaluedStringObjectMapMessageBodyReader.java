@@ -17,8 +17,8 @@ package io.micronaut.jaxrs.common.body.standard;
 
 import io.micronaut.context.annotation.Prototype;
 import io.micronaut.core.annotation.Internal;
-import io.micronaut.core.annotation.NonNull;
-import io.micronaut.core.annotation.Nullable;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import io.micronaut.core.annotation.Order;
 import io.micronaut.core.io.IOUtils;
 import io.micronaut.core.order.Ordered;
