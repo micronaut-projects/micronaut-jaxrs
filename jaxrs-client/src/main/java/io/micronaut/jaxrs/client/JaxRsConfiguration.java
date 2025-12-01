@@ -19,7 +19,7 @@ import io.micronaut.context.AnnotationReflectionUtils;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.Internal;
-import io.micronaut.core.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import io.micronaut.core.io.buffer.ByteBuffer;
 import io.micronaut.core.order.OrderUtil;
 import io.micronaut.core.reflect.ReflectionUtils;

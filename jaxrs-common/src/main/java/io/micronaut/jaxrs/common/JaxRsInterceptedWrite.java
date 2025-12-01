@@ -17,7 +17,7 @@ package io.micronaut.jaxrs.common;
 
 import io.micronaut.context.BeanRegistration;
 import io.micronaut.core.annotation.Internal;
-import io.micronaut.core.annotation.NonNull;
+import org.jspecify.annotations.NonNull;
 import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.MediaType;
