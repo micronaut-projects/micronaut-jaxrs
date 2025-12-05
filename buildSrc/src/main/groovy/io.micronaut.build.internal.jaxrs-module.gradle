@@ -10,4 +10,8 @@ ossIndexAudit {
         // > Version 4.1.118.Final contains a patch
         // SslHandler doesn't correctly validate packets which can lead to native crash when using native SSLEngine https://netty.io/news/2025/02/10/4-1-118-Final.html
 }
-
+micronautBuild {
+    descriptor {
+        parentModuleId = "io.micronaut.jaxrs:micronaut-jaxrs-common"
+    }
+}
