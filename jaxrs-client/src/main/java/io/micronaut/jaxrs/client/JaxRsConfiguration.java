@@ -411,9 +411,8 @@ final class JaxRsConfiguration implements Configuration {
         };
     }
 
-    @Nullable
-    private <T> io.micronaut.http.body.MessageBodyReader<T> findReader(Argument<T> argument,
-                                                                       MediaType mediaType) {
+    private <T> io.micronaut.http.body.@Nullable MessageBodyReader<T> findReader(Argument<T> argument,
+                                                                                MediaType mediaType) {
         // First, let's try to find JaxRs reader
         for (JaxRsMessageBodyReaderDefinition readerDer : getReaders()) {
             io.micronaut.http.body.MessageBodyReader<T> reader = (io.micronaut.http.body.MessageBodyReader<T>) readerDer.messageBodyReader();
@@ -472,9 +471,8 @@ final class JaxRsConfiguration implements Configuration {
         }
     }
 
-    @Nullable
-    private <T> io.micronaut.http.body.MessageBodyWriter<T> findWriter(Argument<T> argument,
-                                                                       MediaType mediaType) {
+    private <T> io.micronaut.http.body.@Nullable MessageBodyWriter<T> findWriter(Argument<T> argument,
+                                                                                MediaType mediaType) {
         // First, let's try to find JaxRs writer
         for (JaxRsMessageBodyWriterDefinition writerDef : getWriters()) {
             io.micronaut.http.body.MessageBodyWriter<T> writer = (io.micronaut.http.body.MessageBodyWriter<T>) writerDef.messageBodyWriter();
