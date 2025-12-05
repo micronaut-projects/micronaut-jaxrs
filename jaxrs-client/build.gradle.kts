@@ -9,5 +9,4 @@ dependencies {
     implementation(projects.micronautJaxrsCommon)
     implementation(mn.micronaut.http.client)
     implementation(mn.micronaut.buffer.netty)
-    implementation("io.micronaut.reactor:micronaut-reactor:4.0.0-M1")
 }
