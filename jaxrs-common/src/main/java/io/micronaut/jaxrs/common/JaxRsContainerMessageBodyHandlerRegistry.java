@@ -20,6 +20,7 @@ import io.micronaut.context.BeanRegistration;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.inject.QualifiedBeanType;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import io.micronaut.core.type.Argument;
@@ -182,7 +183,7 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
         }
 
         @Override
-        public <K extends BeanType<T>> Collection<K> filter(Class<T> beanType, Collection<K> candidates) {
+        public <K extends QualifiedBeanType<T>> Collection<K> filterQualified(Class<T> beanType, Collection<K> candidates) {
             List<K> all = new ArrayList<>(candidates.size());
             candidatesLoop:
             for (K candidate : candidates) {
