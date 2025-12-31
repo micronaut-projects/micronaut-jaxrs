@@ -34,5 +34,6 @@ micronautBuild {
     importMicronautCatalog("micronaut-serde")
     importMicronautCatalog("micronaut-validation")
     importMicronautCatalog("micronaut-servlet")
+    importMicronautCatalog("micronaut-reactor")
 }
 
