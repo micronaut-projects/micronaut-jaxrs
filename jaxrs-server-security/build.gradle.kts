@@ -11,7 +11,7 @@ dependencies {
     testAnnotationProcessor(mnValidation.micronaut.validation.processor)
     testAnnotationProcessor(mn.micronaut.inject.java)
     testAnnotationProcessor(projects.micronautJaxrsProcessor)
-    testAnnotationProcessor(mnSecurity.micronaut.security.annotations)
+    testAnnotationProcessor(mnSecurity.micronaut.security.processor)
     testAnnotationProcessor(mnSerde.micronaut.serde.processor)
 
     testImplementation(mnValidation.micronaut.validation)
