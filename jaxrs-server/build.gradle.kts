@@ -24,6 +24,7 @@ dependencies {
 	testImplementation(mnValidation.micronaut.validation)
 	testImplementation(mnTest.micronaut.test.junit5)
     testImplementation(mnTest.junit.jupiter.params)
+    testImplementation(mn.reactor)
 
     testRuntimeOnly(mnLogging.logback.classic)
 	testRuntimeOnly(mnTest.junit.jupiter.engine)
