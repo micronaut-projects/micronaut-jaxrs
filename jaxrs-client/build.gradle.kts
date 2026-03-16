@@ -4,7 +4,6 @@ plugins {
 dependencies {
     api(mn.micronaut.http)
     api(libs.managed.jaxrs.api)
-    implementation(mnReactor.micronaut.reactor)
     implementation(projects.micronautJaxrsCommon)
     implementation(mn.micronaut.http.client)
     implementation(mn.micronaut.buffer.netty)
