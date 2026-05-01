@@ -27,6 +27,7 @@ import jakarta.ws.rs.core.GenericType;
 
 import java.lang.annotation.Annotation;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * An argument util class.
@@ -40,8 +41,13 @@ public final class JaxRsArgumentUtil {
     private JaxRsArgumentUtil() {
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public static <T> Argument<T> from(InvocationCallback<T> callback) {
-        return AnnotationReflectionUtils.resolveGenericToArgument(callback.getClass(), InvocationCallback.class).getTypeParameters()[0];
+        Argument<InvocationCallback> invocationCallbackArgument = AnnotationReflectionUtils.resolveGenericToArgument(
+            callback.getClass(),
+            InvocationCallback.class);
+        Objects.requireNonNull(invocationCallbackArgument, "InvocationCallback argument cannot be null");
+        return (Argument<T>) invocationCallbackArgument.getTypeParameters()[0];
     }
 
     public static <T> Argument<T> from(Entity<T> entityType) {
