@@ -2,7 +2,6 @@ io.micronaut.jaxrs.client
 io.micronaut.jaxrs.common
 io.micronaut.jaxrs.common.body.standard
 io.micronaut.jaxrs.container
-io.micronaut.jaxrs.info
 io.micronaut.jaxrs.processor
 io.micronaut.jaxrs.processor.transformer
 io.micronaut.jaxrs.runtime.ext.bind
