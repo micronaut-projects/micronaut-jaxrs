@@ -42,9 +42,10 @@ final class PaginatedCollectionBodyWriter<T> implements MessageBodyWriter<Pagina
         this.bodyType = bodyType;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public MessageBodyWriter<PaginatedCollection<T>> createSpecific(Argument<PaginatedCollection<T>> type) {
-        Argument<T> bt = type.getTypeParameters()[0];
+        Argument<T> bt = (Argument<T>) type.getTypeParameters()[0];
         MessageBodyWriter<T> writer = registry.findWriter(bt, List.of(MediaType.APPLICATION_JSON_TYPE))
             .orElseThrow(() -> new ConfigurationException("No JSON message writer present"));
         return new PaginatedCollectionBodyWriter<>(registry, writer, bt);
