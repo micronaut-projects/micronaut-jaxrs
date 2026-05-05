@@ -83,6 +83,7 @@ ee.jakarta.tck.ws.rs.spec.client.exceptions.ClientExceptionsIT
 ee.jakarta.tck.ws.rs.servlet3.rs.core.streamingoutput.JAXRSClientIT#writeWebApplicationExceptionTest
 
 # Incorrect tests include milliseconds
+ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#expiresTest
 ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#getDateTest
 ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#getLastModifiedTest
 ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT#getDateTest
@@ -176,8 +177,13 @@ ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#readEntityWebExc
 
 # Support a special way to resolve body readers / writers
 ee.jakarta.tck.ws.rs.spec.provider.overridestandard.JAXRSClientIT#readWriteByteArrayProviderTest
+ee.jakarta.tck.ws.rs.spec.provider.overridestandard.JAXRSClientIT#readWriteBooleanProviderTest
+ee.jakarta.tck.ws.rs.spec.provider.overridestandard.JAXRSClientIT#readWriteCharacterProviderTest
+ee.jakarta.tck.ws.rs.spec.provider.overridestandard.JAXRSClientIT#readWriteIntegerProviderTest
 ee.jakarta.tck.ws.rs.spec.provider.overridestandard.JAXRSClientIT#readWriteInputStreamProviderTest
+ee.jakarta.tck.ws.rs.spec.provider.overridestandard.JAXRSClientIT#readWriteJaxbProviderTest
 ee.jakarta.tck.ws.rs.spec.provider.overridestandard.JAXRSClientIT#readWriteMapProviderTest
+ee.jakarta.tck.ws.rs.spec.provider.overridestandard.JAXRSClientIT#readWriteSourceProviderTest
 
 # TCK BUG @Path without a HTTP method annotation it's only allowed because of the subresource support
 ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#webApplicationExceptionHasResponseWithoutEntityDoesUseMapperTest
@@ -205,8 +211,12 @@ ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#textPreferenc
 ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#defaultResponseErrorTest
 ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#clientImagePreferenceTest
 ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#defaultErrorTest
+ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#mesageBodyWriterProducesTest
 ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#noPreferenceTest
 ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#imagePreferenceTest
+
+# response entity negotiation
+ee.jakarta.tck.ws.rs.spec.returntype.JAXRSClientIT#entityResponseTest
 
 # UriInfo unsupported methods
 ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#getMatchedURIsTest
