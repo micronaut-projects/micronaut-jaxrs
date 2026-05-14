@@ -1,12 +1,12 @@
 [versions]
 managed-jaxrs-api = "4.0.0"
 micronaut = "5.0.0"
-micronaut-security = "5.0.0-M2"
-micronaut-serde = "3.0.0-RC1"
-micronaut-logging = "2.0.0-M2"
-micronaut-servlet = "6.0.0-M3"
-micronaut-validation = "5.0.0-RC1"
-micronaut-reactor = "4.0.0-RC1"
+micronaut-security = "5.0.0-RC1"
+micronaut-serde = "3.0.0"
+micronaut-logging = "2.0.0"
+micronaut-servlet = "6.0.0-RC1"
+micronaut-validation = "5.0.0"
+micronaut-reactor = "4.0.0"
 jakarta-jaxrs-tck = "4.0.1"
 
 [libraries]
