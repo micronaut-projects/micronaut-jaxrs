@@ -15,7 +15,7 @@
     <script>hljs.initHighlightingOnLoad();</script>
     <link rel="stylesheet" href="../css/multi-language-sample.css"/>
     <script src="../js/docs.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/1.5.13/clipboard.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.11/clipboard.min.js"></script>
     <script type="text/javascript">
         function addJsClass(el) {
             var classes = document.body.className.split(" ");
@@ -23,7 +23,9 @@
             document.body.className = classes.join(" ");
         }
     </script>
-
+    <style type="text/css">
+        .lang-java { display: block }; .lang-python { display: block }; .lang-kotlin { display: block }; .lang-groovy { display: block }; 
+    </style>
 </head>
 
 <body class="body" id="docs" onload="addJsClass();" onhashchange="highlightMenu()">
@@ -109,13 +111,13 @@
         <h1>Micronaut JAX-RS</h1>
         <p></p>
         <p>JAX-RS Support for Micronaut</p>
-        <p><strong>Version:</strong> 4.9.2 </p>
+        <p><strong>Version:</strong> 5.0.0 </p>
     </div>
     
 <h1 id="introduction"><a class="anchor" href="#introduction"></a>1 Introduction</h1>
 
 <div class='contribute-btn'>
-    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-jaxrs/edit/4.9.x/src/main/docs/guide/introduction.adoc"'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-jaxrs/edit/5.0.x/src/main/docs/guide/introduction.adoc"'>
         <i class='fa fa-pencil-square-o'></i> Improve this doc
     </button>
 </div>
@@ -143,7 +145,7 @@ See the guide for <a href="https://guides.micronaut.io/latest/micronaut-jaxrs-jd
 <h1 id="breaks"><a class="anchor" href="#breaks"></a>2 Breaking Changes</h1>
 
 <div class='contribute-btn'>
-    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-jaxrs/edit/4.9.x/src/main/docs/guide/breaks.adoc"'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-jaxrs/edit/5.0.x/src/main/docs/guide/breaks.adoc"'>
         <i class='fa fa-pencil-square-o'></i> Improve this doc
     </button>
 </div>
@@ -165,7 +167,7 @@ Support for the older <code>javax.ws.rs</code> annotations is dropped with this 
 <h1 id="releaseHistory"><a class="anchor" href="#releaseHistory"></a>3 Release History</h1>
 
 <div class='contribute-btn'>
-    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-jaxrs/edit/4.9.x/src/main/docs/guide/releaseHistory.adoc"'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-jaxrs/edit/5.0.x/src/main/docs/guide/releaseHistory.adoc"'>
         <i class='fa fa-pencil-square-o'></i> Improve this doc
     </button>
 </div>
@@ -181,7 +183,7 @@ Support for the older <code>javax.ws.rs</code> annotations is dropped with this 
 <h1 id="quickStart"><a class="anchor" href="#quickStart"></a>4 Quick Start</h1>
 
 <div class='contribute-btn'>
-    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-jaxrs/edit/4.9.x/src/main/docs/guide/quickStart.adoc"'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-jaxrs/edit/5.0.x/src/main/docs/guide/quickStart.adoc"'>
         <i class='fa fa-pencil-square-o'></i> Improve this doc
     </button>
 </div>
@@ -207,13 +209,14 @@ Support for the older <code>javax.ws.rs</code> annotations is dropped with this 
     &lt;/path&gt;
 &lt;/annotationProcessorPaths&gt;</code></pre>
 </div>
-</div></p>
+</div>
+</p>
 </div>
 
 <h1 id="container"><a class="anchor" href="#container"></a>5 Container API</h1>
 
 <div class='contribute-btn'>
-    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-jaxrs/edit/4.9.x/src/main/docs/guide/container.adoc"'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-jaxrs/edit/5.0.x/src/main/docs/guide/container.adoc"'>
         <i class='fa fa-pencil-square-o'></i> Improve this doc
     </button>
 </div>
@@ -239,7 +242,8 @@ Support for the older <code>javax.ws.rs</code> annotations is dropped with this 
     &lt;artifactId&gt;micronaut-jaxrs-server&lt;/artifactId&gt;
 &lt;/dependency&gt;</code></pre>
 </div>
-</div></p>
+</div>
+</p>
 </div>
 <div class="sect3">
 <h4 id="_supported_annotations">Supported Annotations</h4>
@@ -478,7 +482,8 @@ Body handlers should be defined as beans
     &lt;artifactId&gt;micronaut-jaxrs-server-security&lt;/artifactId&gt;
 &lt;/dependency&gt;</code></pre>
 </div>
-</div></p>
+</div>
+</p>
 </div>
 <div class="paragraph">
 <p>With the above dependency in place the <code>SecurityContext.isUserInRole</code> method will return <code>true</code> if the role is found within Micronaut Security&#8217;s <a href="https://micronaut-projects.github.io/micronaut-security/latest/api/io/micronaut/security/authentication/Authentication.html#getRoles--">Authentication.getRoles()</a> method.
@@ -505,7 +510,7 @@ See <a href="https://micronaut-projects.github.io/micronaut-security/latest/guid
 <h1 id="client"><a class="anchor" href="#client"></a>6 Client API</h1>
 
 <div class='contribute-btn'>
-    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-jaxrs/edit/4.9.x/src/main/docs/guide/client.adoc"'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-jaxrs/edit/5.0.x/src/main/docs/guide/client.adoc"'>
         <i class='fa fa-pencil-square-o'></i> Improve this doc
     </button>
 </div>
@@ -531,7 +536,8 @@ See <a href="https://micronaut-projects.github.io/micronaut-security/latest/guid
     &lt;artifactId&gt;micronaut-jaxrs-client&lt;/artifactId&gt;
 &lt;/dependency&gt;</code></pre>
 </div>
-</div></p>
+</div>
+</p>
 </div>
 <div class="sect3">
 <h4 id="_filters">Filters</h4>
@@ -572,7 +578,7 @@ See <a href="https://micronaut-projects.github.io/micronaut-security/latest/guid
 <h1 id="repository"><a class="anchor" href="#repository"></a>7 Repository</h1>
 
 <div class='contribute-btn'>
-    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-jaxrs/edit/4.9.x/src/main/docs/guide/repository.adoc"'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-jaxrs/edit/5.0.x/src/main/docs/guide/repository.adoc"'>
         <i class='fa fa-pencil-square-o'></i> Improve this doc
     </button>
 </div>
