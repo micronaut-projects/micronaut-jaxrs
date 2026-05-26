@@ -20,6 +20,7 @@ import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.AnnotationValueBuilder;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.NextMajorVersion;
+import io.micronaut.core.annotation.ReflectiveAccess;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import io.micronaut.core.bind.annotation.Bindable;
@@ -83,7 +84,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     private static final String REQUEST_FIELD_INJECTION_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsRequestFieldInjection";
     private static final String PATH_PARAM_BINDING_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsPathParamBinding";
     private static final String SUB_RESOURCE_LOCATOR_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsSubResourceLocator";
-    private static final String MATRIX_PARAMETER_ROUTE_PATTERN = ":;[^/]*|";
+    static final String MATRIX_PARAMETER_ROUTE_PATTERN = ":;[^/]*|";
     private static final Class<?>[] BINDABLE_TYPES = new Class<?>[] {Context.class, SecurityContext.class, UriInfo.class};
     private ClassElement currentClassElement;
 
@@ -163,6 +164,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             }
             annotateDefaultMediaTypes(element);
             if (isServerResourceClass()) {
+                annotateRequestFieldInjection(element);
                 List<String> matrixParameterNames = matrixParameterNames(element);
                 if (!matrixParameterNames.isEmpty()) {
                     markMatrixAwareClassPath(matrixParameterNames.get(0));
@@ -185,6 +187,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         }
         SubResourceTargetMethod targetMethod = findSubResourceTargetMethod(element);
         if (targetMethod != null) {
+            annotateRequestFieldInjection(element);
             MethodElement method = targetMethod.method();
             String locatorPath = element.stringValue(HttpMethodMapping.class).orElse(UriMapping.DEFAULT_URI);
             String targetPath = method.stringValue(HttpMethodMapping.class).orElse(UriMapping.DEFAULT_URI);
@@ -293,11 +296,24 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
 
     private void markRequestFieldInjection() {
         if (currentClassElement != null) {
-            currentClassElement.annotate(REQUEST_FIELD_INJECTION_ANNOTATION);
             if (!currentClassElement.hasStereotype(Scope.class)) {
                 currentClassElement.annotate(Prototype.class);
             }
         }
+    }
+
+    private void annotateRequestFieldInjection(MethodElement element) {
+        if (currentClassElement != null && hasRequestParamField(currentClassElement)) {
+            element.annotate(REQUEST_FIELD_INJECTION_ANNOTATION);
+            annotateNonPublicMethodsForAop(currentClassElement);
+            markRequestFieldInjection();
+        }
+    }
+
+    private static void annotateNonPublicMethodsForAop(ClassElement element) {
+        element.getMethods().stream()
+            .filter(method -> !method.isPublic())
+            .forEach(method -> method.annotate(ReflectiveAccess.class));
     }
 
     private static boolean hasRequestParamField(ClassElement element) {
@@ -465,10 +481,17 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         return element.hasAnnotation(Encoded.class) || currentClassElement != null && currentClassElement.hasAnnotation(Encoded.class);
     }
 
-    private static List<String> matrixParameterNames(MethodElement element) {
+    static List<String> matrixParameterNames(MethodElement element) {
         return Arrays.stream(element.getParameters())
             .filter(parameter -> parameter.hasAnnotation(MatrixParam.class) || isPathSegmentPathParam(parameter))
             .map(parameter -> parameter.hasAnnotation(MatrixParam.class) ? getMatrixParameterName(parameter) : getPathParameterName(parameter))
+            .toList();
+    }
+
+    static List<String> matrixFieldNames(ClassElement element) {
+        return element.getFields().stream()
+            .filter(field -> field.hasAnnotation(MatrixParam.class))
+            .map(JaxRsTypeElementVisitor::getMatrixParameterName)
             .toList();
     }
 
@@ -521,7 +544,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         return routePath;
     }
 
-    private static void annotateHttpRoute(MethodElement method, String path) {
+    static void annotateHttpRoute(MethodElement method, String path) {
         method.removeAnnotation(HttpMethodMapping.class);
         method.annotate(HttpMethodMapping.class, builder -> builder.value(path));
     }
@@ -548,7 +571,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             .toList();
     }
 
-    private static String getMatrixParameterName(TypedElement parameter) {
+    static String getMatrixParameterName(TypedElement parameter) {
         return parameter.stringValue(MatrixParam.class).orElse(parameter.getName());
     }
 
@@ -575,7 +598,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         return path.charAt(0) == '/' ? path : '/' + path;
     }
 
-    private static String toMatrixParameterAwareRoute(String path, List<String> matrixParameterNames) {
+    static String toMatrixParameterAwareRoute(String path, List<String> matrixParameterNames) {
         if (path == null || path.isEmpty() || path.equals("/")) {
             return path;
         }

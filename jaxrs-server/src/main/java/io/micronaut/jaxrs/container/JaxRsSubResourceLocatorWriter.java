@@ -35,6 +35,7 @@ import io.micronaut.http.codec.CodecException;
 import io.micronaut.inject.BeanDefinition;
 import io.micronaut.inject.ExecutableMethod;
 import io.micronaut.inject.ProxyBeanDefinition;
+import io.micronaut.jaxrs.common.JaxRsContainerMessageBodyHandlerRegistry;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import jakarta.inject.Singleton;
 import org.jspecify.annotations.Nullable;
@@ -50,10 +51,14 @@ import java.util.List;
 final class JaxRsSubResourceLocatorWriter implements ResponseBodyWriter<Object>, Ordered {
 
     private final BeanContext beanContext;
+    private final JaxRsContainerMessageBodyHandlerRegistry jaxRsMessageBodyHandlerRegistry;
     private final MessageBodyHandlerRegistry bodyHandlerRegistry;
 
-    JaxRsSubResourceLocatorWriter(BeanContext beanContext, MessageBodyHandlerRegistry bodyHandlerRegistry) {
+    JaxRsSubResourceLocatorWriter(BeanContext beanContext,
+                                  JaxRsContainerMessageBodyHandlerRegistry jaxRsMessageBodyHandlerRegistry,
+                                  MessageBodyHandlerRegistry bodyHandlerRegistry) {
         this.beanContext = beanContext;
+        this.jaxRsMessageBodyHandlerRegistry = jaxRsMessageBodyHandlerRegistry;
         this.bodyHandlerRegistry = bodyHandlerRegistry;
     }
 
@@ -94,7 +99,7 @@ final class JaxRsSubResourceLocatorWriter implements ResponseBodyWriter<Object>,
         }
         @SuppressWarnings("unchecked")
         Argument<Object> resultType = (Argument<Object>) Argument.of(result.getClass());
-        MessageBodyWriter<Object> writer = bodyHandlerRegistry.getWriter(resultType, List.of(mediaType));
+        MessageBodyWriter<Object> writer = findResultWriter(resultType, mediaType);
         ResponseBodyWriter<Object> responseWriter = ResponseBodyWriter.wrap(writer.createSpecific(resultType));
         return responseWriter.writePiece(bodyFactory, request, response, resultType, mediaType, result);
     }
@@ -112,7 +117,7 @@ final class JaxRsSubResourceLocatorWriter implements ResponseBodyWriter<Object>,
         }
         @SuppressWarnings("unchecked")
         Argument<Object> resultType = (Argument<Object>) Argument.of(result.getClass());
-        return bodyHandlerRegistry.getWriter(resultType, List.of(mediaType))
+        return findResultWriter(resultType, mediaType)
             .createSpecific(resultType)
             .writeTo(resultType, mediaType, result, outgoingHeaders, bufferFactory);
     }
@@ -149,9 +154,15 @@ final class JaxRsSubResourceLocatorWriter implements ResponseBodyWriter<Object>,
                              OutputStream outputStream) {
         @SuppressWarnings("unchecked")
         Argument<Object> resultType = (Argument<Object>) Argument.of(result.getClass());
-        bodyHandlerRegistry.getWriter(resultType, List.of(mediaType))
+        findResultWriter(resultType, mediaType)
             .createSpecific(resultType)
             .writeTo(resultType, mediaType, result, outgoingHeaders, outputStream);
+    }
+
+    private MessageBodyWriter<Object> findResultWriter(Argument<Object> resultType, MediaType mediaType) {
+        List<MediaType> mediaTypes = List.of(mediaType);
+        return jaxRsMessageBodyHandlerRegistry.findWriter(resultType, mediaTypes)
+            .orElseGet(() -> bodyHandlerRegistry.getWriter(resultType, mediaTypes));
     }
 
     private static @Nullable Object unwrapJaxRsResponse(Object result,

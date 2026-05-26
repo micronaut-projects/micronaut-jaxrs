@@ -23,12 +23,19 @@ import jakarta.ws.rs.MatrixParam;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.MultivaluedMap;
+import jakarta.ws.rs.ext.MessageBodyWriter;
 import jakarta.ws.rs.ext.ParamConverter;
 import jakarta.ws.rs.ext.ParamConverterProvider;
+import jakarta.ws.rs.ext.Provider;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +57,10 @@ class MatrixParamTest {
     @Inject
     @Client("/api/matrix-param-locator")
     HttpClient locatorClient;
+
+    @Inject
+    @Client("/api/matrix-writer-locator")
+    HttpClient writerLocatorClient;
 
     @Test
     void routesMatrixParameterRequests() {
@@ -77,6 +88,16 @@ class MatrixParamTest {
         String response = locatorClient.toBlocking().retrieve(HttpRequest.POST("/locator;doubletest1=123", ""), String.class);
 
         assertEquals("doubletest1=123.0", response);
+    }
+
+    @Test
+    void writesSubresourceLocatorResultWithJaxRsWriter() {
+        String response = writerLocatorClient.toBlocking().retrieve(
+            HttpRequest.POST("/sub;resmatrix=resarg;submatrix=subarg;entity=entityarg", ""),
+            String.class
+        );
+
+        assertEquals("resMatrix=resarg;subMatrix=null;entity=null", response);
     }
 
     @Test
@@ -242,6 +263,75 @@ class MatrixParamTest {
         @Produces("text/plain")
         public String returnValue() {
             return "doubletest1=" + doubleValue;
+        }
+    }
+
+    @Requires(property = "spec.name", value = "MatrixParamTest")
+    @Path("/matrix-writer-locator")
+    static class MatrixWriterLocatorRoot {
+
+        @Path("/sub")
+        public MatrixWriterLocatorSub locator(@MatrixParam("resmatrix") String matrixValue) {
+            return new MatrixWriterLocatorSub(matrixValue);
+        }
+    }
+
+    @Requires(property = "spec.name", value = "MatrixParamTest")
+    static class MatrixWriterLocatorSub {
+        private final String resmatrix;
+
+        @MatrixParam("submatrix")
+        private String submatrix;
+
+        MatrixWriterLocatorSub() {
+            this(null);
+        }
+
+        MatrixWriterLocatorSub(String resmatrix) {
+            this.resmatrix = resmatrix;
+        }
+
+        @POST
+        @Produces("text/plain")
+        public MatrixWriterLocatorEntity entity() {
+            return new MatrixWriterLocatorEntity(resmatrix, submatrix);
+        }
+    }
+
+    static class MatrixWriterLocatorEntity {
+        final String resMatrix;
+        final String subMatrix;
+
+        @MatrixParam("entity")
+        public String entity;
+
+        MatrixWriterLocatorEntity(String resMatrix, String subMatrix) {
+            this.resMatrix = resMatrix;
+            this.subMatrix = subMatrix;
+        }
+    }
+
+    @Provider
+    @Produces("text/plain")
+    @Requires(property = "spec.name", value = "MatrixParamTest")
+    public static class MatrixWriterLocatorEntityWriter implements MessageBodyWriter<MatrixWriterLocatorEntity> {
+
+        @Override
+        public boolean isWriteable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+            return MatrixWriterLocatorEntity.class.isAssignableFrom(type);
+        }
+
+        @Override
+        public void writeTo(MatrixWriterLocatorEntity entity,
+                            Class<?> type,
+                            Type genericType,
+                            Annotation[] annotations,
+                            MediaType mediaType,
+                            MultivaluedMap<String, Object> httpHeaders,
+                            OutputStream entityStream) throws IOException {
+            entityStream.write(("resMatrix=" + entity.resMatrix +
+                ";subMatrix=" + entity.subMatrix +
+                ";entity=" + entity.entity).getBytes(StandardCharsets.UTF_8));
         }
     }
 

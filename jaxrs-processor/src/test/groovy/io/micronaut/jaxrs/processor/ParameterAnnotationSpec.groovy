@@ -2,6 +2,7 @@ package io.micronaut.jaxrs.processor
 
 import io.micronaut.annotation.processing.test.AbstractTypeElementSpec
 import io.micronaut.context.annotation.Prototype
+import io.micronaut.core.annotation.ReflectiveAccess
 import io.micronaut.core.bind.annotation.Bindable
 import io.micronaut.http.annotation.Controller
 import io.micronaut.http.annotation.CookieValue
@@ -148,6 +149,32 @@ class Test {
         method.stringValue(HttpMethodMapping).get() == '/colors{color:;[^/]*|}/ids{color:;[^/]*|}'
     }
 
+    void "test MatrixParam field route allows matrix method path segments"() {
+        given:
+        def definition = buildBeanDefinition('test.Test', """
+package test;
+
+@jakarta.ws.rs.Path("/test")
+class Test {
+
+    @jakarta.ws.rs.MatrixParam("color")
+    String color;
+
+    @jakarta.ws.rs.GET
+    @jakarta.ws.rs.Path("/colors")
+    String test() {
+        return color;
+    }
+}
+""")
+
+        def method = definition.getRequiredMethod("test")
+
+        expect:
+        definition.stringValue(Controller).get() == '/test{color:;[^/]*|}'
+        method.stringValue(HttpMethodMapping).get() == '/colors{color:;[^/]*|}'
+    }
+
     void "test same class subresource locator exposes inherited resource methods"() {
         given:
         def definition = buildBeanDefinition('test.SubResource', """
@@ -291,6 +318,46 @@ class MiddleResource {
 """)
 
         def method = definition.getRequiredMethod("locator", String)
+
+        expect:
+        definition.stringValue(Controller).get() == 'resource{color:;[^/]*|}'
+        method.hasAnnotation(Post)
+        method.stringValue(HttpMethodMapping).get() == '/locator{color:;[^/]*|}'
+        method.stringValue(SUB_RESOURCE_LOCATOR_ANNOTATION).get() == 'post'
+    }
+
+    void "test subresource locator MatrixParam field route allows matrix path segments"() {
+        given:
+        def definition = buildBeanDefinition('test.LocatorResource', """
+package test;
+
+@jakarta.ws.rs.Path("resource")
+class LocatorResource {
+
+    @jakarta.ws.rs.MatrixParam("color")
+    String color;
+
+    @jakarta.ws.rs.Path("locator")
+    MiddleResource locator() {
+        return new MiddleResource(color);
+    }
+}
+
+class MiddleResource {
+    private final String color;
+
+    MiddleResource(String color) {
+        this.color = color;
+    }
+
+    @jakarta.ws.rs.POST
+    String post() {
+        return color;
+    }
+}
+""")
+
+        def method = definition.getRequiredMethod("locator")
 
         expect:
         definition.stringValue(Controller).get() == 'resource{color:;[^/]*|}'
@@ -466,9 +533,10 @@ class Test {
     }
 }
 """)
+        def method = definition.getRequiredMethod("test")
 
         expect:
-        definition.annotationMetadata.hasAnnotation(REQUEST_FIELD_INJECTION_ANNOTATION)
+        method.annotationMetadata.hasAnnotation(REQUEST_FIELD_INJECTION_ANNOTATION)
         definition.annotationMetadata.hasAnnotation(Prototype)
     }
 
@@ -489,9 +557,10 @@ class Test {
     }
 }
 """)
+        def method = definition.getRequiredMethod("test")
 
         expect:
-        definition.annotationMetadata.hasAnnotation(REQUEST_FIELD_INJECTION_ANNOTATION)
+        method.annotationMetadata.hasAnnotation(REQUEST_FIELD_INJECTION_ANNOTATION)
         definition.annotationMetadata.hasAnnotation(Prototype)
         definition.stringValue(io.micronaut.http.annotation.Controller).get() == '/test'
     }
@@ -513,9 +582,10 @@ class Test {
     }
 }
 """)
+        def method = definition.getRequiredMethod("test")
 
         expect:
-        definition.annotationMetadata.hasAnnotation(REQUEST_FIELD_INJECTION_ANNOTATION)
+        method.annotationMetadata.hasAnnotation(REQUEST_FIELD_INJECTION_ANNOTATION)
         definition.annotationMetadata.hasAnnotation(Prototype)
     }
 
@@ -536,9 +606,10 @@ class Test {
     }
 }
 """)
+        def method = definition.getRequiredMethod("test")
 
         expect:
-        definition.annotationMetadata.hasAnnotation(REQUEST_FIELD_INJECTION_ANNOTATION)
+        method.annotationMetadata.hasAnnotation(REQUEST_FIELD_INJECTION_ANNOTATION)
         definition.annotationMetadata.hasAnnotation(Prototype)
     }
 
@@ -559,9 +630,10 @@ class Test {
     }
 }
 """)
+        def method = definition.getRequiredMethod("test")
 
         expect:
-        definition.annotationMetadata.hasAnnotation(REQUEST_FIELD_INJECTION_ANNOTATION)
+        method.annotationMetadata.hasAnnotation(REQUEST_FIELD_INJECTION_ANNOTATION)
         definition.annotationMetadata.hasAnnotation(Prototype)
     }
 
@@ -585,10 +657,43 @@ class Test extends BaseResource {
     }
 }
 """)
+        def method = definition.getRequiredMethod("test")
 
         expect:
-        definition.annotationMetadata.hasAnnotation(REQUEST_FIELD_INJECTION_ANNOTATION)
+        method.annotationMetadata.hasAnnotation(REQUEST_FIELD_INJECTION_ANNOTATION)
         definition.annotationMetadata.hasAnnotation(Prototype)
+    }
+
+    void "test request field injection allows inherited protected helpers"() {
+        given:
+        def definition = buildBeanDefinition('test.Test', """
+package test;
+
+class BaseResource {
+
+    protected void helper(String name, Number value) {
+    }
+}
+
+@jakarta.ws.rs.Path("/test")
+class Test extends BaseResource {
+
+    @jakarta.ws.rs.MatrixParam("color")
+    String color;
+
+    @jakarta.ws.rs.GET
+    String test() {
+        helper("color", 1);
+        return color;
+    }
+}
+""")
+        def method = definition.getRequiredMethod("test")
+        def helper = definition.getRequiredMethod("helper", String, Number)
+
+        expect:
+        method.annotationMetadata.hasAnnotation(REQUEST_FIELD_INJECTION_ANNOTATION)
+        helper.annotationMetadata.hasAnnotation(ReflectiveAccess)
     }
 
     void "test default value"() {

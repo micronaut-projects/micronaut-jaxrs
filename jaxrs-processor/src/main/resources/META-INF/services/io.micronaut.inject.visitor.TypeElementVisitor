@@ -1,1 +1,2 @@
 io.micronaut.jaxrs.processor.JaxRsTypeElementVisitor
+io.micronaut.jaxrs.processor.JaxRsMatrixFieldRouteVisitor
