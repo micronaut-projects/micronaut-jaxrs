@@ -96,6 +96,36 @@ class Test {
         method.stringValue(HttpMethodMapping).get() == '/colors{color:;[^/]*|}/ids{color:;[^/]*|}'
     }
 
+    void "test same class subresource locator exposes inherited resource methods"() {
+        given:
+        def definition = buildBeanDefinition('test.SubResource', """
+package test;
+
+@jakarta.ws.rs.Path("/base-resource")
+class BaseResource {
+
+    @jakarta.ws.rs.GET
+    String get(@jakarta.ws.rs.HeaderParam("X-Test") String test) {
+        return test;
+    }
+}
+
+@jakarta.ws.rs.Path("resource")
+class SubResource extends BaseResource {
+
+    @jakarta.ws.rs.Path("subresource")
+    SubResource subresource() {
+        return this;
+    }
+}
+""")
+
+        def method = definition.getRequiredMethod("get", String)
+
+        expect:
+        method.stringValue(HttpMethodMapping).get() == '/subresource'
+    }
+
     void "test Encoded MatrixParam is supported"() {
         given:
         def definition = buildBeanDefinition('test.Test', """
@@ -194,6 +224,32 @@ class Test {
 
     @jakarta.ws.rs.HeaderParam("X-Color")
     String color;
+
+    @jakarta.ws.rs.GET
+    String test() {
+        return color;
+    }
+}
+""")
+
+        expect:
+        definition.annotationMetadata.hasAnnotation(REQUEST_FIELD_INJECTION_ANNOTATION)
+        definition.annotationMetadata.hasAnnotation(Prototype)
+    }
+
+    void "test inherited HeaderParam field marks resource for request field injection"() {
+        given:
+        def definition = buildBeanDefinition('test.Test', """
+package test;
+
+class BaseResource {
+
+    @jakarta.ws.rs.HeaderParam("X-Color")
+    String color;
+}
+
+@jakarta.ws.rs.Path("/test")
+class Test extends BaseResource {
 
     @jakarta.ws.rs.GET
     String test() {

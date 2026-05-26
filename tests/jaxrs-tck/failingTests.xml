@@ -58,7 +58,6 @@
     <test class="ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT" method="responseCreatedRelativeURITest"/>
     <test class="ee.jakarta.tck.ws.rs.api.rs.ext.runtimedelegate.create.JAXRSClientIT" method="createEndpointThrowsIllegalArgumentExceptionTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="optionsOnSubResourceTest"/>
-    <class name="ee.jakarta.tck.ws.rs.ee.rs.headerparam.sub.JAXRSSubClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.ee.rs.formparam.locator.JAXRSLocatorClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.ee.rs.formparam.sub.JAXRSSubClientIT"/>
     <test class="ee.jakarta.tck.ws.rs.ee.rs.get.JAXRSClientIT" method="dynamicGetTest"/>

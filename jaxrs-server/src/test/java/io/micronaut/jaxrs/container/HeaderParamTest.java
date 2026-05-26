@@ -8,10 +8,12 @@ import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.MutableHttpRequest;
+import io.micronaut.http.client.HttpClient;
 import io.micronaut.http.bind.RequestBinderRegistry;
 import io.micronaut.http.bind.binders.RequestArgumentBinder;
 import io.micronaut.inject.BeanDefinition;
 import io.micronaut.inject.ExecutableMethod;
+import io.micronaut.runtime.server.EmbeddedServer;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.DefaultValue;
@@ -112,6 +114,18 @@ class HeaderParamTest {
         }
     }
 
+    @Test
+    void routesInheritedHeaderParamMethodThroughSubResourceLocator() {
+        try (EmbeddedServer server = ApplicationContext.run(EmbeddedServer.class, Map.of("spec.name", "HeaderParamSubResourceTest"));
+             HttpClient client = server.getApplicationContext().createBean(HttpClient.class, server.getURL())) {
+            String result = client.toBlocking().retrieve(HttpRequest.GET("/api/subresource-root/child").header("X-Name", "blue"));
+            String trailingSlashResult = client.toBlocking().retrieve(HttpRequest.GET("/api/subresource-root/child/").header("X-Name", "green"));
+
+            assertEquals("blue", result);
+            assertEquals("green", trailingSlashResult);
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private Argument<ConvertedHeaderParam> customArgument(ApplicationContext context) {
         BeanDefinition<TestController> definition = context.getBeanDefinition(TestController.class);
@@ -154,6 +168,25 @@ class HeaderParamTest {
         @Path("/number")
         public String number(@HeaderParam("X-Number") int number) {
             return String.valueOf(number);
+        }
+    }
+
+    @Path("/base-resource")
+    static class SubResourceBase {
+
+        @GET
+        public String get(@HeaderParam("X-Name") String name) {
+            return name;
+        }
+    }
+
+    @Requires(property = "spec.name", value = "HeaderParamSubResourceTest")
+    @Path("subresource-root")
+    static class SubResourceRoot extends SubResourceBase {
+
+        @Path("child")
+        public SubResourceRoot child() {
+            return this;
         }
     }
 

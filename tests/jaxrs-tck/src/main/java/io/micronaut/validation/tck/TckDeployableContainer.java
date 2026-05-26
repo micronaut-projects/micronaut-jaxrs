@@ -41,6 +41,7 @@ import java.nio.file.FileVisitor;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -147,8 +148,10 @@ public final class TckDeployableContainer implements DeployableContainer<TckCont
 
             EmbeddedServer embeddedServer = applicationContext.getBean(EmbeddedServer.class);
             embeddedServer.start();
-            System.setProperty("webServerHost", embeddedServer.getHost());
-            System.setProperty("webServerPort", String.valueOf(embeddedServer.getPort()));
+            if (isDeploymentForCurrentTest(archive, testJavaClass)) {
+                System.setProperty("webServerHost", embeddedServer.getHost());
+                System.setProperty("webServerPort", String.valueOf(embeddedServer.getPort()));
+            }
 
             runningApplicationContext.set(applicationContext);
             APP.set(applicationContext);
@@ -210,5 +213,27 @@ public final class TckDeployableContainer implements DeployableContainer<TckCont
         } catch (IOException e) {
             LOGGER.warn("Unable to delete directory: {}", dir, e);
         }
+    }
+
+    private static boolean isDeploymentForCurrentTest(Archive<?> archive, Class<?> testJavaClass) {
+        String packageName = testJavaClass.getPackageName();
+        int lastSeparator = packageName.lastIndexOf('.');
+        if (lastSeparator < 0) {
+            return true;
+        }
+        String lastPackageSegment = packageName.substring(lastSeparator + 1);
+        if (!lastPackageSegment.equals("sub") && !lastPackageSegment.equals("locator")) {
+            return true;
+        }
+        int previousSeparator = packageName.lastIndexOf('.', lastSeparator - 1);
+        if (previousSeparator < 0) {
+            return true;
+        }
+        String previousPackageSegment = packageName.substring(previousSeparator + 1, lastSeparator);
+        String deploymentMarker = previousPackageSegment + '_' + lastPackageSegment;
+        return archive.getName()
+            .replace('-', '_')
+            .toLowerCase(Locale.ROOT)
+            .contains(deploymentMarker);
     }
 }
