@@ -4,6 +4,7 @@ import io.micronaut.annotation.processing.test.AbstractTypeElementSpec
 import io.micronaut.context.annotation.Prototype
 import io.micronaut.core.bind.annotation.Bindable
 import io.micronaut.http.annotation.CookieValue
+import io.micronaut.http.annotation.CustomHttpMethod
 import io.micronaut.http.annotation.Header
 import io.micronaut.http.annotation.HttpMethodMapping
 import io.micronaut.http.annotation.Post
@@ -193,6 +194,49 @@ class MiddleResource {
         metadata.hasAnnotation(HeaderParam)
         metadata.stringValue(HeaderParam).get() == 'X-Test'
         !metadata.hasAnnotation(Header)
+    }
+
+    void "test subresource locator preserves custom http method mapping"() {
+        given:
+        def definition = buildBeanDefinition('test.LocatorResource', """
+package test;
+
+import java.lang.annotation.*;
+
+@jakarta.ws.rs.Path("resource")
+class LocatorResource {
+
+    @jakarta.ws.rs.Path("locator")
+    MiddleResource locator() {
+        return new MiddleResource();
+    }
+}
+
+class MiddleResource {
+
+    @WATCH
+    @jakarta.ws.rs.Path("child")
+    String watch() {
+        return "ok";
+    }
+}
+
+@Target({ElementType.METHOD})
+@Retention(RetentionPolicy.RUNTIME)
+@jakarta.ws.rs.HttpMethod("WATCH")
+@Documented
+@interface WATCH {
+}
+""")
+
+        def method = definition.getRequiredMethod("locator")
+
+        expect:
+        method.hasAnnotation(CustomHttpMethod)
+        method.stringValue(CustomHttpMethod, 'method').get() == 'WATCH'
+        method.stringValue(HttpMethodMapping).get() == '/locator/child'
+        method.stringValue(SUB_RESOURCE_LOCATOR_ANNOTATION).get() == 'watch'
+        method.classValue(SUB_RESOURCE_LOCATOR_ANNOTATION, 'type').get().name == 'test.MiddleResource'
     }
 
     void "test Encoded MatrixParam is supported"() {

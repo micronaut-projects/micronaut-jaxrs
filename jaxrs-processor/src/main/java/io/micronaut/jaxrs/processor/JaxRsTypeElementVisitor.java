@@ -183,18 +183,20 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         if (!isServerResourceClass()) {
             return;
         }
-        subResourceTargetMethod(element).ifPresent(targetMethod ->
-            targetMethod.getAnnotationTypeByStereotype(HttpMethodMapping.class).ifPresent(httpMethodAnnotation -> {
-                String locatorPath = element.stringValue(HttpMethodMapping.class).orElse(UriMapping.DEFAULT_URI);
-                String targetPath = targetMethod.stringValue(HttpMethodMapping.class).orElse(UriMapping.DEFAULT_URI);
-                String routePath = prependRoutePath(locatorPath, targetPath);
-                annotateHttpRoute(element, httpMethodAnnotation, routePath);
-                element.annotate(SUB_RESOURCE_LOCATOR_ANNOTATION, builder -> builder
-                    .value(targetMethod.getName())
-                    .member("type", new AnnotationClassValue<>(targetMethod.getDeclaringType().getName())));
-                visitMethodParameters(element, context, false);
-            })
-        );
+        subResourceTargetMethod(element).ifPresent(targetMethod -> {
+            List<AnnotationValue<Annotation>> httpMethodAnnotations = targetMethod.getAnnotationValuesByStereotype(HttpMethodMapping.class.getName());
+            if (httpMethodAnnotations.isEmpty()) {
+                return;
+            }
+            String locatorPath = element.stringValue(HttpMethodMapping.class).orElse(UriMapping.DEFAULT_URI);
+            String targetPath = targetMethod.stringValue(HttpMethodMapping.class).orElse(UriMapping.DEFAULT_URI);
+            String routePath = prependRoutePath(locatorPath, targetPath);
+            annotateHttpRoute(element, httpMethodAnnotations.get(0), routePath);
+            element.annotate(SUB_RESOURCE_LOCATOR_ANNOTATION, builder -> builder
+                .value(targetMethod.getName())
+                .member("type", new AnnotationClassValue<>(targetMethod.getDeclaringType().getName())));
+            visitMethodParameters(element, context, false);
+        });
     }
 
     private void visitMethodParameters(MethodElement element, VisitorContext context, boolean bindUnannotatedBody) {
@@ -420,9 +422,9 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         method.annotate(HttpMethodMapping.class, builder -> builder.value(path));
     }
 
-    private static void annotateHttpRoute(MethodElement method, Class<? extends Annotation> httpMethodAnnotation, String path) {
+    private static void annotateHttpRoute(MethodElement method, AnnotationValue<Annotation> httpMethodAnnotation, String path) {
         method.removeAnnotation(HttpMethodMapping.class);
-        method.annotate(httpMethodAnnotation, builder -> builder.value(path));
+        method.annotate(httpMethodAnnotation.mutate().value(path).build());
     }
 
     private boolean isInheritedResourceMethod(MethodElement method) {
