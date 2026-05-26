@@ -24,6 +24,7 @@ import io.micronaut.core.bind.ArgumentBinder;
 import io.micronaut.core.bind.annotation.Bindable;
 import io.micronaut.core.convert.ConversionContext;
 import io.micronaut.core.type.Argument;
+import io.micronaut.http.BasicHttpAttributes;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.bind.RequestBinderRegistry;
 import io.micronaut.http.cookie.Cookie;
@@ -38,6 +39,7 @@ import jakarta.ws.rs.GET;
 import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.MatrixParam;
 import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.ext.ParamConverter;
@@ -119,6 +121,30 @@ class JaxRsRequestFieldInjectionTest {
             .findFirst()
             .orElseThrow();
         String response = ServerRequestContext.with(HttpRequest.GET("/cookie-field"), (Supplier<String>) resource::get);
+
+        assertEquals("green", response);
+    }
+
+    @Test
+    void injectsPathParamFieldBeforeResourceMethodInvocation() {
+        PathFieldResource resource = context.getBeansOfType(PathFieldResource.class)
+            .stream()
+            .filter(Intercepted.class::isInstance)
+            .findFirst()
+            .orElseThrow();
+        String response = ServerRequestContext.with(pathRequest("/path-field/{color}", "/path-field/blue"), (Supplier<String>) resource::get);
+
+        assertEquals("blue", response);
+    }
+
+    @Test
+    void injectsDefaultPathParamFieldBeforeResourceMethodInvocation() {
+        DefaultPathFieldResource resource = context.getBeansOfType(DefaultPathFieldResource.class)
+            .stream()
+            .filter(Intercepted.class::isInstance)
+            .findFirst()
+            .orElseThrow();
+        String response = ServerRequestContext.with(pathRequest("/path-field-default/{color}", "/path-field-default/blue"), (Supplier<String>) resource::get);
 
         assertEquals("green", response);
     }
@@ -251,6 +277,33 @@ class JaxRsRequestFieldInjectionTest {
     }
 
     @Requires(property = "spec.name", value = "JaxRsRequestFieldInjectionTest")
+    @Path("/path-field/{color}")
+    static class PathFieldResource {
+        @PathParam("color")
+        String color;
+
+        @GET
+        @Produces("text/plain")
+        public String get() {
+            return color;
+        }
+    }
+
+    @Requires(property = "spec.name", value = "JaxRsRequestFieldInjectionTest")
+    @Path("/path-field-default/{color}")
+    static class DefaultPathFieldResource {
+        @DefaultValue("green")
+        @PathParam("fallback")
+        String color;
+
+        @GET
+        @Produces("text/plain")
+        public String get() {
+            return color;
+        }
+    }
+
+    @Requires(property = "spec.name", value = "JaxRsRequestFieldInjectionTest")
     @Path("/query")
     static class QueryResource {
         @GET
@@ -300,6 +353,12 @@ class JaxRsRequestFieldInjectionTest {
         public ConvertedHeaderParam(String value) {
             this.value = "reflection:" + value;
         }
+    }
+
+    private static HttpRequest<?> pathRequest(String template, String path) {
+        HttpRequest<?> request = HttpRequest.GET(path);
+        BasicHttpAttributes.setUriTemplate(request, template);
+        return request;
     }
 
     @Provider

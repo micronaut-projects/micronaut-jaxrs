@@ -36,6 +36,7 @@ import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.Encoded;
 import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.MatrixParam;
+import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.QueryParam;
 import org.jspecify.annotations.Nullable;
 
@@ -122,7 +123,8 @@ final class JaxRsRequestFieldInjectionInterceptor implements MethodInterceptor<O
         return (field.isAnnotationPresent(MatrixParam.class)
             || field.isAnnotationPresent(QueryParam.class)
             || field.isAnnotationPresent(HeaderParam.class)
-            || field.isAnnotationPresent(CookieParam.class))
+            || field.isAnnotationPresent(CookieParam.class)
+            || field.isAnnotationPresent(PathParam.class))
             && !Modifier.isStatic(modifiers)
             && !Modifier.isFinal(modifiers);
     }
@@ -135,6 +137,7 @@ final class JaxRsRequestFieldInjectionInterceptor implements MethodInterceptor<O
         QueryParam queryParam = field.getAnnotation(QueryParam.class);
         HeaderParam headerParam = field.getAnnotation(HeaderParam.class);
         CookieParam cookieParam = field.getAnnotation(CookieParam.class);
+        PathParam pathParam = field.getAnnotation(PathParam.class);
         if (matrixParam != null) {
             addRequestParam(annotationMetadata, MatrixParam.class, matrixParam.value());
             addBindable(annotationMetadata, MatrixParam.class, matrixParam.value(), fieldDefaultValue(field));
@@ -147,6 +150,9 @@ final class JaxRsRequestFieldInjectionInterceptor implements MethodInterceptor<O
         } else if (cookieParam != null) {
             addRequestParam(annotationMetadata, CookieParam.class, cookieParam.value());
             addBindable(annotationMetadata, CookieParam.class, cookieParam.value(), fieldDefaultValue(field));
+        } else if (pathParam != null) {
+            addRequestParam(annotationMetadata, PathParam.class, pathParam.value());
+            addBindable(annotationMetadata, PathParam.class, pathParam.value(), fieldDefaultValue(field));
         } else {
             throw new IllegalStateException("Unsupported Jakarta REST request field [" + field + "]");
         }
