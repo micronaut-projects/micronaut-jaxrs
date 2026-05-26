@@ -35,16 +35,184 @@ dependencies {
     testRuntimeOnly mnTest.junit.jupiter.engine
 }
 
-test {
-    scanForTestClasses false
-    systemProperty("junit.jupiter.extensions.autodetection.enabled", "true")
-    systemProperty("java.util.logging.config.class", "x.LoggingConfig")
-    systemProperty("webServerHost", "localhost")
-    systemProperty("webServerPort", "8123")
-    systemProperty("micronaut.testing.jaxrs.min.clients", "5")
-    useJUnitPlatform()
-    maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
-    filter {
-        excludeTestsMatching "*BuilderClientIT.expiresTest"
+def jakartaTckRuntimeClasspath = configurations.create("jakartaTckRuntimeClasspath") {
+    canBeConsumed = false
+    canBeResolved = true
+    extendsFrom(configurations.testRuntimeClasspath)
+}
+
+dependencies {
+    add("jakartaTckRuntimeClasspath", projects.micronautJaxrsJakarta)
+}
+
+def configureJaxRsTckTask = { Test task, String filterMode ->
+    task.scanForTestClasses = false
+    task.systemProperty("junit.jupiter.extensions.autodetection.enabled", "true")
+    task.systemProperty("java.util.logging.config.class", "x.LoggingConfig")
+    task.systemProperty("webServerHost", "localhost")
+    task.systemProperty("webServerPort", "8123")
+    task.systemProperty("micronaut.testing.jaxrs.min.clients", "5")
+    task.systemProperty("micronaut.jaxrs.tck.filter.mode", filterMode)
+    task.systemProperty("micronaut.jaxrs.tck.failing-tests", file("failingTests.xml").absolutePath)
+    task.useJUnitPlatform()
+    task.maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
+}
+
+test { Test task ->
+    configureJaxRsTckTask(task, "exclude-known-failures")
+    classpath = sourceSets.test.runtimeClasspath + jakartaTckRuntimeClasspath
+}
+
+def jakartaTck = tasks.register("jakartaTck", Test) { Test task ->
+    group = "verification"
+    description = "Runs the full Jakarta REST TCK compliance profile with no known-failure exclusions."
+    configureJaxRsTckTask(task, "all")
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath + jakartaTckRuntimeClasspath
+    shouldRunAfter(test)
+}
+
+def writeFailingJakartaTckSuite = { File resultsDir, File suiteFile ->
+    if (!resultsDir.directory) {
+        throw new GradleException("No Jakarta REST TCK test results found at ${resultsDir}. Run discoverFailingJakartaTck first.")
+    }
+
+    def resultFiles = fileTree(resultsDir) {
+        include "TEST-*.xml"
+    }.files
+    if (resultFiles.empty) {
+        throw new GradleException("No Jakarta REST TCK XML test result files found at ${resultsDir}.")
+    }
+
+    def documentBuilderFactory = javax.xml.parsers.DocumentBuilderFactory.newInstance()
+    documentBuilderFactory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
+    documentBuilderFactory.setFeature("http://xml.org/sax/features/external-general-entities", false)
+    documentBuilderFactory.setFeature("http://xml.org/sax/features/external-parameter-entities", false)
+    documentBuilderFactory.setXIncludeAware(false)
+    documentBuilderFactory.setExpandEntityReferences(false)
+
+    def classLevelFailures = new TreeSet<String>()
+    def methodFailures = new TreeMap<String, TreeSet<String>>()
+    def normalizeMethodName = { String methodName ->
+        methodName == null ? "" : methodName.replaceFirst(/\(.*\)$/, "")
+    }
+    def configurationFailure = { String methodName ->
+        methodName == null || methodName.empty || methodName == "initializationError" || methodName.startsWith("arquillian")
+    }
+    resultFiles.each { resultFile ->
+        def document = documentBuilderFactory.newDocumentBuilder().parse(resultFile)
+        def testcases = document.getElementsByTagName("testcase")
+        for (int i = 0; i < testcases.length; i++) {
+            def testcase = testcases.item(i)
+            if (testcase.getElementsByTagName("failure").length == 0 && testcase.getElementsByTagName("error").length == 0) {
+                continue
+            }
+            def className = testcase.getAttribute("classname")
+            def methodName = normalizeMethodName(testcase.getAttribute("name"))
+            if (configurationFailure(methodName)) {
+                classLevelFailures.add(className)
+                methodFailures.remove(className)
+            } else if (!classLevelFailures.contains(className)) {
+                def methods = methodFailures[className]
+                if (methods == null) {
+                    methods = new TreeSet<String>()
+                    methodFailures[className] = methods
+                }
+                methods.add(methodName)
+            }
+        }
+    }
+
+    def escapeXml = { String value ->
+        value.replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace("\"", "&quot;")
+            .replace("'", "&apos;")
+    }
+    def methodCount = methodFailures.values().sum(0) { it.size() }
+
+    suiteFile.parentFile.mkdirs()
+    def builder = new StringBuilder()
+    builder << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+    builder << "<failingTests>\n"
+    builder << "    <!--\n"
+    builder << "        Jakarta REST TCK progress tracker.\n\n"
+    builder << "        Keep this file focused on tests that are known to fail in the\n"
+    builder << "        no-exclusion compliance profile. When a class or method passes,\n"
+    builder << "        remove it in the same focused commit as the implementation change.\n\n"
+    builder << "        Entries were generated from ${project.relativePath(resultsDir)}.\n"
+    builder << "        Current tracker shape: ${classLevelFailures.size()} classes and ${methodCount} methods.\n"
+    builder << "    -->\n"
+    classLevelFailures.each { className ->
+        builder << "    <class name=\"${escapeXml(className)}\"/>\n"
+    }
+    methodFailures.each { className, methods ->
+        methods.each { methodName ->
+            builder << "    <test class=\"${escapeXml(className)}\" method=\"${escapeXml(methodName)}\"/>\n"
+        }
+    }
+    builder << "</failingTests>\n"
+    suiteFile.text = builder.toString()
+    logger.lifecycle("Wrote ${suiteFile} with ${classLevelFailures.size()} classes and ${methodCount} methods.")
+}
+
+def refreshFailingJakartaTckSuite = tasks.register("refreshFailingJakartaTckSuite") {
+    group = "verification"
+    description = "Regenerates failingTests.xml from the latest discoverFailingJakartaTck XML results."
+
+    def resultsDir = layout.buildDirectory.dir("test-results/discoverFailingJakartaTck")
+    inputs.dir(resultsDir)
+    outputs.file(file("failingTests.xml"))
+
+    doLast {
+        writeFailingJakartaTckSuite(resultsDir.get().asFile, file("failingTests.xml"))
+    }
+}
+
+tasks.register("discoverFailingJakartaTck", Test) { Test task ->
+    group = "verification"
+    description = "Runs the full Jakarta REST TCK and refreshes failingTests.xml from the failures."
+    configureJaxRsTckTask(task, "all")
+    ignoreFailures = true
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath + jakartaTckRuntimeClasspath
+    shouldRunAfter(jakartaTck)
+    outputs.upToDateWhen { false }
+    finalizedBy(refreshFailingJakartaTckSuite)
+}
+
+tasks.register("failingJakartaTck", Test) { Test task ->
+    group = "verification"
+    description = "Runs only the tracked known failing Jakarta REST TCK tests."
+    configureJaxRsTckTask(task, "include-known-failures")
+    failOnNoDiscoveredTests = false
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath + jakartaTckRuntimeClasspath
+    shouldRunAfter(jakartaTck)
+}
+
+tasks.register("singleJakartaTck", Test) { Test task ->
+    group = "verification"
+    description = "Runs one Jakarta REST TCK class or method. Use -PtckSingleClass=... and optional -PtckSingleMethod=..."
+    configureJaxRsTckTask(task, "single")
+    maxParallelForks = 1
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath + jakartaTckRuntimeClasspath
+    shouldRunAfter(jakartaTck)
+
+    def testClass = providers.gradleProperty("tckSingleClass")
+    def testMethod = providers.gradleProperty("tckSingleMethod")
+    inputs.property("tckSingleClass", testClass.orElse(""))
+    inputs.property("tckSingleMethod", testMethod.orElse(""))
+
+    doFirst {
+        if (!testClass.present) {
+            throw new GradleException("singleJakartaTck requires -PtckSingleClass=...")
+        }
+        systemProperty("tckSingleClass", testClass.get())
+        if (testMethod.present) {
+            systemProperty("tckSingleMethod", testMethod.get())
+        }
     }
 }

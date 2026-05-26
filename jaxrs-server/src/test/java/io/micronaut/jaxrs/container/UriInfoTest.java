@@ -86,6 +86,15 @@ class UriInfoTest {
     }
 
     @Test
+    void testRawEncodedPathSegments() {
+        UriInfo actualUri =
+            new UriInfoImpl(HttpRequest.GET("http://example.com/foo%20bar;color=red%20blue/?baz=bam"));
+
+        Assertions.assertEquals("foo%20bar", actualUri.getPathSegments(false).get(0).getPath());
+        Assertions.assertEquals("red%20blue", actualUri.getPathSegments(false).get(0).getMatrixParameters().getFirst("color"));
+    }
+
+    @Test
     void testPathMatrixParameters() {
         jakarta.ws.rs.core.UriInfo expectedUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo;color=red;color=green/bar;color=blue/?baz=bam"));
 

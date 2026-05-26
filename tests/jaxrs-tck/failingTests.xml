@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<failingTests>
+    <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="locatorNameTooLongAgainTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="slashUriTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="slashAppNameTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="wrongAppNameTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="descendantResourcePathValueTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="producesOverridesDescendantSubResourcePathValuePostTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="consumesOverridesDescendantSubResourcePathValueTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="consumesCorrectContentTypeOnResourceLocatorTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="producesCorrectContentTypeOnResourceLocatorTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="l2SubResourceLocatorTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="producesOnResourceLocatorTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="producesCorrectContentTypeOnSubResourceLocatorTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="producesOnSubResourceLocatorTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="consumesCorrectContentTypeOnSubResourceLocatorTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="foundAnotherResourceLocatorByPathTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="qualityOfSourceOnDifferentMediaTypesTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="concreteOverStarWhenAcceptStarTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="producesOverridesDescendantSubResourcePathValueWeightTest"/>
+    <class name="ee.jakarta.tck.ws.rs.api.rs.core.multivaluedmap.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.spec.resourceconstructor.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.spec.provider.standardnotnull.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.spec.filter.interceptor.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.ee.rs.container.requestcontext.security.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.spec.context.server.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.jaxrs21.spec.classsubresourcelocator.JAXRSClientIT"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.provider.standardhaspriority.JAXRSClientIT" method="readWriteJaxbProviderTest"/>
+    <class name="ee.jakarta.tck.ws.rs.spec.filter.dynamicfeature.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.jaxrs31.spec.extensions.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.api.client.client.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.sebootstrap.SeBootstrapIT"/>
+    <class name="ee.jakarta.tck.ws.rs.jaxrs21.api.client.invocationbuilder.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.jaxrs21.ee.client.executor.rx.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.ee.rs.core.configuration.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.api.rs.core.configurable.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.api.client.clientbuilder.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.spec.client.instance.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.spec.context.client.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.jaxrs21.ee.sse.sseeventsink.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.jaxrs21.ee.sse.sseeventsource.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.jaxrs21.ee.sse.ssebroadcaster.JAXRSClientIT"/>
+    <test class="ee.jakarta.tck.ws.rs.api.client.webtarget.JAXRSClientIT" method="requestNoArgTest"/>
+    <class name="ee.jakarta.tck.ws.rs.spec.client.exceptions.ClientExceptionsIT"/>
+    <test class="ee.jakarta.tck.ws.rs.servlet3.rs.core.streamingoutput.JAXRSClientIT" method="writeWebApplicationExceptionTest"/>
+    <test class="ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT" method="expiresTest"/>
+    <test class="ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT" method="getDateTest"/>
+    <test class="ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT" method="getLastModifiedTest"/>
+    <test class="ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT" method="getDateTest"/>
+    <test class="ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT" method="getLastModifiedTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT" method="getHeaderStringTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT" method="getHeadersTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.core.configurable.JAXRSClientIT" method="registerObjectNotAssignableContractsInMapTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.core.configurable.JAXRSClientIT" method="registerClassBindingPriorityInMapTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.core.configurable.JAXRSClientIT" method="registerObjectNotAssignableContractsTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.core.configurable.JAXRSClientIT" method="registerClassNotAssignableContractsTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.core.configurable.JAXRSClientIT" method="registerObjectBindingPriorityInMapTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT" method="responseCreatedRelativeURITest"/>
+    <test class="ee.jakarta.tck.ws.rs.api.rs.ext.runtimedelegate.create.JAXRSClientIT" method="createEndpointThrowsIllegalArgumentExceptionTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="optionsOnSubResourceTest"/>
+    <class name="ee.jakarta.tck.ws.rs.ee.rs.headerparam.sub.JAXRSSubClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.ee.rs.formparam.locator.JAXRSLocatorClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.ee.rs.formparam.sub.JAXRSSubClientIT"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.get.JAXRSClientIT" method="dynamicGetTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.get.JAXRSClientIT" method="recursiveResourceLocatorTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.provider.standardwithjaxrsclient.JAXRSClientIT" method="mapElementProviderTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.provider.standardhaspriority.JAXRSClientIT" method="readWriteMapProviderTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT" method="clientMultivaluedMapWriterTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT" method="clientStreamingOutputWriterTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT" method="clientMultivaluedMapReaderTest"/>
+    <test class="ee.jakarta.tck.ws.rs.api.client.clientrequestcontext.JAXRSClientIT" method="getPropertyNamesIsImmutableTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT" method="writeIOExceptionUsingWriterTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT" method="readEntityWebException400Test"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.provider.writer.JAXRSClientIT" method="responseSubClassTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.provider.writer.JAXRSClientIT" method="supportAllTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.provider.writer.JAXRSClientIT" method="supportXmlByXmlWriterTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.provider.writer.JAXRSClientIT" method="supportXmlByDefaultWriterTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.client.clientrequestcontext.JAXRSClientIT" method="setMethodTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.client.clientrequestcontext.JAXRSClientIT" method="getEntityStreamTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT" method="clientSourceWriterTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT" method="clientSourceReaderTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT" method="clientDataSourceWriterTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT" method="clientFileWriterTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT" method="clientDataSourceReaderTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT" method="clientFileReaderTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.filter.lastvalue.JAXRSClientIT" method="writerContextOnClientTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.filter.lastvalue.JAXRSClientIT" method="readerContextOnContainerTest"/>
+    <class name="ee.jakarta.tck.ws.rs.ee.rs.ext.interceptor.containerreader.interceptorcontext.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.ee.rs.ext.interceptor.containerwriter.writerinterceptorcontext.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.ee.rs.ext.interceptor.containerreader.readerinterceptorcontext.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.ee.rs.ext.interceptor.containerwriter.interceptorcontext.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.ee.rs.container.requestcontext.JAXRSClientIT"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.container.responsecontext.JAXRSClientIT" method="getEntityAnnotationsWhenAnnotationsOnEntityTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT" method="bodyReaderTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT" method="readEntityFromBodyTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT" method="readEntityFromHeaderTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT" method="readEntityIOExceptionTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT" method="readEntityWebException410Test"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.provider.overridestandard.JAXRSClientIT" method="readWriteByteArrayProviderTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.provider.overridestandard.JAXRSClientIT" method="readWriteBooleanProviderTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.provider.overridestandard.JAXRSClientIT" method="readWriteCharacterProviderTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.provider.overridestandard.JAXRSClientIT" method="readWriteIntegerProviderTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.provider.overridestandard.JAXRSClientIT" method="readWriteInputStreamProviderTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.provider.overridestandard.JAXRSClientIT" method="readWriteJaxbProviderTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.provider.overridestandard.JAXRSClientIT" method="readWriteMapProviderTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.provider.overridestandard.JAXRSClientIT" method="readWriteSourceProviderTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT" method="webApplicationExceptionHasResponseWithoutEntityDoesUseMapperTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT" method="exceptionMapperTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT" method="isRegisteredAppJsonContextResolverTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT" method="isRegisteredTextPlainContextResolverTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT" method="contextResolverTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT" method="webApplicationExceptionHasResponseWithEntityDoesNotUseMapperTest"/>
+    <test class="ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT" method="cookieTest"/>
+    <test class="ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT" method="getCookiesTest"/>
+    <test class="ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT" method="cookieTest"/>
+    <test class="ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT" method="getCookiesTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT" method="clientAnyPreferenceTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT" method="textPreferenceTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT" method="defaultResponseErrorTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT" method="clientImagePreferenceTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT" method="defaultErrorTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT" method="mesageBodyWriterProducesTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT" method="noPreferenceTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT" method="imagePreferenceTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.returntype.JAXRSClientIT" method="entityResponseTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT" method="getMatchedURIsTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT" method="getMatchedURIsTest1"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT" method="getMatchedURIsTest2"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT" method="getMatchedResourcesTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT" method="requestURITest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT" method="aPathTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT" method="baseUriTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.provider.sort.JAXRSClientIT" method="contentTypeTextXmlGotTextWildCardTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.provider.sort.JAXRSClientIT" method="contentTypeTextHmtlGotTextWildCardTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.provider.sort.JAXRSClientIT" method="contentTypeApplicationGotWildCardTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.provider.sort.JAXRSClientIT" method="contentTypeTextPlainGotTextPlainTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.template.JAXRSClientIT" method="Test1"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.template.JAXRSClientIT" method="Test2"/>
+    <class name="ee.jakarta.tck.ws.rs.spec.contextprovider.JsonbContextProviderIT"/>
+    <class name="ee.jakarta.tck.ws.rs.jaxrs40.ee.rs.core.uriinfo.UriInfo40ClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.ee.rs.formparam.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.ee.rs.core.securitycontext.basic.JAXRSBasicClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.ee.rs.core.request.JAXRSClientIT"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT" method="clientHtmlXmlPreferenceTest"/>
+    <test class="ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT" method="classProducesTest"/>
+    <class name="ee.jakarta.tck.ws.rs.spec.provider.standardwithxmlbinding.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.spec.provider.jaxbcontext.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.spec.client.typedentitieswithxmlbinding.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.spec.resource.locator.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.ee.rs.pathparam.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.ee.rs.cookieparam.sub.JAXRSSubClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.ee.rs.queryparam.sub.JAXRSSubClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.ee.rs.pathparam.sub.JAXRSSubClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.ee.rs.cookieparam.locator.JAXRSLocatorClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.ee.rs.pathparam.locator.JAXRSLocatorClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.ee.rs.headerparam.locator.JAXRSLocatorClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.ee.rs.cookieparam.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.spec.provider.reader.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.spec.resource.annotationprecedence.subclass.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.ee.rs.matrixparam.locator.JAXRSLocatorClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.spec.resource.valueofandfromstring.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.ee.rs.matrixparam.sub.JAXRSSubClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.ee.rs.ext.paramconverter.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.ee.rs.beanparam.cookie.plain.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.ee.rs.beanparam.path.plain.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.ee.rs.beanparam.header.plain.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.ee.rs.beanparam.query.plain.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.ee.rs.beanparam.matrix.plain.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.ee.rs.beanparam.form.plain.JAXRSClientIT"/>
+    <class name="ee.jakarta.tck.ws.rs.jaxrs31.ee.multipart.MultipartSupportIT"/>
+    <class name="ee.jakarta.tck.ws.rs.signaturetest.jaxrs.JAXRSSigTestIT"/>
+</failingTests>

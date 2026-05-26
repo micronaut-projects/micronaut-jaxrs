@@ -91,7 +91,7 @@ public final class UriInfoImpl implements UriInfo {
 
     @Override
     public String getPath(boolean decode) {
-        return getPath(request.getPath(), decode);
+        return getPath(getRequestPath(decode), decode);
     }
 
     @Override
@@ -101,7 +101,7 @@ public final class UriInfoImpl implements UriInfo {
 
     @Override
     public List<PathSegment> getPathSegments(boolean decode) {
-        return Stream.of(request.getPath().split("/"))
+        return Stream.of(getRequestPath(decode).split("/"))
             .filter(StringUtils::isNotEmpty)
             .<PathSegment>map(token -> {
                 String[] segmentTokens = token.split(";");
@@ -115,6 +115,14 @@ public final class UriInfoImpl implements UriInfo {
                 return new UriPathSegment(getPath(segmentTokens[0], decode), params);
             })
             .toList();
+    }
+
+    private String getRequestPath(boolean decode) {
+        if (decode) {
+            return request.getPath();
+        }
+        String rawPath = request.getUri().getRawPath();
+        return rawPath == null ? request.getPath() : rawPath;
     }
 
     @Override

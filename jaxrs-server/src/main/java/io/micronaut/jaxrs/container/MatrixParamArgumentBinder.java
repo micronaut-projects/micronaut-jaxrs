@@ -16,7 +16,6 @@
 package io.micronaut.jaxrs.container;
 
 import io.micronaut.context.annotation.Prototype;
-import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.convert.value.ConvertibleMultiValues;
 import io.micronaut.core.convert.value.ConvertibleMultiValuesMap;
@@ -25,25 +24,27 @@ import io.micronaut.http.HttpRequest;
 import io.micronaut.http.bind.binders.RequestArgumentBinder;
 import io.micronaut.jaxrs.runtime.ext.bind.UriInfoImpl;
 import jakarta.ws.rs.Encoded;
+import jakarta.ws.rs.MatrixParam;
 import jakarta.ws.rs.NotFoundException;
-import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.core.PathSegment;
 import jakarta.ws.rs.ext.ParamConverter;
 import jakarta.ws.rs.ext.ParamConverterProvider;
 import org.jspecify.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * A binder for binding arguments annotated with {@link QueryParam}.
+ * A binder for binding arguments annotated with {@link MatrixParam}.
  *
  * @param <T> The argument type
  * @author Denis Stepanov
- * @since 4.10
+ * @since 5.0.1
  */
 @Prototype
-final class QueryParamArgumentBinder<T> extends AbstractParamArgumentBinder<QueryParam, T> {
+final class MatrixParamArgumentBinder<T> extends AbstractParamArgumentBinder<MatrixParam, T> {
 
     /**
      * Constructor.
@@ -51,7 +52,7 @@ final class QueryParamArgumentBinder<T> extends AbstractParamArgumentBinder<Quer
      * @param conversionService       conversion service
      * @param paramConverterProviders param converter providers
      */
-    public QueryParamArgumentBinder(ConversionService conversionService, List<ParamConverterProvider> paramConverterProviders) {
+    public MatrixParamArgumentBinder(ConversionService conversionService, List<ParamConverterProvider> paramConverterProviders) {
         super(conversionService, paramConverterProviders);
     }
 
@@ -63,44 +64,42 @@ final class QueryParamArgumentBinder<T> extends AbstractParamArgumentBinder<Quer
      * @param paramConverter    The paramConverter
      * @param elementParamConverter The element paramConverter
      */
-    public QueryParamArgumentBinder(ConversionService conversionService,
-                                    Argument<T> argument,
-                                    @Nullable ParamConverter<T> paramConverter,
-                                    @Nullable ParamConverter<?> elementParamConverter) {
+    private MatrixParamArgumentBinder(ConversionService conversionService,
+                                      Argument<T> argument,
+                                      @Nullable ParamConverter<T> paramConverter,
+                                      @Nullable ParamConverter<?> elementParamConverter) {
         super(conversionService, argument, paramConverter, elementParamConverter);
     }
 
     @Override
-    public Class<QueryParam> getAnnotationType() {
-        return QueryParam.class;
-    }
-
-    @Override
-    protected boolean isBindable(Argument<T> argument, HttpRequest<?> source) {
-        AnnotationMetadata annotationMetadata = argument.getAnnotationMetadata();
-        // During the unmatched check avoid requests that don't allow bodies.
-        return !source.getMethod().permitsRequestBody() || annotationMetadata.hasAnnotation(QueryParam.class);
+    public Class<MatrixParam> getAnnotationType() {
+        return MatrixParam.class;
     }
 
     @Override
     protected ConvertibleMultiValues<String> parameterValues(HttpRequest<?> source, Argument<T> argument) {
-        if (!argument.getAnnotationMetadata().hasAnnotation(Encoded.class) || source.getUri().getRawQuery() == null) {
-            return source.getParameters();
-        }
-        Map<CharSequence, List<String>> values = new LinkedHashMap<>();
-        UriInfoImpl.getEncodedParameters(source.getUri()).forEach(values::put);
-        return new ConvertibleMultiValuesMap<>(values, conversionService);
+        return matrixParameters(source, !argument.getAnnotationMetadata().hasAnnotation(Encoded.class));
     }
 
     @Override
     protected RequestArgumentBinder<T> createSpecific(Argument<T> argument,
                                                       @Nullable ParamConverter<T> paramConverter,
                                                       @Nullable ParamConverter<?> elementParamConverter) {
-        return new QueryParamArgumentBinder<>(conversionService, argument, paramConverter, elementParamConverter);
+        return new MatrixParamArgumentBinder<>(conversionService, argument, paramConverter, elementParamConverter);
     }
 
     @Override
     protected RuntimeException conversionException(RuntimeException exception) {
         return new NotFoundException(exception);
+    }
+
+    private ConvertibleMultiValues<String> matrixParameters(HttpRequest<?> source, boolean decode) {
+        Map<CharSequence, List<String>> values = new LinkedHashMap<>();
+        for (PathSegment segment : new UriInfoImpl(source).getPathSegments(decode)) {
+            segment.getMatrixParameters().forEach((name, segmentValues) ->
+                values.computeIfAbsent(name, ignored -> new ArrayList<>()).addAll(segmentValues)
+            );
+        }
+        return new ConvertibleMultiValuesMap<>(values, conversionService);
     }
 }
