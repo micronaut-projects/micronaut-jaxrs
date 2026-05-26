@@ -20,6 +20,7 @@ import jakarta.ws.rs.Encoded;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.POST;
 import jakarta.ws.rs.core.PathSegment;
 import jakarta.ws.rs.ext.ParamConverter;
 import jakarta.ws.rs.ext.ParamConverterProvider;
@@ -119,6 +120,18 @@ class PathParamTest {
             assertEquals("double=ab", client.toBlocking().retrieve("/api/subresource-path-param/subresource/a/b"));
             assertEquals("list=abc", client.toBlocking().retrieve("/api/subresource-path-param/subresource/a/b/c"));
             assertEquals("matrix=/a;enabled=true", client.toBlocking().retrieve("/api/subresource-path-param/subresource/matrix/a;enabled=true"));
+        }
+    }
+
+    @Test
+    void locatorPrefersDeclaredTargetMethodOverInheritedResourceMethod() {
+        try (EmbeddedServer server = ApplicationContext.run(EmbeddedServer.class, Map.of("spec.name", "PathParamTest"));
+             HttpClient client = server.getApplicationContext().createBean(HttpClient.class, server.getURL())) {
+
+            assertEquals("single=blue", client.toBlocking().retrieve(HttpRequest.POST("/api/path-param-locator/locator/blue", "")));
+            assertEquals("double=bluegreen", client.toBlocking().retrieve(HttpRequest.POST("/api/path-param-locator/locator/blue/green", "")));
+            assertEquals("list=abcdef", client.toBlocking().retrieve(HttpRequest.POST("/api/path-param-locator/locator/a/b/c/d/e/f", "")));
+            assertEquals("double=bluegreen", client.toBlocking().retrieve(HttpRequest.POST("/api/path-param-locator/locatorencoded/blue/green", "")));
         }
     }
 
@@ -228,6 +241,71 @@ class PathParamTest {
         @Path("subresource")
         SubResource subresource() {
             return this;
+        }
+    }
+
+    @Path("/PathParamTest")
+    static class LocatorBaseResource {
+
+        @GET
+        @Path("/{id}")
+        public String inherited(@PathParam("id") String id) {
+            return "inherited=" + id;
+        }
+    }
+
+    static class LocatorMiddleResource extends LocatorBaseResource {
+        private final String value;
+
+        LocatorMiddleResource() {
+            this.value = null;
+        }
+
+        LocatorMiddleResource(String value) {
+            this.value = "single=" + value;
+        }
+
+        LocatorMiddleResource(String first, String second) {
+            this.value = "double=" + first + second;
+        }
+
+        LocatorMiddleResource(String first, String second, String third, String fourth, String fifth, String sixth) {
+            this.value = "list=" + first + second + third + fourth + fifth + sixth;
+        }
+
+        @POST
+        public String returnValue() {
+            return value;
+        }
+    }
+
+    @Requires(property = "spec.name", value = "PathParamTest")
+    @Path("/path-param-locator")
+    static class PathParamLocatorResource extends LocatorMiddleResource {
+
+        @Path("locator/{id1}")
+        LocatorMiddleResource locator(@PathParam("id1") String id1) {
+            return new LocatorMiddleResource(id1);
+        }
+
+        @Path("locator/{id1}/{id2}")
+        LocatorMiddleResource locator(@PathParam("id1") String id1, @PathParam("id2") String id2) {
+            return new LocatorMiddleResource(id1, id2);
+        }
+
+        @Path("locatorencoded/{id1}/{id2}")
+        LocatorMiddleResource locatorEncoded(@PathParam("id1") String id1, @Encoded @PathParam("id2") String id2) {
+            return new LocatorMiddleResource(id1, id2);
+        }
+
+        @Path("locator/{id1}/{id2}/{id3}/{id4}/{id5}/{id6}")
+        LocatorMiddleResource locator(@PathParam("id1") String id1,
+                                      @PathParam("id2") String id2,
+                                      @PathParam("id3") String id3,
+                                      @PathParam("id4") String id4,
+                                      @PathParam("id5") String id5,
+                                      @PathParam("id6") String id6) {
+            return new LocatorMiddleResource(id1, id2, id3, id4, id5, id6);
         }
     }
 

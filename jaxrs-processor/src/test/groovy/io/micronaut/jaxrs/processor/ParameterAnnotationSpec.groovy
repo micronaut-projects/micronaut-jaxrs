@@ -259,6 +259,52 @@ class MiddleResource {
         !metadata.hasAnnotation(Header)
     }
 
+    void "test subresource locator prefers target methods declared on returned resource type"() {
+        given:
+        def definition = buildBeanDefinition('test.LocatorResource', """
+package test;
+
+@jakarta.ws.rs.Path("resource")
+class LocatorResource {
+
+    @jakarta.ws.rs.Path("locator/{id}")
+    MiddleResource locator(@jakarta.ws.rs.PathParam("id") String id) {
+        return new MiddleResource(id);
+    }
+}
+
+class BaseResource {
+
+    @jakarta.ws.rs.GET
+    @jakarta.ws.rs.Path("{id}")
+    String inherited(@jakarta.ws.rs.PathParam("id") String id) {
+        return id;
+    }
+}
+
+class MiddleResource extends BaseResource {
+    private final String id;
+
+    MiddleResource(String id) {
+        this.id = id;
+    }
+
+    @jakarta.ws.rs.POST
+    String returnValue() {
+        return id;
+    }
+}
+""")
+
+        def method = definition.getRequiredMethod("locator", String)
+
+        expect:
+        method.hasAnnotation(Post)
+        method.stringValue(HttpMethodMapping).get() == '/locator/{id}'
+        method.stringValue(SUB_RESOURCE_LOCATOR_ANNOTATION).get() == 'returnValue'
+        method.classValue(SUB_RESOURCE_LOCATOR_ANNOTATION, 'type').get().name == 'test.MiddleResource'
+    }
+
     void "test subresource locator preserves custom http method mapping"() {
         given:
         def definition = buildBeanDefinition('test.LocatorResource', """

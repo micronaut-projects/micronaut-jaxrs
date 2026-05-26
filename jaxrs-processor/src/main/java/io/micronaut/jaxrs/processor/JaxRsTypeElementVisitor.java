@@ -65,6 +65,7 @@ import jakarta.ws.rs.ext.Provider;
 import java.lang.annotation.Annotation;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 
@@ -185,10 +186,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         if (!isServerResourceClass()) {
             return;
         }
-        for (MethodElement targetMethod : element.getReturnType().getMethods()) {
-            if (!isSubResourceTargetMethod(targetMethod)) {
-                continue;
-            }
+        for (MethodElement targetMethod : subResourceTargetMethods(element)) {
             List<AnnotationValue<Annotation>> routeAnnotations = targetMethod.getAnnotationValuesByStereotype(HttpMethodMapping.class.getName());
             if (routeAnnotations.isEmpty()) {
                 continue;
@@ -429,6 +427,16 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
 
     private static boolean isSubResourceTargetMethod(MethodElement method) {
         return method.hasStereotype(HttpMethod.class) && method.getParameters().length == 0;
+    }
+
+    private static List<MethodElement> subResourceTargetMethods(MethodElement locator) {
+        String returnTypeName = locator.getReturnType().getName();
+        return locator.getReturnType()
+            .getMethods()
+            .stream()
+            .filter(JaxRsTypeElementVisitor::isSubResourceTargetMethod)
+            .sorted(Comparator.comparing((MethodElement method) -> !method.getDeclaringType().getName().equals(returnTypeName)))
+            .toList();
     }
 
     private String toServerRoutePath(MethodElement method, String path, List<String> matrixParameterNames) {
