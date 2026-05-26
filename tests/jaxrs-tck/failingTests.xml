@@ -137,7 +137,25 @@
     <test class="ee.jakarta.tck.ws.rs.spec.template.JAXRSClientIT" method="Test2"/>
     <class name="ee.jakarta.tck.ws.rs.spec.contextprovider.JsonbContextProviderIT"/>
     <class name="ee.jakarta.tck.ws.rs.jaxrs40.ee.rs.core.uriinfo.UriInfo40ClientIT"/>
-    <class name="ee.jakarta.tck.ws.rs.ee.rs.formparam.JAXRSClientIT"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.formparam.JAXRSClientIT" method="defaultFormParamSentTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.formparam.JAXRSClientIT" method="defaultFormParamFromConstructorTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.formparam.JAXRSClientIT" method="defaultFormParamFromListConstructorTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.formparam.JAXRSClientIT" method="defaultFormParamValueOfTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.formparam.JAXRSClientIT" method="defaultFormParamPutArgSentTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.formparam.JAXRSClientIT" method="defaultFormParamFromListFromStringTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.formparam.JAXRSClientIT" method="nonDefaultFormParamFromSortedSetFromStringTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.formparam.JAXRSClientIT" method="formParamThrowingWebApplicationExceptionTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.formparam.JAXRSClientIT" method="defaultFormParamFromStringTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.formparam.JAXRSClientIT" method="formParamThrowingIllegalArgumentExceptionTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.formparam.JAXRSClientIT" method="nonDefaultFormParamFromConstructorTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.formparam.JAXRSClientIT" method="nonDefaultFormParamFromStringTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.formparam.JAXRSClientIT" method="defaultFormParamFromSortedSetFromStringTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.formparam.JAXRSClientIT" method="nonDefaultFormParamFromListConstructorTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.formparam.JAXRSClientIT" method="nonDefaultFormParamFromSetFromStringTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.formparam.JAXRSClientIT" method="formParamEntityWithEncodedTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.formparam.JAXRSClientIT" method="defaultFormParamFromSetFromStringTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.formparam.JAXRSClientIT" method="nonDefaultFormParamValueOfTest"/>
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.formparam.JAXRSClientIT" method="nonDefaultFormParamFromListFromStringTest"/>
     <class name="ee.jakarta.tck.ws.rs.ee.rs.core.securitycontext.basic.JAXRSBasicClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.ee.rs.core.request.JAXRSClientIT"/>
     <test class="ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT" method="clientHtmlXmlPreferenceTest"/>
