@@ -151,7 +151,6 @@
     <class name="ee.jakarta.tck.ws.rs.ee.rs.queryparam.sub.JAXRSSubClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.ee.rs.pathparam.sub.JAXRSSubClientIT"/>
-    <class name="ee.jakarta.tck.ws.rs.ee.rs.cookieparam.locator.JAXRSLocatorClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.ee.rs.pathparam.locator.JAXRSLocatorClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.ee.rs.cookieparam.JAXRSClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.spec.provider.reader.JAXRSClientIT"/>

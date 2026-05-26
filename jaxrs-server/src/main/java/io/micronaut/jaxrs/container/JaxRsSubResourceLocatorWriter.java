@@ -25,6 +25,7 @@ import io.micronaut.core.type.MutableHeaders;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.MediaType;
+import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.http.body.ByteBodyFactory;
 import io.micronaut.http.body.CloseableByteBody;
 import io.micronaut.http.body.MessageBodyHandlerRegistry;
@@ -34,6 +35,7 @@ import io.micronaut.http.codec.CodecException;
 import io.micronaut.inject.BeanDefinition;
 import io.micronaut.inject.ExecutableMethod;
 import io.micronaut.inject.ProxyBeanDefinition;
+import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import jakarta.inject.Singleton;
 import org.jspecify.annotations.Nullable;
 
@@ -72,6 +74,7 @@ final class JaxRsSubResourceLocatorWriter implements ResponseBodyWriter<Object>,
                         MutableHeaders outgoingHeaders,
                         OutputStream outputStream) throws CodecException {
         Object result = invokeSubResourceMethod(type, object);
+        result = unwrapJaxRsResponse(result, null, outgoingHeaders);
         if (result != null) {
             writeResult(result, mediaType, outgoingHeaders, outputStream);
         }
@@ -85,6 +88,7 @@ final class JaxRsSubResourceLocatorWriter implements ResponseBodyWriter<Object>,
                                         MediaType mediaType,
                                         Object object) throws CodecException {
         Object result = invokeSubResourceMethod(type, object);
+        result = unwrapJaxRsResponse(result, response, null);
         if (result == null) {
             return bodyFactory.createEmpty();
         }
@@ -102,6 +106,7 @@ final class JaxRsSubResourceLocatorWriter implements ResponseBodyWriter<Object>,
                                  MutableHeaders outgoingHeaders,
                                  ByteBufferFactory<?, ?> bufferFactory) throws CodecException {
         Object result = invokeSubResourceMethod(type, object);
+        result = unwrapJaxRsResponse(result, null, null);
         if (result == null) {
             return bufferFactory.buffer(0);
         }
@@ -147,6 +152,31 @@ final class JaxRsSubResourceLocatorWriter implements ResponseBodyWriter<Object>,
         bodyHandlerRegistry.getWriter(resultType, List.of(mediaType))
             .createSpecific(resultType)
             .writeTo(resultType, mediaType, result, outgoingHeaders, outputStream);
+    }
+
+    private static @Nullable Object unwrapJaxRsResponse(Object result,
+                                                        @Nullable HttpResponse<?> response,
+                                                        @Nullable MutableHeaders outgoingHeaders) {
+        if (result instanceof JaxRsMutableResponse jaxRsResponse) {
+            MutableHttpResponse<?> source = jaxRsResponse.getResponse();
+            if (response instanceof MutableHttpResponse<?> mutableResponse) {
+                mutableResponse.status(source.code(), source.reason());
+                source.getAttributes().forEach(mutableResponse::setAttribute);
+                copyHeaders(source, mutableResponse.getHeaders());
+            } else if (outgoingHeaders != null) {
+                copyHeaders(source, outgoingHeaders);
+            }
+            return source.getBody().orElse(null);
+        }
+        return result;
+    }
+
+    private static void copyHeaders(HttpResponse<?> source, MutableHeaders target) {
+        source.getHeaders().forEach((name, values) -> {
+            for (String value : values) {
+                target.add(name, value);
+            }
+        });
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})

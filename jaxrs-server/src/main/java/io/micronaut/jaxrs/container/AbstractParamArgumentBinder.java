@@ -93,8 +93,12 @@ abstract class AbstractParamArgumentBinder<A extends Annotation, T> extends Abst
         if (!isBindable(argument, source)) {
             return BindingResult.unsatisfied();
         }
-        ConvertibleMultiValues<String> values = parameterValues(source, argument);
         String parameterName = resolvedParameterName(argument);
+        BindingResult<T> directResult = bindDirect(context, source, parameterName);
+        if (directResult != null) {
+            return directResult;
+        }
+        ConvertibleMultiValues<String> values = parameterValues(source, argument);
         if (paramConverter != null) {
             String value = valueOrDefault(values.get(parameterName), argument);
             if (value == null) {
@@ -126,6 +130,10 @@ abstract class AbstractParamArgumentBinder<A extends Annotation, T> extends Abst
     }
 
     protected abstract ConvertibleMultiValues<String> parameterValues(HttpRequest<?> source, Argument<T> argument);
+
+    protected @Nullable BindingResult<T> bindDirect(ArgumentConversionContext<T> context, HttpRequest<?> source, String parameterName) {
+        return null;
+    }
 
     protected abstract RequestArgumentBinder<T> createSpecific(Argument<T> argument,
                                                               @Nullable ParamConverter<T> paramConverter,
@@ -167,7 +175,7 @@ abstract class AbstractParamArgumentBinder<A extends Annotation, T> extends Abst
         return new ConvertibleMultiValuesMap<>(values, conversionService);
     }
 
-    private @Nullable String valueOrDefault(@Nullable String value, Argument<T> argument) {
+    protected final @Nullable String valueOrDefault(@Nullable String value, Argument<T> argument) {
         if (value != null) {
             return value;
         }

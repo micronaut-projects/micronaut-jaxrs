@@ -232,9 +232,11 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             markRequestFieldInjection();
         } else if (element.hasAnnotation(HeaderParam.class)) {
             markRequestFieldInjection();
+        } else if (element.hasAnnotation(CookieParam.class)) {
+            element.removeAnnotation(CookieValue.class);
+            markRequestFieldInjection();
         } else if (element.hasAnnotation(FormParam.class) ||
             element.hasAnnotation(PathParam.class) ||
-            element.hasAnnotation(CookieParam.class) ||
             element.hasAnnotation(BeanParam.class)
         ) {
             context.fail("Request scoped bean parameters are currently not supported", element); // todo
@@ -255,7 +257,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     }
 
     private static boolean isRequestParamField(FieldElement field) {
-        return field.hasAnnotation(MatrixParam.class) || field.hasAnnotation(QueryParam.class) || field.hasAnnotation(HeaderParam.class);
+        return field.hasAnnotation(MatrixParam.class) || field.hasAnnotation(QueryParam.class) || field.hasAnnotation(HeaderParam.class) || field.hasAnnotation(CookieParam.class);
     }
 
     private void markMatrixAwareClassPath(String matrixParameterName) {
@@ -285,7 +287,14 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             }
         }
         mapParam(parameter, FormParam.class, Body.class);
-        mapParam(parameter, CookieParam.class, CookieValue.class);
+        if (parameter.hasAnnotation(CookieParam.class)) {
+            if (isClientClass()) {
+                mapParam(parameter, CookieParam.class, CookieValue.class);
+            } else {
+                parameter.removeAnnotation(CookieValue.class);
+                annotateCookieParam(parameter);
+            }
+        }
         mapParam(parameter, PathParam.class, PathVariable.class);
         if (parameter.hasAnnotation(QueryParam.class)) {
             annotateQueryParam(parameter);
@@ -315,6 +324,15 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
 
     private static void annotateMatrixParam(TypedElement parameter) {
         AnnotationValueBuilder<MatrixParam> builder = AnnotationValue.builder(MatrixParam.class);
+        annotateDefaultAndNullable(parameter, builder);
+        parameter.annotate(
+            builder
+                .stereotype(AnnotationValue.builder(Bindable.class).build()).build()
+        );
+    }
+
+    private static void annotateCookieParam(TypedElement parameter) {
+        AnnotationValueBuilder<CookieParam> builder = AnnotationValue.builder(CookieParam.class);
         annotateDefaultAndNullable(parameter, builder);
         parameter.annotate(
             builder

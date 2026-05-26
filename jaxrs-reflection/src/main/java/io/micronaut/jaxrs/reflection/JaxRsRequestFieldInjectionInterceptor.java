@@ -31,6 +31,7 @@ import io.micronaut.http.context.ServerRequestContext;
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.jaxrs.container.JaxRsRequestFieldInjection;
 import jakarta.inject.Singleton;
+import jakarta.ws.rs.CookieParam;
 import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.Encoded;
 import jakarta.ws.rs.HeaderParam;
@@ -118,7 +119,10 @@ final class JaxRsRequestFieldInjectionInterceptor implements MethodInterceptor<O
 
     private static boolean isInjectableRequestField(Field field) {
         int modifiers = field.getModifiers();
-        return (field.isAnnotationPresent(MatrixParam.class) || field.isAnnotationPresent(QueryParam.class) || field.isAnnotationPresent(HeaderParam.class))
+        return (field.isAnnotationPresent(MatrixParam.class)
+            || field.isAnnotationPresent(QueryParam.class)
+            || field.isAnnotationPresent(HeaderParam.class)
+            || field.isAnnotationPresent(CookieParam.class))
             && !Modifier.isStatic(modifiers)
             && !Modifier.isFinal(modifiers);
     }
@@ -130,6 +134,7 @@ final class JaxRsRequestFieldInjectionInterceptor implements MethodInterceptor<O
         MatrixParam matrixParam = field.getAnnotation(MatrixParam.class);
         QueryParam queryParam = field.getAnnotation(QueryParam.class);
         HeaderParam headerParam = field.getAnnotation(HeaderParam.class);
+        CookieParam cookieParam = field.getAnnotation(CookieParam.class);
         if (matrixParam != null) {
             addRequestParam(annotationMetadata, MatrixParam.class, matrixParam.value());
             addBindable(annotationMetadata, MatrixParam.class, matrixParam.value(), fieldDefaultValue(field));
@@ -139,6 +144,9 @@ final class JaxRsRequestFieldInjectionInterceptor implements MethodInterceptor<O
         } else if (headerParam != null) {
             addRequestParam(annotationMetadata, HeaderParam.class, headerParam.value());
             addBindable(annotationMetadata, HeaderParam.class, headerParam.value(), fieldDefaultValue(field));
+        } else if (cookieParam != null) {
+            addRequestParam(annotationMetadata, CookieParam.class, cookieParam.value());
+            addBindable(annotationMetadata, CookieParam.class, cookieParam.value(), fieldDefaultValue(field));
         } else {
             throw new IllegalStateException("Unsupported Jakarta REST request field [" + field + "]");
         }

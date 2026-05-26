@@ -46,12 +46,13 @@ class Test {
         metadata.stringValue(target)
                 .get() == 'test'
         source != HeaderParam || !metadata.hasAnnotation(Header)
+        source != CookieParam || !metadata.hasAnnotation(CookieValue)
 
         where:
         source      | target       | value
         PathParam   | PathVariable | "test"
         HeaderParam | HeaderParam  | "test"
-        CookieParam | CookieValue  | "test"
+        CookieParam | CookieParam  | "test"
         QueryParam  | QueryParam   | "test"
         FormParam   | QueryValue   | "test"
         MatrixParam | MatrixParam  | "test"
@@ -76,6 +77,27 @@ interface Test {
         expect:
         metadata.hasAnnotation(Header)
         metadata.stringValue(Header).get() == 'X-Test'
+    }
+
+    void "test CookieParam maps to CookieValue for clients"() {
+        given:
+        def definition = buildBeanDefinition('test.Test$Intercepted', """
+package test;
+
+@io.micronaut.http.client.annotation.Client("/test")
+interface Test {
+
+    @jakarta.ws.rs.GET
+    void test(@jakarta.ws.rs.CookieParam("test") String test);
+}
+""")
+
+        def method = definition.getRequiredMethod("test", String)
+        def metadata = method.arguments[0].getAnnotationMetadata()
+
+        expect:
+        metadata.hasAnnotation(CookieValue)
+        metadata.stringValue(CookieValue).get() == 'test'
     }
 
     void "test MatrixParam route allows matrix path segments"() {
@@ -270,6 +292,29 @@ package test;
 class Test {
 
     @jakarta.ws.rs.HeaderParam("X-Color")
+    String color;
+
+    @jakarta.ws.rs.GET
+    String test() {
+        return color;
+    }
+}
+""")
+
+        expect:
+        definition.annotationMetadata.hasAnnotation(REQUEST_FIELD_INJECTION_ANNOTATION)
+        definition.annotationMetadata.hasAnnotation(Prototype)
+    }
+
+    void "test CookieParam field marks resource for request field injection"() {
+        given:
+        def definition = buildBeanDefinition('test.Test', """
+package test;
+
+@jakarta.ws.rs.Path("/test")
+class Test {
+
+    @jakarta.ws.rs.CookieParam("color")
     String color;
 
     @jakarta.ws.rs.GET

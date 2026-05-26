@@ -26,11 +26,13 @@ import io.micronaut.core.convert.ConversionContext;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.bind.RequestBinderRegistry;
+import io.micronaut.http.cookie.Cookie;
 import io.micronaut.http.context.ServerRequestContext;
 import io.micronaut.inject.BeanDefinition;
 import io.micronaut.inject.ExecutableMethod;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
+import jakarta.ws.rs.CookieParam;
 import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.HeaderParam;
@@ -95,6 +97,30 @@ class JaxRsRequestFieldInjectionTest {
         String response = ServerRequestContext.with(HttpRequest.GET("/header-field").header("X-Color", "blue"), (Supplier<String>) resource::get);
 
         assertEquals("blue", response);
+    }
+
+    @Test
+    void injectsCookieParamFieldBeforeResourceMethodInvocation() {
+        CookieFieldResource resource = context.getBeansOfType(CookieFieldResource.class)
+            .stream()
+            .filter(Intercepted.class::isInstance)
+            .findFirst()
+            .orElseThrow();
+        String response = ServerRequestContext.with(HttpRequest.GET("/cookie-field").cookie(Cookie.of("color", "blue")), (Supplier<String>) resource::get);
+
+        assertEquals("blue", response);
+    }
+
+    @Test
+    void injectsDefaultCookieParamFieldBeforeResourceMethodInvocation() {
+        CookieFieldResource resource = context.getBeansOfType(CookieFieldResource.class)
+            .stream()
+            .filter(Intercepted.class::isInstance)
+            .findFirst()
+            .orElseThrow();
+        String response = ServerRequestContext.with(HttpRequest.GET("/cookie-field"), (Supplier<String>) resource::get);
+
+        assertEquals("green", response);
     }
 
     @Test
@@ -201,6 +227,20 @@ class JaxRsRequestFieldInjectionTest {
     @Path("/header-field")
     static class HeaderFieldResource {
         @HeaderParam("X-Color")
+        String color;
+
+        @GET
+        @Produces("text/plain")
+        public String get() {
+            return color;
+        }
+    }
+
+    @Requires(property = "spec.name", value = "JaxRsRequestFieldInjectionTest")
+    @Path("/cookie-field")
+    static class CookieFieldResource {
+        @DefaultValue("green")
+        @CookieParam("color")
         String color;
 
         @GET
