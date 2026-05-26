@@ -21,6 +21,7 @@ import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Encoded;
 import jakarta.ws.rs.MatrixParam;
 import jakarta.ws.rs.Path;
+import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.ext.ParamConverter;
 import jakarta.ws.rs.ext.ParamConverterProvider;
@@ -46,6 +47,10 @@ class MatrixParamTest {
     @Client("/api/matrix-param")
     HttpClient client;
 
+    @Inject
+    @Client("/api/matrix-param-locator")
+    HttpClient locatorClient;
+
     @Test
     void routesMatrixParameterRequests() {
         String response = client.toBlocking().retrieve("/colors;color=red;color=green/ids;id=1;id=2", String.class);
@@ -65,6 +70,13 @@ class MatrixParamTest {
         String response = client.toBlocking().retrieve("/custom-sorted-set;custom=blue", String.class);
 
         assertEquals("blue", response);
+    }
+
+    @Test
+    void routesMatrixParameterSubresourceLocatorRequests() {
+        String response = locatorClient.toBlocking().retrieve(HttpRequest.POST("/locator;doubletest1=123", ""), String.class);
+
+        assertEquals("doubletest1=123.0", response);
     }
 
     @Test
@@ -201,6 +213,35 @@ class MatrixParamTest {
         @Produces("text/plain")
         public String customSortedSet(@MatrixParam("routing") String ignored, @DefaultValue("default") @MatrixParam("custom") SortedSet<ConvertedMatrixParam> custom) {
             return custom == null || custom.isEmpty() ? "null" : custom.first().value;
+        }
+    }
+
+    @Requires(property = "spec.name", value = "MatrixParamTest")
+    @Path("/matrix-param-locator")
+    static class MatrixLocatorRoot {
+
+        @Path("/locator")
+        public MatrixLocatorMiddle locator(@MatrixParam("doubletest1") double doubleValue) {
+            return new MatrixLocatorMiddle(doubleValue);
+        }
+    }
+
+    @Requires(property = "spec.name", value = "MatrixParamTest")
+    static class MatrixLocatorMiddle {
+        private final double doubleValue;
+
+        MatrixLocatorMiddle() {
+            this.doubleValue = 0;
+        }
+
+        MatrixLocatorMiddle(double doubleValue) {
+            this.doubleValue = doubleValue;
+        }
+
+        @POST
+        @Produces("text/plain")
+        public String returnValue() {
+            return "doubletest1=" + doubleValue;
         }
     }
 

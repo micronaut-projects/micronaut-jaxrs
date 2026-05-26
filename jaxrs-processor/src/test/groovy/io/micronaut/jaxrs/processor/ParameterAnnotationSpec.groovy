@@ -3,6 +3,7 @@ package io.micronaut.jaxrs.processor
 import io.micronaut.annotation.processing.test.AbstractTypeElementSpec
 import io.micronaut.context.annotation.Prototype
 import io.micronaut.core.bind.annotation.Bindable
+import io.micronaut.http.annotation.Controller
 import io.micronaut.http.annotation.CookieValue
 import io.micronaut.http.annotation.CustomHttpMethod
 import io.micronaut.http.annotation.Header
@@ -259,6 +260,43 @@ class MiddleResource {
         metadata.hasAnnotation(HeaderParam)
         metadata.stringValue(HeaderParam).get() == 'X-Test'
         !metadata.hasAnnotation(Header)
+    }
+
+    void "test subresource locator MatrixParam route allows matrix path segments"() {
+        given:
+        def definition = buildBeanDefinition('test.LocatorResource', """
+package test;
+
+@jakarta.ws.rs.Path("resource")
+class LocatorResource {
+
+    @jakarta.ws.rs.Path("locator")
+    MiddleResource locator(@jakarta.ws.rs.MatrixParam("color") String color) {
+        return new MiddleResource(color);
+    }
+}
+
+class MiddleResource {
+    private final String color;
+
+    MiddleResource(String color) {
+        this.color = color;
+    }
+
+    @jakarta.ws.rs.POST
+    String post() {
+        return color;
+    }
+}
+""")
+
+        def method = definition.getRequiredMethod("locator", String)
+
+        expect:
+        definition.stringValue(Controller).get() == 'resource{color:;[^/]*|}'
+        method.hasAnnotation(Post)
+        method.stringValue(HttpMethodMapping).get() == '/locator{color:;[^/]*|}'
+        method.stringValue(SUB_RESOURCE_LOCATOR_ANNOTATION).get() == 'post'
     }
 
     void "test subresource locator prefers target methods declared on returned resource type"() {

@@ -186,12 +186,19 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         if (!isServerResourceClass()) {
             return;
         }
+        List<String> matrixParameterNames = matrixParameterNames(element);
+        if (!matrixParameterNames.isEmpty()) {
+            markMatrixAwareClassPath(matrixParameterNames.get(0));
+        }
         SubResourceTargetMethod targetMethod = findSubResourceTargetMethod(element);
         if (targetMethod != null) {
             MethodElement method = targetMethod.method();
             String locatorPath = element.stringValue(HttpMethodMapping.class).orElse(UriMapping.DEFAULT_URI);
             String targetPath = method.stringValue(HttpMethodMapping.class).orElse(UriMapping.DEFAULT_URI);
             String routePath = prependRoutePath(locatorPath, targetPath);
+            if (!matrixParameterNames.isEmpty()) {
+                routePath = toMatrixParameterAwareRoute(routePath, matrixParameterNames);
+            }
             annotateHttpRoute(element, targetMethod.routeAnnotation(), routePath);
             element.annotate(SUB_RESOURCE_LOCATOR_ANNOTATION, builder -> builder
                 .value(method.getName())

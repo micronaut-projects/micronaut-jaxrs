@@ -155,7 +155,6 @@
     <test class="ee.jakarta.tck.ws.rs.ee.rs.pathparam.locator.JAXRSLocatorClientIT" method="pathParamListEntityWithFromStringTest"/>
     <class name="ee.jakarta.tck.ws.rs.spec.provider.reader.JAXRSClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.spec.resource.annotationprecedence.subclass.JAXRSClientIT"/>
-    <class name="ee.jakarta.tck.ws.rs.ee.rs.matrixparam.locator.JAXRSLocatorClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.spec.resource.valueofandfromstring.JAXRSClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.ee.rs.ext.paramconverter.JAXRSClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT"/>
