@@ -63,6 +63,7 @@ import jakarta.ws.rs.core.UriInfo;
 import jakarta.ws.rs.ext.Provider;
 
 import java.lang.annotation.Annotation;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -186,18 +187,15 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         if (!isServerResourceClass()) {
             return;
         }
-        for (MethodElement targetMethod : subResourceTargetMethods(element)) {
-            List<AnnotationValue<Annotation>> routeAnnotations = targetMethod.getAnnotationValuesByStereotype(HttpMethodMapping.class.getName());
-            if (routeAnnotations.isEmpty()) {
-                continue;
-            }
+        for (SubResourceTargetMethod targetMethod : subResourceTargetMethods(element)) {
+            MethodElement method = targetMethod.method();
             String locatorPath = element.stringValue(HttpMethodMapping.class).orElse(UriMapping.DEFAULT_URI);
-            String targetPath = targetMethod.stringValue(HttpMethodMapping.class).orElse(UriMapping.DEFAULT_URI);
+            String targetPath = method.stringValue(HttpMethodMapping.class).orElse(UriMapping.DEFAULT_URI);
             String routePath = prependRoutePath(locatorPath, targetPath);
-            annotateHttpRoute(element, routeAnnotations.get(0), routePath);
+            annotateHttpRoute(element, targetMethod.routeAnnotation(), routePath);
             element.annotate(SUB_RESOURCE_LOCATOR_ANNOTATION, builder -> builder
-                .value(targetMethod.getName())
-                .member("type", new AnnotationClassValue<>(targetMethod.getDeclaringType().getName())));
+                .value(method.getName())
+                .member("type", new AnnotationClassValue<>(method.getDeclaringType().getName())));
             visitMethodParameters(element, context, false);
             return;
         }
@@ -429,14 +427,23 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         return method.hasStereotype(HttpMethod.class) && method.getParameters().length == 0;
     }
 
-    private static List<MethodElement> subResourceTargetMethods(MethodElement locator) {
+    private static List<SubResourceTargetMethod> subResourceTargetMethods(MethodElement locator) {
         String returnTypeName = locator.getReturnType().getName();
-        return locator.getReturnType()
-            .getMethods()
-            .stream()
-            .filter(JaxRsTypeElementVisitor::isSubResourceTargetMethod)
-            .sorted(Comparator.comparing((MethodElement method) -> !method.getDeclaringType().getName().equals(returnTypeName)))
-            .toList();
+        List<SubResourceTargetMethod> targetMethods = new ArrayList<>();
+        for (MethodElement method : locator.getReturnType().getMethods()) {
+            if (isSubResourceTargetMethod(method)) {
+                List<AnnotationValue<Annotation>> routeAnnotations = method.getAnnotationValuesByStereotype(HttpMethodMapping.class.getName());
+                if (!routeAnnotations.isEmpty()) {
+                    targetMethods.add(new SubResourceTargetMethod(method, routeAnnotations.get(0)));
+                }
+            }
+        }
+        targetMethods.sort(Comparator.comparing((SubResourceTargetMethod targetMethod) ->
+            !targetMethod.method().getDeclaringType().getName().equals(returnTypeName)));
+        return targetMethods;
+    }
+
+    private record SubResourceTargetMethod(MethodElement method, AnnotationValue<Annotation> routeAnnotation) {
     }
 
     private String toServerRoutePath(MethodElement method, String path, List<String> matrixParameterNames) {
