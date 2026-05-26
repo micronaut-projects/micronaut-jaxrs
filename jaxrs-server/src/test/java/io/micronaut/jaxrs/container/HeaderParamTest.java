@@ -20,6 +20,7 @@ import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.Path;
+import jakarta.ws.rs.POST;
 import jakarta.ws.rs.ext.ParamConverter;
 import jakarta.ws.rs.ext.ParamConverterProvider;
 import org.junit.jupiter.api.Test;
@@ -126,6 +127,18 @@ class HeaderParamTest {
         }
     }
 
+    @Test
+    void invokesSubResourceLocatorReturnedResourceMethod() {
+        try (EmbeddedServer server = ApplicationContext.run(EmbeddedServer.class, Map.of("spec.name", "HeaderParamLocatorTest"));
+             HttpClient client = server.getApplicationContext().createBean(HttpClient.class, server.getURL())) {
+            String result = client.toBlocking().retrieve(HttpRequest.POST("/api/locator-root/child", "").header("X-Name", "blue"));
+            String trailingSlashResult = client.toBlocking().retrieve(HttpRequest.POST("/api/locator-root/child/", "").header("X-Name", "green"));
+
+            assertEquals("blue", result);
+            assertEquals("green", trailingSlashResult);
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private Argument<ConvertedHeaderParam> customArgument(ApplicationContext context) {
         BeanDefinition<TestController> definition = context.getBeanDefinition(TestController.class);
@@ -187,6 +200,37 @@ class HeaderParamTest {
         @Path("child")
         public SubResourceRoot child() {
             return this;
+        }
+    }
+
+    @Requires(property = "spec.name", value = "HeaderParamLocatorTest")
+    @Path("locator-root")
+    static class LocatorRoot extends LocatorMiddle {
+
+        @Path("child")
+        public LocatorMiddle child(@HeaderParam("X-Name") String name) {
+            return new LocatorMiddle(name);
+        }
+    }
+
+    @Requires(property = "spec.name", value = "HeaderParamLocatorTest")
+    static class LocatorMiddle {
+        @HeaderParam("X-Other")
+        String other;
+
+        private final String name;
+
+        LocatorMiddle() {
+            this.name = null;
+        }
+
+        LocatorMiddle(String name) {
+            this.name = name;
+        }
+
+        @POST
+        public String post() {
+            return name;
         }
     }
 

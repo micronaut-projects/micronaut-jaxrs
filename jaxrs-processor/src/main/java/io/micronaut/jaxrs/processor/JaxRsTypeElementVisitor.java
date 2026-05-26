@@ -15,6 +15,7 @@
  */
 package io.micronaut.jaxrs.processor;
 
+import io.micronaut.core.annotation.AnnotationClassValue;
 import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.AnnotationValueBuilder;
 import io.micronaut.core.annotation.Internal;
@@ -78,6 +79,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     public static final int POSITION = 200;
     private static final String CLIENT_ANNOTATION = "io.micronaut.http.client.annotation.Client";
     private static final String REQUEST_FIELD_INJECTION_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsRequestFieldInjection";
+    private static final String SUB_RESOURCE_LOCATOR_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsSubResourceLocator";
     private static final String MATRIX_PARAMETER_ROUTE_PATTERN = ":;[^/]*|";
     private static final Class<?>[] BINDABLE_TYPES = new Class<?>[] {Context.class, SecurityContext.class, UriInfo.class};
     private ClassElement currentClassElement;
@@ -148,6 +150,10 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
 
     @Override
     public void visitMethod(MethodElement element, VisitorContext context) {
+        if (isSubResourceLocator(element)) {
+            visitSubResourceLocator(element, context);
+            return;
+        }
         if (element.hasStereotype(HttpMethod.class)) {
             if (currentClassElement != null && !currentClassElement.hasAnnotation(Controller.class) && !currentClassElement.isAbstract()) {
                 currentClassElement.annotate(Controller.class);
@@ -169,26 +175,49 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
                     .map(path -> toServerRoutePath(element, path, matrixParameterNames))
                     .ifPresent(path -> annotateHttpRoute(element, path));
             }
-            final ParameterElement[] parameters = element.getParameters();
-            boolean encoded = isEncoded(element);
-            for (ParameterElement parameter : parameters) {
-                final List<Class<? extends Annotation>> unsupported = getUnsupportedParameterAnnotations();
-                for (Class<? extends Annotation> annType : unsupported) {
-                    if (parameter.hasAnnotation(annType)) {
-                        context.fail("Unsupported JAX-RS annotation used on method: " + annType.getName(), parameter);
-                    }
+            visitMethodParameters(element, context, true);
+        }
+    }
+
+    private void visitSubResourceLocator(MethodElement element, VisitorContext context) {
+        if (!isServerResourceClass()) {
+            return;
+        }
+        subResourceTargetMethod(element).ifPresent(targetMethod ->
+            targetMethod.getAnnotationTypeByStereotype(HttpMethodMapping.class).ifPresent(httpMethodAnnotation -> {
+                String locatorPath = element.stringValue(HttpMethodMapping.class).orElse(UriMapping.DEFAULT_URI);
+                String targetPath = targetMethod.stringValue(HttpMethodMapping.class).orElse(UriMapping.DEFAULT_URI);
+                String routePath = prependRoutePath(locatorPath, targetPath);
+                annotateHttpRoute(element, httpMethodAnnotation, routePath);
+                element.annotate(SUB_RESOURCE_LOCATOR_ANNOTATION, builder -> builder
+                    .value(targetMethod.getName())
+                    .member("type", new AnnotationClassValue<>(targetMethod.getDeclaringType().getName())));
+                visitMethodParameters(element, context, false);
+            })
+        );
+    }
+
+    private void visitMethodParameters(MethodElement element, VisitorContext context, boolean bindUnannotatedBody) {
+        final ParameterElement[] parameters = element.getParameters();
+        boolean encoded = isEncoded(element);
+        for (ParameterElement parameter : parameters) {
+            final List<Class<? extends Annotation>> unsupported = getUnsupportedParameterAnnotations();
+            for (Class<? extends Annotation> annType : unsupported) {
+                if (parameter.hasAnnotation(annType)) {
+                    context.fail("Unsupported JAX-RS annotation used on method: " + annType.getName(), parameter);
                 }
-                if (encoded && parameter.hasAnnotation(MatrixParam.class) && !parameter.hasAnnotation(Encoded.class)) {
-                    parameter.annotate(Encoded.class);
-                }
-                visitParamOrField(parameter);
-                String parameterTypeName = parameter.getType().getName();
-                if (JAX_RS_BINDING_ANNOTATIONS.stream().noneMatch(parameter::hasAnnotation)
-                    && JAX_RS_BINDING_TYPES.stream().noneMatch(cl -> cl.equals(parameterTypeName))) {
-                    // unannotated, implicit @Body
-                    parameter.annotate(Body.class);
-                    parameter.annotate(Nullable.class); // JAX-RS controller bodies are nullable by default
-                }
+            }
+            if (encoded && parameter.hasAnnotation(MatrixParam.class) && !parameter.hasAnnotation(Encoded.class)) {
+                parameter.annotate(Encoded.class);
+            }
+            visitParamOrField(parameter);
+            String parameterTypeName = parameter.getType().getName();
+            if (bindUnannotatedBody
+                && JAX_RS_BINDING_ANNOTATIONS.stream().noneMatch(parameter::hasAnnotation)
+                && JAX_RS_BINDING_TYPES.stream().noneMatch(cl -> cl.equals(parameterTypeName))) {
+                // unannotated, implicit @Body
+                parameter.annotate(Body.class);
+                parameter.annotate(Nullable.class); // JAX-RS controller bodies are nullable by default
             }
         }
     }
@@ -341,6 +370,19 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             .toList();
     }
 
+    private boolean isSubResourceLocator(MethodElement method) {
+        return isServerResourceClass() && method.hasAnnotation(Path.class) && !method.hasStereotype(HttpMethod.class);
+    }
+
+    private static java.util.Optional<MethodElement> subResourceTargetMethod(MethodElement locator) {
+        return locator.getReturnType()
+            .getMethods()
+            .stream()
+            .filter(method -> method.hasStereotype(HttpMethod.class))
+            .filter(method -> method.getParameters().length == 0)
+            .findFirst();
+    }
+
     private String toServerRoutePath(MethodElement method, String path, List<String> matrixParameterNames) {
         String routePath = path;
         if (isInheritedResourceMethod(method)) {
@@ -358,6 +400,11 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     private static void annotateHttpRoute(MethodElement method, String path) {
         method.removeAnnotation(HttpMethodMapping.class);
         method.annotate(HttpMethodMapping.class, builder -> builder.value(path));
+    }
+
+    private static void annotateHttpRoute(MethodElement method, Class<? extends Annotation> httpMethodAnnotation, String path) {
+        method.removeAnnotation(HttpMethodMapping.class);
+        method.annotate(httpMethodAnnotation, builder -> builder.value(path));
     }
 
     private boolean isInheritedResourceMethod(MethodElement method) {

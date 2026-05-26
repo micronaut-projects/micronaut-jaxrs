@@ -6,6 +6,7 @@ import io.micronaut.core.bind.annotation.Bindable
 import io.micronaut.http.annotation.CookieValue
 import io.micronaut.http.annotation.Header
 import io.micronaut.http.annotation.HttpMethodMapping
+import io.micronaut.http.annotation.Post
 import io.micronaut.http.annotation.PathVariable
 import io.micronaut.http.annotation.QueryValue
 import jakarta.ws.rs.BeanParam
@@ -21,6 +22,7 @@ import spock.lang.Unroll
 class ParameterAnnotationSpec extends AbstractTypeElementSpec {
 
     static final String REQUEST_FIELD_INJECTION_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsRequestFieldInjection"
+    static final String SUB_RESOURCE_LOCATOR_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsSubResourceLocator"
 
     @Unroll
     void "test map parameter annotation #source"() {
@@ -124,6 +126,51 @@ class SubResource extends BaseResource {
 
         expect:
         method.stringValue(HttpMethodMapping).get() == '/subresource'
+    }
+
+    void "test subresource locator exposes returned resource method"() {
+        given:
+        def definition = buildBeanDefinition('test.LocatorResource', """
+package test;
+
+@jakarta.ws.rs.Path("resource")
+class LocatorResource {
+
+    @jakarta.ws.rs.Path("locator")
+    MiddleResource locator(@jakarta.ws.rs.HeaderParam("X-Test") String test) {
+        return new MiddleResource(test);
+    }
+}
+
+class MiddleResource {
+    private final String value;
+
+    MiddleResource() {
+        this.value = null;
+    }
+
+    MiddleResource(String value) {
+        this.value = value;
+    }
+
+    @jakarta.ws.rs.POST
+    String post() {
+        return value;
+    }
+}
+""")
+
+        def method = definition.getRequiredMethod("locator", String)
+        def metadata = method.arguments[0].getAnnotationMetadata()
+
+        expect:
+        method.hasAnnotation(Post)
+        method.stringValue(HttpMethodMapping).get() == '/locator'
+        method.stringValue(SUB_RESOURCE_LOCATOR_ANNOTATION).get() == 'post'
+        method.classValue(SUB_RESOURCE_LOCATOR_ANNOTATION, 'type').get().name == 'test.MiddleResource'
+        metadata.hasAnnotation(HeaderParam)
+        metadata.stringValue(HeaderParam).get() == 'X-Test'
+        !metadata.hasAnnotation(Header)
     }
 
     void "test Encoded MatrixParam is supported"() {
