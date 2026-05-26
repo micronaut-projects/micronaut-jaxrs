@@ -144,15 +144,6 @@
     <class name="ee.jakarta.tck.ws.rs.spec.client.typedentitieswithxmlbinding.JAXRSClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.spec.resource.locator.JAXRSClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT"/>
-    <test class="ee.jakarta.tck.ws.rs.ee.rs.pathparam.locator.JAXRSLocatorClientIT" method="pathParamEntityWithFromStringTest"/>
-    <test class="ee.jakarta.tck.ws.rs.ee.rs.pathparam.locator.JAXRSLocatorClientIT" method="pathParamEntityWithValueOfTest"/>
-    <test class="ee.jakarta.tck.ws.rs.ee.rs.pathparam.locator.JAXRSLocatorClientIT" method="test1"/>
-    <test class="ee.jakarta.tck.ws.rs.ee.rs.pathparam.locator.JAXRSLocatorClientIT" method="test6"/>
-    <test class="ee.jakarta.tck.ws.rs.ee.rs.pathparam.locator.JAXRSLocatorClientIT" method="pathParamThrowingIllegalArgumentExceptionTest"/>
-    <test class="ee.jakarta.tck.ws.rs.ee.rs.pathparam.locator.JAXRSLocatorClientIT" method="pathParamEntityWithConstructorTest"/>
-    <test class="ee.jakarta.tck.ws.rs.ee.rs.pathparam.locator.JAXRSLocatorClientIT" method="pathParamSetEntityWithFromStringTest"/>
-    <test class="ee.jakarta.tck.ws.rs.ee.rs.pathparam.locator.JAXRSLocatorClientIT" method="pathParamThrowingWebApplicationExceptionTest"/>
-    <test class="ee.jakarta.tck.ws.rs.ee.rs.pathparam.locator.JAXRSLocatorClientIT" method="pathParamListEntityWithFromStringTest"/>
     <class name="ee.jakarta.tck.ws.rs.spec.provider.reader.JAXRSClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.spec.resource.annotationprecedence.subclass.JAXRSClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.spec.resource.valueofandfromstring.JAXRSClientIT"/>

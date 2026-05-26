@@ -161,14 +161,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             if (currentClassElement != null && !currentClassElement.hasAnnotation(Controller.class) && !currentClassElement.isAbstract()) {
                 currentClassElement.annotate(Controller.class);
             }
-            if ((currentClassElement == null || !currentClassElement.hasAnnotation(Produces.class)) &&
-                !element.hasAnnotation(Produces.class)) {
-                element.annotate(Produces.class, b -> b.values(MediaType.ALL));
-            }
-            if ((currentClassElement == null || !currentClassElement.hasAnnotation(Consumes.class)) &&
-                !element.hasAnnotation(Consumes.class)) {
-                element.annotate(Consumes.class, b -> b.values(MediaType.ALL));
-            }
+            annotateDefaultMediaTypes(element);
             if (isServerResourceClass()) {
                 List<String> matrixParameterNames = matrixParameterNames(element);
                 if (!matrixParameterNames.isEmpty()) {
@@ -199,11 +192,52 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             if (!matrixParameterNames.isEmpty()) {
                 routePath = toMatrixParameterAwareRoute(routePath, matrixParameterNames);
             }
+            annotateSubResourceMediaTypes(element, method);
             annotateHttpRoute(element, targetMethod.routeAnnotation(), routePath);
             element.annotate(SUB_RESOURCE_LOCATOR_ANNOTATION, builder -> builder
                 .value(method.getName())
                 .member("type", new AnnotationClassValue<>(method.getDeclaringType().getName())));
             visitMethodParameters(element, context, false);
+        }
+    }
+
+    private void annotateDefaultMediaTypes(MethodElement element) {
+        if ((currentClassElement == null || !currentClassElement.hasAnnotation(Produces.class)) &&
+            !element.hasAnnotation(Produces.class)) {
+            element.annotate(Produces.class, b -> b.values(MediaType.ALL));
+        }
+        if ((currentClassElement == null || !currentClassElement.hasAnnotation(Consumes.class)) &&
+            !element.hasAnnotation(Consumes.class)) {
+            element.annotate(Consumes.class, b -> b.values(MediaType.ALL));
+        }
+    }
+
+    private void annotateSubResourceMediaTypes(MethodElement locator, MethodElement target) {
+        if (!locator.hasAnnotation(Produces.class)) {
+            AnnotationValue<Produces> produces = target.getAnnotation(Produces.class);
+            if (produces == null) {
+                produces = target.getDeclaringType().getAnnotation(Produces.class);
+            }
+            if (produces == null) {
+                if (currentClassElement == null || !currentClassElement.hasAnnotation(Produces.class)) {
+                    locator.annotate(Produces.class, b -> b.values(MediaType.ALL));
+                }
+            } else {
+                locator.annotate(produces);
+            }
+        }
+        if (!locator.hasAnnotation(Consumes.class)) {
+            AnnotationValue<Consumes> consumes = target.getAnnotation(Consumes.class);
+            if (consumes == null) {
+                consumes = target.getDeclaringType().getAnnotation(Consumes.class);
+            }
+            if (consumes == null) {
+                if (currentClassElement == null || !currentClassElement.hasAnnotation(Consumes.class)) {
+                    locator.annotate(Consumes.class, b -> b.values(MediaType.ALL));
+                }
+            } else {
+                locator.annotate(consumes);
+            }
         }
     }
 

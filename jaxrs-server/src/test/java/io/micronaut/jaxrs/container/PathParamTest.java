@@ -9,6 +9,7 @@ import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.BasicHttpAttributes;
 import io.micronaut.http.HttpRequest;
+import io.micronaut.http.MediaType;
 import io.micronaut.http.bind.RequestBinderRegistry;
 import io.micronaut.http.client.HttpClient;
 import io.micronaut.http.annotation.PathVariable;
@@ -128,9 +129,15 @@ class PathParamTest {
         try (EmbeddedServer server = ApplicationContext.run(EmbeddedServer.class, Map.of("spec.name", "PathParamTest"));
              HttpClient client = server.getApplicationContext().createBean(HttpClient.class, server.getURL())) {
 
-            assertEquals("single=blue", client.toBlocking().retrieve(HttpRequest.POST("/api/path-param-locator/locator/blue", "")));
+            assertEquals(
+                "single=blue",
+                client.toBlocking().retrieve(HttpRequest.POST("/api/path-param-locator/locator/blue", "").accept(MediaType.of("text/html")))
+            );
             assertEquals("double=bluegreen", client.toBlocking().retrieve(HttpRequest.POST("/api/path-param-locator/locator/blue/green", "")));
-            assertEquals("list=abcdef", client.toBlocking().retrieve(HttpRequest.POST("/api/path-param-locator/locator/a/b/c/d/e/f", "")));
+            assertEquals(
+                "list=abcdef",
+                client.toBlocking().retrieve(HttpRequest.POST("/api/path-param-locator/locator/a/b/c/d/e/f", "").accept(MediaType.TEXT_PLAIN_TYPE))
+            );
             assertEquals("double=bluegreen", client.toBlocking().retrieve(HttpRequest.POST("/api/path-param-locator/locatorencoded/blue/green", "")));
         }
     }
