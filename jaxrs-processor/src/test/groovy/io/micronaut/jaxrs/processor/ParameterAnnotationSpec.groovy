@@ -51,6 +51,8 @@ class Test {
         source != PathParam || metadata.getAnnotationTypeByStereotype(Bindable).get() == PathParam
         source != HeaderParam || !metadata.hasAnnotation(Header)
         source != CookieParam || !metadata.hasAnnotation(CookieValue)
+        source != FormParam || !metadata.hasAnnotation(QueryValue)
+        source != FormParam || metadata.getAnnotationTypeByStereotype(Bindable).get() == FormParam
 
         where:
         source      | target       | value
@@ -58,7 +60,7 @@ class Test {
         HeaderParam | HeaderParam  | "test"
         CookieParam | CookieParam  | "test"
         QueryParam  | QueryParam   | "test"
-        FormParam   | QueryValue   | "test"
+        FormParam   | FormParam    | "test"
         MatrixParam | MatrixParam  | "test"
     }
 

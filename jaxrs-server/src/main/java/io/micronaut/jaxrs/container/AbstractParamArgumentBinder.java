@@ -88,7 +88,7 @@ abstract class AbstractParamArgumentBinder<A extends Annotation, T> extends Abst
     }
 
     @Override
-    public final BindingResult<T> bind(ArgumentConversionContext<T> context, HttpRequest<?> source) {
+    public BindingResult<T> bind(ArgumentConversionContext<T> context, HttpRequest<?> source) {
         Argument<T> argument = context.getArgument();
         if (!isBindable(argument, source)) {
             return BindingResult.unsatisfied();
@@ -99,6 +99,13 @@ abstract class AbstractParamArgumentBinder<A extends Annotation, T> extends Abst
             return directResult;
         }
         ConvertibleMultiValues<String> values = parameterValues(source, argument);
+        return bindValues(context, parameterName, values);
+    }
+
+    protected final BindingResult<T> bindValues(ArgumentConversionContext<T> context,
+                                                String parameterName,
+                                                ConvertibleMultiValues<String> values) {
+        Argument<T> argument = context.getArgument();
         if (paramConverter != null) {
             String value = valueOrDefault(values.get(parameterName), argument);
             if (value == null) {

@@ -16,10 +16,8 @@
 package io.micronaut.jaxrs.processor;
 
 import io.micronaut.core.annotation.AnnotationValue;
-import io.micronaut.core.annotation.AnnotationValueBuilder;
 import io.micronaut.core.annotation.Internal;
 import org.jspecify.annotations.NonNull;
-import io.micronaut.http.annotation.QueryValue;
 import io.micronaut.inject.annotation.NamedAnnotationMapper;
 import io.micronaut.inject.visitor.VisitorContext;
 
@@ -43,11 +41,6 @@ public class FormParamMapper implements NamedAnnotationMapper {
 
     @Override
     public List<AnnotationValue<?>> map(AnnotationValue<Annotation> annotation, VisitorContext visitorContext) {
-
-        final AnnotationValueBuilder<QueryValue> builder = AnnotationValue.builder(QueryValue.class);
-        annotation.stringValue().ifPresent(builder::value);
-        return Collections.singletonList(
-            builder.build()
-        );
+        return Collections.emptyList();
     }
 }

@@ -33,6 +33,7 @@ import io.micronaut.http.annotation.Header;
 import io.micronaut.http.annotation.HttpMethodMapping;
 import io.micronaut.http.annotation.PathVariable;
 import io.micronaut.http.annotation.Produces;
+import io.micronaut.http.annotation.QueryValue;
 import io.micronaut.http.annotation.UriMapping;
 import io.micronaut.inject.ast.ClassElement;
 import io.micronaut.inject.ast.FieldElement;
@@ -298,7 +299,15 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
                 annotateHeaderParam(parameter);
             }
         }
-        mapParam(parameter, FormParam.class, Body.class);
+        if (parameter.hasAnnotation(FormParam.class)) {
+            if (isClientClass()) {
+                mapParam(parameter, FormParam.class, Body.class);
+            } else {
+                parameter.removeAnnotation(Body.class);
+                parameter.removeAnnotation(QueryValue.class);
+                annotateFormParam(parameter);
+            }
+        }
         if (parameter.hasAnnotation(CookieParam.class)) {
             if (isClientClass()) {
                 mapParam(parameter, CookieParam.class, CookieValue.class);
@@ -342,6 +351,15 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
 
     private static void annotateMatrixParam(TypedElement parameter) {
         AnnotationValueBuilder<MatrixParam> builder = AnnotationValue.builder(MatrixParam.class);
+        annotateDefaultAndNullable(parameter, builder);
+        parameter.annotate(
+            builder
+                .stereotype(AnnotationValue.builder(Bindable.class).build()).build()
+        );
+    }
+
+    private static void annotateFormParam(TypedElement parameter) {
+        AnnotationValueBuilder<FormParam> builder = AnnotationValue.builder(FormParam.class);
         annotateDefaultAndNullable(parameter, builder);
         parameter.annotate(
             builder
