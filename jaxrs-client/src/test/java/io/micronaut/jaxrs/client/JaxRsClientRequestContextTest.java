@@ -28,6 +28,8 @@ import jakarta.ws.rs.core.Response;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -82,6 +84,52 @@ class JaxRsClientRequestContextTest {
             assertEquals(HttpMethod.PUT, context.getMutableHttpRequest().getMethod());
             assertEquals("value", context.getHeaderString("X-Test"));
             assertEquals("body", context.getEntity());
+        }
+    }
+
+    @Test
+    void entityStreamWrapperMutatesSerializedBody() throws IOException {
+        try (Client client = ClientBuilder.newClient()) {
+            MutableHttpRequest<byte[]> request = HttpRequest.POST(
+                "http://localhost/entity-stream",
+                "ENXIXY_STREAM_WORKS".getBytes(StandardCharsets.UTF_8)
+            );
+            JaxRsClientRequestContext context = new JaxRsClientRequestContext(
+                client,
+                client.getConfiguration(),
+                request,
+                Argument.of(byte[].class)
+            );
+
+            OutputStream wrapper = new ReplacingOutputStream(context.getEntityStream(), 'X', 'T');
+            context.setEntityStream(wrapper);
+
+            byte[] body = context.getMutableHttpRequest().getBody(byte[].class).orElseThrow();
+            assertEquals("ENTITY_STREAM_WORKS", new String(body, StandardCharsets.UTF_8));
+        }
+    }
+
+    private static final class ReplacingOutputStream extends OutputStream {
+        private final OutputStream target;
+        private final char source;
+        private final char replacement;
+
+        private ReplacingOutputStream(OutputStream target, char source, char replacement) {
+            this.target = target;
+            this.source = source;
+            this.replacement = replacement;
+        }
+
+        @Override
+        public void write(int b) throws IOException {
+            write(new byte[] { (byte) b });
+        }
+
+        @Override
+        public void write(byte[] b, int off, int len) throws IOException {
+            target.write(new String(b, off, len, StandardCharsets.UTF_8)
+                .replace(source, replacement)
+                .getBytes(StandardCharsets.UTF_8));
         }
     }
 }

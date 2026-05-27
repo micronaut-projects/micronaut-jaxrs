@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <failingTests>
-    <!-- TCK tracker (excluded baseline, 2026-05-27): total=2764, passed=2063, failed=0, errors=0, skipped=701. Update after each focused group changes this file. -->
+    <!-- TCK tracker (excluded baseline, 2026-05-27): total=2764, passed=2064, failed=0, errors=0, skipped=700. Update after each focused group changes this file. -->
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="locatorNameTooLongAgainTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="slashUriTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="slashAppNameTest"/>
@@ -61,7 +61,6 @@
     <test class="ee.jakarta.tck.ws.rs.spec.provider.writer.JAXRSClientIT" method="supportAllTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.provider.writer.JAXRSClientIT" method="supportXmlByXmlWriterTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.provider.writer.JAXRSClientIT" method="supportXmlByDefaultWriterTest"/>
-    <test class="ee.jakarta.tck.ws.rs.ee.rs.client.clientrequestcontext.JAXRSClientIT" method="getEntityStreamTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT" method="clientSourceWriterTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT" method="clientSourceReaderTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT" method="clientDataSourceWriterTest"/>

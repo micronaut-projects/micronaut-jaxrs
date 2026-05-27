@@ -16,6 +16,8 @@
 package io.micronaut.jaxrs.client;
 
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.convert.ConversionService;
+import io.micronaut.core.io.buffer.ByteBuffer;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpMethod;
 import io.micronaut.http.HttpRequest;
@@ -27,16 +29,20 @@ import io.micronaut.jaxrs.common.JaxRsMutableObjectHeadersMultivaluedMap;
 import io.micronaut.jaxrs.common.JaxRsUtils;
 import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.client.ClientRequestContext;
+import jakarta.ws.rs.ProcessingException;
 import jakarta.ws.rs.core.Configuration;
 import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
@@ -63,6 +69,7 @@ final class JaxRsClientRequestContext implements ClientRequestContext {
     private Response response;
     private Argument<?> bodyType;
     private Annotation[] annotations;
+    private ByteArrayOutputStream entityStream;
 
     public JaxRsClientRequestContext(Client client,
                                      Configuration configuration,
@@ -236,12 +243,34 @@ final class JaxRsClientRequestContext implements ClientRequestContext {
 
     @Override
     public OutputStream getEntityStream() {
-        throw new UnsupportedOperationException();
+        if (entityStream == null) {
+            entityStream = new ByteArrayOutputStream();
+        }
+        return entityStream;
     }
 
     @Override
     public void setEntityStream(OutputStream outputStream) {
-        throw new UnsupportedOperationException();
+        ByteArrayOutputStream target = entityStream;
+        if (target != null) {
+            target.reset();
+        }
+        try {
+            outputStream.write(entityBytes());
+            outputStream.flush();
+        } catch (IOException e) {
+            throw new ProcessingException(e);
+        }
+        byte[] bytes;
+        if (target != null) {
+            bytes = target.toByteArray();
+        } else if (outputStream instanceof ByteArrayOutputStream byteArrayOutputStream) {
+            bytes = byteArrayOutputStream.toByteArray();
+        } else {
+            return;
+        }
+        mutableHttpRequest.body(bytes);
+        bodyType = Argument.of(byte[].class);
     }
 
     @Override
@@ -265,5 +294,20 @@ final class JaxRsClientRequestContext implements ClientRequestContext {
 
     MutableHttpRequest<?> getMutableHttpRequest() {
         return mutableHttpRequest;
+    }
+
+    private byte[] entityBytes() {
+        Object body = mutableHttpRequest.getBody().orElse(null);
+        if (body == null) {
+            return new byte[0];
+        }
+        if (body instanceof byte[] bytes) {
+            return bytes;
+        }
+        if (body instanceof ByteBuffer<?> byteBuffer) {
+            return byteBuffer.toByteArray();
+        }
+        return ConversionService.SHARED.convert(body, byte[].class)
+            .orElseGet(() -> body.toString().getBytes(StandardCharsets.UTF_8));
     }
 }
