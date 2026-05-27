@@ -329,12 +329,15 @@ final class JaxRsFilters {
     }
 
     private List<UriRouteInfo<?, ?>> jaxRsRouteCandidates(MutableHttpRequest<?> request) {
-        return router.uriRoutes()
-            .filter(route -> route.getHttpMethod() == request.getMethod())
-            .filter(route -> route.getAnnotationMetadata().hasAnnotation(Path.class))
-            .filter(route -> route.tryMatch(request.getPath()) != null)
-            .filter(route -> route.consumesAll() || route.doesConsume(request.getContentType().orElse(null)))
-            .toList();
+        List<UriRouteInfo<?, ?>> candidates = new ArrayList<>();
+        for (var match : router.findAllClosest(request)) {
+            UriRouteInfo<?, ?> route = match.getRouteInfo();
+            if (route.getAnnotationMetadata().hasAnnotation(Path.class) &&
+                (route.consumesAll() || route.doesConsume(request.getContentType().orElse(null)))) {
+                candidates.add(route);
+            }
+        }
+        return candidates;
     }
 
     private record AcceptCandidate(MediaType produced, MediaType accepted) {

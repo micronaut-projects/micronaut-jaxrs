@@ -220,6 +220,7 @@ class PathParamTest {
         }
     }
 
+    @Requires(property = "spec.name", value = "PathParamTest")
     static class BaseSubResource {
 
         @GET

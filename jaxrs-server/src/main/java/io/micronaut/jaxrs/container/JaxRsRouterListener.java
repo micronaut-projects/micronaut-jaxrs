@@ -18,6 +18,7 @@ package io.micronaut.jaxrs.container;
 import io.micronaut.context.event.BeanCreatedEvent;
 import io.micronaut.context.event.BeanCreatedEventListener;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.http.HttpMethod;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.web.router.Router;
 import io.micronaut.web.router.UriRouteInfo;
@@ -29,9 +30,11 @@ import jakarta.ws.rs.Path;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Applies Jakarta REST route matching tie-breakers to JAX-RS routes.
@@ -43,7 +46,32 @@ final class JaxRsRouterListener implements BeanCreatedEventListener<Router> {
     @Override
     public Router onCreated(BeanCreatedEvent<Router> event) {
         Router router = event.getBean();
-        return new FilteredRouter(router, new JaxRsRouteMatchFilter(router));
+        JaxRsRouteMatchFilter routeMatchFilter = new JaxRsRouteMatchFilter(router);
+        return new JaxRsFilteredRouter(router, routeMatchFilter);
+    }
+
+    private static final class JaxRsFilteredRouter extends FilteredRouter {
+        private final Router router;
+        private final RouteMatchFilter routeFilter;
+
+        private JaxRsFilteredRouter(Router router, RouteMatchFilter routeFilter) {
+            super(router, routeFilter);
+            this.router = router;
+            this.routeFilter = routeFilter;
+        }
+
+        @Override
+        public <T, R> Stream<UriRouteMatch<T, R>> find(HttpRequest<?> request, CharSequence uri) {
+            return router.<T, R>find(request, uri).filter(routeFilter.filter(request));
+        }
+
+        @Override
+        public <T, R> Optional<UriRouteMatch<T, R>> route(HttpMethod httpMethod, CharSequence uri) {
+            HttpRequest<?> request = HttpRequest.create(httpMethod, uri.toString());
+            return router.<T, R>find(httpMethod, uri, request)
+                .filter(routeFilter.filter(request))
+                .findFirst();
+        }
     }
 
     private static final class JaxRsRouteMatchFilter implements RouteMatchFilter {
@@ -55,11 +83,11 @@ final class JaxRsRouterListener implements BeanCreatedEventListener<Router> {
 
         @Override
         public <T, R> Predicate<UriRouteMatch<T, R>> filter(HttpRequest<?> request) {
-            List<UriRouteMatch<Object, Object>> closestMatches = router.findAllClosest(request);
-            List<UriRouteMatch<Object, Object>> jaxRsMatches = closestMatches.stream()
+            List<UriRouteMatch<Object, Object>> matches = router.find(request).toList();
+            List<UriRouteMatch<Object, Object>> jaxRsMatches = matches.stream()
                 .filter(JaxRsRouteMatchFilter::isJaxRsRoute)
                 .toList();
-            if (jaxRsMatches.size() < 2) {
+            if (jaxRsMatches.isEmpty()) {
                 return ignored -> true;
             }
             JaxRsRouteScore bestScore = jaxRsMatches.stream()
@@ -73,13 +101,7 @@ final class JaxRsRouterListener implements BeanCreatedEventListener<Router> {
                 .filter(match -> score(match).equals(bestScore))
                 .map(UriRouteMatch::getRouteInfo)
                 .collect(Collectors.toSet());
-            if (selectedRoutes.size() == jaxRsMatches.size()) {
-                return ignored -> true;
-            }
-            Set<UriRouteInfo<?, ?>> candidateRoutes = jaxRsMatches.stream()
-                .map(UriRouteMatch::getRouteInfo)
-                .collect(Collectors.toSet());
-            return match -> !candidateRoutes.contains(match.getRouteInfo()) || selectedRoutes.contains(match.getRouteInfo());
+            return match -> !isJaxRsRoute(match) || selectedRoutes.contains(match.getRouteInfo());
         }
 
         private static boolean isJaxRsRoute(UriRouteMatch<?, ?> match) {
