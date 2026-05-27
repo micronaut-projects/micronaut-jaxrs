@@ -2,8 +2,8 @@
 <failingTests>
     <!--
         TCK tracker (excluded baseline, 2026-05-27):
-        total=2803, passed=2095, failed=0, errors=0, skipped=708.
-        Known-failing exclusions: 46 classes and 50 methods.
+        total=2803, passed=2098, failed=0, errors=0, skipped=705.
+        Known-failing exclusions: 46 classes and 47 methods.
         Update these counts after each focused group changes this file.
     -->
     <class name="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT"/>
@@ -79,9 +79,6 @@
     <test class="ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT" method="getMatchedURIsTest1"/>
     <test class="ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT" method="getMatchedURIsTest2"/>
     <test class="ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT" method="getMatchedResourcesTest"/>
-    <test class="ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT" method="requestURITest"/>
-    <test class="ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT" method="aPathTest"/>
-    <test class="ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT" method="baseUriTest"/>
     <class name="ee.jakarta.tck.ws.rs.spec.contextprovider.JsonbContextProviderIT"/>
     <class name="ee.jakarta.tck.ws.rs.jaxrs40.ee.rs.core.uriinfo.UriInfo40ClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.ee.rs.core.securitycontext.basic.JAXRSBasicClientIT"/>

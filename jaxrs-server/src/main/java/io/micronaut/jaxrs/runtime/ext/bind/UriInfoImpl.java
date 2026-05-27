@@ -16,8 +16,6 @@
 package io.micronaut.jaxrs.runtime.ext.bind;
 
 import io.micronaut.core.annotation.Internal;
-import org.jspecify.annotations.NonNull;
-import org.jspecify.annotations.Nullable;
 import io.micronaut.core.util.StringUtils;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.web.router.RouteAttributes;
@@ -27,7 +25,10 @@ import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.PathSegment;
 import jakarta.ws.rs.core.UriBuilder;
 import jakarta.ws.rs.core.UriInfo;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
+import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLDecoder;
@@ -127,55 +128,88 @@ public final class UriInfoImpl implements UriInfo {
 
     @Override
     public URI getRequestUri() {
-        return request.getUri();
+        URI uri = request.getUri();
+        if (uri.isAbsolute() && uri.getRawAuthority() != null) {
+            return uri;
+        }
+        String rawPath = uri.getRawPath();
+        return uriWithRawPath(rawPath == null || rawPath.isEmpty() ? "/" : rawPath, uri.getRawQuery());
     }
 
-    /**
-     * This operation is not supported currently,
-     * so {@link UnsupportedOperationException} is thrown for all invocations.
-     *
-     * @throws UnsupportedOperationException this operation is not supported currently.
-     */
     @Override
     public UriBuilder getRequestUriBuilder() {
-        throw new UnsupportedOperationException();
+        return UriBuilder.fromUri(getRequestUri());
     }
 
     @Override
     public URI getAbsolutePath() {
-        return getBaseUri().resolve(getPath(false));
+        URI uri = request.getUri();
+        String rawPath = uri.getRawPath();
+        return uriWithRawPath(rawPath == null || rawPath.isEmpty() ? "/" : rawPath, null);
     }
 
-    /**
-     * This operation is not supported currently,
-     * so {@link UnsupportedOperationException} is thrown for all invocations.
-     *
-     * @throws UnsupportedOperationException this operation is not supported currently.
-     */
     @Override
     public UriBuilder getAbsolutePathBuilder() {
-        throw new UnsupportedOperationException();
+        return UriBuilder.fromUri(getAbsolutePath());
     }
 
     @Override
     public URI getBaseUri() {
+        return uriWithRawPath(baseUriPath(), null);
+    }
+
+    @Override
+    public UriBuilder getBaseUriBuilder() {
+        return UriBuilder.fromUri(getBaseUri());
+    }
+
+    private String baseUriPath() {
+        if (basePath == null) {
+            return "/";
+        }
+        String path = basePath.startsWith("/") ? basePath : "/" + basePath;
+        return path.endsWith("/") ? path : path + "/";
+    }
+
+    private URI uriWithRawPath(String rawPath, @Nullable String rawQuery) {
         URI uri = request.getUri();
+        StringBuilder builder = new StringBuilder();
+        String scheme = uri.getScheme();
+        String rawAuthority = uri.getRawAuthority();
+        if (scheme != null && rawAuthority != null) {
+            builder.append(scheme).append("://").append(rawAuthority);
+        } else {
+            scheme = request.isSecure() ? HttpRequest.SCHEME_HTTPS : HttpRequest.SCHEME_HTTP;
+            String host = request.getServerName();
+            int port = uri.getPort();
+            InetSocketAddress serverAddress = request.getServerAddress();
+            if ((host == null || host.isBlank()) && serverAddress != null) {
+                host = serverAddress.getHostString();
+            }
+            if (port < 0 && serverAddress != null) {
+                port = serverAddress.getPort();
+            }
+            if (host != null && !host.isBlank()) {
+                builder.append(scheme).append("://").append(authority(host, port));
+            }
+        }
+        if (!rawPath.startsWith("/")) {
+            builder.append('/');
+        }
+        builder.append(rawPath);
+        if (rawQuery != null) {
+            builder.append('?').append(rawQuery);
+        }
         try {
-            return new URI(uri.getScheme(), uri.getUserInfo(), uri.getHost(), uri.getPort(), "", uri.getQuery(), uri.getFragment());
+            return new URI(builder.toString());
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException("Unexpected URI format: " + uri.toASCIIString(), e);
         }
     }
 
-    /**
-     * This operation is not supported currently,
-     * so {@link UnsupportedOperationException} is thrown for all invocations.
-     *
-     * @throws UnsupportedOperationException this operation is not supported currently.
-     */
-    @Override
-    public UriBuilder getBaseUriBuilder() {
-        throw new UnsupportedOperationException();
+    private static String authority(String host, int port) {
+        String authorityHost = host.indexOf(':') > -1 && !host.startsWith("[") ? '[' + host + ']' : host;
+        return port < 0 ? authorityHost : authorityHost + ':' + port;
     }
 
     @Override

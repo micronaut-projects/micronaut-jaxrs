@@ -32,18 +32,17 @@ class UriInfoTest {
 
     @Test
     void testAbsolutePath() {
-        jakarta.ws.rs.core.UriInfo expectedUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo/?bar=baz&bar=bam"));
-
         UriInfo actualUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo/?bar=baz&bar=bam"));
-        Assertions.assertEquals(expectedUri.getAbsolutePath(), actualUri.getAbsolutePath());
+        Assertions.assertEquals("http://example.com/foo/", actualUri.getAbsolutePath().toString());
     }
 
     @Test
     void testBaseUri() {
-        jakarta.ws.rs.core.UriInfo expectedUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo/?bar=baz&bar=bam"));
-
         UriInfo actualUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo/?bar=baz&bar=bam"));
-        Assertions.assertEquals(expectedUri.getBaseUri(), actualUri.getBaseUri());
+        Assertions.assertEquals("http://example.com/", actualUri.getBaseUri().toString());
+
+        UriInfo actualUriWithBasePath = new UriInfoImpl(HttpRequest.GET("http://example.com/foo/bar?baz=bam"), "/foo");
+        Assertions.assertEquals("http://example.com/foo/", actualUriWithBasePath.getBaseUri().toString());
     }
 
     @Test
@@ -159,11 +158,16 @@ class UriInfoTest {
     }
 
     @Test
+    void testUriBuilders() {
+        UriInfo actualUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo/?bar=baz&bar=bam"), "/foo");
+        Assertions.assertEquals(actualUri.getRequestUri(), actualUri.getRequestUriBuilder().build());
+        Assertions.assertEquals(actualUri.getAbsolutePath(), actualUri.getAbsolutePathBuilder().build());
+        Assertions.assertEquals(actualUri.getBaseUri(), actualUri.getBaseUriBuilder().build());
+    }
+
+    @Test
     void testUnsupportedMethods() {
         List<Consumer<UriInfo>> unsupportedMethods = Arrays.asList(
-            UriInfo::getRequestUriBuilder,
-            UriInfo::getAbsolutePathBuilder,
-            UriInfo::getBaseUriBuilder,
             UriInfo::getMatchedURIs,
             uriInfo -> uriInfo.getMatchedURIs(true),
             UriInfo::getMatchedResources
