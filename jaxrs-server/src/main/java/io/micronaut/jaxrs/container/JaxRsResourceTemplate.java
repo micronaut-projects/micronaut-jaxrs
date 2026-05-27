@@ -36,4 +36,9 @@ public @interface JaxRsResourceTemplate {
      * @return The resource template relative to the Jakarta REST application path.
      */
     String value();
+
+    /**
+     * @return The number of URI path segments declared by the root resource class.
+     */
+    int rootPathSegmentCount() default -1;
 }

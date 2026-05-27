@@ -314,7 +314,9 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             return;
         }
         String classPath = currentClassElement.stringValue(Path.class).orElse(UriMapping.DEFAULT_URI);
-        method.annotate(RESOURCE_TEMPLATE_ANNOTATION, builder -> builder.value(prependRoutePath(classPath, path)));
+        method.annotate(RESOURCE_TEMPLATE_ANNOTATION, builder -> builder
+            .value(prependRoutePath(classPath, path))
+            .member("rootPathSegmentCount", pathSegmentCount(classPath)));
     }
 
     private void visitMethodParameters(MethodElement element, VisitorContext context, boolean bindUnannotatedBody) {
@@ -826,6 +828,34 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             return "/";
         }
         return path.charAt(0) == '/' ? path : '/' + path;
+    }
+
+    private static int pathSegmentCount(String path) {
+        String normalizedPath = normalizeRoutePath(path);
+        if ("/".equals(normalizedPath)) {
+            return 0;
+        }
+        int count = 0;
+        int segmentStart = 0;
+        int braceDepth = 0;
+        for (int i = 0; i <= normalizedPath.length(); i++) {
+            boolean end = i == normalizedPath.length();
+            char c = end ? '\0' : normalizedPath.charAt(i);
+            if (!end) {
+                if (c == '{') {
+                    braceDepth++;
+                } else if (c == '}' && braceDepth > 0) {
+                    braceDepth--;
+                }
+            }
+            if (end || (c == '/' && braceDepth == 0)) {
+                if (i > segmentStart) {
+                    count++;
+                }
+                segmentStart = i + 1;
+            }
+        }
+        return count;
     }
 
     static String toMatrixParameterAwareRoute(String path, List<String> matrixParameterNames) {

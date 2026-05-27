@@ -20,6 +20,13 @@ public class TestMatchedUriInfo {
     }
 
     @GET
+    @Path("/uris/{id:[a-z]+}")
+    @Produces(MediaType.TEXT_PLAIN)
+    public String urisWithMethodTemplate(@Context UriInfo uriInfo) {
+        return String.join(",", uriInfo.getMatchedURIs());
+    }
+
+    @GET
     @Path("/resources")
     @Produces(MediaType.TEXT_PLAIN)
     public String resources(@Context UriInfo uriInfo) {

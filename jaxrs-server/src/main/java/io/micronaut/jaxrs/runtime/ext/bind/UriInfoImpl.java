@@ -42,6 +42,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalInt;
 import java.util.stream.Stream;
 
 /**
@@ -338,6 +339,11 @@ public final class UriInfoImpl implements UriInfo {
     }
 
     private static String rootResourceUri(RouteMatch<?> match, String matchedUri) {
+        OptionalInt rootPathSegmentCount = match.getAnnotationMetadata()
+            .intValue(JaxRsResourceTemplate.class, "rootPathSegmentCount");
+        if (rootPathSegmentCount.isPresent() && rootPathSegmentCount.getAsInt() > -1) {
+            return firstPathSegments(matchedUri, rootPathSegmentCount.getAsInt());
+        }
         return match.getAnnotationMetadata()
             .stringValue(HttpMethodMapping.class)
             .map(UriInfoImpl::normalizeMatchedUri)
@@ -345,6 +351,19 @@ public final class UriInfoImpl implements UriInfo {
             .filter(methodUri -> matchedUri.endsWith(methodUri))
             .map(methodUri -> normalizeMatchedUri(matchedUri.substring(0, matchedUri.length() - methodUri.length())))
             .orElse("");
+    }
+
+    private static String firstPathSegments(String uri, int segmentCount) {
+        if (segmentCount <= 0 || uri.isEmpty()) {
+            return "";
+        }
+        int segments = 0;
+        for (int i = 0; i < uri.length(); i++) {
+            if (uri.charAt(i) == '/' && ++segments == segmentCount) {
+                return uri.substring(0, i);
+            }
+        }
+        return segments + 1 == segmentCount ? uri : "";
     }
 
     private static String normalizeMatchedUri(String uri) {

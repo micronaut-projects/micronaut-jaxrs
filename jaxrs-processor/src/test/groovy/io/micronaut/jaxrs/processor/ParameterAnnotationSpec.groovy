@@ -29,6 +29,7 @@ class ParameterAnnotationSpec extends AbstractTypeElementSpec {
     static final String REQUEST_FIELD_INJECTION_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsRequestFieldInjection"
     static final String CONSTRUCTOR_INJECTION_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsConstructorInjection"
     static final String PATH_PARAM_BINDING_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsPathParamBinding"
+    static final String RESOURCE_TEMPLATE_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsResourceTemplate"
     static final String SUB_RESOURCE_LOCATOR_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsSubResourceLocator"
 
     @Unroll
@@ -515,6 +516,8 @@ class MiddleResource {
         expect:
         method.hasAnnotation(Get)
         method.stringValue(HttpMethodMapping).get() == '/locator/child'
+        method.stringValue(RESOURCE_TEMPLATE_ANNOTATION).get() == '/resource/locator/child'
+        method.intValue(RESOURCE_TEMPLATE_ANNOTATION, 'rootPathSegmentCount').getAsInt() == 1
         method.stringValue(SUB_RESOURCE_LOCATOR_ANNOTATION).get() == 'get'
         method.stringValues(SUB_RESOURCE_LOCATOR_ANNOTATION, 'argumentTypes') == [jakarta.ws.rs.core.UriInfo.name] as String[]
     }

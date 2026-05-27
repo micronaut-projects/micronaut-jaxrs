@@ -37,6 +37,13 @@ class UriInfoTest {
     }
 
     @Test
+    void testMatchedUrisWithMethodTemplate() {
+        HttpRequest<String> request = HttpRequest.GET("/api/matched/uris/abc");
+        String respBody = client.toBlocking().retrieve(request, String.class);
+        Assertions.assertEquals("matched/uris/abc,matched", respBody);
+    }
+
+    @Test
     void testMatchedResources() {
         HttpRequest<String> request = HttpRequest.GET("/api/matched/resources");
         String respBody = client.toBlocking().retrieve(request, String.class);
