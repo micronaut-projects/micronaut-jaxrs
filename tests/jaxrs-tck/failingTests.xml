@@ -2,8 +2,8 @@
 <failingTests>
     <!--
         TCK tracker (excluded baseline, 2026-05-27):
-        total=2803, passed=2094, failed=0, errors=0, skipped=709.
-        Known-failing exclusions: 46 classes and 51 methods.
+        total=2803, passed=2095, failed=0, errors=0, skipped=708.
+        Known-failing exclusions: 46 classes and 50 methods.
         Update these counts after each focused group changes this file.
     -->
     <class name="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT"/>
@@ -75,7 +75,6 @@
     <test class="ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT" method="isRegisteredTextPlainContextResolverTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT" method="contextResolverTest"/>
     <test class="ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT" method="webApplicationExceptionHasResponseWithEntityDoesNotUseMapperTest"/>
-    <test class="ee.jakarta.tck.ws.rs.spec.returntype.JAXRSClientIT" method="entityResponseTest"/>
     <test class="ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT" method="getMatchedURIsTest"/>
     <test class="ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT" method="getMatchedURIsTest1"/>
     <test class="ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT" method="getMatchedURIsTest2"/>
