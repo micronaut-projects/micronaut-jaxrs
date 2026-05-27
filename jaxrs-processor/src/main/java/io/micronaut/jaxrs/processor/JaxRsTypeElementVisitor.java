@@ -30,11 +30,20 @@ import io.micronaut.http.annotation.Body;
 import io.micronaut.http.annotation.Consumes;
 import io.micronaut.http.annotation.Controller;
 import io.micronaut.http.annotation.CookieValue;
+import io.micronaut.http.annotation.CustomHttpMethod;
+import io.micronaut.http.annotation.Delete;
+import io.micronaut.http.annotation.Get;
 import io.micronaut.http.annotation.Header;
+import io.micronaut.http.annotation.Head;
 import io.micronaut.http.annotation.HttpMethodMapping;
+import io.micronaut.http.annotation.Options;
+import io.micronaut.http.annotation.Patch;
 import io.micronaut.http.annotation.PathVariable;
+import io.micronaut.http.annotation.Post;
 import io.micronaut.http.annotation.Produces;
+import io.micronaut.http.annotation.Put;
 import io.micronaut.http.annotation.QueryValue;
+import io.micronaut.http.annotation.Trace;
 import io.micronaut.http.annotation.UriMapping;
 import io.micronaut.inject.ast.ClassElement;
 import io.micronaut.inject.ast.FieldElement;
@@ -85,6 +94,17 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     private static final String PATH_PARAM_BINDING_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsPathParamBinding";
     private static final String SUB_RESOURCE_LOCATOR_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsSubResourceLocator";
     static final String MATRIX_PARAMETER_ROUTE_PATTERN = ":;[^/]*|";
+    private static final List<Class<? extends Annotation>> MICRONAUT_ROUTE_ANNOTATIONS = List.of(
+        Get.class,
+        Post.class,
+        Put.class,
+        Patch.class,
+        Delete.class,
+        Trace.class,
+        Options.class,
+        Head.class,
+        CustomHttpMethod.class
+    );
     private static final Class<?>[] BINDABLE_TYPES = new Class<?>[] {Context.class, SecurityContext.class, UriInfo.class};
     private ClassElement currentClassElement;
 
@@ -154,6 +174,10 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
 
     @Override
     public void visitMethod(MethodElement element, VisitorContext context) {
+        if (isNonPublicServerResourceCandidate(element)) {
+            removeMicronautRouteAnnotations(element);
+            return;
+        }
         if (isSubResourceLocator(element)) {
             visitSubResourceLocator(element, context);
             return;
@@ -505,7 +529,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     }
 
     private static boolean isSubResourceTargetMethod(MethodElement method) {
-        return method.hasStereotype(HttpMethod.class) && method.getParameters().length == 0;
+        return isPublicResourceMethod(method) && method.hasStereotype(HttpMethod.class) && method.getParameters().length == 0;
     }
 
     private static @Nullable SubResourceTargetMethod findSubResourceTargetMethod(MethodElement locator) {
@@ -564,12 +588,31 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             return List.of();
         }
         return currentClassElement.getMethods().stream()
+            .filter(method -> !currentClassElement.isPublic() || method.isPublic())
             .filter(method -> method.hasAnnotation(Path.class))
             .filter(method -> !method.hasStereotype(HttpMethod.class))
             .filter(method -> method.getReturnType().isAssignable(currentClassElement))
             .map(method -> method.stringValue(Path.class).orElse(""))
             .filter(path -> !path.isEmpty())
             .toList();
+    }
+
+    private static boolean isPublicResourceMethod(MethodElement method) {
+        return !method.getDeclaringType().isPublic() || method.isPublic();
+    }
+
+    private boolean isNonPublicServerResourceCandidate(MethodElement method) {
+        return isServerResourceClass()
+            && currentClassElement.isPublic()
+            && !method.isPublic()
+            && (method.hasStereotype(HttpMethod.class) || method.hasAnnotation(Path.class));
+    }
+
+    private static void removeMicronautRouteAnnotations(MethodElement method) {
+        for (Class<? extends Annotation> routeAnnotation : MICRONAUT_ROUTE_ANNOTATIONS) {
+            method.removeAnnotation(routeAnnotation);
+        }
+        method.removeAnnotation(HttpMethodMapping.class);
     }
 
     static String getMatrixParameterName(TypedElement parameter) {

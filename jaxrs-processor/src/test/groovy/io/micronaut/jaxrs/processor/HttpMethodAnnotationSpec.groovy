@@ -399,6 +399,66 @@ public class Test {
         method.stringValue(HttpMethodMapping).get() == '/method-path'
     }
 
+    void "test non-public JAX-RS resource methods on public resources are ignored"() {
+        given:
+        def definition = buildBeanDefinition('test.Test', '''
+package test;
+
+@jakarta.ws.rs.Path("/base-path")
+public class Test {
+
+    @jakarta.ws.rs.GET
+    @jakarta.ws.rs.Path("/public")
+    public String publicVisibility() {
+        return "ok";
+    }
+
+    @jakarta.ws.rs.GET
+    @jakarta.ws.rs.Path("/package")
+    String packageVisibility() {
+        return "no";
+    }
+
+    @jakarta.ws.rs.GET
+    @jakarta.ws.rs.Path("/protected")
+    protected String protectedVisibility() {
+        return "no";
+    }
+
+    @jakarta.ws.rs.GET
+    @jakarta.ws.rs.Path("/private")
+    private String privateVisibility() {
+        return "no";
+    }
+
+    @jakarta.ws.rs.Path("/locator")
+    Resource locator() {
+        return new Resource();
+    }
+}
+
+class Resource {
+
+    @jakarta.ws.rs.GET
+    public String get() {
+        return "no";
+    }
+}
+''')
+        def packageMethod = definition.getRequiredMethod('packageVisibility')
+        def protectedMethod = definition.getRequiredMethod('protectedVisibility')
+        def locatorMethod = definition.getRequiredMethod('locator')
+
+        expect:
+        definition.getRequiredMethod('publicVisibility').stringValue(HttpMethodMapping).get() == '/public'
+        !packageMethod.annotationMetadata.hasDeclaredAnnotation(Get)
+        !packageMethod.annotationMetadata.hasDeclaredAnnotation(HttpMethodMapping)
+        !protectedMethod.annotationMetadata.hasDeclaredAnnotation(Get)
+        !protectedMethod.annotationMetadata.hasDeclaredAnnotation(HttpMethodMapping)
+        !definition.findMethod('privateVisibility').isPresent()
+        !locatorMethod.annotationMetadata.hasDeclaredAnnotation(HttpMethodMapping)
+    }
+
     void "test mapped annotation from interface for client"() {
         given:
         def definition = buildBeanDefinition('test.Test$Intercepted', """

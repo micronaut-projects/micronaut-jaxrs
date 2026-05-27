@@ -66,7 +66,10 @@ public final class JaxRsMatrixFieldRouteVisitor implements TypeElementVisitor<Ob
 
     @Override
     public void visitMethod(MethodElement element, VisitorContext context) {
-        if (currentClassElement == null || isClientClass() || !isRouteCandidate(element)) {
+        if (currentClassElement == null
+            || isClientClass()
+            || !isRouteCandidate(element)
+            || isNonPublicServerResourceCandidate(element)) {
             return;
         }
         if (!JaxRsTypeElementVisitor.matrixParameterNames(element).isEmpty()) {
@@ -88,5 +91,9 @@ public final class JaxRsMatrixFieldRouteVisitor implements TypeElementVisitor<Ob
 
     private static boolean isRouteCandidate(MethodElement element) {
         return element.hasStereotype(HttpMethod.class) || element.hasAnnotation(Path.class);
+    }
+
+    private boolean isNonPublicServerResourceCandidate(MethodElement element) {
+        return currentClassElement.isPublic() && !element.isPublic();
     }
 }
