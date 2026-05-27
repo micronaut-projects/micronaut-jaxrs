@@ -209,7 +209,7 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
                     }
                 }
             }
-            client.getHttpClient().exchange(request)
+            client.getHttpClient().exchange(requestContext.getMutableHttpRequest())
                 .subscribe(new Subscriber<>() {
                     @Override
                     public void onSubscribe(Subscription subscription) {

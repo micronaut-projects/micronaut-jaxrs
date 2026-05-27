@@ -15,6 +15,11 @@
  */
 package io.micronaut.jaxrs.client;
 
+import io.micronaut.core.type.Argument;
+import io.micronaut.http.HttpMethod;
+import io.micronaut.http.HttpRequest;
+import io.micronaut.http.MediaType;
+import io.micronaut.http.MutableHttpRequest;
 import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.client.ClientBuilder;
 import jakarta.ws.rs.client.ClientRequestContext;
@@ -55,6 +60,28 @@ class JaxRsClientRequestContextTest {
 
             assertEquals(0, counter.get());
             assertEquals("0", response.readEntity(String.class));
+        }
+    }
+
+    @Test
+    void setMethodReplacesMutableRequestMethod() {
+        try (Client client = ClientBuilder.newClient()) {
+            MutableHttpRequest<String> request = HttpRequest.POST("http://localhost/request-method", "body")
+                .contentType(MediaType.TEXT_PLAIN_TYPE)
+                .header("X-Test", "value");
+            JaxRsClientRequestContext context = new JaxRsClientRequestContext(
+                client,
+                client.getConfiguration(),
+                request,
+                Argument.STRING
+            );
+
+            context.setMethod("PUT");
+
+            assertEquals("PUT", context.getMethod());
+            assertEquals(HttpMethod.PUT, context.getMutableHttpRequest().getMethod());
+            assertEquals("value", context.getHeaderString("X-Test"));
+            assertEquals("body", context.getEntity());
         }
     }
 }

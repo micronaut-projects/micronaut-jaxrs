@@ -17,6 +17,8 @@ package io.micronaut.jaxrs.client;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.type.Argument;
+import io.micronaut.http.HttpMethod;
+import io.micronaut.http.HttpRequest;
 import io.micronaut.http.MutableHttpRequest;
 import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
 import io.micronaut.jaxrs.common.JaxRsHttpHeaders;
@@ -56,8 +58,8 @@ final class JaxRsClientRequestContext implements ClientRequestContext {
     private final Client client;
     private final Configuration configuration;
     private final Map<String, Object> properties = new LinkedHashMap<>();
-    private final MutableHttpRequest<?> mutableHttpRequest;
-    private final JaxRsHttpHeaders jaxRsHttpHeaders;
+    private MutableHttpRequest<?> mutableHttpRequest;
+    private JaxRsHttpHeaders jaxRsHttpHeaders;
     private Response response;
     private Argument<?> bodyType;
     private Annotation[] annotations;
@@ -115,7 +117,19 @@ final class JaxRsClientRequestContext implements ClientRequestContext {
 
     @Override
     public void setMethod(String method) {
-        throw new IllegalArgumentException("Not supported");
+        HttpMethod httpMethod = HttpMethod.parse(method);
+        MutableHttpRequest<Object> replacement = httpMethod == HttpMethod.CUSTOM
+            ? HttpRequest.create(HttpMethod.CUSTOM, mutableHttpRequest.getUri().toString(), method)
+            : HttpRequest.create(httpMethod, mutableHttpRequest.getUri().toString());
+        mutableHttpRequest.getHeaders().forEachValue(replacement::header);
+        try {
+            mutableHttpRequest.getCookies().getAll().forEach(replacement::cookie);
+        } catch (UnsupportedOperationException e) {
+            // Some client request implementations expose cookies only through headers.
+        }
+        mutableHttpRequest.getBody().ifPresent(replacement::body);
+        mutableHttpRequest = replacement;
+        jaxRsHttpHeaders = JaxRsMutableHttpHeaders.forRequest(replacement.getHeaders());
     }
 
     @Override
@@ -247,5 +261,9 @@ final class JaxRsClientRequestContext implements ClientRequestContext {
 
     public Response getResponse() {
         return response;
+    }
+
+    MutableHttpRequest<?> getMutableHttpRequest() {
+        return mutableHttpRequest;
     }
 }
