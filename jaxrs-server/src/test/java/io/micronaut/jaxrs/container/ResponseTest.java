@@ -3,6 +3,7 @@ package io.micronaut.jaxrs.container;
 import org.jspecify.annotations.Nullable;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.HttpStatus;
+import io.micronaut.http.MediaType;
 import io.micronaut.http.client.exceptions.HttpClientResponseException;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import org.junit.jupiter.api.Test;
@@ -35,6 +36,15 @@ public class ResponseTest {
             "Service online: notifications",
             response.body()
         );
+    }
+
+    @Test
+    void testDefaultProducesStringUsesAcceptContentType() {
+        HttpResponse<String> response = client.defaultProducesStringAsForm();
+
+        assertEquals(HttpStatus.OK, response.getStatus());
+        assertEquals(MediaType.APPLICATION_FORM_URLENCODED_TYPE, response.getContentType().orElse(null));
+        assertEquals("form-compatible", response.body());
     }
 
     @Test

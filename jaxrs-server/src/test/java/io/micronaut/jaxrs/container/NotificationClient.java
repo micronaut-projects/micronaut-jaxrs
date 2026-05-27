@@ -18,6 +18,11 @@ public interface NotificationClient {
     HttpResponse<String> ping();
 
     @GET
+    @Path("/default-produces-string")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    HttpResponse<String> defaultProducesStringAsForm();
+
+    @GET
     @Path("/get/{id}")
     @Consumes(MediaType.APPLICATION_JSON)
     Notification getNotification(@PathParam("id") int id);

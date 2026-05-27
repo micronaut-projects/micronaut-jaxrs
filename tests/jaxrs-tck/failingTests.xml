@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <failingTests>
-    <!-- TCK tracker (excluded baseline, 2026-05-27): total=2764, passed=2066, failed=0, errors=0, skipped=698; known-failing entries=46 classes and 89 methods. Update after each focused group changes this file. -->
+    <!-- TCK tracker (excluded baseline, 2026-05-27): total=2764, passed=2069, failed=0, errors=0, skipped=695; known-failing entries=46 classes and 86 methods. Update after each focused group changes this file. -->
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="locatorNameTooLongAgainTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="slashUriTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="slashAppNameTest"/>
@@ -52,7 +52,6 @@
     <test class="ee.jakarta.tck.ws.rs.ee.rs.get.JAXRSClientIT" method="recursiveResourceLocatorTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.provider.standardwithjaxrsclient.JAXRSClientIT" method="mapElementProviderTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.provider.standardhaspriority.JAXRSClientIT" method="readWriteMapProviderTest"/>
-    <test class="ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT" method="clientMultivaluedMapReaderTest"/>
     <test class="ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT" method="writeIOExceptionUsingWriterTest"/>
     <test class="ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT" method="readEntityWebException400Test"/>
     <test class="ee.jakarta.tck.ws.rs.spec.provider.writer.JAXRSClientIT" method="responseSubClassTest"/>
@@ -118,8 +117,6 @@
     <class name="ee.jakarta.tck.ws.rs.jaxrs40.ee.rs.core.uriinfo.UriInfo40ClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.ee.rs.core.securitycontext.basic.JAXRSBasicClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.ee.rs.core.request.JAXRSClientIT"/>
-    <test class="ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT" method="clientHtmlXmlPreferenceTest"/>
-    <test class="ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT" method="classProducesTest"/>
     <class name="ee.jakarta.tck.ws.rs.spec.provider.standardwithxmlbinding.JAXRSClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.spec.provider.jaxbcontext.JAXRSClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.spec.client.typedentitieswithxmlbinding.JAXRSClientIT"/>

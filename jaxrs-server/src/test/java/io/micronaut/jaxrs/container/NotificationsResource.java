@@ -49,6 +49,12 @@ public class NotificationsResource {
     }
 
     @GET
+    @Path("/default-produces-string")
+    public String defaultProducesString() {
+        return "form-compatible";
+    }
+
+    @GET
     @Path("/get/{id}")
     @Produces(MediaType.APPLICATION_JSON)
     public Response getNotification(@Min(1) @PathParam("id") int id) {

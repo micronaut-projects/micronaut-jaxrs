@@ -25,12 +25,14 @@ import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.MutableHttpRequest;
 import io.micronaut.http.MutableHttpResponse;
+import io.micronaut.http.annotation.Produces;
 import io.micronaut.http.annotation.RequestFilter;
 import io.micronaut.http.annotation.ResponseFilter;
 import io.micronaut.http.annotation.ServerFilter;
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
 import io.micronaut.jaxrs.common.JaxRsGenericEntity;
+import io.micronaut.jaxrs.common.JaxRsHttpHeaders;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import io.micronaut.jaxrs.common.JaxRsResponse;
 import io.micronaut.jaxrs.common.JaxRsUtils;
@@ -43,6 +45,7 @@ import jakarta.ws.rs.container.ContainerRequestFilter;
 import jakarta.ws.rs.container.ContainerResponseFilter;
 import jakarta.ws.rs.container.PreMatching;
 import jakarta.ws.rs.core.GenericEntity;
+import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
 import java.io.ByteArrayOutputStream;
@@ -52,6 +55,8 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -175,7 +180,9 @@ final class JaxRsFilters {
         if (jaxRsResponse) {
             resolveRelativeLocation(request, mutableHttpResponse);
         }
+        applyHeadContentType(routeInfo, request, mutableHttpResponse);
         if (body != null) {
+            applyDefaultStringContentType(routeInfo, request, mutableHttpResponse, body);
             mutableHttpResponse.body(new JaxRsGenericEntity<>(
                 body,
                 (Argument<? super Object>) bodyArgument,
@@ -184,6 +191,68 @@ final class JaxRsFilters {
             );
         }
         return mutableHttpResponse;
+    }
+
+    private void applyHeadContentType(@Nullable RouteInfo<?> routeInfo,
+                                      HttpRequest<?> request,
+                                      MutableHttpResponse<?> response) {
+        if (request.getMethod() != HttpMethod.HEAD ||
+            routeInfo == null ||
+            response.getHeaders().getContentType().isPresent()) {
+            return;
+        }
+        io.micronaut.http.MediaType contentType = singleConcreteProducedMediaType(routeInfo);
+        if (contentType != null) {
+            response.contentType(contentType);
+        }
+    }
+
+    private void applyDefaultStringContentType(@Nullable RouteInfo<?> routeInfo,
+                                               HttpRequest<?> request,
+                                               MutableHttpResponse<?> response,
+                                               Object body) {
+        if (!(body instanceof String) ||
+            routeInfo == null ||
+            response.getHeaders().getContentType().isPresent() ||
+            !producesOnlyWildcard(routeInfo)) {
+            return;
+        }
+        JaxRsHttpHeaders.forRequest(request.getHeaders())
+            .getAcceptableMediaTypes()
+            .stream()
+            .filter(type -> !type.isWildcardType() && !type.isWildcardSubtype())
+            .findFirst()
+            .map(this::withoutSelectionParameters)
+            .map(JaxRsUtils::convert)
+            .ifPresent(response::contentType);
+    }
+
+    private io.micronaut.http.@Nullable MediaType singleConcreteProducedMediaType(RouteInfo<?> routeInfo) {
+        String[] producedMediaTypes = routeInfo.getAnnotationMetadata().stringValues(Produces.class);
+        if (producedMediaTypes.length != 1) {
+            return null;
+        }
+        MediaType mediaType = withoutSelectionParameters(MediaType.valueOf(producedMediaTypes[0]));
+        if (mediaType.isWildcardType() || mediaType.isWildcardSubtype()) {
+            return null;
+        }
+        return JaxRsUtils.convert(mediaType);
+    }
+
+    private MediaType withoutSelectionParameters(MediaType mediaType) {
+        if (!mediaType.getParameters().containsKey("q") && !mediaType.getParameters().containsKey("qs")) {
+            return mediaType;
+        }
+        Map<String, String> parameters = new LinkedHashMap<>(mediaType.getParameters());
+        parameters.remove("q");
+        parameters.remove("qs");
+        return new MediaType(mediaType.getType(), mediaType.getSubtype(), parameters);
+    }
+
+    private boolean producesOnlyWildcard(RouteInfo<?> routeInfo) {
+        String[] producedMediaTypes = routeInfo.getAnnotationMetadata().stringValues(Produces.class);
+        return producedMediaTypes.length > 0 &&
+            Arrays.stream(producedMediaTypes).allMatch(io.micronaut.http.MediaType.ALL::equals);
     }
 
     @Nullable
