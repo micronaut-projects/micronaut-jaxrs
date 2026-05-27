@@ -31,7 +31,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Applies field-only matrix parameter route tolerance after core route validation.
+ * Applies JAX-RS route adjustments that must run after core route validation.
  */
 @Internal
 public final class JaxRsMatrixFieldRouteVisitor implements TypeElementVisitor<Object, Object> {
@@ -72,17 +72,25 @@ public final class JaxRsMatrixFieldRouteVisitor implements TypeElementVisitor<Ob
             || isNonPublicServerResourceCandidate(element)) {
             return;
         }
-        if (!JaxRsTypeElementVisitor.matrixParameterNames(element).isEmpty()) {
-            return;
-        }
-        List<String> matrixFieldNames = JaxRsTypeElementVisitor.matrixFieldNames(currentClassElement);
-        if (matrixFieldNames.isEmpty()) {
-            return;
-        }
-        element.stringValue(HttpMethodMapping.class)
-            .filter(path -> !path.contains(JaxRsTypeElementVisitor.MATRIX_PARAMETER_ROUTE_PATTERN))
-            .map(path -> JaxRsTypeElementVisitor.toMatrixParameterAwareRoute(path, matrixFieldNames))
-            .ifPresent(path -> JaxRsTypeElementVisitor.annotateHttpRoute(element, path));
+        element.stringValue(HttpMethodMapping.class).ifPresent(path -> {
+            String routePath = path;
+            if (JaxRsTypeElementVisitor.matrixParameterNames(element).isEmpty()) {
+                List<String> matrixFieldNames = JaxRsTypeElementVisitor.matrixFieldNames(currentClassElement);
+                if (!matrixFieldNames.isEmpty() && !routePath.contains(JaxRsTypeElementVisitor.MATRIX_PARAMETER_ROUTE_PATTERN)) {
+                    routePath = JaxRsTypeElementVisitor.toMatrixParameterAwareRoute(routePath, matrixFieldNames);
+                }
+            }
+            String remainingPathVariable = element.stringValue(
+                JaxRsTypeElementVisitor.SUB_RESOURCE_LOCATOR_ANNOTATION,
+                "remaining"
+            ).orElse("");
+            if (!remainingPathVariable.isEmpty() && !routePath.contains("{/" + remainingPathVariable + ":.*}")) {
+                routePath = routePath + "{/" + remainingPathVariable + ":.*}";
+            }
+            if (!routePath.equals(path)) {
+                JaxRsTypeElementVisitor.annotateHttpRoute(element, routePath);
+            }
+        });
     }
 
     private boolean isClientClass() {

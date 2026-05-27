@@ -2,8 +2,8 @@
 <failingTests>
     <!--
         TCK tracker (excluded baseline, 2026-05-27):
-        total=2803, passed=2093, failed=0, errors=0, skipped=710.
-        Known-failing exclusions: 46 classes and 52 methods.
+        total=2803, passed=2094, failed=0, errors=0, skipped=709.
+        Known-failing exclusions: 46 classes and 51 methods.
         Update these counts after each focused group changes this file.
     -->
     <class name="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT"/>
@@ -34,7 +34,6 @@
     <test class="ee.jakarta.tck.ws.rs.ee.rs.core.configurable.JAXRSClientIT" method="registerObjectNotAssignableContractsTest"/>
     <test class="ee.jakarta.tck.ws.rs.ee.rs.core.configurable.JAXRSClientIT" method="registerClassNotAssignableContractsTest"/>
     <test class="ee.jakarta.tck.ws.rs.ee.rs.core.configurable.JAXRSClientIT" method="registerObjectBindingPriorityInMapTest"/>
-    <test class="ee.jakarta.tck.ws.rs.ee.rs.get.JAXRSClientIT" method="recursiveResourceLocatorTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.provider.standardwithjaxrsclient.JAXRSClientIT" method="mapElementProviderTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.provider.standardhaspriority.JAXRSClientIT" method="readWriteMapProviderTest"/>
     <test class="ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT" method="writeIOExceptionUsingWriterTest"/>

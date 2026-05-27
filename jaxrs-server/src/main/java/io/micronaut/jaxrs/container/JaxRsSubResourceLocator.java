@@ -41,4 +41,14 @@ public @interface JaxRsSubResourceLocator {
      * @return The resource type that declares the target method.
      */
     Class<?> type();
+
+    /**
+     * @return The zero-argument recursive locator method to invoke for each remaining path segment.
+     */
+    String recursive() default "";
+
+    /**
+     * @return The route variable that captures the remaining recursive path.
+     */
+    String remaining() default "";
 }

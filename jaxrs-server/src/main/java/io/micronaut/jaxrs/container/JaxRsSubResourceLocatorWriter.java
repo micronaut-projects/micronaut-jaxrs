@@ -32,11 +32,14 @@ import io.micronaut.http.body.MessageBodyHandlerRegistry;
 import io.micronaut.http.body.MessageBodyWriter;
 import io.micronaut.http.body.ResponseBodyWriter;
 import io.micronaut.http.codec.CodecException;
+import io.micronaut.http.context.ServerRequestContext;
 import io.micronaut.inject.BeanDefinition;
 import io.micronaut.inject.ExecutableMethod;
 import io.micronaut.inject.ProxyBeanDefinition;
 import io.micronaut.jaxrs.common.JaxRsContainerMessageBodyHandlerRegistry;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
+import io.micronaut.web.router.RouteAttributes;
+import io.micronaut.web.router.RouteMatch;
 import jakarta.inject.Singleton;
 import org.jspecify.annotations.Nullable;
 
@@ -78,7 +81,7 @@ final class JaxRsSubResourceLocatorWriter implements ResponseBodyWriter<Object>,
                         Object object,
                         MutableHeaders outgoingHeaders,
                         OutputStream outputStream) throws CodecException {
-        Object result = invokeSubResourceMethod(type, object);
+        Object result = invokeSubResourceMethod(type, object, ServerRequestContext.currentRequest().orElse(null));
         result = unwrapJaxRsResponse(result, null, outgoingHeaders);
         if (result != null) {
             writeResult(result, mediaType, outgoingHeaders, outputStream);
@@ -92,7 +95,7 @@ final class JaxRsSubResourceLocatorWriter implements ResponseBodyWriter<Object>,
                                         Argument<Object> type,
                                         MediaType mediaType,
                                         Object object) throws CodecException {
-        Object result = invokeSubResourceMethod(type, object);
+        Object result = invokeSubResourceMethod(type, object, request);
         result = unwrapJaxRsResponse(result, response, null);
         if (result == null) {
             return bodyFactory.createEmpty();
@@ -110,7 +113,7 @@ final class JaxRsSubResourceLocatorWriter implements ResponseBodyWriter<Object>,
                                  Object object,
                                  MutableHeaders outgoingHeaders,
                                  ByteBufferFactory<?, ?> bufferFactory) throws CodecException {
-        Object result = invokeSubResourceMethod(type, object);
+        Object result = invokeSubResourceMethod(type, object, ServerRequestContext.currentRequest().orElse(null));
         result = unwrapJaxRsResponse(result, null, null);
         if (result == null) {
             return bufferFactory.buffer(0);
@@ -122,7 +125,7 @@ final class JaxRsSubResourceLocatorWriter implements ResponseBodyWriter<Object>,
             .writeTo(resultType, mediaType, result, outgoingHeaders, bufferFactory);
     }
 
-    private Object invokeSubResourceMethod(Argument<Object> type, Object subResource) {
+    private Object invokeSubResourceMethod(Argument<Object> type, Object subResource, @Nullable HttpRequest<?> request) {
         String methodName = type.getAnnotationMetadata()
             .stringValue(JaxRsSubResourceLocator.class)
             .orElseThrow(() -> new CodecException("Missing Jakarta REST subresource locator target method"));
@@ -130,7 +133,46 @@ final class JaxRsSubResourceLocatorWriter implements ResponseBodyWriter<Object>,
             .classValue(JaxRsSubResourceLocator.class, "type")
             .orElseThrow(() -> new CodecException("Missing Jakarta REST subresource locator target type"));
         BeanDefinition<?> beanDefinition = findSubResourceBeanDefinition(resourceType);
+        subResource = invokeRecursiveLocators(type, request, beanDefinition, subResource);
         return invoke(beanDefinition.getRequiredMethod(methodName), subResource);
+    }
+
+    private static Object invokeRecursiveLocators(Argument<Object> type,
+                                                  @Nullable HttpRequest<?> request,
+                                                  BeanDefinition<?> beanDefinition,
+                                                  Object subResource) {
+        String recursiveMethod = type.getAnnotationMetadata()
+            .stringValue(JaxRsSubResourceLocator.class, "recursive")
+            .orElse("");
+        if (recursiveMethod.isEmpty() || request == null) {
+            return subResource;
+        }
+        String remaining = type.getAnnotationMetadata()
+            .stringValue(JaxRsSubResourceLocator.class, "remaining")
+            .orElse("");
+        if (remaining.isEmpty()) {
+            return subResource;
+        }
+        String path = remainingPath(request, remaining);
+        if (path.isEmpty()) {
+            return subResource;
+        }
+        ExecutableMethod<?, ?> method = beanDefinition.getRequiredMethod(recursiveMethod);
+        Object current = subResource;
+        for (String segment : path.split("/")) {
+            if (!segment.isEmpty()) {
+                current = invoke(method, current);
+            }
+        }
+        return current;
+    }
+
+    private static String remainingPath(HttpRequest<?> request, String remaining) {
+        return RouteAttributes.getRouteMatch(request)
+            .map(RouteMatch::getVariableValues)
+            .map(values -> values.get(remaining))
+            .map(Object::toString)
+            .orElse("");
     }
 
     private BeanDefinition<?> findSubResourceBeanDefinition(Class<?> resourceType) {

@@ -8,6 +8,7 @@ import io.micronaut.core.bind.annotation.Bindable
 import io.micronaut.http.annotation.Controller
 import io.micronaut.http.annotation.CookieValue
 import io.micronaut.http.annotation.CustomHttpMethod
+import io.micronaut.http.annotation.Get
 import io.micronaut.http.annotation.Header
 import io.micronaut.http.annotation.HttpMethodMapping
 import io.micronaut.http.annotation.PathVariable
@@ -483,6 +484,45 @@ class MiddleResource {
         method.stringValue(HttpMethodMapping).get() == '/locator/child'
         method.stringValue(SUB_RESOURCE_LOCATOR_ANNOTATION).get() == 'watch'
         method.classValue(SUB_RESOURCE_LOCATOR_ANNOTATION, 'type').get().name == 'test.MiddleResource'
+    }
+
+    void "test recursive subresource locator captures remaining path"() {
+        given:
+        def definition = buildBeanDefinition('test.LocatorResource', """
+package test;
+
+@jakarta.ws.rs.Path("resource")
+class LocatorResource {
+
+    @jakarta.ws.rs.Path("recursive")
+    RecursiveResource recursive() {
+        return new RecursiveResource();
+    }
+}
+
+class RecursiveResource {
+
+    @jakarta.ws.rs.Path("{id}")
+    RecursiveResource recursive() {
+        return this;
+    }
+
+    @jakarta.ws.rs.GET
+    String get() {
+        return "ok";
+    }
+}
+""")
+
+        def method = definition.getRequiredMethod("recursive")
+
+        expect:
+        method.hasAnnotation(Get)
+        method.stringValue(HttpMethodMapping).get() == '/recursive{/jaxrsRecursiveRemaining:.*}'
+        method.stringValue(SUB_RESOURCE_LOCATOR_ANNOTATION).get() == 'get'
+        method.classValue(SUB_RESOURCE_LOCATOR_ANNOTATION, 'type').get().name == 'test.RecursiveResource'
+        method.stringValue(SUB_RESOURCE_LOCATOR_ANNOTATION, 'recursive').get() == 'recursive'
+        method.stringValue(SUB_RESOURCE_LOCATOR_ANNOTATION, 'remaining').get() == 'jaxrsRecursiveRemaining'
     }
 
     void "test Encoded MatrixParam is supported"() {

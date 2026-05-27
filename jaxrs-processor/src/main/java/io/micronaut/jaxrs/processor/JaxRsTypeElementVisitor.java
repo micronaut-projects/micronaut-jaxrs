@@ -15,6 +15,7 @@
  */
 package io.micronaut.jaxrs.processor;
 
+import io.micronaut.context.annotation.Executable;
 import io.micronaut.context.annotation.Parameter;
 import io.micronaut.context.annotation.Prototype;
 import io.micronaut.core.annotation.AnnotationClassValue;
@@ -96,7 +97,8 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     private static final String CONSTRUCTOR_INJECTION_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsConstructorInjection";
     private static final String REQUEST_FIELD_INJECTION_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsRequestFieldInjection";
     private static final String PATH_PARAM_BINDING_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsPathParamBinding";
-    private static final String SUB_RESOURCE_LOCATOR_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsSubResourceLocator";
+    static final String SUB_RESOURCE_LOCATOR_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsSubResourceLocator";
+    static final String RECURSIVE_REMAINING_ROUTE_VARIABLE = "jaxrsRecursiveRemaining";
     static final String MATRIX_PARAMETER_ROUTE_PATTERN = ":;[^/]*|";
     private static final List<Class<? extends Annotation>> MICRONAUT_ROUTE_ANNOTATIONS = List.of(
         Get.class,
@@ -228,6 +230,11 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         if (!isServerResourceClass()) {
             return;
         }
+        if (isUnrootedRecursiveSubResourceLocator(element)) {
+            element.annotate(Executable.class);
+            removeMicronautRouteAnnotations(element);
+            return;
+        }
         List<String> matrixParameterNames = matrixParameterNames(element);
         if (!matrixParameterNames.isEmpty()) {
             markMatrixAwareClassPath(matrixParameterNames.get(0));
@@ -239,6 +246,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             String locatorPath = element.stringValue(HttpMethodMapping.class).orElse(UriMapping.DEFAULT_URI);
             String targetPath = method.stringValue(HttpMethodMapping.class).orElse(UriMapping.DEFAULT_URI);
             String routePath = prependRoutePath(locatorPath, targetPath);
+            RecursiveSubResourceLocator recursiveLocator = findRecursiveSubResourceLocator(element);
             if (!matrixParameterNames.isEmpty()) {
                 routePath = toMatrixParameterAwareRoute(routePath, matrixParameterNames);
             }
@@ -246,7 +254,9 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             annotateHttpRoute(element, targetMethod.routeAnnotation(), routePath);
             element.annotate(SUB_RESOURCE_LOCATOR_ANNOTATION, builder -> builder
                 .value(method.getName())
-                .member("type", new AnnotationClassValue<>(method.getDeclaringType().getName())));
+                .member("type", new AnnotationClassValue<>(method.getDeclaringType().getName()))
+                .member("recursive", recursiveLocator == null ? "" : recursiveLocator.method().getName())
+                .member("remaining", recursiveLocator == null ? "" : RECURSIVE_REMAINING_ROUTE_VARIABLE));
             visitMethodParameters(element, context, false);
         }
     }
@@ -629,6 +639,14 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         return isPublicResourceMethod(method) && method.hasStereotype(HttpMethod.class) && method.getParameters().length == 0;
     }
 
+    private boolean isUnrootedRecursiveSubResourceLocator(MethodElement method) {
+        return currentClassElement != null &&
+            !currentClassElement.hasAnnotation(Path.class) &&
+            method.getParameters().length == 0 &&
+            method.getReturnType().getName().equals(method.getDeclaringType().getName()) &&
+            singlePathVariableName(method.stringValue(Path.class).orElse("")) != null;
+    }
+
     private static @Nullable SubResourceTargetMethod findSubResourceTargetMethod(MethodElement locator) {
         String returnTypeName = locator.getReturnType().getName();
         SubResourceTargetMethod inheritedTargetMethod = null;
@@ -649,7 +667,50 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         return inheritedTargetMethod;
     }
 
+    private static @Nullable RecursiveSubResourceLocator findRecursiveSubResourceLocator(MethodElement locator) {
+        String returnTypeName = locator.getReturnType().getName();
+        for (MethodElement method : locator.getReturnType().getMethods()) {
+            if (method.hasAnnotation(Path.class) &&
+                !method.hasStereotype(HttpMethod.class) &&
+                method.getParameters().length == 0 &&
+                method.getReturnType().getName().equals(returnTypeName)) {
+                String path = method.stringValue(Path.class).orElse("");
+                if (singlePathVariableName(path) != null) {
+                    return new RecursiveSubResourceLocator(method);
+                }
+            }
+        }
+        return null;
+    }
+
+    private static @Nullable String singlePathVariableName(String path) {
+        String normalizedPath = normalizeRoutePath(path);
+        if (normalizedPath.indexOf('/', 1) > -1) {
+            return null;
+        }
+        return routeTemplateVariableName(normalizedPath.substring(1));
+    }
+
+    private static @Nullable String routeTemplateVariableName(String templateSegment) {
+        if (!templateSegment.startsWith("{")) {
+            return null;
+        }
+        int end = templateSegment.indexOf('}');
+        if (end < 0 || end != templateSegment.length() - 1) {
+            return null;
+        }
+        String variableName = templateSegment.substring(1, end);
+        int colon = variableName.indexOf(':');
+        if (colon > -1) {
+            variableName = variableName.substring(0, colon);
+        }
+        return variableName.isEmpty() ? null : variableName;
+    }
+
     private record SubResourceTargetMethod(MethodElement method, AnnotationValue<Annotation> routeAnnotation) {
+    }
+
+    private record RecursiveSubResourceLocator(MethodElement method) {
     }
 
     private String toServerRoutePath(MethodElement method, String path, List<String> matrixParameterNames) {
