@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <failingTests>
-    <!-- TCK tracker (excluded baseline, 2026-05-27): total=2764, passed=2060, failed=0, errors=0, skipped=704. Update after each focused group changes this file. -->
+    <!-- TCK tracker (excluded baseline, 2026-05-27): total=2764, passed=2061, failed=0, errors=0, skipped=703. Update after each focused group changes this file. -->
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="locatorNameTooLongAgainTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="slashUriTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="slashAppNameTest"/>
@@ -40,7 +40,6 @@
     <class name="ee.jakarta.tck.ws.rs.jaxrs21.ee.sse.sseeventsink.JAXRSClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.jaxrs21.ee.sse.sseeventsource.JAXRSClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.jaxrs21.ee.sse.ssebroadcaster.JAXRSClientIT"/>
-    <test class="ee.jakarta.tck.ws.rs.api.client.webtarget.JAXRSClientIT" method="requestNoArgTest"/>
     <class name="ee.jakarta.tck.ws.rs.spec.client.exceptions.ClientExceptionsIT"/>
     <test class="ee.jakarta.tck.ws.rs.servlet3.rs.core.streamingoutput.JAXRSClientIT" method="writeWebApplicationExceptionTest"/>
     <test class="ee.jakarta.tck.ws.rs.ee.rs.core.configurable.JAXRSClientIT" method="registerObjectNotAssignableContractsInMapTest"/>
