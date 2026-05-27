@@ -19,6 +19,7 @@ import io.micronaut.context.BeanRegistration;
 import io.micronaut.core.annotation.Internal;
 import org.jspecify.annotations.Nullable;
 import io.micronaut.core.type.Argument;
+import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpMethod;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
@@ -47,6 +48,9 @@ import jakarta.ws.rs.core.Response;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -106,16 +110,21 @@ final class JaxRsFilters {
         } else {
             body = mutableHttpResponse.getBody().orElse(null);
         }
+        boolean jaxRsResponse = false;
         if (body instanceof JaxRsMutableResponse jrs) {
-            final MutableHttpResponse<?> jaxRsResponse = jrs.getResponse();
-            mutableHttpResponse.getAttributes().forEach(jaxRsResponse::setAttribute);
+            jaxRsResponse = true;
+            final MutableHttpResponse<?> unwrappedResponse = jrs.getResponse();
+            mutableHttpResponse.getAttributes().forEach(unwrappedResponse::setAttribute);
             mutableHttpResponse.getHeaders().forEach((name, value) -> {
                 for (String val : value) {
-                    jaxRsResponse.header(name, val);
+                    unwrappedResponse.header(name, val);
                 }
             });
-            mutableHttpResponse = jaxRsResponse;
+            mutableHttpResponse = unwrappedResponse;
             body = mutableHttpResponse.getBody().orElse(null);
+        }
+        if (jaxRsResponse) {
+            resolveRelativeLocation(request, mutableHttpResponse);
         }
         Argument<?> bodyArgument;
         if (body instanceof JaxRsGenericEntity<?> genericEntity) {
@@ -163,6 +172,9 @@ final class JaxRsFilters {
             delegateEntityStream = responseContext.getDelegateEntityStream();
             customEntityStream = responseContext.getCustomEntityStream();
         }
+        if (jaxRsResponse) {
+            resolveRelativeLocation(request, mutableHttpResponse);
+        }
         if (body != null) {
             mutableHttpResponse.body(new JaxRsGenericEntity<>(
                 body,
@@ -194,6 +206,55 @@ final class JaxRsFilters {
         }
         requestContext.finished();
         return null;
+    }
+
+    private void resolveRelativeLocation(HttpRequest<?> request, MutableHttpResponse<?> response) {
+        response.getHeaders().getFirst(HttpHeaders.LOCATION)
+            .map(URI::create)
+            .filter(location -> !location.isAbsolute())
+            .map(location -> applicationBaseUri(request).resolve(location))
+            .ifPresent(response.getHeaders()::location);
+    }
+
+    private URI applicationBaseUri(HttpRequest<?> request) {
+        URI requestUri = request.getUri();
+        String basePath = applicationBasePath();
+        String scheme = requestUri.getScheme();
+        String host = requestUri.getHost();
+        int port = requestUri.getPort();
+        if (scheme == null || host == null) {
+            scheme = request.isSecure() ? HttpRequest.SCHEME_HTTPS : HttpRequest.SCHEME_HTTP;
+            host = request.getServerName();
+            InetSocketAddress serverAddress = request.getServerAddress();
+            if ((host == null || host.isBlank()) && serverAddress != null) {
+                host = serverAddress.getHostString();
+            }
+            if (port < 0 && serverAddress != null) {
+                port = serverAddress.getPort();
+            }
+        }
+        if (host == null || host.isBlank()) {
+            return URI.create(basePath);
+        }
+        try {
+            return new URI(scheme, requestUri.getUserInfo(), host, port, basePath, null, null);
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException("Unexpected URI format: " + requestUri.toASCIIString(), e);
+        }
+    }
+
+    private String applicationBasePath() {
+        String basePath = applicationProvider.getPath();
+        if (basePath.isEmpty() || basePath.equals("/")) {
+            return "/";
+        }
+        if (!basePath.startsWith("/")) {
+            basePath = "/" + basePath;
+        }
+        if (!basePath.endsWith("/")) {
+            basePath += "/";
+        }
+        return basePath;
     }
 
     @Nullable

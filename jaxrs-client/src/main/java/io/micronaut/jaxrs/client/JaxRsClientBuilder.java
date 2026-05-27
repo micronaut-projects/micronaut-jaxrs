@@ -82,6 +82,7 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
         DefaultHttpClientConfiguration configuration = new DefaultHttpClientConfiguration();
         configuration.setConnectTimeout(connectTimeout);
         configuration.setReadTimeout(readTimeout);
+        configuration.setDecompressionEnabled(false);
         DefaultHttpClient httpClient = new DefaultHttpClient((URI) null, configuration);
         ContextlessMessageBodyHandlerRegistry handlerRegistry = (ContextlessMessageBodyHandlerRegistry) httpClient.getHandlerRegistry();
         JaxRsConfiguration jaxRsConfiguration = new JaxRsConfiguration();
