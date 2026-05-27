@@ -61,6 +61,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -468,7 +469,12 @@ final class JaxRsConfiguration implements Configuration {
         }
 
         if (written.get()) {
-            mutableHttpMessage.body(outputStream.toByteArray());
+            byte[] bytes = outputStream.toByteArray();
+            if (mediaType.equals(MediaType.APPLICATION_FORM_URLENCODED_TYPE)) {
+                mutableHttpMessage.body(new String(bytes, StandardCharsets.UTF_8));
+            } else {
+                mutableHttpMessage.body(bytes);
+            }
         } else if (!getWriterInterceptors().isEmpty()) {
             throw new IllegalStateException("Unknown entity type " + bodyArgument.getType());
         } else {
