@@ -1,6 +1,7 @@
 package io.micronaut.jaxrs.processor
 
 import io.micronaut.annotation.processing.test.AbstractTypeElementSpec
+import io.micronaut.context.annotation.Parameter
 import io.micronaut.context.annotation.Prototype
 import io.micronaut.core.annotation.ReflectiveAccess
 import io.micronaut.core.bind.annotation.Bindable
@@ -25,6 +26,7 @@ import spock.lang.Unroll
 class ParameterAnnotationSpec extends AbstractTypeElementSpec {
 
     static final String REQUEST_FIELD_INJECTION_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsRequestFieldInjection"
+    static final String CONSTRUCTOR_INJECTION_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsConstructorInjection"
     static final String PATH_PARAM_BINDING_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsPathParamBinding"
     static final String SUB_RESOURCE_LOCATOR_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsSubResourceLocator"
 
@@ -805,6 +807,34 @@ public class Test {
                 'jakarta.ws.rs.core.Application',
                 'jakarta.ws.rs.core.Request'
         ]
+    }
+
+    void "test request constructor parameters mark resource for constructor injection"() {
+        given:
+        def definition = buildBeanDefinition('test.Test', """
+package test;
+
+@jakarta.ws.rs.Path("/resource/matrix")
+public class Test {
+    private final String param;
+
+    public Test(@jakarta.ws.rs.MatrixParam("param") String param) {
+        this.param = param;
+    }
+
+    @jakarta.ws.rs.GET
+    public String get() {
+        return param;
+    }
+}
+""")
+
+        expect:
+        definition.annotationMetadata.hasAnnotation(CONSTRUCTOR_INJECTION_ANNOTATION)
+        definition.annotationMetadata.hasAnnotation(Prototype)
+        definition.stringValue(Controller).get() == '/resource{param:;[^/]*|}/matrix{param:;[^/]*|}'
+        definition.constructor.arguments[0].annotationMetadata.hasAnnotation(Parameter)
+        definition.constructor.arguments[0].annotationMetadata.hasAnnotation(MatrixParam)
     }
 
     @Unroll

@@ -15,16 +15,15 @@
  */
 package io.micronaut.jaxrs.processor;
 
+import io.micronaut.context.annotation.Parameter;
+import io.micronaut.context.annotation.Prototype;
 import io.micronaut.core.annotation.AnnotationClassValue;
 import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.AnnotationValueBuilder;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.NextMajorVersion;
 import io.micronaut.core.annotation.ReflectiveAccess;
-import org.jspecify.annotations.NonNull;
-import org.jspecify.annotations.Nullable;
 import io.micronaut.core.bind.annotation.Bindable;
-import io.micronaut.context.annotation.Prototype;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.Body;
 import io.micronaut.http.annotation.Consumes;
@@ -74,6 +73,8 @@ import jakarta.ws.rs.core.PathSegment;
 import jakarta.ws.rs.core.SecurityContext;
 import jakarta.ws.rs.core.UriInfo;
 import jakarta.ws.rs.ext.Provider;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 import java.lang.annotation.Annotation;
 import java.util.Arrays;
@@ -92,6 +93,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
 
     public static final int POSITION = 200;
     private static final String CLIENT_ANNOTATION = "io.micronaut.http.client.annotation.Client";
+    private static final String CONSTRUCTOR_INJECTION_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsConstructorInjection";
     private static final String REQUEST_FIELD_INJECTION_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsRequestFieldInjection";
     private static final String PATH_PARAM_BINDING_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsPathParamBinding";
     private static final String SUB_RESOURCE_LOCATOR_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsSubResourceLocator";
@@ -179,9 +181,17 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         if (!isCurrentClassConstructor(element) || !isServerResourceClass()) {
             return;
         }
-        ConstructorElement contextConstructor = findPreferredContextConstructor();
-        if (contextConstructor != null && sameConstructorSignature(element, contextConstructor)) {
+        ConstructorElement jaxRsConstructor = findPreferredJaxRsConstructor();
+        if (jaxRsConstructor != null && sameConstructorSignature(element, jaxRsConstructor)) {
             element.annotate(Inject.class);
+            visitConstructorParameters(element);
+            if (hasRequestConstructorParameter(element)) {
+                markConstructorInjection();
+                List<String> matrixParameterNames = matrixParameterNames(element);
+                if (!matrixParameterNames.isEmpty()) {
+                    markMatrixAwareClassPath(matrixParameterNames.get(0));
+                }
+            }
         }
     }
 
@@ -519,13 +529,13 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         return currentClassElement != null && element.getDeclaringType().getName().equals(currentClassElement.getName());
     }
 
-    private @Nullable ConstructorElement findPreferredContextConstructor() {
+    private @Nullable ConstructorElement findPreferredJaxRsConstructor() {
         if (currentClassElement == null) {
             return null;
         }
         ConstructorElement selected = null;
         for (ConstructorElement constructor : currentClassElement.getAccessibleConstructors()) {
-            if (constructor.isPublic() && isContextConstructor(constructor) &&
+            if (constructor.isPublic() && isJaxRsConstructor(constructor) &&
                 (selected == null || constructor.getParameters().length > selected.getParameters().length)) {
                 selected = constructor;
             }
@@ -533,9 +543,43 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         return selected;
     }
 
-    private static boolean isContextConstructor(ConstructorElement constructor) {
+    private static boolean isJaxRsConstructor(ConstructorElement constructor) {
         ParameterElement[] parameters = constructor.getParameters();
-        return parameters.length > 0 && Arrays.stream(parameters).allMatch(parameter -> parameter.hasAnnotation(Context.class));
+        return parameters.length > 0 && Arrays.stream(parameters).allMatch(JaxRsTypeElementVisitor::isSupportedConstructorParameter);
+    }
+
+    private void visitConstructorParameters(ConstructorElement element) {
+        for (ParameterElement parameter : element.getParameters()) {
+            visitParamOrField(parameter);
+            if (isRequestConstructorParameter(parameter)) {
+                parameter.annotate(Parameter.class);
+            }
+        }
+    }
+
+    private void markConstructorInjection() {
+        if (currentClassElement != null) {
+            currentClassElement.annotate(CONSTRUCTOR_INJECTION_ANNOTATION);
+            if (!currentClassElement.hasStereotype(Scope.class)) {
+                currentClassElement.annotate(Prototype.class);
+            }
+        }
+    }
+
+    private static boolean hasRequestConstructorParameter(ConstructorElement element) {
+        return Arrays.stream(element.getParameters()).anyMatch(JaxRsTypeElementVisitor::isRequestConstructorParameter);
+    }
+
+    private static boolean isSupportedConstructorParameter(ParameterElement parameter) {
+        return parameter.hasAnnotation(Context.class) || isRequestConstructorParameter(parameter);
+    }
+
+    private static boolean isRequestConstructorParameter(ParameterElement parameter) {
+        return parameter.hasAnnotation(MatrixParam.class)
+            || parameter.hasAnnotation(QueryParam.class)
+            || parameter.hasAnnotation(HeaderParam.class)
+            || parameter.hasAnnotation(CookieParam.class)
+            || parameter.hasAnnotation(PathParam.class);
     }
 
     private static boolean sameConstructorSignature(ConstructorElement left, ConstructorElement right) {

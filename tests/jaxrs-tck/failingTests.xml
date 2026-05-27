@@ -2,16 +2,11 @@
 <failingTests>
     <!--
         TCK tracker (excluded baseline, 2026-05-27):
-        total=2803, passed=2087, failed=0, errors=0, skipped=716.
-        Known-failing exclusions: 46 classes and 58 methods.
+        total=2803, passed=2092, failed=0, errors=0, skipped=711.
+        Known-failing exclusions: 46 classes and 53 methods.
         Update these counts after each focused group changes this file.
     -->
     <class name="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT"/>
-    <test class="ee.jakarta.tck.ws.rs.spec.resourceconstructor.JAXRSClientIT" method="constructorWithHeaderParamUsedTest"/>
-    <test class="ee.jakarta.tck.ws.rs.spec.resourceconstructor.JAXRSClientIT" method="constructorWithCookieParamUsedTest"/>
-    <test class="ee.jakarta.tck.ws.rs.spec.resourceconstructor.JAXRSClientIT" method="constructorWithMatrixParamUsedTest"/>
-    <test class="ee.jakarta.tck.ws.rs.spec.resourceconstructor.JAXRSClientIT" method="constructorWithQueryParamUsedTest"/>
-    <test class="ee.jakarta.tck.ws.rs.spec.resourceconstructor.JAXRSClientIT" method="constructorWithPathParamUsedTest"/>
     <class name="ee.jakarta.tck.ws.rs.spec.provider.standardnotnull.JAXRSClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.spec.filter.interceptor.JAXRSClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.ee.rs.container.requestcontext.security.JAXRSClientIT"/>
