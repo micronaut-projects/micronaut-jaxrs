@@ -2,8 +2,8 @@
 <failingTests>
     <!--
         TCK tracker (excluded baseline, 2026-05-27):
-        total=2803, passed=2134, failed=0, errors=0, skipped=669.
-        Known-failing exclusions: 44 classes and 43 methods.
+        total=2803, passed=2146, failed=0, errors=0, skipped=657.
+        Known-failing exclusions: 43 classes and 43 methods.
         Update these counts after each focused group changes this file.
     -->
     <class name="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT"/>
@@ -82,7 +82,6 @@
     <class name="ee.jakarta.tck.ws.rs.spec.client.typedentitieswithxmlbinding.JAXRSClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.spec.provider.reader.JAXRSClientIT"/>
-    <class name="ee.jakarta.tck.ws.rs.spec.resource.annotationprecedence.subclass.JAXRSClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.ee.rs.ext.paramconverter.JAXRSClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.ee.rs.beanparam.cookie.plain.JAXRSClientIT"/>

@@ -514,8 +514,17 @@ final class JaxRsFilters {
     @Nullable
     @RequestFilter
     HttpResponse<?> filterRequest(RouteInfo<?> routeInfo, MutableHttpRequest<?> request) throws IOException {
-        if (requestFilters.isEmpty() || !routeInfo.getAnnotationMetadata().hasAnnotation(Path.class)) {
+        if (!routeInfo.getAnnotationMetadata().hasAnnotation(Path.class)) {
             // Intercept only JaxRs routes
+            return null;
+        }
+        String resourceClassName = routeInfo.getAnnotationMetadata()
+            .stringValue(JaxRsResourceTemplate.class, "rootClassName")
+            .orElseGet(() -> routeInfo.getDeclaringType().getName());
+        if (!applicationProvider.isApplicationResource(resourceClassName)) {
+            return HttpResponse.notFound();
+        }
+        if (requestFilters.isEmpty()) {
             return null;
         }
         JaxRsContainerRequestContext requestContext = new JaxRsContainerRequestContext(request, applicationProvider);

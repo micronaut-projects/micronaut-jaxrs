@@ -518,6 +518,7 @@ class MiddleResource {
         method.stringValue(HttpMethodMapping).get() == '/locator/child'
         method.stringValue(RESOURCE_TEMPLATE_ANNOTATION).get() == '/resource/locator/child'
         method.intValue(RESOURCE_TEMPLATE_ANNOTATION, 'rootPathSegmentCount').getAsInt() == 1
+        method.stringValue(RESOURCE_TEMPLATE_ANNOTATION, 'rootClassName').get() == 'test.LocatorResource'
         method.stringValue(SUB_RESOURCE_LOCATOR_ANNOTATION).get() == 'get'
         method.stringValues(SUB_RESOURCE_LOCATOR_ANNOTATION, 'argumentTypes') == [jakarta.ws.rs.core.UriInfo.name] as String[]
     }
@@ -580,6 +581,52 @@ class Test {
         expect:
         metadata.hasAnnotation(Encoded)
         metadata.hasAnnotation(MatrixParam)
+    }
+
+    void "test subclass parameter annotation overrides inherited resource annotations"() {
+        given:
+        def definition = buildBeanDefinition('test.Resource', """
+package test;
+
+@jakarta.ws.rs.Path("super")
+class SuperClass {
+
+    @jakarta.ws.rs.POST
+    @jakarta.ws.rs.Path("post")
+    String get(@jakarta.ws.rs.QueryParam("pqr") String param) {
+        return param;
+    }
+}
+
+@jakarta.ws.rs.Path("interfaceresource")
+interface ResourceInterface {
+
+    @jakarta.ws.rs.GET
+    @jakarta.ws.rs.Path("get")
+    String get(@jakarta.ws.rs.FormParam("xyz") String param);
+}
+
+@jakarta.ws.rs.Path("resource")
+class Resource extends SuperClass implements ResourceInterface {
+
+    @jakarta.ws.rs.PUT
+    @jakarta.ws.rs.Path("put")
+    public String get(@jakarta.ws.rs.MatrixParam("ijk") String param) {
+        return param;
+    }
+}
+""")
+        def method = definition.getRequiredMethod("get", String)
+        def metadata = method.arguments[0].getAnnotationMetadata()
+
+        expect:
+        definition.stringValue(Controller).get() == 'resource{param:;[^/]*|}'
+        method.stringValue(HttpMethodMapping).get() == 'put{param:;[^/]*|}'
+        method.stringValues(RESOURCE_TEMPLATE_ANNOTATION, 'matrixRouteVariableNames') == ['param'] as String[]
+        metadata.hasAnnotation(MatrixParam)
+        !metadata.hasAnnotation(QueryParam)
+        !metadata.hasAnnotation(FormParam)
+        metadata.getAnnotationTypeByStereotype(Bindable).get() == MatrixParam
     }
 
     void "test method Encoded applies to MatrixParam arguments"() {

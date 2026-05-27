@@ -144,6 +144,7 @@ final class JaxRsRouterListener implements BeanCreatedEventListener<Router> {
         }
 
         private <T, R> UriRouteMatch<T, R> wrap(UriRouteMatch<T, R> match, HttpRequest<?> request) {
+            suppressMatrixRouteVariables(match);
             if (match.getArguments().length != 0) {
                 return match;
             }
@@ -152,6 +153,21 @@ final class JaxRsRouterListener implements BeanCreatedEventListener<Router> {
                 return new JaxRsConstructorInjectionRouteMatch<>(match, request, beanContext, requestBinderRegistry, beanDefinition.get());
             }
             return match;
+        }
+
+        private static void suppressMatrixRouteVariables(UriRouteMatch<?, ?> match) {
+            String[] matrixRouteVariableNames = match.getAnnotationMetadata()
+                .stringValues(JaxRsResourceTemplate.class, "matrixRouteVariableNames");
+            if (matrixRouteVariableNames.length == 0) {
+                return;
+            }
+            Map<String, Object> variableValues = match.getVariableValues();
+            if (variableValues.isEmpty()) {
+                return;
+            }
+            for (String matrixRouteVariableName : matrixRouteVariableNames) {
+                variableValues.remove(matrixRouteVariableName);
+            }
         }
     }
 

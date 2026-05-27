@@ -19,6 +19,7 @@ import io.micronaut.context.annotation.Executable;
 import io.micronaut.context.annotation.Parameter;
 import io.micronaut.context.annotation.Prototype;
 import io.micronaut.core.annotation.AnnotationClassValue;
+import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.AnnotationValueBuilder;
 import io.micronaut.core.annotation.Internal;
@@ -82,6 +83,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.Element;
 
 /**
  * A type element visitor that turns a JAX-RS path into a controller.
@@ -212,19 +215,20 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             if (currentClassElement != null && !currentClassElement.hasAnnotation(Controller.class) && !currentClassElement.isAbstract()) {
                 currentClassElement.annotate(Controller.class);
             }
+            removeInheritedParameterAnnotations(element);
             annotateDefaultMediaTypes(element);
+            visitMethodParameters(element, context, true);
             if (isServerResourceClass()) {
                 annotateRequestFieldInjection(element);
                 List<String> matrixParameterNames = matrixParameterNames(element);
                 if (!matrixParameterNames.isEmpty()) {
                     markMatrixAwareClassPath(matrixParameterNames.get(0));
                 }
-                annotateResourceTemplate(element, element.stringValue(Path.class).orElse(UriMapping.DEFAULT_URI));
+                annotateResourceTemplate(element, element.stringValue(Path.class).orElse(UriMapping.DEFAULT_URI), matrixParameterNames);
                 element.stringValue(HttpMethodMapping.class)
                     .map(path -> toServerRoutePath(element, path, matrixParameterNames))
                     .ifPresent(path -> annotateHttpRoute(element, path));
             }
-            visitMethodParameters(element, context, true);
         }
     }
 
@@ -244,6 +248,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         SubResourceTargetMethod targetMethod = findSubResourceTargetMethod(element);
         if (targetMethod != null) {
             annotateRequestFieldInjection(element);
+            visitMethodParameters(element, context, false);
             MethodElement method = targetMethod.method();
             String locatorPath = element.stringValue(HttpMethodMapping.class).orElse(UriMapping.DEFAULT_URI);
             String targetPath = method.stringValue(HttpMethodMapping.class).orElse(UriMapping.DEFAULT_URI);
@@ -258,14 +263,13 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             }
             annotateSubResourceMediaTypes(element, method);
             annotateHttpRoute(element, targetMethod.routeAnnotation(), routePath);
-            annotateResourceTemplate(element, resourceTemplatePath);
+            annotateResourceTemplate(element, resourceTemplatePath, matrixParameterNames);
             element.annotate(SUB_RESOURCE_LOCATOR_ANNOTATION, builder -> builder
                 .value(method.getName())
                 .member("type", new AnnotationClassValue<>(method.getDeclaringType().getName()))
                 .member("argumentTypes", targetMethodArgumentTypes(method))
                 .member("recursive", recursiveLocator == null ? "" : recursiveLocator.method().getName())
                 .member("remaining", recursiveLocator == null ? "" : RECURSIVE_REMAINING_ROUTE_VARIABLE));
-            visitMethodParameters(element, context, false);
         }
     }
 
@@ -310,13 +314,23 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     }
 
     private void annotateResourceTemplate(MethodElement method, String path) {
+        annotateResourceTemplate(method, path, List.of());
+    }
+
+    private void annotateResourceTemplate(MethodElement method, String path, List<String> matrixRouteVariableNames) {
         if (currentClassElement == null) {
             return;
         }
         String classPath = currentClassElement.stringValue(Path.class).orElse(UriMapping.DEFAULT_URI);
-        method.annotate(RESOURCE_TEMPLATE_ANNOTATION, builder -> builder
-            .value(prependRoutePath(classPath, path))
-            .member("rootPathSegmentCount", pathSegmentCount(classPath)));
+        method.annotate(RESOURCE_TEMPLATE_ANNOTATION, builder -> {
+            builder
+                .value(prependRoutePath(classPath, path))
+                .member("rootPathSegmentCount", pathSegmentCount(classPath))
+                .member("rootClassName", currentClassElement.getName());
+            if (!matrixRouteVariableNames.isEmpty()) {
+                builder.member("matrixRouteVariableNames", matrixRouteVariableNames.toArray(String[]::new));
+            }
+        });
     }
 
     private void visitMethodParameters(MethodElement element, VisitorContext context, boolean bindUnannotatedBody) {
@@ -347,6 +361,64 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         if (isServerResourceClass() && hasPathParam) {
             element.annotate(PATH_PARAM_BINDING_ANNOTATION);
         }
+    }
+
+    private void removeInheritedParameterAnnotations(MethodElement element) {
+        if (!hasDeclaredJaxRsMethodAnnotation(element) && !hasDeclaredJaxRsParameterAnnotation(element)) {
+            return;
+        }
+        ParameterElement[] parameters = element.getParameters();
+        for (int i = 0; i < parameters.length; i++) {
+            ParameterElement parameter = parameters[i];
+            for (Class<? extends Annotation> annotation : JAX_RS_BINDING_ANNOTATIONS) {
+                AnnotationMetadata annotationMetadata = parameter.getAnnotationMetadata();
+                if (annotationMetadata.hasAnnotation(annotation) &&
+                    hasInheritedParameterAnnotation(element, i, annotation) &&
+                    !hasDeclaredParameterAnnotation(parameter, annotation)) {
+                    parameter.removeAnnotation(annotation);
+                }
+            }
+        }
+    }
+
+    private static boolean hasDeclaredJaxRsMethodAnnotation(MethodElement element) {
+        AnnotationMetadata annotationMetadata = element.getMethodAnnotationMetadata().getAnnotationMetadata();
+        return annotationMetadata.hasDeclaredStereotype(HttpMethod.class)
+            || annotationMetadata.hasDeclaredAnnotation(Path.class)
+            || annotationMetadata.hasDeclaredAnnotation(Consumes.class)
+            || annotationMetadata.hasDeclaredAnnotation(Produces.class)
+            || annotationMetadata.hasDeclaredAnnotation(Encoded.class);
+    }
+
+    private static boolean hasInheritedParameterAnnotation(MethodElement element, int parameterIndex, Class<? extends Annotation> annotation) {
+        for (MethodElement overriddenMethod : element.getOverriddenMethods()) {
+            ParameterElement[] inheritedParameters = overriddenMethod.getParameters();
+            if (inheritedParameters.length > parameterIndex && inheritedParameters[parameterIndex].hasAnnotation(annotation)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasDeclaredJaxRsParameterAnnotation(MethodElement element) {
+        return Arrays.stream(element.getParameters()).anyMatch(parameter ->
+            JAX_RS_BINDING_ANNOTATIONS.stream().anyMatch(annotation ->
+                hasDeclaredParameterAnnotation(parameter, annotation)));
+    }
+
+    private static boolean hasDeclaredParameterAnnotation(ParameterElement parameter, Class<? extends Annotation> annotation) {
+        if (parameter.getAnnotationMetadata().hasDeclaredAnnotation(annotation)) {
+            return true;
+        }
+        if (parameter.getNativeType() instanceof Element nativeElement) {
+            String annotationName = annotation.getName();
+            for (AnnotationMirror annotationMirror : nativeElement.getAnnotationMirrors()) {
+                if (annotationName.equals(annotationMirror.getAnnotationType().toString())) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     @Override
@@ -467,7 +539,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         annotateDefaultAndNullable(parameter, builder);
         parameter.annotate(
             builder
-                .stereotype(AnnotationValue.builder(Bindable.class).build()).build()
+                .stereotype(bindable(parameter)).build()
         );
     }
 
@@ -476,7 +548,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         annotateDefaultAndNullable(parameter, builder);
         parameter.annotate(
             builder
-            .stereotype(AnnotationValue.builder(Bindable.class).build()).build()
+            .stereotype(bindable(parameter)).build()
         );
     }
 
@@ -485,7 +557,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         annotateDefaultAndNullable(parameter, builder);
         parameter.annotate(
             builder
-                .stereotype(AnnotationValue.builder(Bindable.class).build()).build()
+                .stereotype(bindable(parameter)).build()
         );
     }
 
@@ -494,7 +566,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         annotateDefaultAndNullable(parameter, builder);
         parameter.annotate(
             builder
-                .stereotype(AnnotationValue.builder(Bindable.class).build()).build()
+                .stereotype(bindable(parameter)).build()
         );
     }
 
@@ -503,7 +575,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         annotateDefaultAndNullable(parameter, builder);
         parameter.annotate(
             builder
-                .stereotype(AnnotationValue.builder(Bindable.class).build()).build()
+                .stereotype(bindable(parameter)).build()
         );
     }
 
@@ -512,20 +584,32 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         annotateDefaultAndNullable(parameter, builder);
         parameter.annotate(
             builder
-                .stereotype(AnnotationValue.builder(Bindable.class).build()).build()
+                .stereotype(bindable(parameter)).build()
         );
+    }
+
+    private static AnnotationValue<Bindable> bindable(TypedElement parameter) {
+        AnnotationValueBuilder<Bindable> builder = AnnotationValue.builder(Bindable.class);
+        javaDefaultValue(parameter).ifPresent(defaultValue -> builder.member("defaultValue", defaultValue));
+        return builder.build();
     }
 
     private static void annotateDefaultAndNullable(TypedElement parameter, AnnotationValueBuilder<?> builder) {
         if (parameter.isPrimitive()) {
-            if (parameter.getType().isAssignable(boolean.class)) {
-                annotateDefaultValue(parameter, builder, "false");
-            } else {
-                annotateDefaultValue(parameter, builder, "0");
-            }
+            javaDefaultValue(parameter).ifPresent(defaultValue -> annotateDefaultValue(parameter, builder, defaultValue));
         } else if (!parameter.isNonNull()) {
             parameter.annotate(Nullable.class);
         }
+    }
+
+    private static java.util.Optional<String> javaDefaultValue(TypedElement parameter) {
+        if (!parameter.isPrimitive()) {
+            return java.util.Optional.empty();
+        }
+        if (parameter.getType().isAssignable(boolean.class)) {
+            return java.util.Optional.of("false");
+        }
+        return java.util.Optional.of("0");
     }
 
     private static void annotateDefaultValue(TypedElement parameter, AnnotationValueBuilder<?> builder, String defaultValue) {
@@ -634,7 +718,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     static List<String> matrixParameterNames(MethodElement element) {
         return Arrays.stream(element.getParameters())
             .filter(parameter -> parameter.hasAnnotation(MatrixParam.class) || isPathSegmentPathParam(parameter))
-            .map(parameter -> parameter.hasAnnotation(MatrixParam.class) ? getMatrixParameterName(parameter) : getPathParameterName(parameter))
+            .map(ParameterElement::getName)
             .toList();
     }
 

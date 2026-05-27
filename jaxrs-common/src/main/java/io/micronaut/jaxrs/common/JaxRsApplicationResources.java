@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.micronaut.jaxrs.container;
+package io.micronaut.jaxrs.common;
 
 import io.micronaut.core.annotation.Internal;
 
@@ -24,31 +24,16 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Internal metadata for the original Jakarta REST resource template.
+ * Internal metadata for Jakarta REST application resource and provider classes.
  */
 @Internal
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.METHOD)
-public @interface JaxRsResourceTemplate {
+@Target({ElementType.TYPE, ElementType.METHOD})
+public @interface JaxRsApplicationResources {
 
     /**
-     * @return The resource template relative to the Jakarta REST application path.
+     * @return The application resource and provider class names.
      */
-    String value();
-
-    /**
-     * @return The number of URI path segments declared by the root resource class.
-     */
-    int rootPathSegmentCount() default -1;
-
-    /**
-     * @return The root resource class name that owns the Jakarta REST route.
-     */
-    String rootClassName() default "";
-
-    /**
-     * @return The route variable names that only exist to match optional matrix parameters.
-     */
-    String[] matrixRouteVariableNames() default {};
+    String[] value();
 }
