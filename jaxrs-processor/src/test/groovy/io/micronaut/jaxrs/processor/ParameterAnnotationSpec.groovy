@@ -127,6 +127,34 @@ interface Test {
         expect:
         metadata.hasAnnotation(PathVariable)
         metadata.stringValue(PathVariable).get() == 'id'
+        !metadata.hasAnnotation(PathParam)
+    }
+
+    void "test inherited PathParam maps to PathVariable for clients"() {
+        given:
+        def definition = buildBeanDefinition('test.Test$Intercepted', """
+package test;
+
+interface Resource {
+
+    @jakarta.ws.rs.GET
+    @jakarta.ws.rs.Path("/ping/{v}")
+    void test(@jakarta.ws.rs.PathParam("v") String value);
+}
+
+@io.micronaut.http.client.annotation.Client("/test")
+interface Test extends Resource {
+}
+""")
+
+        def method = definition.getRequiredMethod("test", String)
+        def metadata = method.arguments[0].getAnnotationMetadata()
+
+        expect:
+        method.stringValue(HttpMethodMapping).get() == '/ping/{v}'
+        metadata.hasAnnotation(PathVariable)
+        metadata.stringValue(PathVariable).get() == 'v'
+        !metadata.hasAnnotation(PathParam)
     }
 
     void "test MatrixParam route allows matrix path segments"() {

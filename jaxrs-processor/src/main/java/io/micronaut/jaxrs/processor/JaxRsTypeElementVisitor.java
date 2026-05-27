@@ -374,6 +374,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         if (parameter.hasAnnotation(PathParam.class)) {
             if (isClientClass()) {
                 mapParam(parameter, PathParam.class, PathVariable.class);
+                parameter.removeAnnotation(PathParam.class);
             } else {
                 annotatePathParam(parameter);
             }
