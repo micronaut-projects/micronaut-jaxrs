@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <failingTests>
-    <!-- TCK tracker (excluded baseline, 2026-05-27): total=2764, passed=2059, failed=0, errors=0, skipped=705. Update after each focused group changes this file. -->
+    <!-- TCK tracker (excluded baseline, 2026-05-27): total=2764, passed=2060, failed=0, errors=0, skipped=704. Update after each focused group changes this file. -->
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="locatorNameTooLongAgainTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="slashUriTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="slashAppNameTest"/>
@@ -48,7 +48,6 @@
     <test class="ee.jakarta.tck.ws.rs.ee.rs.core.configurable.JAXRSClientIT" method="registerObjectNotAssignableContractsTest"/>
     <test class="ee.jakarta.tck.ws.rs.ee.rs.core.configurable.JAXRSClientIT" method="registerClassNotAssignableContractsTest"/>
     <test class="ee.jakarta.tck.ws.rs.ee.rs.core.configurable.JAXRSClientIT" method="registerObjectBindingPriorityInMapTest"/>
-    <test class="ee.jakarta.tck.ws.rs.api.rs.ext.runtimedelegate.create.JAXRSClientIT" method="createEndpointThrowsIllegalArgumentExceptionTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="optionsOnSubResourceTest"/>
     <test class="ee.jakarta.tck.ws.rs.ee.rs.get.JAXRSClientIT" method="dynamicGetTest"/>
     <test class="ee.jakarta.tck.ws.rs.ee.rs.get.JAXRSClientIT" method="recursiveResourceLocatorTest"/>

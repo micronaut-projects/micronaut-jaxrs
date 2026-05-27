@@ -73,6 +73,8 @@ public final class MicronautRuntimeDelegate extends RuntimeDelegate {
 
     @Override
     public <T> T createEndpoint(Application application, Class<T> endpointType) throws IllegalArgumentException, UnsupportedOperationException {
+        JaxRsUtils.requireNonNull("application", application);
+        JaxRsUtils.requireNonNull("endpointType", endpointType);
         throw new UnsupportedOperationException("Method createEndpoint(..) not supported by implementation");
     }
 
@@ -107,4 +109,3 @@ public final class MicronautRuntimeDelegate extends RuntimeDelegate {
         return EntityPart.withName(partName);
     }
 }
-
