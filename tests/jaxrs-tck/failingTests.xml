@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <failingTests>
-    <!-- TCK tracker (excluded baseline, 2026-05-27): total=2764, passed=2075, failed=0, errors=0, skipped=689; known-failing entries=46 classes and 80 methods. Update after each focused group changes this file. -->
+    <!-- TCK tracker (excluded baseline, 2026-05-27): total=2764, passed=2077, failed=0, errors=0, skipped=687; known-failing entries=46 classes and 78 methods. Update after each focused group changes this file. -->
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="locatorNameTooLongAgainTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="slashUriTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="slashAppNameTest"/>
@@ -91,8 +91,6 @@
     <test class="ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT" method="isRegisteredTextPlainContextResolverTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT" method="contextResolverTest"/>
     <test class="ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT" method="webApplicationExceptionHasResponseWithEntityDoesNotUseMapperTest"/>
-    <test class="ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT" method="defaultResponseErrorTest"/>
-    <test class="ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT" method="defaultErrorTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.returntype.JAXRSClientIT" method="entityResponseTest"/>
     <test class="ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT" method="getMatchedURIsTest"/>
     <test class="ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT" method="getMatchedURIsTest1"/>

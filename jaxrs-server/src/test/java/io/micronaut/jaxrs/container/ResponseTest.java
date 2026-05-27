@@ -1,9 +1,13 @@
 package io.micronaut.jaxrs.container;
 
 import org.jspecify.annotations.Nullable;
+import io.micronaut.http.HttpHeaders;
+import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.HttpStatus;
 import io.micronaut.http.MediaType;
+import io.micronaut.http.client.HttpClient;
+import io.micronaut.http.client.annotation.Client;
 import io.micronaut.http.client.exceptions.HttpClientResponseException;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import org.junit.jupiter.api.Test;
@@ -19,9 +23,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 public class ResponseTest {
 
     private final NotificationClient client;
+    private final HttpClient httpClient;
 
-    public ResponseTest(NotificationClient client) {
+    public ResponseTest(NotificationClient client, @Client("/api") HttpClient httpClient) {
         this.client = client;
+        this.httpClient = httpClient;
     }
 
     @Test
@@ -45,6 +51,31 @@ public class ResponseTest {
         assertEquals(HttpStatus.OK, response.getStatus());
         assertEquals(MediaType.APPLICATION_FORM_URLENCODED_TYPE, response.getContentType().orElse(null));
         assertEquals("form-compatible", response.body());
+    }
+
+    @Test
+    void testWildcardProducesRequiresConcreteGetAccept() {
+        HttpRequest<Object> request = HttpRequest.GET("/notifications/wildcard-produces")
+            .header(HttpHeaders.ACCEPT, "text/*");
+
+        HttpClientResponseException exception = assertThrows(
+            HttpClientResponseException.class,
+            () -> httpClient.toBlocking().exchange(request, String.class)
+        );
+        assertEquals(HttpStatus.NOT_ACCEPTABLE, exception.getStatus());
+    }
+
+    @Test
+    void testWildcardProducesRequiresConcretePostAccept() {
+        HttpRequest<String> request = HttpRequest.POST("/notifications/wildcard-produces", "anything")
+            .contentType(MediaType.TEXT_PLAIN_TYPE)
+            .header(HttpHeaders.ACCEPT, "text/*");
+
+        HttpClientResponseException exception = assertThrows(
+            HttpClientResponseException.class,
+            () -> httpClient.toBlocking().exchange(request, String.class)
+        );
+        assertEquals(HttpStatus.NOT_ACCEPTABLE, exception.getStatus());
     }
 
     @Test

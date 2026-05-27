@@ -55,6 +55,20 @@ public class NotificationsResource {
     }
 
     @GET
+    @Path("/wildcard-produces")
+    @Produces("text/*")
+    public String wildcardProduces() {
+        return "wildcard-compatible";
+    }
+
+    @POST
+    @Path("/wildcard-produces")
+    @Produces("text/*")
+    public Response wildcardProducesResponse(String value) {
+        return Response.ok(value).build();
+    }
+
+    @GET
     @Path("/get/{id}")
     @Produces(MediaType.APPLICATION_JSON)
     public Response getNotification(@Min(1) @PathParam("id") int id) {

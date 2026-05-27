@@ -29,6 +29,7 @@ import io.micronaut.http.annotation.Produces;
 import io.micronaut.http.annotation.RequestFilter;
 import io.micronaut.http.annotation.ResponseFilter;
 import io.micronaut.http.annotation.ServerFilter;
+import io.micronaut.http.server.exceptions.NotAcceptableException;
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
 import io.micronaut.jaxrs.common.JaxRsGenericEntity;
@@ -287,25 +288,38 @@ final class JaxRsFilters {
     }
 
     private void applyJaxRsAcceptNegotiation(MutableHttpRequest<?> request) {
-        List<UriRouteInfo<?, ?>> candidates = router.uriRoutes()
-            .filter(route -> route.getHttpMethod() == request.getMethod())
-            .filter(route -> route.getAnnotationMetadata().hasAnnotation(Path.class))
-            .filter(route -> route.tryMatch(request.getPath()) != null)
-            .filter(route -> route.consumesAll() || route.doesConsume(request.getContentType().orElse(null)))
-            .toList();
-        if (candidates.size() < 2) {
+        List<UriRouteInfo<?, ?>> candidates = jaxRsRouteCandidates(request);
+        if (candidates.isEmpty()) {
             return;
         }
         List<MediaType> acceptableMediaTypes = JaxRsHttpHeaders.forRequest(request.getHeaders()).getAcceptableMediaTypes();
-        candidates.stream()
+        List<AcceptCandidate> compatibleCandidates = candidates.stream()
             .flatMap(route -> route.getProduces().stream()
                 .map(JaxRsUtils::convert)
                 .flatMap(produced -> acceptableMediaTypes.stream()
                     .filter(produced::isCompatible)
                     .map(accepted -> new AcceptCandidate(produced, accepted))))
-            .filter(candidate -> !candidate.responseMediaType().isWildcardType() && !candidate.responseMediaType().isWildcardSubtype())
+            .toList();
+        if (compatibleCandidates.isEmpty()) {
+            return;
+        }
+        if (compatibleCandidates.stream().anyMatch(AcceptCandidate::hasTypedWildcardProduced) &&
+            compatibleCandidates.stream().noneMatch(AcceptCandidate::hasConcreteResponseMediaType)) {
+            throw new NotAcceptableException(
+                acceptableMediaTypes.stream().map(MediaType::toString).toList(),
+                candidates.stream()
+                    .flatMap(route -> route.getProduces().stream())
+                    .map(io.micronaut.http.MediaType::toString)
+                    .toList()
+            );
+        }
+        if (candidates.size() < 2) {
+            return;
+        }
+        compatibleCandidates.stream()
+            .filter(AcceptCandidate::hasConcreteProducedMediaType)
             .max(AcceptCandidate.COMPARATOR)
-            .map(AcceptCandidate::responseMediaType)
+            .map(AcceptCandidate::produced)
             .map(this::withoutSelectionParameters)
             .map(JaxRsUtils::convert)
             .ifPresent(mediaType -> {
@@ -314,14 +328,46 @@ final class JaxRsFilters {
             });
     }
 
+    private List<UriRouteInfo<?, ?>> jaxRsRouteCandidates(MutableHttpRequest<?> request) {
+        return router.uriRoutes()
+            .filter(route -> route.getHttpMethod() == request.getMethod())
+            .filter(route -> route.getAnnotationMetadata().hasAnnotation(Path.class))
+            .filter(route -> route.tryMatch(request.getPath()) != null)
+            .filter(route -> route.consumesAll() || route.doesConsume(request.getContentType().orElse(null)))
+            .toList();
+    }
+
     private record AcceptCandidate(MediaType produced, MediaType accepted) {
         private static final Comparator<AcceptCandidate> COMPARATOR = Comparator
             .comparingInt(AcceptCandidate::producedSpecificity)
             .thenComparingDouble(AcceptCandidate::clientQuality)
             .thenComparingDouble(AcceptCandidate::serverQuality);
 
-        private MediaType responseMediaType() {
-            return produced;
+        private boolean hasConcreteResponseMediaType() {
+            return concreteResponseMediaType() != null;
+        }
+
+        private boolean hasConcreteProducedMediaType() {
+            return isConcrete(produced);
+        }
+
+        private boolean hasTypedWildcardProduced() {
+            return !produced.isWildcardType() && produced.isWildcardSubtype();
+        }
+
+        @Nullable
+        private MediaType concreteResponseMediaType() {
+            if (isConcrete(produced)) {
+                return produced;
+            }
+            if (isConcrete(accepted)) {
+                return accepted;
+            }
+            return null;
+        }
+
+        private static boolean isConcrete(MediaType mediaType) {
+            return !mediaType.isWildcardType() && !mediaType.isWildcardSubtype();
         }
 
         private int producedSpecificity() {
