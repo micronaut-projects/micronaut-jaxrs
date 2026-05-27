@@ -46,12 +46,14 @@ import io.micronaut.http.annotation.QueryValue;
 import io.micronaut.http.annotation.Trace;
 import io.micronaut.http.annotation.UriMapping;
 import io.micronaut.inject.ast.ClassElement;
+import io.micronaut.inject.ast.ConstructorElement;
 import io.micronaut.inject.ast.FieldElement;
 import io.micronaut.inject.ast.MethodElement;
 import io.micronaut.inject.ast.ParameterElement;
 import io.micronaut.inject.ast.TypedElement;
 import io.micronaut.inject.visitor.TypeElementVisitor;
 import io.micronaut.inject.visitor.VisitorContext;
+import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import jakarta.inject.Scope;
 import jakarta.inject.Singleton;
@@ -169,6 +171,17 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             if (hasRequestParamField(element)) {
                 markRequestFieldInjection();
             }
+        }
+    }
+
+    @Override
+    public void visitConstructor(ConstructorElement element, VisitorContext context) {
+        if (!isCurrentClassConstructor(element) || !isServerResourceClass()) {
+            return;
+        }
+        ConstructorElement contextConstructor = findPreferredContextConstructor();
+        if (contextConstructor != null && sameConstructorSignature(element, contextConstructor)) {
+            element.annotate(Inject.class);
         }
     }
 
@@ -500,6 +513,46 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
 
     private boolean isClientClass() {
         return currentClassElement != null && (currentClassElement.hasStereotype(CLIENT_ANNOTATION) || currentClassElement.hasAnnotation(CLIENT_ANNOTATION));
+    }
+
+    private boolean isCurrentClassConstructor(ConstructorElement element) {
+        return currentClassElement != null && element.getDeclaringType().getName().equals(currentClassElement.getName());
+    }
+
+    private @Nullable ConstructorElement findPreferredContextConstructor() {
+        if (currentClassElement == null) {
+            return null;
+        }
+        ConstructorElement selected = null;
+        for (ConstructorElement constructor : currentClassElement.getAccessibleConstructors()) {
+            if (constructor.isPublic() && isContextConstructor(constructor) &&
+                (selected == null || constructor.getParameters().length > selected.getParameters().length)) {
+                selected = constructor;
+            }
+        }
+        return selected;
+    }
+
+    private static boolean isContextConstructor(ConstructorElement constructor) {
+        ParameterElement[] parameters = constructor.getParameters();
+        return parameters.length > 0 && Arrays.stream(parameters).allMatch(parameter -> parameter.hasAnnotation(Context.class));
+    }
+
+    private static boolean sameConstructorSignature(ConstructorElement left, ConstructorElement right) {
+        if (!left.getDeclaringType().getName().equals(right.getDeclaringType().getName())) {
+            return false;
+        }
+        ParameterElement[] leftParameters = left.getParameters();
+        ParameterElement[] rightParameters = right.getParameters();
+        if (leftParameters.length != rightParameters.length) {
+            return false;
+        }
+        for (int i = 0; i < leftParameters.length; i++) {
+            if (!leftParameters[i].getType().getName().equals(rightParameters[i].getType().getName())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private boolean isEncoded(MethodElement element) {

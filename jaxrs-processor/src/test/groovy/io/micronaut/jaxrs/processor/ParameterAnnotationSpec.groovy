@@ -764,6 +764,49 @@ class Test {
         method.arguments[1].getAnnotationMetadata().stringValue(Bindable, "defaultValue").get() == 'false'
     }
 
+    void "test public resource uses largest public context constructor"() {
+        given:
+        def definition = buildBeanDefinition('test.Test', """
+package test;
+
+@jakarta.ws.rs.Path("/resource")
+public class Test {
+
+    public Test() {
+    }
+
+    public Test(@jakarta.ws.rs.core.Context jakarta.ws.rs.core.HttpHeaders headers) {
+    }
+
+    public Test(@jakarta.ws.rs.core.Context jakarta.ws.rs.core.HttpHeaders headers,
+                @jakarta.ws.rs.core.Context jakarta.ws.rs.core.UriInfo info,
+                @jakarta.ws.rs.core.Context jakarta.ws.rs.core.Application application,
+                @jakarta.ws.rs.core.Context jakarta.ws.rs.core.Request request) {
+    }
+
+    protected Test(@jakarta.ws.rs.core.Context jakarta.ws.rs.core.HttpHeaders headers,
+                   @jakarta.ws.rs.core.Context jakarta.ws.rs.core.UriInfo info,
+                   @jakarta.ws.rs.core.Context jakarta.ws.rs.core.Application application,
+                   @jakarta.ws.rs.core.Context jakarta.ws.rs.core.Request request,
+                   @jakarta.ws.rs.core.Context jakarta.ws.rs.ext.Providers providers) {
+    }
+
+    @jakarta.ws.rs.GET
+    public String test() {
+        return "ok";
+    }
+}
+""")
+
+        expect:
+        definition.constructor.arguments*.type*.name == [
+                'jakarta.ws.rs.core.HttpHeaders',
+                'jakarta.ws.rs.core.UriInfo',
+                'jakarta.ws.rs.core.Application',
+                'jakarta.ws.rs.core.Request'
+        ]
+    }
+
     @Unroll
     void "test unsupported parameter annotation #source"() {
         when:
