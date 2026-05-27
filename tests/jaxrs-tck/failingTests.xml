@@ -1,10 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <failingTests>
-    <!-- TCK tracker (excluded baseline, 2026-05-27): total=2764, passed=2083, failed=0, errors=0, skipped=681; known-failing entries=46 classes and 72 methods. Update after each focused group changes this file. -->
+    <!-- TCK tracker (excluded baseline, 2026-05-27): total=2764, passed=2086, failed=0, errors=0, skipped=678; known-failing entries=46 classes and 69 methods. Update after each focused group changes this file. -->
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="locatorNameTooLongAgainTest"/>
-    <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="slashUriTest"/>
-    <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="slashAppNameTest"/>
-    <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="wrongAppNameTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="descendantResourcePathValueTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="producesOverridesDescendantSubResourcePathValuePostTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="consumesOverridesDescendantSubResourcePathValueTest"/>
