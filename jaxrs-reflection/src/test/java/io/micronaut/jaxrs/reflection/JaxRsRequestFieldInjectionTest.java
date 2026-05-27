@@ -23,6 +23,7 @@ import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.bind.ArgumentBinder;
 import io.micronaut.core.bind.annotation.Bindable;
 import io.micronaut.core.convert.ConversionContext;
+import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.BasicHttpAttributes;
 import io.micronaut.http.HttpRequest;
@@ -31,6 +32,7 @@ import io.micronaut.http.cookie.Cookie;
 import io.micronaut.http.context.ServerRequestContext;
 import io.micronaut.inject.BeanDefinition;
 import io.micronaut.inject.ExecutableMethod;
+import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.CookieParam;
@@ -38,10 +40,13 @@ import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.MatrixParam;
+import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.WebApplicationException;
+import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ParamConverter;
 import jakarta.ws.rs.ext.ParamConverterProvider;
 import jakarta.ws.rs.ext.Provider;
@@ -50,9 +55,12 @@ import org.junit.jupiter.api.Test;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @MicronautTest
@@ -64,6 +72,9 @@ class JaxRsRequestFieldInjectionTest {
 
     @Inject
     RequestBinderRegistry binderRegistry;
+
+    @Inject
+    ConversionService conversionService;
 
     @Test
     void injectsMatrixParamFieldBeforeResourceMethodInvocation() {
@@ -223,6 +234,68 @@ class JaxRsRequestFieldInjectionTest {
         assertEquals("reflection:blue", converted.get(0).value);
     }
 
+    @Test
+    void reflectionFallbackUsesFromStringBeforeValueOfForEnums() {
+        BeanDefinition<QueryResource> definition = context.getBeanDefinition(QueryResource.class);
+        ExecutableMethod<QueryResource, Object> method = definition.getRequiredMethod("convertedEnum", ConvertedEnumParam.class);
+
+        @SuppressWarnings("unchecked")
+        Argument<ConvertedEnumParam> argument = (Argument<ConvertedEnumParam>) method.getArguments()[0];
+        @SuppressWarnings("unchecked")
+        ArgumentBinder<ConvertedEnumParam, HttpRequest<?>> binder = (ArgumentBinder<ConvertedEnumParam, HttpRequest<?>>) binderRegistry.findArgumentBinder(argument).orElseThrow();
+
+        ConvertedEnumParam converted = binder.bind(ConversionContext.of(argument), HttpRequest.GET("/query?value=blue"))
+            .getValue()
+            .orElseThrow();
+
+        assertEquals(ConvertedEnumParam.FROM_STRING, converted);
+    }
+
+    @Test
+    void reflectionFallbackUsesValueOfBeforeFromStringForNonEnums() {
+        BeanDefinition<QueryResource> definition = context.getBeanDefinition(QueryResource.class);
+        ExecutableMethod<QueryResource, Object> method = definition.getRequiredMethod("convertedFactory", StaticFactoryParam.class);
+
+        @SuppressWarnings("unchecked")
+        Argument<StaticFactoryParam> argument = (Argument<StaticFactoryParam>) method.getArguments()[0];
+        @SuppressWarnings("unchecked")
+        ArgumentBinder<StaticFactoryParam, HttpRequest<?>> binder = (ArgumentBinder<StaticFactoryParam, HttpRequest<?>>) binderRegistry.findArgumentBinder(argument).orElseThrow();
+
+        StaticFactoryParam converted = binder.bind(ConversionContext.of(argument), HttpRequest.GET("/query?value=blue"))
+            .getValue()
+            .orElseThrow();
+
+        assertEquals("valueOf:blue", converted.value);
+    }
+
+    @Test
+    void reflectionFallbackWrapsPathParamConstructionFailure() {
+        Argument<ThrowingParam> argument = Argument.of(
+            ThrowingParam.class,
+            "value",
+            parameterMetadata(PathParam.class, "value")
+        );
+
+        NotFoundException exception = assertThrows(NotFoundException.class,
+            () -> conversionService.convert("blue", ConversionContext.of(argument)));
+
+        assertInstanceOf(IllegalArgumentException.class, exception.getCause());
+    }
+
+    @Test
+    void reflectionFallbackPropagatesWebApplicationException() {
+        Argument<WebApplicationExceptionParam> argument = Argument.of(
+            WebApplicationExceptionParam.class,
+            "value",
+            parameterMetadata(QueryParam.class, "value")
+        );
+
+        WebApplicationException exception = assertThrows(WebApplicationException.class,
+            () -> conversionService.convert("blue", ConversionContext.of(argument)));
+
+        assertEquals(Response.Status.CREATED.getStatusCode(), exception.getResponse().getStatus());
+    }
+
     @Requires(property = "spec.name", value = "JaxRsRequestFieldInjectionTest")
     @Path("/field-injection")
     static class FieldResource {
@@ -311,6 +384,18 @@ class JaxRsRequestFieldInjectionTest {
         public String converted(@QueryParam("value") ConvertedQueryParam value) {
             return value.value;
         }
+
+        @GET
+        @Produces("text/plain")
+        public String convertedEnum(@QueryParam("value") ConvertedEnumParam value) {
+            return value.name();
+        }
+
+        @GET
+        @Produces("text/plain")
+        public String convertedFactory(@QueryParam("value") StaticFactoryParam value) {
+            return value.value;
+        }
     }
 
     @Requires(property = "spec.name", value = "JaxRsRequestFieldInjectionTest")
@@ -355,10 +440,53 @@ class JaxRsRequestFieldInjectionTest {
         }
     }
 
+    enum ConvertedEnumParam {
+        FROM_STRING,
+        VALUE_OF;
+
+        public static ConvertedEnumParam fromString(String ignored) {
+            return FROM_STRING;
+        }
+    }
+
+    public static final class StaticFactoryParam {
+        private final String value;
+
+        private StaticFactoryParam(String value) {
+            this.value = value;
+        }
+
+        public static StaticFactoryParam valueOf(String value) {
+            return new StaticFactoryParam("valueOf:" + value);
+        }
+
+        public static StaticFactoryParam fromString(String value) {
+            return new StaticFactoryParam("fromString:" + value);
+        }
+    }
+
+    public static final class ThrowingParam {
+        public ThrowingParam(String value) {
+            throw new IllegalArgumentException(value);
+        }
+    }
+
+    public static final class WebApplicationExceptionParam {
+        public WebApplicationExceptionParam(String ignored) {
+            throw new WebApplicationException(Response.status(Response.Status.CREATED).build());
+        }
+    }
+
     private static HttpRequest<?> pathRequest(String template, String path) {
         HttpRequest<?> request = HttpRequest.GET(path);
         BasicHttpAttributes.setUriTemplate(request, template);
         return request;
+    }
+
+    private static MutableAnnotationMetadata parameterMetadata(Class<? extends Annotation> annotationType, String name) {
+        MutableAnnotationMetadata annotationMetadata = new MutableAnnotationMetadata();
+        annotationMetadata.addAnnotation(annotationType.getName(), Map.of(AnnotationMetadata.VALUE_MEMBER, name));
+        return annotationMetadata;
     }
 
     @Provider

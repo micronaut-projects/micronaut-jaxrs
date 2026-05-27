@@ -21,6 +21,7 @@ import io.micronaut.core.order.Ordered;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.ext.ParamConverter;
 import jakarta.ws.rs.ext.ParamConverterProvider;
+import org.jspecify.annotations.Nullable;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
@@ -51,8 +52,17 @@ final class JaxRsReflectionParamConverterProvider implements ParamConverterProvi
     @Override
     @SuppressWarnings("unchecked")
     public <T> ParamConverter<T> getConverter(Class<T> rawType, Type genericType, Annotation[] annotations) {
-        if (rawType.isPrimitive() || rawType == String.class || rawType.isEnum() || MICRONAUT_CONVERTED_TYPES.contains(rawType)) {
+        return findConverter(rawType);
+    }
+
+    @SuppressWarnings("unchecked")
+    static <T> @Nullable ParamConverter<T> findConverter(Class<T> rawType) {
+        if (rawType.isPrimitive() || rawType == String.class || MICRONAUT_CONVERTED_TYPES.contains(rawType)) {
             return null;
+        }
+        if (rawType.isEnum()) {
+            Method fromString = findStringFactory(rawType, "fromString");
+            return fromString == null ? null : new ReflectionParamConverter<>(value -> (T) fromString.invoke(null, value));
         }
         Constructor<T> constructor = findStringConstructor(rawType);
         if (constructor != null) {
