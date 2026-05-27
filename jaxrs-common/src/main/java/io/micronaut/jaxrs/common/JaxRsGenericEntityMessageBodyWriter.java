@@ -138,27 +138,32 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
     }
 
     private <K> Optional<SelectedWriter<K>> findWriter(Argument<K> argument, MediaType mediaType) {
-        List<MediaType> mediaTypes = List.of(mediaType);
-        Optional<SelectedWriter<K>> writer = findJaxRsWriter(argument, mediaType, mediaTypes);
+        return findWriter(argument, List.of(mediaType), mediaType);
+    }
+
+    private <K> Optional<SelectedWriter<K>> findWriter(Argument<K> argument,
+                                                       List<MediaType> mediaTypes,
+                                                       MediaType selectedMediaType) {
+        Optional<SelectedWriter<K>> writer = findJaxRsWriter(argument, selectedMediaType, mediaTypes);
         if (writer.isPresent()) {
             return writer;
         }
         return registry.findWriter(argument, mediaTypes)
-            .map(messageBodyWriter -> new SelectedWriter<>(messageBodyWriter, mediaType));
+            .map(messageBodyWriter -> new SelectedWriter<>(messageBodyWriter, selectedMediaType));
     }
 
     private <K> Optional<SelectedWriter<K>> findJaxRsWriter(Argument<K> argument,
-                                                           MediaType mediaType,
+                                                           MediaType selectedMediaType,
                                                            List<MediaType> mediaTypes) {
         Optional<MessageBodyWriter<K>> writer = jaxRsMessageBodyHandlerRegistry.findWriter(argument, mediaTypes);
         if (writer.isPresent()) {
-            return writer.map(messageBodyWriter -> new SelectedWriter<>(messageBodyWriter, mediaType));
+            return writer.map(messageBodyWriter -> new SelectedWriter<>(messageBodyWriter, selectedMediaType));
         }
         if (!producesOnlyWildcard(argument)) {
             return Optional.empty();
         }
         return jaxRsMessageBodyHandlerRegistry.findWriter(argument, List.of(MediaType.ALL_TYPE))
-            .map(messageBodyWriter -> new SelectedWriter<>(messageBodyWriter, MediaType.ALL_TYPE));
+            .map(messageBodyWriter -> new SelectedWriter<>(messageBodyWriter, selectedMediaType));
     }
 
     private static boolean producesOnlyWildcard(Argument<?> argument) {
@@ -355,7 +360,8 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
         }
 
         final void writeInner() {
-            Optional<SelectedWriter<T>> writer = findWriter(this.argument, mediaType);
+            List<MediaType> mediaTypes = mediaTypesForWriterSelection();
+            Optional<SelectedWriter<T>> writer = findWriter(this.argument, mediaTypes, mediaTypes.get(0));
             if (writer.isEmpty()) {
                 Optional<MessageBodyWriter<String>> stringWriter = registry.findWriter(Argument.STRING, List.of(mediaType));
                 if (stringWriter.isPresent()) {
@@ -368,6 +374,21 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
                 this.mediaType = selectedWriter.mediaType();
                 writeInner0(ResponseBodyWriter.wrap(selectedWriter.writer().createSpecific(argument)), argument, entity);
             }
+        }
+
+        private List<MediaType> mediaTypesForWriterSelection() {
+            if (!isWildcard(mediaType) && !producesOnlyWildcard(argument)) {
+                return List.of(mediaType);
+            }
+            return JaxRsHttpHeaders.forRequest(request.getHeaders())
+                .getAcceptableMediaTypes()
+                .stream()
+                .map(JaxRsUtils::convert)
+                .toList();
+        }
+
+        private static boolean isWildcard(MediaType mediaType) {
+            return "*".equals(mediaType.getType()) || "*".equals(mediaType.getSubtype());
         }
 
         <U> void writeInner0(ResponseBodyWriter<U> rbw, Argument<U> argument, U entity) {

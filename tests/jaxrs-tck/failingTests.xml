@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <failingTests>
-    <!-- TCK tracker (excluded baseline, 2026-05-27): total=2764, passed=2077, failed=0, errors=0, skipped=687; known-failing entries=46 classes and 78 methods. Update after each focused group changes this file. -->
+    <!-- TCK tracker (excluded baseline, 2026-05-27): total=2764, passed=2081, failed=0, errors=0, skipped=683; known-failing entries=46 classes and 74 methods. Update after each focused group changes this file. -->
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="locatorNameTooLongAgainTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="slashUriTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="slashAppNameTest"/>
@@ -99,10 +99,6 @@
     <test class="ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT" method="requestURITest"/>
     <test class="ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT" method="aPathTest"/>
     <test class="ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT" method="baseUriTest"/>
-    <test class="ee.jakarta.tck.ws.rs.spec.provider.sort.JAXRSClientIT" method="contentTypeTextXmlGotTextWildCardTest"/>
-    <test class="ee.jakarta.tck.ws.rs.spec.provider.sort.JAXRSClientIT" method="contentTypeTextHmtlGotTextWildCardTest"/>
-    <test class="ee.jakarta.tck.ws.rs.spec.provider.sort.JAXRSClientIT" method="contentTypeApplicationGotWildCardTest"/>
-    <test class="ee.jakarta.tck.ws.rs.spec.provider.sort.JAXRSClientIT" method="contentTypeTextPlainGotTextPlainTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.template.JAXRSClientIT" method="Test1"/>
     <test class="ee.jakarta.tck.ws.rs.spec.template.JAXRSClientIT" method="Test2"/>
     <class name="ee.jakarta.tck.ws.rs.spec.contextprovider.JsonbContextProviderIT"/>

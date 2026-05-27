@@ -203,7 +203,7 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
                 for (String mt : applicableTypes) {
                     MediaType mediaType = new MediaType(mt);
                     for (MediaType m : mediaTypes) {
-                        if (m.matches(mediaType)) {
+                        if (matches(mediaType, m)) {
                             all.add(candidate);
                             continue candidatesLoop;
                         }
@@ -211,23 +211,56 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
                 }
             }
             // Handlers with a media type defined should have a priority
-            all.sort(Comparator.comparingInt(this::findOrder).reversed());
+            all.sort(Comparator.comparingInt(candidate -> findOrder((BeanType<?>) candidate)).reversed());
             return all;
         }
 
         private int findOrder(BeanType<?> beanType) {
             int order = 0;
             String[] applicableTypes = beanType.getAnnotationMetadata().stringValues(annotationType);
-            int size = mediaTypes.size();
+            if (applicableTypes.length == 0) {
+                return findMediaTypeOrder(MediaType.ALL_TYPE);
+            }
             for (String mt : applicableTypes) {
-                int index = mediaTypes.indexOf(new MediaType(mt));
-                if (index == -1) {
+                order = Integer.max(order, findMediaTypeOrder(new MediaType(mt)));
+            }
+            return order;
+        }
+
+        private int findMediaTypeOrder(MediaType applicableType) {
+            int order = 0;
+            int size = mediaTypes.size();
+            for (int i = 0; i < size; i++) {
+                MediaType mediaType = mediaTypes.get(i);
+                if (!matches(applicableType, mediaType)) {
                     continue;
                 }
-                int compareValue = size - index; // First value should have the priority
+                int compareValue = ((size - i) * 10) + specificity(applicableType); // First value should have the priority
                 order = Integer.max(order, compareValue);
             }
             return order;
+        }
+
+        private static boolean matches(MediaType applicableType, MediaType mediaType) {
+            return applicableType.matches(mediaType) || mediaType.matches(applicableType);
+        }
+
+        private static int specificity(MediaType mediaType) {
+            if (isWildcardType(mediaType)) {
+                return 0;
+            }
+            if (isWildcardSubtype(mediaType)) {
+                return 1;
+            }
+            return 2;
+        }
+
+        private static boolean isWildcardType(MediaType mediaType) {
+            return "*".equals(mediaType.getType());
+        }
+
+        private static boolean isWildcardSubtype(MediaType mediaType) {
+            return "*".equals(mediaType.getSubtype());
         }
 
         private static boolean isInvalidType(List<Argument<?>> consumedType, Argument<?> requiredType) {
