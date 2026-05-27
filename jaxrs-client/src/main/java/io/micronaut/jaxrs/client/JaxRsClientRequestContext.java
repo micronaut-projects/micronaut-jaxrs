@@ -36,6 +36,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.net.URI;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -79,7 +80,7 @@ final class JaxRsClientRequestContext implements ClientRequestContext {
 
     @Override
     public Collection<String> getPropertyNames() {
-        return properties.keySet();
+        return Collections.unmodifiableSet(properties.keySet());
     }
 
     @Override

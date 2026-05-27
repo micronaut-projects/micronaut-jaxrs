@@ -73,7 +73,7 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
     @Override
     public Response build() {
         MutableHttpResponse<Object> mutableHttpResponse = HttpResponse.status(response.code(), response.reason())
-            .body(response.getBody().orElse(null))
+            .body(response.body())
             .headers(newHeaders -> response.getHeaders().forEachValue(newHeaders::add));
         return new JaxRsMutableResponse(mutableHttpResponse, responseMetadata());
     }
@@ -81,7 +81,7 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
     @Override
     public Response.ResponseBuilder clone() {
         MutableHttpResponse<Object> mutableHttpResponse = HttpResponse.status(response.code(), response.reason())
-            .body(response.getBody().orElse(null))
+            .body(response.body())
             .headers(newHeaders -> response.getHeaders().forEachValue(newHeaders::add));
         return new JaxRsResponseBuilder(mutableHttpResponse, responseMetadata());
     }

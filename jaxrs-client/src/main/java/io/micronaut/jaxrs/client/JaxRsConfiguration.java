@@ -27,6 +27,7 @@ import io.micronaut.core.type.Argument;
 import io.micronaut.core.type.Headers;
 import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpMessage;
+import io.micronaut.http.HttpResponse;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.MutableHttpMessage;
 import io.micronaut.http.body.TypedMessageBodyReader;
@@ -379,9 +380,13 @@ final class JaxRsConfiguration implements Configuration {
 
             @Override
             public <T> T readEntity(HttpMessage<?> message, Argument<T> entityType) {
-                ByteBuffer<?> byteBuffer = message.getBody(ByteBuffer.class)
-                    .or(() -> message.getBody(byte[].class).map(ByteArrayByteBuffer::new))
-                    .orElse(null);
+                Object body = message instanceof HttpResponse<?> response ? response.body() : message.getBody().orElse(null);
+                ByteBuffer<?> byteBuffer = null;
+                if (body instanceof ByteBuffer<?> buffer) {
+                    byteBuffer = buffer;
+                } else if (body instanceof byte[] bytes) {
+                    byteBuffer = new ByteArrayByteBuffer(bytes);
+                }
                 if (byteBuffer != null) {
                     List<ReaderInterceptor> readerInterceptors = getReaderInterceptors();
                     io.micronaut.http.MediaType mediaType = message.getContentType().orElse(MediaType.ALL_TYPE);

@@ -101,6 +101,14 @@ class JaxRsResponseMetadataTest {
     }
 
     @Test
+    void builderPreservesRawEntityObject() {
+        Response response = Response.ok(0).build();
+
+        assertEquals(0, response.getEntity());
+        assertEquals("0", response.readEntity(String.class));
+    }
+
+    @Test
     void builderConvenienceHeadersRemainAvailableAsMetadata() {
         CacheControl cacheControl = new CacheControl();
         NewCookie cookie = new NewCookie("cookie", "value");

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <failingTests>
-    <!-- TCK tracker (excluded baseline, 2026-05-27): total=2764, passed=2061, failed=0, errors=0, skipped=703. Update after each focused group changes this file. -->
+    <!-- TCK tracker (excluded baseline, 2026-05-27): total=2764, passed=2062, failed=0, errors=0, skipped=702. Update after each focused group changes this file. -->
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="locatorNameTooLongAgainTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="slashUriTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="slashAppNameTest"/>
@@ -55,7 +55,6 @@
     <test class="ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT" method="clientMultivaluedMapWriterTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT" method="clientStreamingOutputWriterTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT" method="clientMultivaluedMapReaderTest"/>
-    <test class="ee.jakarta.tck.ws.rs.api.client.clientrequestcontext.JAXRSClientIT" method="getPropertyNamesIsImmutableTest"/>
     <test class="ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT" method="writeIOExceptionUsingWriterTest"/>
     <test class="ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT" method="readEntityWebException400Test"/>
     <test class="ee.jakarta.tck.ws.rs.spec.provider.writer.JAXRSClientIT" method="responseSubClassTest"/>
