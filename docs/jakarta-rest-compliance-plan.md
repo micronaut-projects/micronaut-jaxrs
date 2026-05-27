@@ -4,7 +4,7 @@
 
 Build full Jakarta REST 4.0 compliance through an opt-in `micronaut-jaxrs-jakarta` aggregate while keeping the default JAX-RS modules lightweight, compile-time oriented, and reflection-free by default.
 
-Current baseline: `:micronaut-tests:micronaut-jaxrs-tck:test` passes with existing exclusions, reporting `2764` tests, `0` failures/errors, and `1074` skipped. The legacy `exclusions.txt` currently tracks `174` excluded entries: `66` classes and `108` methods.
+Current baseline: `:micronaut-tests:micronaut-jaxrs-tck:test` passes with existing exclusions, reporting `2764` tests, `2066` passed, `0` failures/errors, and `698` skipped. `tests/jaxrs-tck/failingTests.xml` currently tracks `135` known-failing entries: `46` classes and `89` methods.
 
 ## Key Changes
 
@@ -46,6 +46,7 @@ Current baseline: `:micronaut-tests:micronaut-jaxrs-tck:test` passes with existi
 - Baseline: keep current excluded TCK passing.
 - Discovery: run full no-exclusion `discoverFailingJakartaTck`, generate `failingTests.xml`, and cluster failures by spec area.
 - Iteration: each fix removes entries from `failingTests.xml` in the same commit as implementation.
+- Progress tracker: keep a comment near the top of `tests/jaxrs-tck/failingTests.xml` with total, passed, failed, errors, and skipped counts from the latest baseline or discovery run; update it whenever focused TCK work changes the file.
 - Commit discipline: once a focused group of TCK/module tests passes, stage only the related implementation, tests, plan updates, and `failingTests.xml` changes, then create a focused commit before moving to the next group so the compliance history stays reviewable.
 - Focused proof: use `singleJakartaTck -PtckSingleClass=... -PtckSingleMethod=...` for each TCK cluster.
 - Module tests:

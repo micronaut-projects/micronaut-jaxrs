@@ -93,6 +93,16 @@ def writeFailingJakartaTckSuite = { File resultsDir, File suiteFile ->
 
     def classLevelFailures = new TreeSet<String>()
     def methodFailures = new TreeMap<String, TreeSet<String>>()
+    def resultTotals = [
+        tests: 0,
+        skipped: 0,
+        failures: 0,
+        errors: 0,
+    ]
+    def intAttribute = { node, String name ->
+        def value = node.getAttribute(name)
+        value ? value as int : 0
+    }
     def normalizeMethodName = { String methodName ->
         methodName == null ? "" : methodName.replaceFirst(/\(.*\)$/, "")
     }
@@ -101,6 +111,14 @@ def writeFailingJakartaTckSuite = { File resultsDir, File suiteFile ->
     }
     resultFiles.each { resultFile ->
         def document = documentBuilderFactory.newDocumentBuilder().parse(resultFile)
+        def testSuites = document.getElementsByTagName("testsuite")
+        for (int i = 0; i < testSuites.length; i++) {
+            def testSuite = testSuites.item(i)
+            resultTotals.tests += intAttribute(testSuite, "tests")
+            resultTotals.skipped += intAttribute(testSuite, "skipped")
+            resultTotals.failures += intAttribute(testSuite, "failures")
+            resultTotals.errors += intAttribute(testSuite, "errors")
+        }
         def testcases = document.getElementsByTagName("testcase")
         for (int i = 0; i < testcases.length; i++) {
             def testcase = testcases.item(i)
@@ -131,6 +149,7 @@ def writeFailingJakartaTckSuite = { File resultsDir, File suiteFile ->
             .replace("'", "&apos;")
     }
     def methodCount = methodFailures.values().sum(0) { it.size() }
+    def passedCount = resultTotals.tests - resultTotals.skipped - resultTotals.failures - resultTotals.errors
 
     suiteFile.parentFile.mkdirs()
     def builder = new StringBuilder()
@@ -142,6 +161,7 @@ def writeFailingJakartaTckSuite = { File resultsDir, File suiteFile ->
     builder << "        no-exclusion compliance profile. When a class or method passes,\n"
     builder << "        remove it in the same focused commit as the implementation change.\n\n"
     builder << "        Entries were generated from ${project.relativePath(resultsDir)}.\n"
+    builder << "        Test result tracker: total=${resultTotals.tests}, passed=${passedCount}, failed=${resultTotals.failures}, errors=${resultTotals.errors}, skipped=${resultTotals.skipped}.\n"
     builder << "        Current tracker shape: ${classLevelFailures.size()} classes and ${methodCount} methods.\n"
     builder << "    -->\n"
     classLevelFailures.each { className ->
