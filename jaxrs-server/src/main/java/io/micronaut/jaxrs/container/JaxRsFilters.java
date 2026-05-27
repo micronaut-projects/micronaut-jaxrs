@@ -140,6 +140,7 @@ final class JaxRsFilters {
         if (jaxRsResponse) {
             resolveRelativeLocation(request, mutableHttpResponse);
         }
+        applySelectedVariantVary(request, mutableHttpResponse);
         Argument<?> bodyArgument;
         if (body instanceof JaxRsGenericEntity<?> genericEntity) {
             bodyArgument = genericEntity.asArgument();
@@ -201,6 +202,22 @@ final class JaxRsFilters {
         }
         sanitizeResponseContentType(mutableHttpResponse);
         return mutableHttpResponse;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void applySelectedVariantVary(HttpRequest<?> request, MutableHttpResponse<?> response) {
+        request.getAttribute(JaxRsContextRequest.SELECT_VARIANT_VARY, List.class)
+            .ifPresent(varyHeaders -> ((List<String>) varyHeaders).stream()
+                .filter(varyHeader -> !containsVaryHeader(response, varyHeader))
+                .forEach(varyHeader -> response.getHeaders().add(HttpHeaders.VARY, varyHeader)));
+    }
+
+    private static boolean containsVaryHeader(MutableHttpResponse<?> response, String expected) {
+        return response.getHeaders().getAll(HttpHeaders.VARY)
+            .stream()
+            .flatMap(value -> Arrays.stream(value.split(",")))
+            .map(String::trim)
+            .anyMatch(expected::equalsIgnoreCase);
     }
 
     private void applyHeadContentType(@Nullable RouteInfo<?> routeInfo,
