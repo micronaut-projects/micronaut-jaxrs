@@ -4,7 +4,7 @@
 
 Build full Jakarta REST 4.0 compliance through an opt-in `micronaut-jaxrs-jakarta` aggregate while keeping the default JAX-RS modules lightweight, compile-time oriented, and reflection-free by default.
 
-Current baseline: `:micronaut-tests:micronaut-jaxrs-tck:test` passes with existing exclusions, reporting `2803` tests, `2098` passed, `0` failures/errors, and `705` skipped. `tests/jaxrs-tck/failingTests.xml` currently tracks `93` known-failing entries: `46` classes and `47` methods.
+Current baseline: `:micronaut-tests:micronaut-jaxrs-tck:test` passes with existing exclusions, reporting `2803` tests, `2102` passed, `0` failures/errors, and `701` skipped. `tests/jaxrs-tck/failingTests.xml` currently tracks `89` known-failing entries: `46` classes and `43` methods.
 
 ## Key Changes
 

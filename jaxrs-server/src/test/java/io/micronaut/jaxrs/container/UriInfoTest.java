@@ -12,7 +12,6 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Consumer;
 
 @MicronautTest
 class UriInfoTest {
@@ -28,6 +27,20 @@ class UriInfoTest {
         //In the HTTP response body the endpoint prints the path from the injected UriInfo
         String respBody = client.toBlocking().retrieve(request, String.class);
         Assertions.assertEquals("test path: /uri-info", respBody);
+    }
+
+    @Test
+    void testMatchedUris() {
+        HttpRequest<String> request = HttpRequest.GET("/api/matched/uris");
+        String respBody = client.toBlocking().retrieve(request, String.class);
+        Assertions.assertEquals("matched/uris,matched", respBody);
+    }
+
+    @Test
+    void testMatchedResources() {
+        HttpRequest<String> request = HttpRequest.GET("/api/matched/resources");
+        String respBody = client.toBlocking().retrieve(request, String.class);
+        Assertions.assertEquals(TestMatchedUriInfo.class.getName(), respBody);
     }
 
     @Test
@@ -165,21 +178,4 @@ class UriInfoTest {
         Assertions.assertEquals(actualUri.getBaseUri(), actualUri.getBaseUriBuilder().build());
     }
 
-    @Test
-    void testUnsupportedMethods() {
-        List<Consumer<UriInfo>> unsupportedMethods = Arrays.asList(
-            UriInfo::getMatchedURIs,
-            uriInfo -> uriInfo.getMatchedURIs(true),
-            UriInfo::getMatchedResources
-        );
-        UriInfo uriInfo = new UriInfoImpl(HttpRequest.GET("/api/uri-info"));
-        for (Consumer<UriInfo> unsupportedMethod : unsupportedMethods) {
-            try {
-                unsupportedMethod.accept(uriInfo);
-                Assertions.fail();
-            } catch (UnsupportedOperationException e) {
-                //expected
-            }
-        }
-    }
 }

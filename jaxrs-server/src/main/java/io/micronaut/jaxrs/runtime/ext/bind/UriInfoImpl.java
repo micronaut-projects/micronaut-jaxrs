@@ -18,8 +18,11 @@ package io.micronaut.jaxrs.runtime.ext.bind;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.util.StringUtils;
 import io.micronaut.http.HttpRequest;
+import io.micronaut.http.annotation.HttpMethodMapping;
+import io.micronaut.web.router.MethodBasedRouteMatch;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.RouteMatch;
+import io.micronaut.web.router.UriRouteMatch;
 import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.PathSegment;
@@ -268,15 +271,9 @@ public final class UriInfoImpl implements UriInfo {
     }
 
 
-    /**
-     * This operation is not supported currently,
-     * so {@link UnsupportedOperationException} is thrown for all invocations.
-     *
-     * @throws UnsupportedOperationException this operation is not supported currently.
-     */
     @Override
     public List<String> getMatchedURIs() {
-        throw new UnsupportedOperationException();
+        return getMatchedURIs(true);
     }
 
     //    @Override v4
@@ -284,26 +281,56 @@ public final class UriInfoImpl implements UriInfo {
         return "";
     }
 
-    /**
-     * This operation is not supported currently,
-     * so {@link UnsupportedOperationException} is thrown for all invocations.
-     *
-     * @throws UnsupportedOperationException this operation is not supported currently.
-     */
     @Override
     public List<String> getMatchedURIs(boolean decode) {
-        throw new UnsupportedOperationException();
+        RouteMatch<?> match = routeMatch();
+        String matchedUri = normalizeMatchedUri(matchedUri(match, decode));
+        String resourceUri = rootResourceUri(match, matchedUri);
+        if (resourceUri.isEmpty() || resourceUri.equals(matchedUri)) {
+            return List.of(matchedUri);
+        }
+        return List.of(matchedUri, resourceUri);
     }
 
-    /**
-     * This operation is not supported currently,
-     * so {@link UnsupportedOperationException} is thrown for all invocations.
-     *
-     * @throws UnsupportedOperationException this operation is not supported currently.
-     */
     @Override
     public List<Object> getMatchedResources() {
-        throw new UnsupportedOperationException();
+        RouteMatch<?> match = routeMatch();
+        if (match instanceof MethodBasedRouteMatch<?, ?> methodBasedRouteMatch) {
+            return List.of(methodBasedRouteMatch.getTarget());
+        }
+        return List.of();
+    }
+
+    private RouteMatch<?> routeMatch() {
+        return RouteAttributes.getRouteMatch(request)
+            .orElseThrow(() -> new IllegalStateException("Route match not available!"));
+    }
+
+    private String matchedUri(RouteMatch<?> match, boolean decode) {
+        if (match instanceof UriRouteMatch<?, ?> uriRouteMatch) {
+            return getPath(uriRouteMatch.getUri(), decode);
+        }
+        return getPath(decode);
+    }
+
+    private static String rootResourceUri(RouteMatch<?> match, String matchedUri) {
+        return match.getAnnotationMetadata()
+            .stringValue(HttpMethodMapping.class)
+            .map(UriInfoImpl::normalizeMatchedUri)
+            .filter(StringUtils::isNotEmpty)
+            .filter(methodUri -> matchedUri.endsWith(methodUri))
+            .map(methodUri -> normalizeMatchedUri(matchedUri.substring(0, matchedUri.length() - methodUri.length())))
+            .orElse("");
+    }
+
+    private static String normalizeMatchedUri(String uri) {
+        if (uri.startsWith("/")) {
+            uri = uri.substring(1);
+        }
+        if (uri.endsWith("/")) {
+            uri = uri.substring(0, uri.length() - 1);
+        }
+        return uri;
     }
 
     @Override

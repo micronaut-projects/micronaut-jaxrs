@@ -2,8 +2,8 @@
 <failingTests>
     <!--
         TCK tracker (excluded baseline, 2026-05-27):
-        total=2803, passed=2098, failed=0, errors=0, skipped=705.
-        Known-failing exclusions: 46 classes and 47 methods.
+        total=2803, passed=2102, failed=0, errors=0, skipped=701.
+        Known-failing exclusions: 46 classes and 43 methods.
         Update these counts after each focused group changes this file.
     -->
     <class name="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT"/>
@@ -75,10 +75,6 @@
     <test class="ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT" method="isRegisteredTextPlainContextResolverTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT" method="contextResolverTest"/>
     <test class="ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT" method="webApplicationExceptionHasResponseWithEntityDoesNotUseMapperTest"/>
-    <test class="ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT" method="getMatchedURIsTest"/>
-    <test class="ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT" method="getMatchedURIsTest1"/>
-    <test class="ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT" method="getMatchedURIsTest2"/>
-    <test class="ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT" method="getMatchedResourcesTest"/>
     <class name="ee.jakarta.tck.ws.rs.spec.contextprovider.JsonbContextProviderIT"/>
     <class name="ee.jakarta.tck.ws.rs.jaxrs40.ee.rs.core.uriinfo.UriInfo40ClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.ee.rs.core.securitycontext.basic.JAXRSBasicClientIT"/>
