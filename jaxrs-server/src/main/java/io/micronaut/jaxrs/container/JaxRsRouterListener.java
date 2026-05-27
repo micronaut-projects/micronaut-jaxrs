@@ -28,7 +28,6 @@ import io.micronaut.web.router.filter.RouteMatchFilter;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.Path;
 
-import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -110,43 +109,6 @@ final class JaxRsRouterListener implements BeanCreatedEventListener<Router> {
 
         private static JaxRsRouteScore score(UriRouteMatch<?, ?> match) {
             return JaxRsRouteScore.of(match.getRouteInfo().getUriMatchTemplate().toString());
-        }
-    }
-
-    private record JaxRsRouteScore(int literalCharacters,
-                                   int capturingGroups,
-                                   int nonDefaultCapturingGroups) {
-        private static final Comparator<JaxRsRouteScore> COMPARATOR = Comparator
-            .comparingInt(JaxRsRouteScore::literalCharacters)
-            .thenComparingInt(JaxRsRouteScore::capturingGroups)
-            .thenComparingInt(JaxRsRouteScore::nonDefaultCapturingGroups);
-
-        private static JaxRsRouteScore of(String template) {
-            int literalCharacters = 0;
-            int capturingGroups = 0;
-            int nonDefaultCapturingGroups = 0;
-            int braceDepth = 0;
-            boolean variableHasRegex = false;
-            for (int i = 0; i < template.length(); i++) {
-                char c = template.charAt(i);
-                if (c == '{') {
-                    if (braceDepth == 0) {
-                        capturingGroups++;
-                        variableHasRegex = false;
-                    }
-                    braceDepth++;
-                } else if (c == '}' && braceDepth > 0) {
-                    braceDepth--;
-                    if (braceDepth == 0 && variableHasRegex) {
-                        nonDefaultCapturingGroups++;
-                    }
-                } else if (braceDepth == 0) {
-                    literalCharacters++;
-                } else if (braceDepth == 1 && c == ':') {
-                    variableHasRegex = true;
-                }
-            }
-            return new JaxRsRouteScore(literalCharacters, capturingGroups, nonDefaultCapturingGroups);
         }
     }
 }

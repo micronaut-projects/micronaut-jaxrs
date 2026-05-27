@@ -199,6 +199,7 @@ final class JaxRsFilters {
                 customEntityStream)
             );
         }
+        sanitizeResponseContentType(mutableHttpResponse);
         return mutableHttpResponse;
     }
 
@@ -248,14 +249,40 @@ final class JaxRsFilters {
         return JaxRsUtils.convert(mediaType);
     }
 
+    private void sanitizeResponseContentType(MutableHttpResponse<?> response) {
+        response.getHeaders().getContentType()
+            .map(io.micronaut.http.MediaType::of)
+            .map(this::withoutSelectionParameters)
+            .ifPresent(response::contentType);
+    }
+
+    private io.micronaut.http.MediaType withoutSelectionParameters(io.micronaut.http.MediaType mediaType) {
+        Map<CharSequence, String> source = mediaType.getParametersMap();
+        if (source.keySet().stream().noneMatch(JaxRsFilters::isSelectionParameter)) {
+            return mediaType;
+        }
+        Map<String, String> parameters = new LinkedHashMap<>();
+        source.forEach((name, value) -> {
+            if (!isSelectionParameter(name)) {
+                parameters.put(name.toString(), value);
+            }
+        });
+        return new io.micronaut.http.MediaType(mediaType.getName(), parameters);
+    }
+
     private MediaType withoutSelectionParameters(MediaType mediaType) {
-        if (!mediaType.getParameters().containsKey("q") && !mediaType.getParameters().containsKey("qs")) {
+        if (mediaType.getParameters().keySet().stream().noneMatch(JaxRsFilters::isSelectionParameter)) {
             return mediaType;
         }
         Map<String, String> parameters = new LinkedHashMap<>(mediaType.getParameters());
-        parameters.remove("q");
-        parameters.remove("qs");
+        parameters.keySet().removeIf(JaxRsFilters::isSelectionParameter);
         return new MediaType(mediaType.getType(), mediaType.getSubtype(), parameters);
+    }
+
+    private static boolean isSelectionParameter(CharSequence name) {
+        String parameterName = name.toString();
+        return CLIENT_QUALITY_PARAMETER.equalsIgnoreCase(parameterName) ||
+            SERVER_QUALITY_PARAMETER.equalsIgnoreCase(parameterName);
     }
 
     private boolean producesOnlyWildcard(RouteInfo<?> routeInfo) {
@@ -329,15 +356,29 @@ final class JaxRsFilters {
     }
 
     private List<UriRouteInfo<?, ?>> jaxRsRouteCandidates(MutableHttpRequest<?> request) {
-        List<UriRouteInfo<?, ?>> candidates = new ArrayList<>();
-        for (var match : router.findAllClosest(request)) {
-            UriRouteInfo<?, ?> route = match.getRouteInfo();
-            if (route.getAnnotationMetadata().hasAnnotation(Path.class) &&
-                (route.consumesAll() || route.doesConsume(request.getContentType().orElse(null)))) {
-                candidates.add(route);
-            }
+        List<UriRouteInfo<?, ?>> candidates = router.uriRoutes()
+            .filter(route -> route.getHttpMethod() == request.getMethod())
+            .filter(route -> route.getAnnotationMetadata().hasAnnotation(Path.class))
+            .filter(route -> route.tryMatch(request.getPath()) != null)
+            .filter(route -> route.consumesAll() || route.doesConsume(request.getContentType().orElse(null)))
+            .toList();
+        if (candidates.size() < 2) {
+            return candidates;
         }
-        return candidates;
+        JaxRsRouteScore bestScore = candidates.stream()
+            .map(JaxRsFilters::score)
+            .max(JaxRsRouteScore.COMPARATOR)
+            .orElse(null);
+        if (bestScore == null) {
+            return candidates;
+        }
+        return candidates.stream()
+            .filter(route -> score(route).equals(bestScore))
+            .toList();
+    }
+
+    private static JaxRsRouteScore score(UriRouteInfo<?, ?> route) {
+        return JaxRsRouteScore.of(route.getUriMatchTemplate().toString());
     }
 
     private record AcceptCandidate(MediaType produced, MediaType accepted) {
