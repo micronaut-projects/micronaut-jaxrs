@@ -55,13 +55,19 @@ import static jakarta.ws.rs.ext.RuntimeDelegate.getInstance;
 final class JaxRsResponseBuilder extends Response.ResponseBuilder {
 
     private final MutableHttpResponse<Object> response;
+    private final JaxRsMetadataMultivaluedMap metadata;
 
     JaxRsResponseBuilder() {
-        this(HttpResponse.ok());
+        this(HttpResponse.ok(), new JaxRsMetadataMultivaluedMap());
     }
 
     JaxRsResponseBuilder(MutableHttpResponse<Object> response) {
+        this(response, new JaxRsMetadataMultivaluedMap());
+    }
+
+    private JaxRsResponseBuilder(MutableHttpResponse<Object> response, JaxRsMetadataMultivaluedMap metadata) {
         this.response = response;
+        this.metadata = metadata;
     }
 
     @Override
@@ -69,12 +75,15 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
         MutableHttpResponse<Object> mutableHttpResponse = HttpResponse.status(response.code(), response.reason())
             .body(response.getBody().orElse(null))
             .headers(newHeaders -> response.getHeaders().forEachValue(newHeaders::add));
-        return new JaxRsMutableResponse(mutableHttpResponse);
+        return new JaxRsMutableResponse(mutableHttpResponse, responseMetadata());
     }
 
     @Override
     public Response.ResponseBuilder clone() {
-        return new JaxRsResponseBuilder();
+        MutableHttpResponse<Object> mutableHttpResponse = HttpResponse.status(response.code(), response.reason())
+            .body(response.getBody().orElse(null))
+            .headers(newHeaders -> response.getHeaders().forEachValue(newHeaders::add));
+        return new JaxRsResponseBuilder(mutableHttpResponse, responseMetadata());
     }
 
     @Override
@@ -108,6 +117,7 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
     public Response.ResponseBuilder allow(String... methods) {
         if (methods == null) {
             response.getHeaders().remove(HttpHeaders.ALLOW);
+            metadata.remove(HttpHeaders.ALLOW);
         } else {
             response.getHeaders().allowGeneric(Arrays.asList(methods));
         }
@@ -118,6 +128,7 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
     public Response.ResponseBuilder allow(Set<String> methods) {
         if (methods == null) {
             response.getHeaders().remove(HttpHeaders.ALLOW);
+            metadata.remove(HttpHeaders.ALLOW);
         } else {
             response.getHeaders().allowGeneric(methods);
         }
@@ -140,6 +151,7 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
     @Override
     public Response.ResponseBuilder header(String name, Object value) {
         if (value != null) {
+            metadata.add(name, value);
             if (value instanceof Date date) {
                 response.getHeaders().add(name, ZonedDateTime.ofInstant(date.toInstant(), ZoneId.systemDefault()));
             } else {
@@ -153,6 +165,7 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
             }
         } else {
             response.getHeaders().remove(name);
+            metadata.remove(name);
         }
         return this;
     }
@@ -162,10 +175,12 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
         for (String k : List.copyOf(response.getHeaders().names())) {
             response.getHeaders().remove(k);
         }
+        metadata.clear();
         if (headers != null) {
             headers.forEach((s, objects) -> {
                 for (Object object : objects) {
                     if (object != null) {
+                        metadata.add(s, object);
                         response.getHeaders().add(s, object.toString());
                     }
                 }
@@ -177,13 +192,25 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
 
     @Override
     public Response.ResponseBuilder language(String language) {
-        response.header(io.micronaut.http.HttpHeaders.CONTENT_LANGUAGE, language);
+        if (language == null) {
+            response.getHeaders().remove(io.micronaut.http.HttpHeaders.CONTENT_LANGUAGE);
+            metadata.remove(HttpHeaders.CONTENT_LANGUAGE);
+        } else {
+            metadata.putSingle(HttpHeaders.CONTENT_LANGUAGE, language);
+            response.header(io.micronaut.http.HttpHeaders.CONTENT_LANGUAGE, language);
+        }
         return this;
     }
 
     @Override
     public Response.ResponseBuilder language(Locale language) {
-        response.header(io.micronaut.http.HttpHeaders.CONTENT_LANGUAGE, language.toLanguageTag());
+        if (language == null) {
+            response.getHeaders().remove(io.micronaut.http.HttpHeaders.CONTENT_LANGUAGE);
+            metadata.remove(HttpHeaders.CONTENT_LANGUAGE);
+        } else {
+            metadata.putSingle(HttpHeaders.CONTENT_LANGUAGE, language);
+            response.header(io.micronaut.http.HttpHeaders.CONTENT_LANGUAGE, language.toLanguageTag());
+        }
         return this;
     }
 
@@ -191,7 +218,9 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
     public Response.ResponseBuilder type(MediaType type) {
         if (type == null) {
             response.getHeaders().remove(io.micronaut.http.HttpHeaders.CONTENT_TYPE);
+            metadata.remove(HttpHeaders.CONTENT_TYPE);
         } else {
+            metadata.putSingle(HttpHeaders.CONTENT_TYPE, type);
             response.contentType(new io.micronaut.http.MediaType(type.toString()));
         }
         return this;
@@ -201,7 +230,9 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
     public Response.ResponseBuilder type(String type) {
         if (type == null) {
             response.getHeaders().remove(io.micronaut.http.HttpHeaders.CONTENT_TYPE);
+            metadata.remove(HttpHeaders.CONTENT_TYPE);
         } else {
+            metadata.putSingle(HttpHeaders.CONTENT_TYPE, type);
             response.contentType(type);
         }
         return this;
@@ -209,6 +240,20 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
 
     @Override
     public Response.ResponseBuilder variant(Variant variant) {
+        if (variant != null) {
+            MediaType mediaType = variant.getMediaType();
+            if (mediaType != null) {
+                type(mediaType);
+            }
+            Locale language = variant.getLanguage();
+            if (language != null) {
+                language(language);
+            }
+            String encoding = variant.getEncoding();
+            if (encoding != null) {
+                encoding(encoding);
+            }
+        }
         return this;
     }
 
@@ -222,9 +267,11 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
     public Response.ResponseBuilder cookie(NewCookie... cookies) {
         if (cookies == null) {
             response.getHeaders().remove(HttpHeaders.SET_COOKIE);
+            metadata.remove(HttpHeaders.SET_COOKIE);
             return this;
         }
         for (NewCookie cookie : cookies) {
+            metadata.add(HttpHeaders.SET_COOKIE, cookie);
             final Cookie c = Cookie.of(cookie.getName(), cookie.getValue());
             final String domain = cookie.getDomain();
             if (domain != null) {
@@ -253,8 +300,10 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
     public Response.ResponseBuilder expires(Date expires) {
         final MutableHttpHeaders headers = response.getHeaders();
         if (expires == null) {
-            headers.remove(io.micronaut.http.HttpHeaders.EXPECT);
+            headers.remove(io.micronaut.http.HttpHeaders.EXPIRES);
+            metadata.remove(HttpHeaders.EXPIRES);
         } else {
+            metadata.putSingle(HttpHeaders.EXPIRES, expires);
             headers.expires(expires.getTime());
         }
         return this;
@@ -265,7 +314,9 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
         final MutableHttpHeaders headers = response.getHeaders();
         if (lastModified == null) {
             headers.remove(io.micronaut.http.HttpHeaders.LAST_MODIFIED);
+            metadata.remove(HttpHeaders.LAST_MODIFIED);
         } else {
+            metadata.putSingle(HttpHeaders.LAST_MODIFIED, lastModified);
             headers.lastModified(lastModified.getTime());
         }
         return this;
@@ -276,7 +327,9 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
         final MutableHttpHeaders headers = response.getHeaders();
         if (location == null) {
             headers.remove(io.micronaut.http.HttpHeaders.LOCATION);
+            metadata.remove(HttpHeaders.LOCATION);
         } else {
+            metadata.putSingle(HttpHeaders.LOCATION, location);
             if (location.isAbsolute()) {
                 headers.location(location);
             } else {
@@ -290,8 +343,12 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
     @Override
     public Response.ResponseBuilder tag(EntityTag tag) {
         if (tag != null) {
+            metadata.putSingle(HttpHeaders.ETAG, tag);
             response.getHeaders().set(io.micronaut.http.HttpHeaders.ETAG,
                 getInstance().createHeaderDelegate(EntityTag.class).toString(tag));
+        } else {
+            response.getHeaders().remove(io.micronaut.http.HttpHeaders.ETAG);
+            metadata.remove(HttpHeaders.ETAG);
         }
         return this;
     }
@@ -299,7 +356,11 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
     @Override
     public Response.ResponseBuilder tag(String tag) {
         if (tag != null) {
+            metadata.putSingle(HttpHeaders.ETAG, tag);
             response.getHeaders().set(io.micronaut.http.HttpHeaders.ETAG, tag);
+        } else {
+            response.getHeaders().remove(io.micronaut.http.HttpHeaders.ETAG);
+            metadata.remove(HttpHeaders.ETAG);
         }
         return this;
     }
@@ -318,6 +379,7 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
     public Response.ResponseBuilder links(Link... links) {
         final MutableHttpHeaders headers = response.getHeaders();
         for (Link link : links) {
+            metadata.add(HttpHeaders.LINK, link);
             headers.add(HttpHeaders.LINK, link.toString());
         }
         return this;
@@ -328,6 +390,7 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
         ArgumentUtils.requireNonNull("uri", uri);
         ArgumentUtils.requireNonNull("rel", rel);
         final Link link = Link.fromUri(uri).rel(rel).build();
+        metadata.add(HttpHeaders.LINK, link);
         response.getHeaders().add(HttpHeaders.LINK, link.toString());
         return this;
     }
@@ -337,4 +400,13 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
         return link(URI.create(uri), rel);
     }
 
+    private JaxRsMetadataMultivaluedMap responseMetadata() {
+        JaxRsMetadataMultivaluedMap result = new JaxRsMetadataMultivaluedMap(metadata);
+        response.getHeaders().forEachValue((name, value) -> {
+            if (!result.containsKey(name)) {
+                result.add(name, value);
+            }
+        });
+        return result;
+    }
 }

@@ -38,6 +38,13 @@ final class JaxRsMetadataMultivaluedMap extends AbstractMap<String, List<Object>
 
     private final Map<String, List<Object>> map = new LinkedHashMap<>();
 
+    JaxRsMetadataMultivaluedMap() {
+    }
+
+    JaxRsMetadataMultivaluedMap(MultivaluedMap<String, Object> source) {
+        source.forEach((key, values) -> map.put(key, new ArrayList<>(values)));
+    }
+
     private static Map<Object, Integer> counts(List<?> list) {
         Map<Object, Integer> map = new HashMap<>();
         for (Object o : list) {
@@ -48,23 +55,31 @@ final class JaxRsMetadataMultivaluedMap extends AbstractMap<String, List<Object>
 
     @Override
     public void putSingle(String key, Object value) {
-        map.put(key, new ArrayList<>(List.of(value)));
+        List<Object> values = new ArrayList<>(1);
+        values.add(value);
+        map.put(storageKey(key), values);
     }
 
     @Override
     public List<Object> put(String key, List<Object> value) {
-        map.computeIfAbsent(key, k -> new ArrayList<>()).addAll(value);
-        return value;
+        return map.put(storageKey(key), new ArrayList<>(value));
     }
 
     @Override
     public void add(String key, Object value) {
-        map.computeIfAbsent(key, k -> new ArrayList<>()).add(value);
+        map.computeIfAbsent(storageKey(key), k -> new ArrayList<>()).add(value);
     }
 
     @Override
     public List<Object> remove(Object key) {
-        return map.remove(key);
+        String storageKey = findKey(key);
+        return storageKey != null || key == null && map.containsKey(null) ? map.remove(storageKey) : null;
+    }
+
+    @Override
+    public List<Object> get(Object key) {
+        String storageKey = findKey(key);
+        return storageKey != null || key == null && map.containsKey(null) ? map.get(storageKey) : null;
     }
 
     @Override
@@ -88,7 +103,7 @@ final class JaxRsMetadataMultivaluedMap extends AbstractMap<String, List<Object>
 
     @Override
     public void addFirst(String key, Object value) {
-        map.computeIfAbsent(key, k -> new ArrayList<>()).add(0, value);
+        map.computeIfAbsent(storageKey(key), k -> new ArrayList<>()).add(0, value);
     }
 
     @Override
@@ -123,6 +138,25 @@ final class JaxRsMetadataMultivaluedMap extends AbstractMap<String, List<Object>
 
     @Override
     public boolean containsKey(Object key) {
-        return get(key) != null;
+        return findKey(key) != null || key == null && map.containsKey(null);
+    }
+
+    private String storageKey(String key) {
+        String existingKey = findKey(key);
+        return existingKey != null || key == null && map.containsKey(null) ? existingKey : key;
+    }
+
+    private String findKey(Object key) {
+        if (map.containsKey(key)) {
+            return (String) key;
+        }
+        if (key instanceof String stringKey) {
+            for (String candidate : map.keySet()) {
+                if (candidate != null && candidate.equalsIgnoreCase(stringKey)) {
+                    return candidate;
+                }
+            }
+        }
+        return null;
     }
 }

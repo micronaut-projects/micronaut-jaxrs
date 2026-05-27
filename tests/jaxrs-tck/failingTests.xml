@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <failingTests>
+    <!-- TCK tracker (excluded baseline, 2026-05-27): total=2764, passed=2056, failed=0, errors=0, skipped=708. Update after each focused group changes this file. -->
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="locatorNameTooLongAgainTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="slashUriTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="slashAppNameTest"/>
@@ -18,7 +19,6 @@
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="qualityOfSourceOnDifferentMediaTypesTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="concreteOverStarWhenAcceptStarTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT" method="producesOverridesDescendantSubResourcePathValueWeightTest"/>
-    <class name="ee.jakarta.tck.ws.rs.api.rs.core.multivaluedmap.JAXRSClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.spec.resourceconstructor.JAXRSClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.spec.provider.standardnotnull.JAXRSClientIT"/>
     <class name="ee.jakarta.tck.ws.rs.spec.filter.interceptor.JAXRSClientIT"/>
@@ -43,11 +43,6 @@
     <test class="ee.jakarta.tck.ws.rs.api.client.webtarget.JAXRSClientIT" method="requestNoArgTest"/>
     <class name="ee.jakarta.tck.ws.rs.spec.client.exceptions.ClientExceptionsIT"/>
     <test class="ee.jakarta.tck.ws.rs.servlet3.rs.core.streamingoutput.JAXRSClientIT" method="writeWebApplicationExceptionTest"/>
-    <test class="ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT" method="expiresTest"/>
-    <test class="ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT" method="getDateTest"/>
-    <test class="ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT" method="getLastModifiedTest"/>
-    <test class="ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT" method="getDateTest"/>
-    <test class="ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT" method="getLastModifiedTest"/>
     <test class="ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT" method="getHeaderStringTest"/>
     <test class="ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT" method="getHeadersTest"/>
     <test class="ee.jakarta.tck.ws.rs.ee.rs.core.configurable.JAXRSClientIT" method="registerObjectNotAssignableContractsInMapTest"/>
@@ -107,10 +102,6 @@
     <test class="ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT" method="isRegisteredTextPlainContextResolverTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT" method="contextResolverTest"/>
     <test class="ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT" method="webApplicationExceptionHasResponseWithEntityDoesNotUseMapperTest"/>
-    <test class="ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT" method="cookieTest"/>
-    <test class="ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT" method="getCookiesTest"/>
-    <test class="ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT" method="cookieTest"/>
-    <test class="ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT" method="getCookiesTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT" method="clientAnyPreferenceTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT" method="textPreferenceTest"/>
     <test class="ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT" method="defaultResponseErrorTest"/>
