@@ -486,6 +486,39 @@ class MiddleResource {
         method.classValue(SUB_RESOURCE_LOCATOR_ANNOTATION, 'type').get().name == 'test.MiddleResource'
     }
 
+    void "test subresource locator exposes returned resource method with context parameter"() {
+        given:
+        def definition = buildBeanDefinition('test.LocatorResource', """
+package test;
+
+@jakarta.ws.rs.Path("resource")
+class LocatorResource {
+
+    @jakarta.ws.rs.Path("locator")
+    MiddleResource locator() {
+        return new MiddleResource();
+    }
+}
+
+class MiddleResource {
+
+    @jakarta.ws.rs.GET
+    @jakarta.ws.rs.Path("child")
+    String get(@jakarta.ws.rs.core.Context jakarta.ws.rs.core.UriInfo uriInfo) {
+        return uriInfo.getMatchedResourceTemplate();
+    }
+}
+""")
+
+        def method = definition.getRequiredMethod("locator")
+
+        expect:
+        method.hasAnnotation(Get)
+        method.stringValue(HttpMethodMapping).get() == '/locator/child'
+        method.stringValue(SUB_RESOURCE_LOCATOR_ANNOTATION).get() == 'get'
+        method.stringValues(SUB_RESOURCE_LOCATOR_ANNOTATION, 'argumentTypes') == [jakarta.ws.rs.core.UriInfo.name] as String[]
+    }
+
     void "test recursive subresource locator captures remaining path"() {
         given:
         def definition = buildBeanDefinition('test.LocatorResource', """

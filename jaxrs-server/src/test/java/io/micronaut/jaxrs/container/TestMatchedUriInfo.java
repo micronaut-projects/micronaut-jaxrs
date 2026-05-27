@@ -28,4 +28,26 @@ public class TestMatchedUriInfo {
             .map(resource -> resource.getClass().getName())
             .collect(Collectors.joining(","));
     }
+
+    @GET
+    @Path("/template/{id:[a-z]+}")
+    @Produces(MediaType.TEXT_PLAIN)
+    public String template(@Context UriInfo uriInfo) {
+        return uriInfo.getMatchedResourceTemplate();
+    }
+
+    @Path("/subtemplate/{id:[a-z]+}")
+    public TemplateSubResource subtemplate() {
+        return new TemplateSubResource();
+    }
+
+    static class TemplateSubResource {
+
+        @GET
+        @Path("{child:[a-z]+}")
+        @Produces(MediaType.TEXT_PLAIN)
+        public String template(@Context UriInfo uriInfo) {
+            return uriInfo.getMatchedResourceTemplate();
+        }
+    }
 }

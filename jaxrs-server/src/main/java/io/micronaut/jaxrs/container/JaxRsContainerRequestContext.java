@@ -90,7 +90,7 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
 
     @Override
     public UriInfo getUriInfo() {
-        return new UriInfoImpl(mutableHttpRequest, applicationProvider.getPath());
+        return new UriInfoImpl(mutableHttpRequest, applicationProvider.getPath(), applicationProvider.getApplicationPath());
     }
 
     @Override

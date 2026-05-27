@@ -45,7 +45,7 @@ public final class UriInfoBinder implements TypedRequestArgumentBinder<UriInfo> 
 
     @Override
     public BindingResult<UriInfo> bind(ArgumentConversionContext<UriInfo> uriInfo, HttpRequest<?> source) {
-        return () -> Optional.of(new UriInfoImpl(source, applicationProvider.getPath()));
+        return () -> Optional.of(new UriInfoImpl(source, applicationProvider.getPath(), applicationProvider.getApplicationPath()));
     }
 
     @Override

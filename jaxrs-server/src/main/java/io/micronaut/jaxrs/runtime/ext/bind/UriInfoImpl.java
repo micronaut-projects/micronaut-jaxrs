@@ -19,6 +19,7 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.util.StringUtils;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.annotation.HttpMethodMapping;
+import io.micronaut.jaxrs.container.JaxRsResourceTemplate;
 import io.micronaut.web.router.MethodBasedRouteMatch;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.RouteMatch;
@@ -53,6 +54,7 @@ import java.util.stream.Stream;
 public final class UriInfoImpl implements UriInfo {
     private final HttpRequest<?> request;
     private final String basePath;
+    private final String applicationPath;
 
     /**
      * Construct from an HTTP request.
@@ -61,8 +63,20 @@ public final class UriInfoImpl implements UriInfo {
      * @param basePath The base path
      */
     public UriInfoImpl(@NonNull HttpRequest<?> request, @Nullable String basePath) {
+        this(request, basePath, null);
+    }
+
+    /**
+     * Construct from an HTTP request.
+     *
+     * @param request         The HTTP request to this URI
+     * @param basePath        The base path
+     * @param applicationPath The application path
+     */
+    public UriInfoImpl(@NonNull HttpRequest<?> request, @Nullable String basePath, @Nullable String applicationPath) {
         this.request = request;
         this.basePath = basePath == null || basePath.equals("/") ? null : basePath;
+        this.applicationPath = applicationPath == null || applicationPath.equals("/") ? "" : normalizeAbsolutePath(applicationPath);
     }
 
     /**
@@ -276,8 +290,18 @@ public final class UriInfoImpl implements UriInfo {
         return getMatchedURIs(true);
     }
 
-    //    @Override v4
+    @Override
     public String getMatchedResourceTemplate() {
+        RouteMatch<?> match = routeMatch();
+        if (match instanceof UriRouteMatch<?, ?> uriRouteMatch) {
+            String template = match.getAnnotationMetadata()
+                .stringValue(JaxRsResourceTemplate.class)
+                .orElseGet(() -> stripPathPrefix(uriRouteMatch.getRouteInfo().getUriMatchTemplate().toString(), basePath));
+            if (!applicationPath.isEmpty()) {
+                template = applicationPath + normalizeAbsolutePath(template);
+            }
+            return normalizeAbsolutePath(template);
+        }
         return "";
     }
 
@@ -331,6 +355,24 @@ public final class UriInfoImpl implements UriInfo {
             uri = uri.substring(0, uri.length() - 1);
         }
         return uri;
+    }
+
+    private static String stripPathPrefix(String path, @Nullable String prefix) {
+        if (prefix == null || prefix.isEmpty() || !path.startsWith(prefix)) {
+            return path;
+        }
+        int prefixLength = prefix.length();
+        if (path.length() == prefixLength || path.charAt(prefixLength) == '/') {
+            return path.substring(prefixLength);
+        }
+        return path;
+    }
+
+    private static String normalizeAbsolutePath(String path) {
+        if (path == null || path.isEmpty()) {
+            return "/";
+        }
+        return path.startsWith("/") ? path : '/' + path;
     }
 
     @Override

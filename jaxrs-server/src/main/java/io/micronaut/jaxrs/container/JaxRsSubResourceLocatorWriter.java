@@ -38,12 +38,16 @@ import io.micronaut.inject.ExecutableMethod;
 import io.micronaut.inject.ProxyBeanDefinition;
 import io.micronaut.jaxrs.common.JaxRsContainerMessageBodyHandlerRegistry;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
+import io.micronaut.jaxrs.runtime.ext.bind.UriInfoImpl;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.RouteMatch;
 import jakarta.inject.Singleton;
+import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.UriInfo;
 import org.jspecify.annotations.Nullable;
 
 import java.io.OutputStream;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -56,13 +60,16 @@ final class JaxRsSubResourceLocatorWriter implements ResponseBodyWriter<Object>,
     private final BeanContext beanContext;
     private final JaxRsContainerMessageBodyHandlerRegistry jaxRsMessageBodyHandlerRegistry;
     private final MessageBodyHandlerRegistry bodyHandlerRegistry;
+    private final ApplicationProvider applicationProvider;
 
     JaxRsSubResourceLocatorWriter(BeanContext beanContext,
                                   JaxRsContainerMessageBodyHandlerRegistry jaxRsMessageBodyHandlerRegistry,
-                                  MessageBodyHandlerRegistry bodyHandlerRegistry) {
+                                  MessageBodyHandlerRegistry bodyHandlerRegistry,
+                                  ApplicationProvider applicationProvider) {
         this.beanContext = beanContext;
         this.jaxRsMessageBodyHandlerRegistry = jaxRsMessageBodyHandlerRegistry;
         this.bodyHandlerRegistry = bodyHandlerRegistry;
+        this.applicationProvider = applicationProvider;
     }
 
     @Override
@@ -132,9 +139,49 @@ final class JaxRsSubResourceLocatorWriter implements ResponseBodyWriter<Object>,
         Class<?> resourceType = type.getAnnotationMetadata()
             .classValue(JaxRsSubResourceLocator.class, "type")
             .orElseThrow(() -> new CodecException("Missing Jakarta REST subresource locator target type"));
+        String[] argumentTypes = type.getAnnotationMetadata()
+            .stringValues(JaxRsSubResourceLocator.class, "argumentTypes");
         BeanDefinition<?> beanDefinition = findSubResourceBeanDefinition(resourceType);
         subResource = invokeRecursiveLocators(type, request, beanDefinition, subResource);
-        return invoke(beanDefinition.getRequiredMethod(methodName), subResource);
+        ExecutableMethod<?, ?> method = findSubResourceMethod(beanDefinition, methodName, argumentTypes);
+        return invoke(method, subResource, resolveArguments(method, request));
+    }
+
+    private static ExecutableMethod<?, ?> findSubResourceMethod(BeanDefinition<?> beanDefinition,
+                                                                String methodName,
+                                                                String[] argumentTypes) {
+        return beanDefinition.findPossibleMethods(methodName)
+            .filter(method -> matchesArgumentTypes(method.getArguments(), argumentTypes))
+            .findFirst()
+            .orElseThrow(() -> new CodecException("Missing Jakarta REST subresource target method: " + methodName));
+    }
+
+    private static boolean matchesArgumentTypes(Argument<?>[] arguments, String[] argumentTypes) {
+        if (arguments.length != argumentTypes.length) {
+            return false;
+        }
+        for (int i = 0; i < arguments.length; i++) {
+            if (!arguments[i].getType().getName().equals(argumentTypes[i])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private Object[] resolveArguments(ExecutableMethod<?, ?> method, @Nullable HttpRequest<?> request) {
+        return Arrays.stream(method.getArguments())
+            .map(argument -> resolveArgument(argument, request))
+            .toArray(Object[]::new);
+    }
+
+    private Object resolveArgument(Argument<?> argument, @Nullable HttpRequest<?> request) {
+        if (argument.isAnnotationPresent(Context.class) && argument.getType().equals(UriInfo.class)) {
+            if (request == null) {
+                throw new CodecException("Cannot bind UriInfo without an active HTTP request");
+            }
+            return new UriInfoImpl(request, applicationProvider.getPath(), applicationProvider.getApplicationPath());
+        }
+        throw new CodecException("Unsupported Jakarta REST subresource target argument: " + argument.getName());
     }
 
     private static Object invokeRecursiveLocators(Argument<Object> type,
@@ -233,7 +280,7 @@ final class JaxRsSubResourceLocatorWriter implements ResponseBodyWriter<Object>,
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
-    private static @Nullable Object invoke(ExecutableMethod executableMethod, Object subResource) {
-        return executableMethod.invoke(subResource);
+    private static @Nullable Object invoke(ExecutableMethod executableMethod, Object subResource, Object... arguments) {
+        return executableMethod.invoke(subResource, arguments);
     }
 }

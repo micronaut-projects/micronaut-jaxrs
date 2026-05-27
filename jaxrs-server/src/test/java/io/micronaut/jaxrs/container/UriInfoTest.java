@@ -44,6 +44,20 @@ class UriInfoTest {
     }
 
     @Test
+    void testMatchedResourceTemplate() {
+        HttpRequest<String> request = HttpRequest.GET("/api/matched/template/abc");
+        String respBody = client.toBlocking().retrieve(request, String.class);
+        Assertions.assertEquals("/api/matched/template/{id:[a-z]+}", respBody);
+    }
+
+    @Test
+    void testMatchedSubResourceTemplate() {
+        HttpRequest<String> request = HttpRequest.GET("/api/matched/subtemplate/abc/def");
+        String respBody = client.toBlocking().retrieve(request, String.class);
+        Assertions.assertEquals("/api/matched/subtemplate/{id:[a-z]+}/{child:[a-z]+}", respBody);
+    }
+
+    @Test
     void testAbsolutePath() {
         UriInfo actualUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo/?bar=baz&bar=bam"));
         Assertions.assertEquals("http://example.com/foo/", actualUri.getAbsolutePath().toString());

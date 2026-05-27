@@ -97,6 +97,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     private static final String CONSTRUCTOR_INJECTION_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsConstructorInjection";
     private static final String REQUEST_FIELD_INJECTION_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsRequestFieldInjection";
     private static final String PATH_PARAM_BINDING_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsPathParamBinding";
+    private static final String RESOURCE_TEMPLATE_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsResourceTemplate";
     static final String SUB_RESOURCE_LOCATOR_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsSubResourceLocator";
     static final String RECURSIVE_REMAINING_ROUTE_VARIABLE = "jaxrsRecursiveRemaining";
     static final String MATRIX_PARAMETER_ROUTE_PATTERN = ":;[^/]*|";
@@ -218,6 +219,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
                 if (!matrixParameterNames.isEmpty()) {
                     markMatrixAwareClassPath(matrixParameterNames.get(0));
                 }
+                annotateResourceTemplate(element, element.stringValue(Path.class).orElse(UriMapping.DEFAULT_URI));
                 element.stringValue(HttpMethodMapping.class)
                     .map(path -> toServerRoutePath(element, path, matrixParameterNames))
                     .ifPresent(path -> annotateHttpRoute(element, path));
@@ -246,15 +248,21 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             String locatorPath = element.stringValue(HttpMethodMapping.class).orElse(UriMapping.DEFAULT_URI);
             String targetPath = method.stringValue(HttpMethodMapping.class).orElse(UriMapping.DEFAULT_URI);
             String routePath = prependRoutePath(locatorPath, targetPath);
+            String resourceTemplatePath = prependRoutePath(
+                element.stringValue(Path.class).orElse(UriMapping.DEFAULT_URI),
+                method.stringValue(Path.class).orElse(UriMapping.DEFAULT_URI)
+            );
             RecursiveSubResourceLocator recursiveLocator = findRecursiveSubResourceLocator(element);
             if (!matrixParameterNames.isEmpty()) {
                 routePath = toMatrixParameterAwareRoute(routePath, matrixParameterNames);
             }
             annotateSubResourceMediaTypes(element, method);
             annotateHttpRoute(element, targetMethod.routeAnnotation(), routePath);
+            annotateResourceTemplate(element, resourceTemplatePath);
             element.annotate(SUB_RESOURCE_LOCATOR_ANNOTATION, builder -> builder
                 .value(method.getName())
                 .member("type", new AnnotationClassValue<>(method.getDeclaringType().getName()))
+                .member("argumentTypes", targetMethodArgumentTypes(method))
                 .member("recursive", recursiveLocator == null ? "" : recursiveLocator.method().getName())
                 .member("remaining", recursiveLocator == null ? "" : RECURSIVE_REMAINING_ROUTE_VARIABLE));
             visitMethodParameters(element, context, false);
@@ -299,6 +307,14 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
                 locator.annotate(consumes);
             }
         }
+    }
+
+    private void annotateResourceTemplate(MethodElement method, String path) {
+        if (currentClassElement == null) {
+            return;
+        }
+        String classPath = currentClassElement.stringValue(Path.class).orElse(UriMapping.DEFAULT_URI);
+        method.annotate(RESOURCE_TEMPLATE_ANNOTATION, builder -> builder.value(prependRoutePath(classPath, path)));
     }
 
     private void visitMethodParameters(MethodElement element, VisitorContext context, boolean bindUnannotatedBody) {
@@ -636,7 +652,13 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     }
 
     private static boolean isSubResourceTargetMethod(MethodElement method) {
-        return isPublicResourceMethod(method) && method.hasStereotype(HttpMethod.class) && method.getParameters().length == 0;
+        return isPublicResourceMethod(method) &&
+            method.hasStereotype(HttpMethod.class) &&
+            Arrays.stream(method.getParameters()).allMatch(JaxRsTypeElementVisitor::isSupportedSubResourceTargetParameter);
+    }
+
+    private static boolean isSupportedSubResourceTargetParameter(ParameterElement parameter) {
+        return parameter.hasAnnotation(Context.class) && parameter.getType().isAssignable(UriInfo.class);
     }
 
     private boolean isUnrootedRecursiveSubResourceLocator(MethodElement method) {
@@ -711,6 +733,12 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     }
 
     private record RecursiveSubResourceLocator(MethodElement method) {
+    }
+
+    private static String[] targetMethodArgumentTypes(MethodElement method) {
+        return Arrays.stream(method.getParameters())
+            .map(parameter -> parameter.getType().getName())
+            .toArray(String[]::new);
     }
 
     private String toServerRoutePath(MethodElement method, String path, List<String> matrixParameterNames) {

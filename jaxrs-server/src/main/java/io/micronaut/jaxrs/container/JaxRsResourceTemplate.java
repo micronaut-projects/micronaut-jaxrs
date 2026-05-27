@@ -24,36 +24,16 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Internal marker for Jakarta REST subresource locator routes.
+ * Internal metadata for the original Jakarta REST resource template.
  */
 @Internal
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
-public @interface JaxRsSubResourceLocator {
+public @interface JaxRsResourceTemplate {
 
     /**
-     * @return The zero-argument resource method to invoke on the object returned by the locator.
+     * @return The resource template relative to the Jakarta REST application path.
      */
     String value();
-
-    /**
-     * @return The resource type that declares the target method.
-     */
-    Class<?> type();
-
-    /**
-     * @return The target method argument type names.
-     */
-    String[] argumentTypes() default {};
-
-    /**
-     * @return The zero-argument recursive locator method to invoke for each remaining path segment.
-     */
-    String recursive() default "";
-
-    /**
-     * @return The route variable that captures the remaining recursive path.
-     */
-    String remaining() default "";
 }
