@@ -40,6 +40,8 @@ import io.micronaut.jaxrs.common.NameBindingPredicate;
 import io.micronaut.jaxrs.runtime.ext.bind.HttpHeadersBinder;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.RouteInfo;
+import io.micronaut.web.router.Router;
+import io.micronaut.web.router.UriRouteInfo;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.container.ContainerRequestFilter;
 import jakarta.ws.rs.container.ContainerResponseFilter;
@@ -56,6 +58,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -72,17 +75,22 @@ import java.util.stream.Collectors;
 final class JaxRsFilters {
 
     private static final String REQUEST_CONTEXT_KEY = ContainerRequestFilter.class.getName();
+    private static final String CLIENT_QUALITY_PARAMETER = "q";
+    private static final String SERVER_QUALITY_PARAMETER = "qs";
 
+    private final Router router;
     private final ApplicationProvider applicationProvider;
     private final List<ContainerRequestFilter> preMatchingRequestFilters;
     private final List<BeanRegistration<ContainerRequestFilter>> requestFilters;
     private final List<BeanRegistration<ContainerResponseFilter>> containerResponseFilters;
     private final NameBindingPredicate nameBindingPredicate;
 
-    JaxRsFilters(ApplicationProvider applicationProvider,
+    JaxRsFilters(Router router,
+                 ApplicationProvider applicationProvider,
                  List<BeanRegistration<ContainerRequestFilter>> requestFilters,
                  List<BeanRegistration<ContainerResponseFilter>> containerResponseFilters,
                  NameBindingPredicate nameBindingPredicate) {
+        this.router = router;
         this.applicationProvider = applicationProvider;
         this.nameBindingPredicate = nameBindingPredicate;
         Map<Boolean, List<BeanRegistration<ContainerRequestFilter>>> matching = requestFilters.stream().collect(Collectors.groupingBy(br -> br.getBeanDefinition().hasAnnotation(PreMatching.class)));
@@ -259,6 +267,7 @@ final class JaxRsFilters {
     @io.micronaut.http.server.annotation.PreMatching
     @RequestFilter
     HttpResponse<?> filterPreMatchingRequest(MutableHttpRequest<?> request) throws IOException {
+        applyJaxRsAcceptNegotiation(request);
         if (preMatchingRequestFilters.isEmpty()) {
             // Intercept only JaxRs routes
             return null;
@@ -275,6 +284,75 @@ final class JaxRsFilters {
         }
         requestContext.finished();
         return null;
+    }
+
+    private void applyJaxRsAcceptNegotiation(MutableHttpRequest<?> request) {
+        List<UriRouteInfo<?, ?>> candidates = router.uriRoutes()
+            .filter(route -> route.getHttpMethod() == request.getMethod())
+            .filter(route -> route.getAnnotationMetadata().hasAnnotation(Path.class))
+            .filter(route -> route.tryMatch(request.getPath()) != null)
+            .filter(route -> route.consumesAll() || route.doesConsume(request.getContentType().orElse(null)))
+            .toList();
+        if (candidates.size() < 2) {
+            return;
+        }
+        List<MediaType> acceptableMediaTypes = JaxRsHttpHeaders.forRequest(request.getHeaders()).getAcceptableMediaTypes();
+        candidates.stream()
+            .flatMap(route -> route.getProduces().stream()
+                .map(JaxRsUtils::convert)
+                .flatMap(produced -> acceptableMediaTypes.stream()
+                    .filter(produced::isCompatible)
+                    .map(accepted -> new AcceptCandidate(produced, accepted))))
+            .filter(candidate -> !candidate.responseMediaType().isWildcardType() && !candidate.responseMediaType().isWildcardSubtype())
+            .max(AcceptCandidate.COMPARATOR)
+            .map(AcceptCandidate::responseMediaType)
+            .map(this::withoutSelectionParameters)
+            .map(JaxRsUtils::convert)
+            .ifPresent(mediaType -> {
+                request.getHeaders().remove(HttpHeaders.ACCEPT);
+                request.accept(mediaType);
+            });
+    }
+
+    private record AcceptCandidate(MediaType produced, MediaType accepted) {
+        private static final Comparator<AcceptCandidate> COMPARATOR = Comparator
+            .comparingInt(AcceptCandidate::producedSpecificity)
+            .thenComparingDouble(AcceptCandidate::clientQuality)
+            .thenComparingDouble(AcceptCandidate::serverQuality);
+
+        private MediaType responseMediaType() {
+            return produced;
+        }
+
+        private int producedSpecificity() {
+            return specificity(produced);
+        }
+
+        private double clientQuality() {
+            return quality(accepted, CLIENT_QUALITY_PARAMETER);
+        }
+
+        private double serverQuality() {
+            return quality(produced, SERVER_QUALITY_PARAMETER);
+        }
+
+        private static int specificity(MediaType mediaType) {
+            if (mediaType.isWildcardType()) {
+                return 0;
+            }
+            if (mediaType.isWildcardSubtype()) {
+                return 1;
+            }
+            return 2;
+        }
+
+        private static double quality(MediaType mediaType, String parameterName) {
+            String value = mediaType.getParameters().get(parameterName);
+            if (value == null) {
+                return 1.0;
+            }
+            return Double.parseDouble(value);
+        }
     }
 
     private void resolveRelativeLocation(HttpRequest<?> request, MutableHttpResponse<?> response) {

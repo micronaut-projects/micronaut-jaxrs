@@ -174,6 +174,21 @@ class HeadersTest {
     }
 
     @Test
+    void testAcceptHeaderTrimsCommaSeparatedValues() {
+        final MutableHttpRequest<Object> request = HttpRequest.GET("/headers");
+        request.header(HttpHeaders.ACCEPT, "text/xml;q=0.3, text/html;q=0.9");
+
+        JaxRsHttpHeaders jaxRsHttpHeaders = JaxRsHttpHeaders.forRequest(request.getHeaders());
+
+        final List<MediaType> acceptableMediaTypes = jaxRsHttpHeaders.getAcceptableMediaTypes();
+        assertEquals(2, acceptableMediaTypes.size());
+        assertEquals("text", acceptableMediaTypes.get(0).getType());
+        assertEquals("html", acceptableMediaTypes.get(0).getSubtype());
+        assertEquals("text", acceptableMediaTypes.get(1).getType());
+        assertEquals("xml", acceptableMediaTypes.get(1).getSubtype());
+    }
+
+    @Test
     void testAcceptLanguageHeader() {
         final MutableHttpRequest<Object> request = HttpRequest.GET("/headers");
         request.header(HttpHeaders.ACCEPT_LANGUAGE, "fr;q=0.7,en;q=0.9");
