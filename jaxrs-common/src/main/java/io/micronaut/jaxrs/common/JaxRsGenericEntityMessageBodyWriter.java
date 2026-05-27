@@ -26,6 +26,7 @@ import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.MutableHttpResponse;
+import io.micronaut.http.annotation.Produces;
 import io.micronaut.http.body.ByteBodyFactory;
 import io.micronaut.http.body.CloseableByteBody;
 import io.micronaut.http.body.MessageBodyHandlerRegistry;
@@ -41,6 +42,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -121,23 +123,51 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
     }
 
     private <K> void write(Argument<K> argument, MediaType mediaType, K entity, MutableHeaders outgoingHeaders, OutputStream outputStream) {
-        List<MediaType> mediaTypes = List.of(mediaType);
-        // JaxRs writers
-        Optional<MessageBodyWriter<K>> writer = jaxRsMessageBodyHandlerRegistry.findWriter(argument, mediaTypes);
+        Optional<SelectedWriter<K>> writer = findWriter(argument, mediaType);
         if (writer.isEmpty()) {
-            // Micronaut HTTP writers
-            writer = registry.findWriter(argument, mediaTypes);
-        }
-        if (writer.isEmpty()) {
-            Optional<MessageBodyWriter<String>> stringWriter = registry.findWriter(Argument.STRING, mediaTypes);
+            Optional<MessageBodyWriter<String>> stringWriter = registry.findWriter(Argument.STRING, List.of(mediaType));
             if (stringWriter.isPresent()) {
                 stringWriter.get().writeTo(Argument.STRING, mediaType, entity.toString(), outgoingHeaders, outputStream);
             } else {
                 throw new CodecException("Could not find MessageBodyWriter for media type " + mediaType + " for argument " + argument);
             }
         } else {
-            writer.get().createSpecific(argument).writeTo(argument, mediaType, entity, outgoingHeaders, outputStream);
+            SelectedWriter<K> selectedWriter = writer.get();
+            selectedWriter.writer().createSpecific(argument).writeTo(argument, selectedWriter.mediaType(), entity, outgoingHeaders, outputStream);
         }
+    }
+
+    private <K> Optional<SelectedWriter<K>> findWriter(Argument<K> argument, MediaType mediaType) {
+        List<MediaType> mediaTypes = List.of(mediaType);
+        Optional<SelectedWriter<K>> writer = findJaxRsWriter(argument, mediaType, mediaTypes);
+        if (writer.isPresent()) {
+            return writer;
+        }
+        return registry.findWriter(argument, mediaTypes)
+            .map(messageBodyWriter -> new SelectedWriter<>(messageBodyWriter, mediaType));
+    }
+
+    private <K> Optional<SelectedWriter<K>> findJaxRsWriter(Argument<K> argument,
+                                                           MediaType mediaType,
+                                                           List<MediaType> mediaTypes) {
+        Optional<MessageBodyWriter<K>> writer = jaxRsMessageBodyHandlerRegistry.findWriter(argument, mediaTypes);
+        if (writer.isPresent()) {
+            return writer.map(messageBodyWriter -> new SelectedWriter<>(messageBodyWriter, mediaType));
+        }
+        if (!producesOnlyWildcard(argument)) {
+            return Optional.empty();
+        }
+        return jaxRsMessageBodyHandlerRegistry.findWriter(argument, List.of(MediaType.ALL_TYPE))
+            .map(messageBodyWriter -> new SelectedWriter<>(messageBodyWriter, MediaType.ALL_TYPE));
+    }
+
+    private static boolean producesOnlyWildcard(Argument<?> argument) {
+        String[] producedMediaTypes = argument.getAnnotationMetadata().stringValues(Produces.class);
+        return producedMediaTypes.length > 0 &&
+            Arrays.stream(producedMediaTypes).allMatch(MediaType.ALL::equals);
+    }
+
+    private record SelectedWriter<K>(MessageBodyWriter<K> writer, MediaType mediaType) {
     }
 
     @Override
@@ -325,22 +355,18 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
         }
 
         final void writeInner() {
-            List<MediaType> mediaTypes = List.of(mediaType);
-            // JaxRs writers
-            Optional<MessageBodyWriter<T>> writer = jaxRsMessageBodyHandlerRegistry.findWriter(this.argument, mediaTypes);
+            Optional<SelectedWriter<T>> writer = findWriter(this.argument, mediaType);
             if (writer.isEmpty()) {
-                // Micronaut HTTP writers
-                writer = registry.findWriter(this.argument, mediaTypes);
-            }
-            if (writer.isEmpty()) {
-                Optional<MessageBodyWriter<String>> stringWriter = registry.findWriter(Argument.STRING, mediaTypes);
+                Optional<MessageBodyWriter<String>> stringWriter = registry.findWriter(Argument.STRING, List.of(mediaType));
                 if (stringWriter.isPresent()) {
                     writeInner0(ResponseBodyWriter.wrap(stringWriter.get()), Argument.STRING, this.entity.toString());
                 } else {
                     throw new CodecException("Could not find MessageBodyWriter for media type " + mediaType + " for argument " + this.argument);
                 }
             } else {
-                writeInner0(ResponseBodyWriter.wrap(writer.get().createSpecific(argument)), argument, entity);
+                SelectedWriter<T> selectedWriter = writer.get();
+                this.mediaType = selectedWriter.mediaType();
+                writeInner0(ResponseBodyWriter.wrap(selectedWriter.writer().createSpecific(argument)), argument, entity);
             }
         }
 
