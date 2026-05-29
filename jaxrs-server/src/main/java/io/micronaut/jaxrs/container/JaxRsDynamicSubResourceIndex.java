@@ -37,13 +37,13 @@ import java.lang.annotation.Target;
 public @interface JaxRsDynamicSubResourceIndex {
 
     /**
-     * @return Ordered method names for indexed dynamic subresource locators and resource methods.
+     * @return Ordered Java method names for indexed dynamic subresource locators and resource methods.
      */
     String[] methodNames() default {};
 
     /**
      * @return Flattened fully qualified argument type names for each indexed method,
-     * expanded by {@link #argumentTypeCounts()}.
+     * where each method consumes the next {@link #argumentTypeCounts()} entries.
      */
     String[] argumentTypes() default {};
 
@@ -53,13 +53,14 @@ public @interface JaxRsDynamicSubResourceIndex {
     int[] argumentTypeCounts() default {};
 
     /**
-     * @return HTTP method names for indexed resource methods, or an empty string for locator methods.
+     * @return HTTP method names for indexed resource methods at the same positions as {@link #methodNames()},
+     * or an empty string for locator methods.
      */
     String[] httpMethods() default {};
 
     /**
-     * @return Flattened route path segments for each indexed method route, expanded
-     * by {@link #routePathSegmentCounts()}.
+     * @return Flattened route path segments for each indexed method route, where
+     * each method consumes the next {@link #routePathSegmentCounts()} entries.
      */
     String[] routePathSegments() default {};
 
@@ -69,13 +70,14 @@ public @interface JaxRsDynamicSubResourceIndex {
     int[] routePathSegmentCounts() default {};
 
     /**
-     * @return Original Jakarta REST resource templates for indexed resource methods,
-     * or an empty string for locator methods.
+     * @return Original Jakarta REST resource templates for indexed resource methods
+     * at the same positions as {@link #methodNames()}, or an empty string for locator methods.
      */
     String[] resourceTemplates() default {};
 
     /**
-     * @return Flattened consumed media types for each indexed method, expanded by {@link #consumesCounts()}.
+     * @return Flattened consumed media types, where each method consumes the next
+     * {@link #consumesCounts()} entries.
      */
     String[] consumes() default {};
 
@@ -85,7 +87,8 @@ public @interface JaxRsDynamicSubResourceIndex {
     int[] consumesCounts() default {};
 
     /**
-     * @return Flattened produced media types for each indexed method, expanded by {@link #producesCounts()}.
+     * @return Flattened produced media types, where each method consumes the next
+     * {@link #producesCounts()} entries.
      */
     String[] produces() default {};
 
@@ -96,7 +99,8 @@ public @interface JaxRsDynamicSubResourceIndex {
 
     /**
      * @return Flattened route score triples for each indexed method route: literal
-     * characters, capturing groups, and non-default capturing groups.
+     * characters, capturing groups, and non-default capturing groups, with one
+     * three-int tuple at the same position as each {@link #methodNames()} entry.
      */
     int[] routeScores() default {};
 }

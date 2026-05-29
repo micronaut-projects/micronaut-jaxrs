@@ -31,7 +31,7 @@ import javax.xml.XMLConstants;
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
-import javax.xml.transform.TransformerException;
+import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerFactory;
 
 /**
@@ -45,8 +45,10 @@ final class JaxRsXmlFactories {
 
     static XMLInputFactory xmlInputFactory() {
         XMLInputFactory factory = XMLInputFactory.newFactory();
-        disable(factory, XMLInputFactory.SUPPORT_DTD);
-        disable(factory, "javax.xml.stream.isSupportingExternalEntities");
+        factory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
+        factory.setProperty("javax.xml.stream.isSupportingExternalEntities", false);
+        factory.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+        factory.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
         return factory;
     }
 
@@ -81,36 +83,12 @@ final class JaxRsXmlFactories {
         return bytes;
     }
 
-    static TransformerFactory transformerFactory() {
+    static TransformerFactory transformerFactory() throws TransformerConfigurationException {
         TransformerFactory factory = TransformerFactory.newInstance();
-        setFeature(factory, XMLConstants.FEATURE_SECURE_PROCESSING, true);
-        setAttribute(factory, XMLConstants.ACCESS_EXTERNAL_DTD, "");
-        setAttribute(factory, XMLConstants.ACCESS_EXTERNAL_STYLESHEET, "");
+        factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+        factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+        factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_STYLESHEET, "");
         return factory;
-    }
-
-    private static void disable(XMLInputFactory factory, String propertyName) {
-        try {
-            factory.setProperty(propertyName, false);
-        } catch (IllegalArgumentException ignored) {
-            // Some XMLInputFactory implementations do not support every hardening property.
-        }
-    }
-
-    private static void setFeature(TransformerFactory factory, String feature, boolean value) {
-        try {
-            factory.setFeature(feature, value);
-        } catch (TransformerException ignored) {
-            // Some TransformerFactory implementations do not support every hardening feature.
-        }
-    }
-
-    private static void setAttribute(TransformerFactory factory, String attribute, String value) {
-        try {
-            factory.setAttribute(attribute, value);
-        } catch (IllegalArgumentException ignored) {
-            // Some TransformerFactory implementations do not support every hardening attribute.
-        }
     }
 
     private static void setProperty(Unmarshaller unmarshaller, String property, String value) {

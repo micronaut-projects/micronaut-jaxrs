@@ -22,6 +22,7 @@ import io.micronaut.http.HttpRequest;
 import io.micronaut.http.client.netty.DefaultHttpClient;
 import io.micronaut.http.client.sse.SseClient;
 import io.micronaut.http.sse.Event;
+import io.micronaut.jaxrs.common.JaxRsTemporaryFiles;
 import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.ClientErrorException;
 import jakarta.ws.rs.ForbiddenException;
@@ -46,11 +47,15 @@ import jakarta.ws.rs.client.WebTarget;
 import jakarta.ws.rs.core.GenericType;
 import jakarta.ws.rs.core.Link;
 import jakarta.ws.rs.core.Response;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscription;
-import org.junit.jupiter.api.Test;
 
+import java.io.File;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -71,6 +76,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JaxRsClientBuilderTest {
+
+    @TempDir
+    Path tempDir;
 
     @Test
     void jaxRsClientPreservesEncodedResponseHeaders() {
@@ -99,6 +107,31 @@ class JaxRsClientBuilderTest {
             }
         } finally {
             configured.close();
+        }
+    }
+
+    @Test
+    void sseFileDataUsesConfiguredTemporaryDirectory() throws Exception {
+        Path configured = Files.createDirectory(tempDir.resolve("jaxrs-sse"));
+        JaxRsInboundSseEvent event = new JaxRsInboundSseEvent(Event.of("data"), configured);
+
+        File file = event.readData(File.class);
+
+        assertTrue(file.toPath().startsWith(configured));
+        assertEquals("data", Files.readString(file.toPath()));
+    }
+
+    @Test
+    void tempDirectoryPropertyAcceptsPathValues() {
+        Client client = new JaxRsClientBuilder()
+            .property(JaxRsTemporaryFiles.TEMP_DIRECTORY_PROPERTY, tempDir)
+            .build();
+        try {
+            JaxRsConfiguration configuration = (JaxRsConfiguration) client.getConfiguration();
+
+            assertEquals(tempDir, configuration.tempDirectory());
+        } finally {
+            client.close();
         }
     }
 
@@ -179,7 +212,8 @@ class JaxRsClientBuilderTest {
             scheduledExecutorService,
             false,
             new CompletingSseClient(),
-            false
+            false,
+            null
         );
         try {
             eventSource.open();
@@ -204,7 +238,8 @@ class JaxRsClientBuilderTest {
             scheduledExecutorService,
             true,
             new CompletingSseClient(),
-            false
+            false,
+            null
         );
         try {
             assertTrue(eventSource.close(1, TimeUnit.MILLISECONDS));
@@ -226,7 +261,8 @@ class JaxRsClientBuilderTest {
             scheduledExecutorService,
             false,
             sseClient,
-            true
+            true,
+            null
         );
         try {
             eventSource.open();

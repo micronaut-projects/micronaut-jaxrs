@@ -43,6 +43,7 @@ import io.micronaut.jaxrs.common.JaxRsIOException;
 import io.micronaut.jaxrs.common.JaxRsMessageBodyReader;
 import io.micronaut.jaxrs.common.JaxRsMessageBodyReaderDefinition;
 import io.micronaut.jaxrs.common.JaxRsMessageBodyWriter;
+import io.micronaut.jaxrs.common.JaxRsTemporaryFiles;
 import io.micronaut.jaxrs.common.JaxRsUtils;
 import io.micronaut.jaxrs.common.JaxRsWriterInterceptorContextState;
 import jakarta.ws.rs.ConstrainedTo;
@@ -72,6 +73,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
+import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -162,6 +164,10 @@ final class JaxRsConfiguration implements Configuration {
 
     @Nullable ScheduledExecutorService getScheduledExecutorService() {
         return scheduledExecutorService;
+    }
+
+    @Nullable Path tempDirectory() {
+        return JaxRsTemporaryFiles.configuredDirectory(properties.get(JaxRsTemporaryFiles.TEMP_DIRECTORY_PROPERTY));
     }
 
     public void addProperty(String name, Object value) {

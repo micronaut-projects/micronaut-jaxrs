@@ -18,7 +18,6 @@ package io.micronaut.jaxrs.common;
 import io.micronaut.context.AnnotationReflectionUtils;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
-import io.micronaut.core.reflect.ClassUtils;
 import io.micronaut.core.type.Argument;
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import jakarta.ws.rs.client.Entity;
@@ -44,6 +43,7 @@ import java.util.function.Predicate;
  */
 @Internal
 public final class JaxRsArgumentUtil {
+    public static final String MEMBER_DEFAULT_VALUE = "defaultValue";
 
     private JaxRsArgumentUtil() {
     }
@@ -121,16 +121,19 @@ public final class JaxRsArgumentUtil {
         if (annotationNames.isEmpty()) {
             return new Annotation[0];
         }
+        List<String> entityAnnotationNames = annotationNames.stream()
+            .filter(annotationPredicate)
+            .toList();
+        if (entityAnnotationNames.isEmpty()) {
+            return new Annotation[0];
+        }
         MutableAnnotationMetadata metadata = MutableAnnotationMetadata.of(annotationMetadata);
-        List<Annotation> annotations = new ArrayList<>(annotationNames.size());
+        List<Annotation> annotations = new ArrayList<>(entityAnnotationNames.size());
         ClassLoader fallbackClassLoader = JaxRsArgumentUtil.class.getClassLoader();
-        for (String annotationName : annotationNames) {
-            if (!annotationPredicate.test(annotationName)) {
-                continue;
-            }
-            Optional<Class<? extends Annotation>> annotationType = findAnnotationType(annotationName, classLoader);
+        for (String annotationName : entityAnnotationNames) {
+            Optional<Class<? extends Annotation>> annotationType = findAnnotationType(annotationMetadata, annotationName, classLoader);
             if (annotationType.isEmpty() && classLoader != fallbackClassLoader) {
-                annotationType = findAnnotationType(annotationName, fallbackClassLoader);
+                annotationType = findAnnotationType(annotationMetadata, annotationName, fallbackClassLoader);
             }
             annotationType
                 .map(type -> metadata.synthesize(type, annotationName))
@@ -146,11 +149,12 @@ public final class JaxRsArgumentUtil {
             && !annotationName.startsWith("io.micronaut.jaxrs.container.JaxRs");
     }
 
-    @SuppressWarnings("unchecked")
-    private static Optional<Class<? extends Annotation>> findAnnotationType(String annotationName, @Nullable ClassLoader classLoader) {
-        return ClassUtils.forName(annotationName, classLoader)
-            .filter(Annotation.class::isAssignableFrom)
-            .map(type -> (Class<? extends Annotation>) type);
+    private static Optional<Class<? extends Annotation>> findAnnotationType(AnnotationMetadata annotationMetadata,
+                                                                            String annotationName,
+                                                                            @Nullable ClassLoader classLoader) {
+        return classLoader == null
+            ? annotationMetadata.getAnnotationType(annotationName)
+            : annotationMetadata.getAnnotationType(annotationName, classLoader);
     }
 
 }

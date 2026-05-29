@@ -20,11 +20,13 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.Order;
 import io.micronaut.core.order.Ordered;
 import io.micronaut.jaxrs.common.JaxRsMessageBodyProvider;
+import io.micronaut.jaxrs.common.JaxRsTemporaryFiles;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.ext.MessageBodyReader;
 import jakarta.ws.rs.ext.MessageBodyWriter;
+import org.jspecify.annotations.Nullable;
 
 import java.io.File;
 import java.io.IOException;
@@ -33,6 +35,7 @@ import java.io.OutputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  * The read/write body for {@link File}.
@@ -50,6 +53,23 @@ import java.nio.file.Files;
 @Prototype
 @Internal
 public final class JaxRsFileMessageBodyReaderWriter implements MessageBodyReader<File>, MessageBodyWriter<File> {
+    private final @Nullable Path tempDirectory;
+
+    /**
+     * Default constructor.
+     */
+    public JaxRsFileMessageBodyReaderWriter() {
+        this(null);
+    }
+
+    /**
+     * Constructor.
+     *
+     * @param tempDirectory The temporary file directory
+     */
+    public JaxRsFileMessageBodyReaderWriter(@Nullable Path tempDirectory) {
+        this.tempDirectory = tempDirectory;
+    }
 
     @Override
     public boolean isReadable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
@@ -63,7 +83,7 @@ public final class JaxRsFileMessageBodyReaderWriter implements MessageBodyReader
                          MediaType mediaType,
                          MultivaluedMap<String, String> httpHeaders,
                          InputStream entityStream) throws IOException, WebApplicationException {
-        File file = Files.createTempFile("jaxrs-entity-", ".tmp").toFile();
+        File file = JaxRsTemporaryFiles.createTempFile("jaxrs-entity-", ".tmp", tempDirectory);
         file.deleteOnExit();
         try (OutputStream outputStream = Files.newOutputStream(file.toPath())) {
             entityStream.transferTo(outputStream);

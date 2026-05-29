@@ -21,8 +21,11 @@ import jakarta.ws.rs.core.Link;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.ByteArrayOutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
@@ -32,6 +35,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class JaxRsSecurityHardeningTest {
 
     private final MicronautRuntimeDelegate delegate = new MicronautRuntimeDelegate();
+
+    @TempDir
+    Path tempDir;
 
     @Test
     void multipartRejectsInvalidBoundarySyntax() {
@@ -108,6 +114,15 @@ class JaxRsSecurityHardeningTest {
         Response.ResponseBuilder builder = delegate.createResponseBuilder();
 
         assertThrows(IllegalArgumentException.class, () -> builder.header("X-Test", "ok\r\nInjected: yes"));
+    }
+
+    @Test
+    void temporaryFilesUseConfiguredPrivateDirectory() throws Exception {
+        Path configured = Files.createDirectory(tempDir.resolve("jaxrs"));
+
+        Path file = JaxRsTemporaryFiles.createTempFile("entity-", ".tmp", configured).toPath();
+
+        assertEquals(configured, file.getParent());
     }
 
     private static MediaType multipart(String boundary) {

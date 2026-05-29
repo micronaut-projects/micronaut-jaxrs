@@ -48,7 +48,7 @@ import io.micronaut.http.annotation.QueryValue;
 import io.micronaut.http.annotation.RequestBean;
 import io.micronaut.http.annotation.Trace;
 import io.micronaut.http.annotation.UriMapping;
-import io.micronaut.jaxrs.common.JaxRsBindableMetadata;
+import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
 import io.micronaut.jaxrs.common.JaxRsMessageBodyProvider;
 import io.micronaut.jaxrs.common.JaxRsRouteScore;
 import io.micronaut.jaxrs.common.JaxRsResourceTemplateMetadata;
@@ -914,7 +914,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
 
     private static AnnotationValue<Bindable> bindable(TypedElement parameter) {
         AnnotationValueBuilder<Bindable> builder = AnnotationValue.builder(Bindable.class);
-        primitiveDefaultValue(parameter).ifPresent(defaultValue -> builder.member(JaxRsBindableMetadata.MEMBER_DEFAULT_VALUE, defaultValue));
+        primitiveDefaultValue(parameter).ifPresent(defaultValue -> builder.member(JaxRsArgumentUtil.MEMBER_DEFAULT_VALUE, defaultValue));
         return builder.build();
     }
 
@@ -937,9 +937,9 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     }
 
     private static void annotateDefaultValue(TypedElement parameter, AnnotationValueBuilder<?> builder, String defaultValue) {
-        builder.member(JaxRsBindableMetadata.MEMBER_DEFAULT_VALUE, defaultValue);
+        builder.member(JaxRsArgumentUtil.MEMBER_DEFAULT_VALUE, defaultValue);
         if (!parameter.hasAnnotation(Bindable.class)) {
-            parameter.annotate(Bindable.class, bindable -> bindable.member(JaxRsBindableMetadata.MEMBER_DEFAULT_VALUE, defaultValue));
+            parameter.annotate(Bindable.class, bindable -> bindable.member(JaxRsArgumentUtil.MEMBER_DEFAULT_VALUE, defaultValue));
         }
     }
 

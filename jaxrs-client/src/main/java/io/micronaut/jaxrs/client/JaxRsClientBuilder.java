@@ -121,7 +121,7 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
         jaxRsConfiguration.register(new JaxRsMultivaluedMapMessageBodyWriter());
         jaxRsConfiguration.register(new JaxRsMultivaluedStringObjectMapMessageBodyReader());
         jaxRsConfiguration.register(new JaxRsMultivaluedStringStringMapMessageBodyReader());
-        jaxRsConfiguration.register(new JaxRsFileMessageBodyReaderWriter());
+        jaxRsConfiguration.register(new JaxRsFileMessageBodyReaderWriter(jaxRsConfiguration.tempDirectory()));
         jaxRsConfiguration.register(new JaxRsMultipartMessageBodyReaderWriter());
         ClassLoader customizerClassLoader = Thread.currentThread().getContextClassLoader();
         if (customizerClassLoader == null) {

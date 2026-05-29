@@ -18,6 +18,7 @@ package io.micronaut.jaxrs.client;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.convert.ConversionService;
 import io.micronaut.http.sse.Event;
+import io.micronaut.jaxrs.common.JaxRsTemporaryFiles;
 import jakarta.ws.rs.ProcessingException;
 import jakarta.ws.rs.core.GenericType;
 import jakarta.ws.rs.core.MediaType;
@@ -25,6 +26,7 @@ import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.sse.InboundSseEvent;
 import jakarta.ws.rs.sse.SseEvent;
+import org.jspecify.annotations.Nullable;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -36,7 +38,7 @@ import java.lang.reflect.Type;
 import java.net.URLDecoder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
@@ -51,9 +53,11 @@ final class JaxRsInboundSseEvent implements InboundSseEvent {
     private static final List<JaxRsSseEventDataReader> OPTIONAL_DATA_READERS = optionalDataReaders();
 
     private final Event<String> event;
+    private final @Nullable Path tempDirectory;
 
-    JaxRsInboundSseEvent(Event<String> event) {
+    JaxRsInboundSseEvent(Event<String> event, @Nullable Path tempDirectory) {
         this.event = event;
+        this.tempDirectory = tempDirectory;
     }
 
     @Override
@@ -142,7 +146,7 @@ final class JaxRsInboundSseEvent implements InboundSseEvent {
             return (T) new StringReader(data);
         }
         if (File.class.isAssignableFrom(type)) {
-            return (T) file(data, charset);
+            return (T) file(data, charset, tempDirectory);
         }
         if (MultivaluedMap.class.isAssignableFrom(type)) {
             return (T) multivaluedMap(data, charset);
@@ -166,11 +170,11 @@ final class JaxRsInboundSseEvent implements InboundSseEvent {
         return DEFAULT_CHARSET;
     }
 
-    private static File file(String data, Charset charset) {
+    private static File file(String data, Charset charset, @Nullable Path tempDirectory) {
         try {
-            File file = Files.createTempFile("jaxrs-sse-", ".tmp").toFile();
+            File file = JaxRsTemporaryFiles.createTempFile("jaxrs-sse-", ".tmp", tempDirectory);
             file.deleteOnExit();
-            Files.writeString(file.toPath(), data, charset);
+            java.nio.file.Files.writeString(file.toPath(), data, charset);
             return file;
         } catch (IOException e) {
             throw new ProcessingException("Cannot write SSE event data to file", e);

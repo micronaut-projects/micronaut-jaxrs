@@ -62,7 +62,8 @@ public final class JaxRsSseEventSourceBuilder extends SseEventSource.Builder {
                 scheduler,
                 false,
                 null,
-                true
+                true,
+                configuration.tempDirectory()
             );
             owner.registerCloseable(eventSource);
             return eventSource;

@@ -33,6 +33,7 @@ import org.reactivestreams.Subscription;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -43,6 +44,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 
 /**
@@ -57,6 +60,8 @@ final class JaxRsSseEventSource implements SseEventSource {
     private final boolean closeScheduler;
     private final boolean closeSseClient;
     private final List<EventConsumer> consumers = new ArrayList<>();
+    private final @Nullable Path tempDirectory;
+    private final Lock lock = new ReentrantLock();
     private final AtomicBoolean open = new AtomicBoolean();
     private final AtomicBoolean closeRequested = new AtomicBoolean();
     private final AtomicBoolean resourcesClosed = new AtomicBoolean();
@@ -67,7 +72,7 @@ final class JaxRsSseEventSource implements SseEventSource {
     private @Nullable SseClient sseClient;
 
     JaxRsSseEventSource(WebTarget target, long reconnectDelayMillis) {
-        this(target, reconnectDelayMillis, null, true, null, true);
+        this(target, reconnectDelayMillis, null, true, null, true, null);
     }
 
     JaxRsSseEventSource(WebTarget target,
@@ -75,39 +80,51 @@ final class JaxRsSseEventSource implements SseEventSource {
                         @Nullable ScheduledExecutorService scheduler,
                         boolean closeScheduler,
                         @Nullable SseClient sseClient,
-                        boolean closeSseClient) {
+                        boolean closeSseClient,
+                        @Nullable Path tempDirectory) {
         this.target = target;
         this.reconnectDelayMillis = reconnectDelayMillis;
         this.scheduler = scheduler == null ? defaultScheduler() : scheduler;
         this.closeScheduler = scheduler == null || closeScheduler;
         this.sseClient = sseClient;
         this.closeSseClient = closeSseClient;
+        this.tempDirectory = tempDirectory;
     }
 
     @Override
-    public synchronized void register(Consumer<InboundSseEvent> onEvent) {
+    public void register(Consumer<InboundSseEvent> onEvent) {
         register(onEvent, ignored -> {
         }, () -> {
         });
     }
 
     @Override
-    public synchronized void register(Consumer<InboundSseEvent> onEvent, Consumer<Throwable> onError) {
+    public void register(Consumer<InboundSseEvent> onEvent, Consumer<Throwable> onError) {
         register(onEvent, onError, () -> {
         });
     }
 
     @Override
-    public synchronized void register(Consumer<InboundSseEvent> onEvent, Consumer<Throwable> onError, Runnable onComplete) {
-        consumers.add(new EventConsumer(onEvent, onError, onComplete));
+    public void register(Consumer<InboundSseEvent> onEvent, Consumer<Throwable> onError, Runnable onComplete) {
+        lock.lock();
+        try {
+            consumers.add(new EventConsumer(onEvent, onError, onComplete));
+        } finally {
+            lock.unlock();
+        }
     }
 
     @Override
-    public synchronized void open() {
-        if (!open.compareAndSet(false, true)) {
-            return;
+    public void open() {
+        lock.lock();
+        try {
+            if (!open.compareAndSet(false, true)) {
+                return;
+            }
+            connect();
+        } finally {
+            lock.unlock();
         }
-        connect();
     }
 
     private void connect() {
@@ -130,7 +147,10 @@ final class JaxRsSseEventSource implements SseEventSource {
 
             @Override
             public void onNext(Event<ByteBuffer<?>> event) {
-                InboundSseEvent inboundEvent = new JaxRsInboundSseEvent(Event.of(event, event.getData().toString(StandardCharsets.UTF_8)));
+                InboundSseEvent inboundEvent = new JaxRsInboundSseEvent(
+                    Event.of(event, event.getData().toString(StandardCharsets.UTF_8)),
+                    tempDirectory
+                );
                 if (inboundEvent.isReconnectDelaySet()) {
                     reconnectDelayMillis = inboundEvent.getReconnectDelay();
                 }
@@ -191,11 +211,16 @@ final class JaxRsSseEventSource implements SseEventSource {
         }
     }
 
-    private synchronized void complete() {
-        if (open.getAndSet(false)) {
-            closeResources();
-        } else if (closeRequested.get()) {
-            closeResources();
+    private void complete() {
+        lock.lock();
+        try {
+            if (open.getAndSet(false)) {
+                closeResources();
+            } else if (closeRequested.get()) {
+                closeResources();
+            }
+        } finally {
+            lock.unlock();
         }
     }
 
@@ -215,15 +240,20 @@ final class JaxRsSseEventSource implements SseEventSource {
         }
     }
 
-    private synchronized void scheduleReconnect(long delayMillis) {
-        if (closeRequested.get()) {
-            return;
+    private void scheduleReconnect(long delayMillis) {
+        lock.lock();
+        try {
+            if (closeRequested.get()) {
+                return;
+            }
+            ScheduledFuture<?> task = reconnectTask;
+            if (task != null) {
+                task.cancel(false);
+            }
+            reconnectTask = scheduler.schedule(this::connect, Math.max(0L, delayMillis), TimeUnit.MILLISECONDS);
+        } finally {
+            lock.unlock();
         }
-        ScheduledFuture<?> task = reconnectTask;
-        if (task != null) {
-            task.cancel(false);
-        }
-        reconnectTask = scheduler.schedule(this::connect, Math.max(0L, delayMillis), TimeUnit.MILLISECONDS);
     }
 
     private static boolean isRecoverable(Throwable throwable) {
@@ -244,16 +274,21 @@ final class JaxRsSseEventSource implements SseEventSource {
         return reconnectDelayMillis;
     }
 
-    private synchronized SseClient sseClient() {
-        if (sseClient == null) {
-            URI uri = target.getUri();
-            try {
-                sseClient = SseClient.create(uri.toURL());
-            } catch (MalformedURLException e) {
-                throw new IllegalArgumentException("Invalid SSE target URI: " + uri, e);
+    private SseClient sseClient() {
+        lock.lock();
+        try {
+            if (sseClient == null) {
+                URI uri = target.getUri();
+                try {
+                    sseClient = SseClient.create(uri.toURL());
+                } catch (MalformedURLException e) {
+                    throw new IllegalArgumentException("Invalid SSE target URI: " + uri, e);
+                }
             }
+            return sseClient;
+        } finally {
+            lock.unlock();
         }
-        return sseClient;
     }
 
     private static ScheduledExecutorService defaultScheduler() {

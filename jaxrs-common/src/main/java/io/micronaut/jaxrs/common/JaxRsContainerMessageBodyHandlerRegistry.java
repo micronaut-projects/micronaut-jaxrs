@@ -71,7 +71,7 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
         if (lookup.candidates().isEmpty()) {
             return null;
         }
-        Annotation[] annotations = JaxRsArgumentUtil.synthesizeAnnotations(type);
+        Annotation[] annotations = JaxRsArgumentUtil.synthesizeEntityAnnotations(type);
         for (ReaderCandidate candidate : lookup.candidates()) {
             for (jakarta.ws.rs.core.MediaType mediaType : lookup.mediaTypes()) {
                 if (candidate.delegate().isReadable(theType, genericType, annotations, mediaType)) {
@@ -89,7 +89,7 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
         if (lookup.candidates().isEmpty()) {
             return null;
         }
-        Annotation[] annotations = JaxRsArgumentUtil.synthesizeAnnotations(type);
+        Annotation[] annotations = JaxRsArgumentUtil.synthesizeEntityAnnotations(type);
         for (WriterCandidate candidate : lookup.candidates()) {
             for (jakarta.ws.rs.core.MediaType mediaType : lookup.mediaTypes()) {
                 if (candidate.delegate().isWriteable(theType, genericType, annotations, mediaType)) {

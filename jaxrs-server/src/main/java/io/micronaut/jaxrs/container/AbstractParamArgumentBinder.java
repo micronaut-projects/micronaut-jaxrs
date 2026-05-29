@@ -25,7 +25,7 @@ import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.bind.binders.AnnotatedRequestArgumentBinder;
 import io.micronaut.http.bind.binders.RequestArgumentBinder;
-import io.micronaut.jaxrs.common.JaxRsBindableMetadata;
+import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.ext.ParamConverter;
 import jakarta.ws.rs.ext.ParamConverterProvider;
@@ -187,7 +187,7 @@ abstract class AbstractParamArgumentBinder<A extends Annotation, T> extends Abst
         if (value != null) {
             return value;
         }
-        return argument.getAnnotationMetadata().stringValue(Bindable.class, JaxRsBindableMetadata.MEMBER_DEFAULT_VALUE).orElse(null);
+        return argument.getAnnotationMetadata().stringValue(Bindable.class, JaxRsArgumentUtil.MEMBER_DEFAULT_VALUE).orElse(null);
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
