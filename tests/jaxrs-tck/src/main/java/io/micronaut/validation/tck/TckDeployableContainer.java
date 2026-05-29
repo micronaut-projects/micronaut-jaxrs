@@ -17,11 +17,16 @@ package io.micronaut.validation.tck;
 
 import io.micronaut.context.ApplicationContext;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.jaxrs.common.MicronautRuntimeDelegate;
 import io.micronaut.runtime.server.EmbeddedServer;
 import io.micronaut.validation.tck.runtime.TestClassVisitor;
+import jakarta.ws.rs.ext.RuntimeDelegate;
 import org.jboss.arquillian.container.spi.client.container.DeployableContainer;
 import org.jboss.arquillian.container.spi.client.protocol.ProtocolDescription;
+import org.jboss.arquillian.container.spi.client.protocol.metadata.HTTPContext;
 import org.jboss.arquillian.container.spi.client.protocol.metadata.ProtocolMetaData;
+import org.jboss.arquillian.container.spi.client.protocol.metadata.Servlet;
+import org.jboss.arquillian.container.test.api.Deployment;
 import org.jboss.arquillian.container.spi.context.annotation.DeploymentScoped;
 import org.jboss.arquillian.core.api.Instance;
 import org.jboss.arquillian.core.api.InstanceProducer;
@@ -36,6 +41,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
 import java.nio.file.Files;
@@ -114,6 +120,7 @@ public final class TckDeployableContainer implements DeployableContainer<TckCont
 
     @Override
     public ProtocolMetaData deploy(Archive<?> archive) {
+        RuntimeDelegate.setInstance(new MicronautRuntimeDelegate());
         if (archive instanceof LibraryContainer<?> libraryContainer) {
             libraryContainer.addAsLibrary(buildSupportLibrary());
         } else {
@@ -126,21 +133,23 @@ public final class TckDeployableContainer implements DeployableContainer<TckCont
         Class<?> testJavaClass = testClass.get().getJavaClass();
         Objects.requireNonNull(testJavaClass);
 
+        ProtocolMetaData protocolMetaData = null;
         try {
             DeploymentDir deploymentDir = new DeploymentDir();
             this.deploymentDir.set(deploymentDir);
 
-            new ArchiveCompiler(deploymentDir, archive).compile();
+            new ArchiveCompiler(deploymentDir, archive, testJavaClass).compile();
 
             ClassLoader classLoader = new DeploymentClassLoader(deploymentDir);
             applicationClassLoader.set(classLoader);
+            String contextPath = deploymentContextPath(archive);
 
             ApplicationContext applicationContext = ApplicationContext.builder()
                 .properties(Map.of(
                     "micronaut.server.port", 0,
                     "micronaut.server.dispatch-options-requests", true,
                     "micronaut.server.not-found-on-missing-body", false,
-                    "micronaut.server.context-path", archive.getName().replaceAll("\\.war$", "")
+                    "micronaut.server.context-path", contextPath
                 ))
                 .classLoader(classLoader)
                 .build()
@@ -156,6 +165,7 @@ public final class TckDeployableContainer implements DeployableContainer<TckCont
             runningApplicationContext.set(applicationContext);
             APP.set(applicationContext);
             Thread.currentThread().setContextClassLoader(classLoader);
+            protocolMetaData = createProtocolMetaData(embeddedServer, contextPath, testJavaClass);
 
         } catch (Throwable e) {
             throw new RuntimeException(e);
@@ -163,7 +173,7 @@ public final class TckDeployableContainer implements DeployableContainer<TckCont
             Thread.currentThread().setContextClassLoader(old);
         }
 
-        return new ProtocolMetaData();
+        return Objects.requireNonNull(protocolMetaData);
     }
 
     @Override
@@ -181,6 +191,7 @@ public final class TckDeployableContainer implements DeployableContainer<TckCont
                 deleteDirectory(deploymentDir.root);
             }
         } finally {
+            RuntimeDelegate.setInstance(new MicronautRuntimeDelegate());
             Thread.currentThread().setContextClassLoader(old);
         }
     }
@@ -216,6 +227,14 @@ public final class TckDeployableContainer implements DeployableContainer<TckCont
     }
 
     private static boolean isDeploymentForCurrentTest(Archive<?> archive, Class<?> testJavaClass) {
+        String archiveName = normalizedArchiveName(archive);
+        String packageMarker = packageDeploymentMarker(testJavaClass.getPackageName());
+        if (!packageMarker.isEmpty() && archiveName.contains(packageMarker)) {
+            return true;
+        }
+        if (hasDeclaredDeployment(testJavaClass) && isInheritedDeploymentArchive(archiveName, testJavaClass)) {
+            return false;
+        }
         String packageName = testJavaClass.getPackageName();
         int lastSeparator = packageName.lastIndexOf('.');
         if (lastSeparator < 0) {
@@ -231,9 +250,53 @@ public final class TckDeployableContainer implements DeployableContainer<TckCont
         }
         String previousPackageSegment = packageName.substring(previousSeparator + 1, lastSeparator);
         String deploymentMarker = previousPackageSegment + '_' + lastPackageSegment;
+        return archiveName.contains(deploymentMarker);
+    }
+
+    private static String normalizedArchiveName(Archive<?> archive) {
         return archive.getName()
             .replace('-', '_')
-            .toLowerCase(Locale.ROOT)
-            .contains(deploymentMarker);
+            .toLowerCase(Locale.ROOT);
+    }
+
+    private static String deploymentContextPath(Archive<?> archive) {
+        return "/" + archive.getName().replaceAll("\\.war$", "");
+    }
+
+    private static ProtocolMetaData createProtocolMetaData(EmbeddedServer embeddedServer,
+                                                           String contextPath,
+                                                           Class<?> testJavaClass) {
+        HTTPContext httpContext = new HTTPContext(embeddedServer.getHost(), embeddedServer.getPort());
+        httpContext.add(new Servlet(testJavaClass.getSimpleName(), contextPath));
+        return new ProtocolMetaData().addContext(httpContext);
+    }
+
+    private static String packageDeploymentMarker(String packageName) {
+        String rootPackage = "ee.jakarta.tck.ws.rs.";
+        if (!packageName.startsWith(rootPackage)) {
+            return "";
+        }
+        return packageName.substring(rootPackage.length()).replace('.', '_');
+    }
+
+    private static boolean hasDeclaredDeployment(Class<?> testJavaClass) {
+        for (Method method : testJavaClass.getDeclaredMethods()) {
+            if (method.isAnnotationPresent(Deployment.class)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isInheritedDeploymentArchive(String archiveName, Class<?> testJavaClass) {
+        Class<?> current = testJavaClass.getSuperclass();
+        while (current != null && current != Object.class) {
+            String marker = packageDeploymentMarker(current.getPackageName());
+            if (!marker.isEmpty() && archiveName.contains(marker)) {
+                return true;
+            }
+            current = current.getSuperclass();
+        }
+        return false;
     }
 }

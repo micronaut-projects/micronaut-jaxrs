@@ -13,23 +13,39 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.micronaut.jaxrs.container;
+package io.micronaut.jaxrs.common;
+
+import io.micronaut.core.annotation.Internal;
 
 import java.util.Comparator;
 
 /**
  * Jakarta REST request matching score for a route URI template.
+ *
+ * @param literalCharacters The number of literal characters in the template.
+ * @param capturingGroups The number of capturing groups in the template.
+ * @param nonDefaultCapturingGroups The number of capturing groups with non-default regular expressions.
  */
-record JaxRsRouteScore(int literalCharacters,
-                       int capturingGroups,
-                       int nonDefaultCapturingGroups) {
+@Internal
+public record JaxRsRouteScore(int literalCharacters,
+                              int capturingGroups,
+                              int nonDefaultCapturingGroups) {
 
-    static final Comparator<JaxRsRouteScore> COMPARATOR = Comparator
+    /**
+     * Comparator that orders scores according to the Jakarta REST request matching precedence.
+     */
+    public static final Comparator<JaxRsRouteScore> COMPARATOR = Comparator
         .comparingInt(JaxRsRouteScore::literalCharacters)
         .thenComparingInt(JaxRsRouteScore::capturingGroups)
         .thenComparingInt(JaxRsRouteScore::nonDefaultCapturingGroups);
 
-    static JaxRsRouteScore of(String template) {
+    /**
+     * Computes the matching score for a URI template.
+     *
+     * @param template The URI template.
+     * @return The route score.
+     */
+    public static JaxRsRouteScore of(String template) {
         int literalCharacters = 0;
         int capturingGroups = 0;
         int nonDefaultCapturingGroups = 0;

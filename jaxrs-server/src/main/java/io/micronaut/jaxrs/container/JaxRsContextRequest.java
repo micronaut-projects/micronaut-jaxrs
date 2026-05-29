@@ -47,6 +47,16 @@ final class JaxRsContextRequest implements Request {
 
     static final String SELECT_VARIANT_VARY = JaxRsContextRequest.class.getName() + ".selectVariant.vary";
 
+    private final @Nullable HttpRequest<?> request;
+
+    JaxRsContextRequest() {
+        this(null);
+    }
+
+    JaxRsContextRequest(@Nullable HttpRequest<?> request) {
+        this.request = request;
+    }
+
     @Override
     public String getMethod() {
         return currentRequest().getMethodName();
@@ -120,7 +130,14 @@ final class JaxRsContextRequest implements Request {
         return null;
     }
 
-    private static HttpRequest<?> currentRequest() {
+    private HttpRequest<?> currentRequest() {
+        if (request != null) {
+            return request;
+        }
+        return currentServerRequest();
+    }
+
+    private static HttpRequest<?> currentServerRequest() {
         return ServerRequestContext.currentRequest()
             .orElseThrow(() -> new IllegalStateException("Current request not available"));
     }

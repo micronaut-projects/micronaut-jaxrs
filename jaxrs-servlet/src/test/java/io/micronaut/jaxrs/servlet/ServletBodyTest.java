@@ -15,6 +15,7 @@ import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.ws.rs.core.HttpHeaders;
 import java.util.UUID;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
 @MicronautTest
@@ -36,7 +37,7 @@ public class ServletBodyTest {
 //    @Bean
     static class RobotResource extends AbstractSimpleRobotBaseResource {
         @Override
-        public SimpleRobot createSimpleRobot(CreateSimpleRobotDetails createSimpleRobotDetails, String opcRetryToken, String opcRequestId, HttpHeaders httpHeadersContext, HttpServletResponse httpServletResponse) {
+        public SimpleRobot createSimpleRobot(CreateSimpleRobotDetails createSimpleRobotDetails, @Nullable String opcRetryToken, @Nullable String opcRequestId, HttpHeaders httpHeadersContext, HttpServletResponse httpServletResponse) {
             httpServletResponse.addHeader("request-id", UUID.randomUUID().toString());
             return new SimpleRobot(UUID.randomUUID().toString(), createSimpleRobotDetails.type());
         }
@@ -52,9 +53,9 @@ public class ServletBodyTest {
         public abstract SimpleRobot createSimpleRobot(
             CreateSimpleRobotDetails createSimpleRobotDetails,
 
-            @jakarta.ws.rs.HeaderParam("opc-retry-token") String opcRetryToken,
+            @Nullable @jakarta.ws.rs.HeaderParam("opc-retry-token") String opcRetryToken,
 
-            @jakarta.ws.rs.HeaderParam("opc-request-id") String opcRequestId
+            @Nullable @jakarta.ws.rs.HeaderParam("opc-request-id") String opcRequestId
             ,
             @jakarta.ws.rs.core.Context jakarta.ws.rs.core.HttpHeaders httpHeadersContext,
 

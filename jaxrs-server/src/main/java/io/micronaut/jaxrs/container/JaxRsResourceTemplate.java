@@ -43,12 +43,52 @@ public @interface JaxRsResourceTemplate {
     int rootPathSegmentCount() default -1;
 
     /**
+     * @return The root resource class Jakarta REST template.
+     */
+    String rootTemplate() default "";
+
+    /**
      * @return The root resource class name that owns the Jakarta REST route.
      */
     String rootClassName() default "";
 
     /**
+     * @return The Jakarta REST HTTP method name resolved at build time.
+     */
+    String httpMethod() default "";
+
+    /**
      * @return The route variable names that only exist to match optional matrix parameters.
      */
     String[] matrixRouteVariableNames() default {};
+
+    /**
+     * @return The number of literal characters in the original Jakarta REST resource template.
+     */
+    int literalCharacters() default -1;
+
+    /**
+     * @return The number of capturing groups in the original Jakarta REST resource template.
+     */
+    int capturingGroups() default -1;
+
+    /**
+     * @return The number of non-default capturing groups in the original Jakarta REST resource template.
+     */
+    int nonDefaultCapturingGroups() default -1;
+
+    /**
+     * @return The number of literal characters in the root resource class Jakarta REST template.
+     */
+    int rootLiteralCharacters() default -1;
+
+    /**
+     * @return The number of capturing groups in the root resource class Jakarta REST template.
+     */
+    int rootCapturingGroups() default -1;
+
+    /**
+     * @return The number of non-default capturing groups in the root resource class Jakarta REST template.
+     */
+    int rootNonDefaultCapturingGroups() default -1;
 }

@@ -6,6 +6,7 @@ dependencies {
     implementation(mn.micronaut.aop)
     implementation(mn.micronaut.http)
     api(projects.micronautJaxrsCommon)
+    implementation(projects.micronautJaxrsClient)
     implementation(projects.micronautJaxrsServer)
     api(libs.managed.jaxrs.api)
 

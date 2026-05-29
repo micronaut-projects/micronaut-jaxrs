@@ -17,9 +17,11 @@ package io.micronaut.jaxrs.runtime.ext.bind;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.util.StringUtils;
+import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.annotation.HttpMethodMapping;
 import io.micronaut.jaxrs.container.JaxRsResourceTemplate;
+import io.micronaut.jaxrs.common.JaxRsResourceTemplateMetadata;
 import io.micronaut.web.router.MethodBasedRouteMatch;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.RouteMatch;
@@ -126,10 +128,13 @@ public final class UriInfoImpl implements UriInfo {
                 String[] segmentTokens = token.split(";");
                 MultivaluedMap<String, String> params = new MultiMapNullPermitted<>();
                 for (int i = 1; i < segmentTokens.length; ++i) {
+                    if (segmentTokens[i].isEmpty()) {
+                        continue;
+                    }
                     String[] keyVal = segmentTokens[i].split("=", 2);
                     String key = keyVal[0];
-                    String val = keyVal.length > 1 ? keyVal[1] : null;
-                    params.add(getPath(key, decode), getPath(val, decode));
+                    String val = keyVal.length > 1 ? getPath(keyVal[1], decode) : null;
+                    params.add(getPath(key, decode), val);
                 }
                 return new UriPathSegment(getPath(segmentTokens[0], decode), params);
             })
@@ -198,17 +203,23 @@ public final class UriInfoImpl implements UriInfo {
             builder.append(scheme).append("://").append(rawAuthority);
         } else {
             scheme = request.isSecure() ? HttpRequest.SCHEME_HTTPS : HttpRequest.SCHEME_HTTP;
-            String host = request.getServerName();
-            int port = uri.getPort();
-            InetSocketAddress serverAddress = request.getServerAddress();
-            if ((host == null || host.isBlank()) && serverAddress != null) {
-                host = serverAddress.getHostString();
+            String authority = request.getHeaders().get(HttpHeaders.HOST);
+            if (StringUtils.isEmpty(authority)) {
+                String host = request.getServerName();
+                int port = uri.getPort();
+                InetSocketAddress serverAddress = request.getServerAddress();
+                if ((host == null || host.isBlank()) && serverAddress != null) {
+                    host = serverAddress.getHostString();
+                }
+                if (port < 0 && serverAddress != null) {
+                    port = serverAddress.getPort();
+                }
+                if (host != null && !host.isBlank()) {
+                    authority = authority(host, port);
+                }
             }
-            if (port < 0 && serverAddress != null) {
-                port = serverAddress.getPort();
-            }
-            if (host != null && !host.isBlank()) {
-                builder.append(scheme).append("://").append(authority(host, port));
+            if (StringUtils.isNotEmpty(authority)) {
+                builder.append(scheme).append("://").append(authority);
             }
         }
         if (!rawPath.startsWith("/")) {
@@ -285,7 +296,6 @@ public final class UriInfoImpl implements UriInfo {
         return map;
     }
 
-
     @Override
     public List<String> getMatchedURIs() {
         return getMatchedURIs(true);
@@ -340,7 +350,7 @@ public final class UriInfoImpl implements UriInfo {
 
     private static String rootResourceUri(RouteMatch<?> match, String matchedUri) {
         OptionalInt rootPathSegmentCount = match.getAnnotationMetadata()
-            .intValue(JaxRsResourceTemplate.class, "rootPathSegmentCount");
+            .intValue(JaxRsResourceTemplate.class, JaxRsResourceTemplateMetadata.MEMBER_ROOT_PATH_SEGMENT_COUNT);
         if (rootPathSegmentCount.isPresent() && rootPathSegmentCount.getAsInt() > -1) {
             return firstPathSegments(matchedUri, rootPathSegmentCount.getAsInt());
         }

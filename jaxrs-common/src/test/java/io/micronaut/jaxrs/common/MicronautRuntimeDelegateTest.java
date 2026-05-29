@@ -15,9 +15,14 @@
  */
 package io.micronaut.jaxrs.common;
 
+import jakarta.ws.rs.SeBootstrap;
 import jakarta.ws.rs.core.Application;
 import org.junit.jupiter.api.Test;
 
+import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class MicronautRuntimeDelegateTest {
@@ -38,5 +43,67 @@ class MicronautRuntimeDelegateTest {
             UnsupportedOperationException.class,
             () -> delegate.createEndpoint(new Application(), Object.class)
         );
+    }
+
+    @Test
+    void createsSeBootstrapConfigurationWithDefaults() {
+        SeBootstrap.Configuration configuration = delegate.createConfigurationBuilder().build();
+
+        assertEquals("HTTP", configuration.protocol());
+        assertEquals("localhost", configuration.host());
+        assertEquals(SeBootstrap.Configuration.DEFAULT_PORT, configuration.port());
+        assertEquals("/", configuration.rootPath());
+    }
+
+    @Test
+    void createsSeBootstrapConfigurationFromPropertiesAndExternalSource() {
+        SeBootstrap.Configuration configuration = delegate.createConfigurationBuilder()
+            .property(SeBootstrap.Configuration.PROTOCOL, "HTTP")
+            .from((property, type) -> {
+                if (property.equals(SeBootstrap.Configuration.HOST)) {
+                    return Optional.of(type.cast("127.0.0.1"));
+                }
+                if (property.equals(SeBootstrap.Configuration.PORT)) {
+                    return Optional.of(type.cast(8080));
+                }
+                if (property.equals(SeBootstrap.Configuration.ROOT_PATH)) {
+                    return Optional.of(type.cast("/root/path"));
+                }
+                return Optional.empty();
+            })
+            .build();
+
+        assertEquals("HTTP", configuration.protocol());
+        assertEquals("127.0.0.1", configuration.host());
+        assertEquals(8080, configuration.port());
+        assertEquals("/root/path", configuration.rootPath());
+    }
+
+    @Test
+    void seBootstrapFailsFastInsteadOfRecursing() {
+        SeBootstrap.Configuration configuration = delegate.createConfigurationBuilder().build();
+
+        ExecutionException exception = assertThrows(
+            ExecutionException.class,
+            () -> delegate.bootstrap(new Application(), configuration).toCompletableFuture().get()
+        );
+        assertEquals(UnsupportedOperationException.class, exception.getCause().getClass());
+    }
+
+    @Test
+    void seBootstrapByApplicationClassFailsFastInsteadOfReflectiveInstantiation() {
+        SeBootstrap.Configuration configuration = delegate.createConfigurationBuilder().build();
+
+        ExecutionException exception = assertThrows(
+            ExecutionException.class,
+            () -> delegate.bootstrap(UninstantiableApplication.class, configuration).toCompletableFuture().get()
+        );
+        assertEquals(UnsupportedOperationException.class, exception.getCause().getClass());
+    }
+
+    static final class UninstantiableApplication extends Application {
+        private UninstantiableApplication() {
+            throw new AssertionError("The common runtime delegate must not instantiate application classes reflectively");
+        }
     }
 }

@@ -4,6 +4,7 @@ import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.HttpStatus;
+import io.micronaut.http.MutableHttpRequest;
 import io.micronaut.http.client.HttpClient;
 import io.micronaut.http.client.annotation.Client;
 import io.micronaut.http.client.exceptions.HttpClientResponseException;
@@ -15,6 +16,8 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @MicronautTest
@@ -23,6 +26,29 @@ class RequestContextTest {
     @Inject
     @Client("/")
     HttpClient client;
+
+    @Inject
+    ApplicationProvider applicationProvider;
+
+    @Test
+    void requestContextPropertiesUseRequestAttributes() {
+        MutableHttpRequest<?> request = HttpRequest.GET("/");
+        request.setAttribute("existing", "value");
+        JaxRsContainerRequestContext context = new JaxRsContainerRequestContext(request, applicationProvider);
+
+        assertEquals("value", context.getProperty("existing"));
+        assertTrue(context.hasProperty("existing"));
+
+        context.setProperty("from-context", "seen");
+        assertEquals("seen", request.getAttributes().getValue("from-context"));
+
+        request.setAttribute("from-request", "visible");
+        assertEquals("visible", context.getProperty("from-request"));
+
+        context.setProperty("from-context", null);
+        assertFalse(context.hasProperty("from-context"));
+        assertThrows(UnsupportedOperationException.class, () -> context.getPropertyNames().add("blocked"));
+    }
 
     @Test
     void requestMethodUsesCurrentHttpMethod() {
@@ -92,6 +118,24 @@ class RequestContextTest {
         assertEquals(HttpStatus.OK, oldUnmodified);
         assertEquals(HttpStatus.OK, nowModified);
         assertEquals(HttpStatus.PRECONDITION_FAILED, nowUnmodified);
+    }
+
+    @Test
+    void preMatchingRequestFilterCanRerouteWithSetRequestUri() {
+        String body = client.toBlocking()
+            .retrieve(HttpRequest.GET("/api/request-context/reroute/source")
+                .header(TestRequestContextResource.REROUTE_HEADER, "true"), String.class);
+
+        assertEquals("target", body);
+    }
+
+    @Test
+    void preMatchingRequestFilterCanRerouteWithSetMethod() {
+        String body = client.toBlocking()
+            .retrieve(HttpRequest.GET("/api/request-context/method-switch")
+                .header(TestRequestContextResource.METHOD_OVERRIDE_HEADER, "OPTIONS"), String.class);
+
+        assertEquals("OPTIONS", body);
     }
 
     private HttpStatus status(HttpRequest<?> request) {

@@ -4,6 +4,8 @@ Include the following client dependency:
 
 dependency:micronaut-jaxrs-client[scope="implementation",groupId="io.micronaut.jaxrs"]
 
+For the full Jakarta REST compliance dependency set, including optional reflection, JSON-B, XML/JAXB, and SSE support, see <<specCompliance,Spec Compliance>>.
+
 ==== Filters
 
 Micronaut JAX-RS supports following JAX-RS client API:

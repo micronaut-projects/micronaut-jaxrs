@@ -208,7 +208,7 @@ final class JaxRsContainerResponseContext implements ContainerResponseContext {
 
     @Override
     public Annotation[] getEntityAnnotations() {
-        return bodyArgument.getAnnotationMetadata().synthesizeAll();
+        return JaxRsArgumentUtil.synthesizeEntityAnnotations(bodyArgument);
     }
 
     @Override

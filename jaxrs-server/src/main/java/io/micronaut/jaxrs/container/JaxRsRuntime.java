@@ -44,6 +44,11 @@ public class JaxRsRuntime {
             if (application.getClass() == JaxRsApplication.class) {
                 continue;
             }
+            for (Object singleton : application.getSingletons()) {
+                if (!applicationContext.containsBean(singleton.getClass())) {
+                    applicationContext.registerSingleton(singleton);
+                }
+            }
             applicationContext.getEnvironment().addPropertySource(
                 PropertySource.of(
                     application.getClass().getName(),

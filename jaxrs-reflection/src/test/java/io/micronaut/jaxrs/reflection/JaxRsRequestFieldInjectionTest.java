@@ -20,6 +20,7 @@ import io.micronaut.context.ApplicationContext;
 import io.micronaut.context.annotation.Property;
 import io.micronaut.context.annotation.Requires;
 import io.micronaut.core.annotation.AnnotationMetadata;
+import io.micronaut.core.annotation.Introspected;
 import io.micronaut.core.bind.ArgumentBinder;
 import io.micronaut.core.bind.annotation.Bindable;
 import io.micronaut.core.convert.ConversionContext;
@@ -27,6 +28,7 @@ import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.BasicHttpAttributes;
 import io.micronaut.http.HttpRequest;
+import io.micronaut.http.annotation.RequestBean;
 import io.micronaut.http.bind.RequestBinderRegistry;
 import io.micronaut.http.cookie.Cookie;
 import io.micronaut.http.context.ServerRequestContext;
@@ -158,6 +160,25 @@ class JaxRsRequestFieldInjectionTest {
         String response = ServerRequestContext.with(pathRequest("/path-field-default/{color}", "/path-field-default/blue"), (Supplier<String>) resource::get);
 
         assertEquals("green", response);
+    }
+
+    @Test
+    void requestBeanBinderUsesIntrospectionMetadata() {
+        MutableAnnotationMetadata annotationMetadata = new MutableAnnotationMetadata();
+        annotationMetadata.addAnnotation(RequestBean.class.getName(), Map.of());
+        annotationMetadata.addStereotype(List.of(RequestBean.class.getName()), Bindable.class.getName(), Map.of());
+        Argument<BeanParamRequest> argument = Argument.of(BeanParamRequest.class, "bean", annotationMetadata);
+
+        @SuppressWarnings("unchecked")
+        ArgumentBinder<BeanParamRequest, HttpRequest<?>> binder = (ArgumentBinder<BeanParamRequest, HttpRequest<?>>) binderRegistry
+            .findArgumentBinder(argument)
+            .orElseThrow();
+        BeanParamRequest bean = binder.bind(ConversionContext.of(argument), HttpRequest.GET("/bean?jaxrs-color=blue"))
+            .getValue()
+            .orElseThrow();
+
+        assertInstanceOf(JaxRsRequestBeanAnnotationBinder.class, binder);
+        assertEquals("blue", bean.color);
     }
 
     @Test
@@ -418,6 +439,12 @@ class JaxRsRequestFieldInjectionTest {
         public String convertedList(@HeaderParam("X-Value") List<ConvertedHeaderParam> value) {
             return value.get(0).value;
         }
+    }
+
+    @Introspected(accessKind = Introspected.AccessKind.FIELD, visibility = Introspected.Visibility.ANY)
+    static final class BeanParamRequest {
+        @QueryParam("jaxrs-color")
+        String color;
     }
 
     static final class ConvertedQueryParam {

@@ -184,6 +184,33 @@ class Test {
 
     }
 
+    void "test empty root path maps to root"() {
+        given:
+        def definition = buildBeanDefinition('test.Test', """
+package test;
+
+@jakarta.ws.rs.Path("")
+class Test {
+
+    @jakarta.ws.rs.GET
+    @jakarta.ws.rs.Produces("text/plain")
+    String test() {
+        return "ok";
+    }
+}
+""")
+
+        def method = definition.getRequiredMethod("test")
+
+        expect:
+        definition.stringValue(Controller)
+                .get() == '/'
+        method.hasAnnotation(Get)
+        method.stringValue(HttpMethodMapping)
+                .get() == '/'
+        method.stringValue(Produces)
+                .get() == 'text/plain'
+    }
 
     void "test mapping with validation"() {
         given:

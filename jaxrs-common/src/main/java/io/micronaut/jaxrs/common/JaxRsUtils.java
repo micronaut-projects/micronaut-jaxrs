@@ -88,4 +88,8 @@ public final class JaxRsUtils {
         return mediaType == null ? null : MediaType.of(mediaType.toString());
     }
 
+    public static boolean isConcreteMediaType(jakarta.ws.rs.core.MediaType mediaType) {
+        return mediaType != null && !mediaType.isWildcardType() && !mediaType.isWildcardSubtype();
+    }
+
 }

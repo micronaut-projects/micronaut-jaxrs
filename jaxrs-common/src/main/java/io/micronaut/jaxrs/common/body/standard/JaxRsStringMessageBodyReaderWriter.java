@@ -21,6 +21,7 @@ import io.micronaut.core.annotation.Order;
 import io.micronaut.core.io.IOUtils;
 import io.micronaut.core.order.Ordered;
 import io.micronaut.jaxrs.common.JaxRsIOException;
+import io.micronaut.jaxrs.common.JaxRsMessageBodyProvider;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
@@ -45,6 +46,12 @@ import java.nio.charset.StandardCharsets;
  * @since 4.6
  */
 @Order(Ordered.LOWEST_PRECEDENCE)
+@JaxRsMessageBodyProvider(
+    readerType = String.class,
+    writerType = String.class,
+    consumes = MediaType.WILDCARD,
+    produces = MediaType.WILDCARD
+)
 @Prototype
 @Internal
 public final class JaxRsStringMessageBodyReaderWriter implements MessageBodyReader<String>, MessageBodyWriter<String> {

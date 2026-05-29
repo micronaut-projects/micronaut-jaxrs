@@ -15,10 +15,12 @@
  */
 package io.micronaut.jaxrs.runtime.ext.bind;
 
+import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.convert.ArgumentConversionContext;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.bind.binders.TypedRequestArgumentBinder;
+import io.micronaut.jaxrs.common.JaxRsSecurityContextAttributes;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.core.SecurityContext;
 
@@ -31,6 +33,7 @@ import java.util.Optional;
  * @author graemerocher
  * @since 3.1.0
  */
+@Internal
 @Singleton
 public class SimpleSecurityContextBinder implements TypedRequestArgumentBinder<SecurityContext> {
 
@@ -38,6 +41,11 @@ public class SimpleSecurityContextBinder implements TypedRequestArgumentBinder<S
 
     @Override
     public BindingResult<SecurityContext> bind(ArgumentConversionContext<SecurityContext> context, HttpRequest<?> source) {
+        SecurityContext securityContext = source.getAttribute(JaxRsSecurityContextAttributes.SECURITY_CONTEXT, SecurityContext.class)
+            .orElse(null);
+        if (securityContext != null) {
+            return () -> Optional.of(securityContext);
+        }
         return () -> Optional.of(new SimpleSecurityContextImpl(source));
     }
 

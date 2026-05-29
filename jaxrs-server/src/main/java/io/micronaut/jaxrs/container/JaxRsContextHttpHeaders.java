@@ -19,6 +19,7 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.context.ServerHttpRequestContext;
 import io.micronaut.jaxrs.common.JaxRsHttpHeaders;
+import io.micronaut.jaxrs.runtime.ext.bind.HttpHeadersBinder;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.MediaType;
@@ -44,6 +45,10 @@ final class JaxRsContextHttpHeaders implements jakarta.ws.rs.core.HttpHeaders {
         HttpRequest<Object> httpRequest = ServerHttpRequestContext.get();
         if (httpRequest == null) {
             throw new IllegalStateException("Cannot find required request");
+        }
+        Object headers = httpRequest.getAttribute(HttpHeadersBinder.HEADERS_KEY).orElse(null);
+        if (headers instanceof io.micronaut.http.HttpHeaders httpHeaders) {
+            return JaxRsHttpHeaders.forRequest(httpHeaders);
         }
         return JaxRsHttpHeaders.forRequest(httpRequest.getHeaders());
     }

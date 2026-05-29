@@ -1,8 +1,14 @@
 package io.micronaut.validation.tck;
 
+import ee.jakarta.tck.ws.rs.common.JAXRSCommonClient;
+import io.micronaut.jaxrs.client.JaxRsClientBuilder;
+import org.junit.jupiter.api.extension.AfterAllCallback;
+import org.junit.jupiter.api.extension.AfterEachCallback;
+import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ConditionEvaluationResult;
 import org.junit.jupiter.api.extension.ExecutionCondition;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.api.extension.ExtensionContext.Namespace;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
@@ -17,12 +23,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-public class FilterExtension implements ExecutionCondition {
+public class FilterExtension implements ExecutionCondition, BeforeEachCallback, AfterEachCallback, AfterAllCallback {
     private static final String FILTER_MODE_PROPERTY = "micronaut.jaxrs.tck.filter.mode";
     private static final String FAILING_TESTS_PROPERTY = "micronaut.jaxrs.tck.failing-tests";
     private static final String SINGLE_CLASS_PROPERTY = "tckSingleClass";
     private static final String SINGLE_METHOD_PROPERTY = "tckSingleMethod";
+    private static final String TESTING_CLIENT_MARKER = "testingClientMarker";
     private static final String TCK_PACKAGE = "ee.jakarta.tck.ws.rs.";
+    private static final Namespace NAMESPACE = Namespace.create(FilterExtension.class);
     private static final ConditionEvaluationResult ENABLED = ConditionEvaluationResult.enabled(null);
     private static final ConditionEvaluationResult DISABLED = ConditionEvaluationResult.disabled("Disabled by JAX-RS TCK filter");
 
@@ -57,6 +65,28 @@ public class FilterExtension implements ExecutionCondition {
             case INCLUDE_KNOWN_FAILURES -> isIncludedKnownFailure(className, testMethod) ? ENABLED : DISABLED;
             case SINGLE -> isSingleTest(className, testMethod) ? ENABLED : DISABLED;
         };
+    }
+
+    @Override
+    public void beforeEach(ExtensionContext context) {
+        context.getStore(NAMESPACE).put(TESTING_CLIENT_MARKER, JaxRsClientBuilder.markTestingClients());
+        Object testInstance = context.getRequiredTestInstance();
+        if (testInstance instanceof JAXRSCommonClient commonClient) {
+            commonClient.setup();
+        }
+    }
+
+    @Override
+    public void afterEach(ExtensionContext context) {
+        Integer marker = context.getStore(NAMESPACE).remove(TESTING_CLIENT_MARKER, Integer.class);
+        if (marker != null) {
+            JaxRsClientBuilder.closeTestingClientsAfter(marker);
+        }
+    }
+
+    @Override
+    public void afterAll(ExtensionContext context) {
+        JaxRsClientBuilder.closeTestingClients();
     }
 
     private boolean isKnownFailure(String className, Optional<Method> testMethod) {

@@ -18,10 +18,11 @@ package io.micronaut.jaxrs.processor;
 import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.AnnotationValueBuilder;
 import io.micronaut.core.annotation.Internal;
-import org.jspecify.annotations.NonNull;
 import io.micronaut.core.bind.annotation.Bindable;
 import io.micronaut.inject.annotation.NamedAnnotationMapper;
 import io.micronaut.inject.visitor.VisitorContext;
+import io.micronaut.jaxrs.common.JaxRsBindableMetadata;
+import org.jspecify.annotations.NonNull;
 
 import java.lang.annotation.Annotation;
 import java.util.Collections;
@@ -44,7 +45,7 @@ public class DefaultValueMapper implements NamedAnnotationMapper {
     @Override
     public List<AnnotationValue<?>> map(AnnotationValue<Annotation> annotation, VisitorContext visitorContext) {
         final AnnotationValueBuilder<Bindable> builder = AnnotationValue.builder(Bindable.class);
-        annotation.stringValue().ifPresent(s -> builder.member("defaultValue", s));
+        annotation.stringValue().ifPresent(s -> builder.member(JaxRsBindableMetadata.MEMBER_DEFAULT_VALUE, s));
         return Collections.singletonList(builder.build());
     }
 }

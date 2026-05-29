@@ -53,6 +53,8 @@ import java.util.Optional;
 @Prototype
 final class PathParamArgumentBinder<T> extends AbstractParamArgumentBinder<PathParam, T> {
 
+    static final String URI_TEMPLATE_ATTRIBUTE = PathParamArgumentBinder.class.getName() + ".uriTemplate";
+
     /**
      * Constructor.
      *
@@ -182,9 +184,10 @@ final class PathParamArgumentBinder<T> extends AbstractParamArgumentBinder<PathP
     }
 
     private static Optional<String> uriTemplate(HttpRequest<?> source) {
-        return RouteAttributes.getRouteInfo(source)
-            .filter(UriRouteInfo.class::isInstance)
-            .map(routeInfo -> ((UriRouteInfo<?, ?>) routeInfo).getUriMatchTemplate().toString())
+        return source.getAttribute(URI_TEMPLATE_ATTRIBUTE, String.class)
+            .or(() -> RouteAttributes.getRouteInfo(source)
+                .filter(UriRouteInfo.class::isInstance)
+                .map(routeInfo -> ((UriRouteInfo<?, ?>) routeInfo).getUriMatchTemplate().toString()))
             .or(() -> BasicHttpAttributes.getUriTemplate(source));
     }
 

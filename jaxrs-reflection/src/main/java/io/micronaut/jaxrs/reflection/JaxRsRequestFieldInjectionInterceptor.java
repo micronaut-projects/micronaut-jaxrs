@@ -26,14 +26,17 @@ import io.micronaut.core.convert.ConversionContext;
 import io.micronaut.core.convert.exceptions.ConversionErrorException;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpRequest;
+import io.micronaut.http.annotation.RequestBean;
 import io.micronaut.http.bind.RequestBinderRegistry;
 import io.micronaut.http.context.ServerRequestContext;
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.jaxrs.container.JaxRsRequestFieldInjection;
 import jakarta.inject.Singleton;
+import jakarta.ws.rs.BeanParam;
 import jakarta.ws.rs.CookieParam;
 import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.Encoded;
+import jakarta.ws.rs.FormParam;
 import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.MatrixParam;
 import jakarta.ws.rs.PathParam;
@@ -42,6 +45,8 @@ import org.jspecify.annotations.Nullable;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -105,12 +110,12 @@ final class JaxRsRequestFieldInjectionInterceptor implements MethodInterceptor<O
     private static List<RequestField> findRequestFields(Class<?> resourceClass) {
         List<RequestField> fields = new ArrayList<>();
         Class<?> current = resourceClass;
-        boolean encodedResource = resourceClass.isAnnotationPresent(Encoded.class);
+        boolean encodedResource = hasAnnotation(resourceClass, Encoded.class);
         while (current != null && current != Object.class) {
             for (Field field : current.getDeclaredFields()) {
                 if (isInjectableRequestField(field)) {
                     field.setAccessible(true);
-                    fields.add(new RequestField(field, fieldArgument(field, encodedResource || current.isAnnotationPresent(Encoded.class))));
+                    fields.add(new RequestField(field, fieldArgument(field, encodedResource || hasAnnotation(current, Encoded.class))));
                 }
             }
             current = current.getSuperclass();
@@ -120,11 +125,13 @@ final class JaxRsRequestFieldInjectionInterceptor implements MethodInterceptor<O
 
     private static boolean isInjectableRequestField(Field field) {
         int modifiers = field.getModifiers();
-        return (field.isAnnotationPresent(MatrixParam.class)
-            || field.isAnnotationPresent(QueryParam.class)
-            || field.isAnnotationPresent(HeaderParam.class)
-            || field.isAnnotationPresent(CookieParam.class)
-            || field.isAnnotationPresent(PathParam.class))
+        return (hasAnnotation(field, MatrixParam.class)
+            || hasAnnotation(field, QueryParam.class)
+            || hasAnnotation(field, HeaderParam.class)
+            || hasAnnotation(field, CookieParam.class)
+            || hasAnnotation(field, PathParam.class)
+            || hasAnnotation(field, FormParam.class)
+            || hasAnnotation(field, BeanParam.class))
             && !Modifier.isStatic(modifiers)
             && !Modifier.isFinal(modifiers);
     }
@@ -133,30 +140,45 @@ final class JaxRsRequestFieldInjectionInterceptor implements MethodInterceptor<O
     private static Argument<Object> fieldArgument(Field field, boolean encodedResource) {
         Argument<?> rawArgument = Argument.of(field.getGenericType());
         MutableAnnotationMetadata annotationMetadata = new MutableAnnotationMetadata();
-        MatrixParam matrixParam = field.getAnnotation(MatrixParam.class);
-        QueryParam queryParam = field.getAnnotation(QueryParam.class);
-        HeaderParam headerParam = field.getAnnotation(HeaderParam.class);
-        CookieParam cookieParam = field.getAnnotation(CookieParam.class);
-        PathParam pathParam = field.getAnnotation(PathParam.class);
+        Annotation matrixParam = findAnnotation(field, MatrixParam.class);
+        Annotation queryParam = findAnnotation(field, QueryParam.class);
+        Annotation headerParam = findAnnotation(field, HeaderParam.class);
+        Annotation cookieParam = findAnnotation(field, CookieParam.class);
+        Annotation pathParam = findAnnotation(field, PathParam.class);
+        Annotation formParam = findAnnotation(field, FormParam.class);
+        Annotation beanParam = findAnnotation(field, BeanParam.class);
         if (matrixParam != null) {
-            addRequestParam(annotationMetadata, MatrixParam.class, matrixParam.value());
-            addBindable(annotationMetadata, MatrixParam.class, matrixParam.value(), fieldDefaultValue(field));
+            String value = annotationValue(matrixParam);
+            addRequestParam(annotationMetadata, MatrixParam.class, value);
+            addBindable(annotationMetadata, MatrixParam.class, value, fieldDefaultValue(field));
         } else if (queryParam != null) {
-            addRequestParam(annotationMetadata, QueryParam.class, queryParam.value());
-            addBindable(annotationMetadata, QueryParam.class, queryParam.value(), fieldDefaultValue(field));
+            String value = annotationValue(queryParam);
+            addRequestParam(annotationMetadata, QueryParam.class, value);
+            addBindable(annotationMetadata, QueryParam.class, value, fieldDefaultValue(field));
         } else if (headerParam != null) {
-            addRequestParam(annotationMetadata, HeaderParam.class, headerParam.value());
-            addBindable(annotationMetadata, HeaderParam.class, headerParam.value(), fieldDefaultValue(field));
+            String value = annotationValue(headerParam);
+            addRequestParam(annotationMetadata, HeaderParam.class, value);
+            addBindable(annotationMetadata, HeaderParam.class, value, fieldDefaultValue(field));
         } else if (cookieParam != null) {
-            addRequestParam(annotationMetadata, CookieParam.class, cookieParam.value());
-            addBindable(annotationMetadata, CookieParam.class, cookieParam.value(), fieldDefaultValue(field));
+            String value = annotationValue(cookieParam);
+            addRequestParam(annotationMetadata, CookieParam.class, value);
+            addBindable(annotationMetadata, CookieParam.class, value, fieldDefaultValue(field));
         } else if (pathParam != null) {
-            addRequestParam(annotationMetadata, PathParam.class, pathParam.value());
-            addBindable(annotationMetadata, PathParam.class, pathParam.value(), fieldDefaultValue(field));
+            String value = annotationValue(pathParam);
+            addRequestParam(annotationMetadata, PathParam.class, value);
+            addBindable(annotationMetadata, PathParam.class, value, fieldDefaultValue(field));
+        } else if (formParam != null) {
+            String value = annotationValue(formParam);
+            addRequestParam(annotationMetadata, FormParam.class, value);
+            addBindable(annotationMetadata, FormParam.class, value, fieldDefaultValue(field));
+        } else if (beanParam != null) {
+            annotationMetadata.addAnnotation(BeanParam.class.getName(), Map.of());
+            annotationMetadata.addAnnotation(RequestBean.class.getName(), Map.of());
+            annotationMetadata.addStereotype(List.of(RequestBean.class.getName()), Bindable.class.getName(), Map.of());
         } else {
             throw new IllegalStateException("Unsupported Jakarta REST request field [" + field + "]");
         }
-        if (encodedResource || field.isAnnotationPresent(Encoded.class)) {
+        if (encodedResource || hasAnnotation(field, Encoded.class)) {
             annotationMetadata.addAnnotation(Encoded.class.getName(), Map.of());
         }
         return (Argument<Object>) Argument.of(
@@ -178,32 +200,57 @@ final class JaxRsRequestFieldInjectionInterceptor implements MethodInterceptor<O
     private static void addBindable(MutableAnnotationMetadata annotationMetadata,
                                     Class<? extends Annotation> annotationType,
                                     String name,
-                                    @Nullable DefaultValue defaultValue) {
+                                    @Nullable String defaultValue) {
         Map<CharSequence, Object> values = new LinkedHashMap<>();
         values.put(AnnotationMetadata.VALUE_MEMBER, name);
         if (defaultValue != null) {
-            values.put("defaultValue", defaultValue.value());
+            values.put("defaultValue", defaultValue);
         }
         annotationMetadata.addStereotype(List.of(annotationType.getName()), Bindable.class.getName(), values);
         annotationMetadata.addAnnotation(Bindable.class.getName(), values);
     }
 
-    private static @Nullable DefaultValue fieldDefaultValue(Field field) {
-        DefaultValue defaultValue = field.getAnnotation(DefaultValue.class);
+    private static @Nullable String fieldDefaultValue(Field field) {
+        Annotation defaultValue = findAnnotation(field, DefaultValue.class);
         if (defaultValue != null) {
-            return defaultValue;
+            return annotationValue(defaultValue);
         }
         if (!field.getType().isPrimitive()) {
             return null;
         }
-        return new PrimitiveDefaultValue(field.getType() == boolean.class ? "false" : "0");
+        return field.getType() == boolean.class ? "false" : "0";
     }
 
-    private record PrimitiveDefaultValue(String value) implements DefaultValue {
+    private static boolean hasAnnotation(Field field, Class<? extends Annotation> annotationType) {
+        return findAnnotation(field, annotationType) != null;
+    }
 
-        @Override
-        public Class<DefaultValue> annotationType() {
-            return DefaultValue.class;
+    private static boolean hasAnnotation(Class<?> type, Class<? extends Annotation> annotationType) {
+        return findAnnotation(type.getDeclaredAnnotations(), annotationType) != null;
+    }
+
+    private static @Nullable Annotation findAnnotation(Field field, Class<? extends Annotation> annotationType) {
+        return findAnnotation(field.getDeclaredAnnotations(), annotationType);
+    }
+
+    private static @Nullable Annotation findAnnotation(Annotation[] annotations, Class<? extends Annotation> annotationType) {
+        String annotationName = annotationType.getName();
+        for (Annotation annotation : annotations) {
+            if (annotation.annotationType().getName().equals(annotationName)) {
+                return annotation;
+            }
+        }
+        return null;
+    }
+
+    private static String annotationValue(Annotation annotation) {
+        try {
+            Method method = annotation.annotationType().getMethod(AnnotationMetadata.VALUE_MEMBER);
+            return (String) method.invoke(annotation);
+        } catch (NoSuchMethodException | IllegalAccessException e) {
+            throw new IllegalStateException("Cannot read value from Jakarta REST annotation [" + annotation.annotationType().getName() + "]", e);
+        } catch (InvocationTargetException e) {
+            throw new IllegalStateException("Cannot read value from Jakarta REST annotation [" + annotation.annotationType().getName() + "]", e.getCause());
         }
     }
 

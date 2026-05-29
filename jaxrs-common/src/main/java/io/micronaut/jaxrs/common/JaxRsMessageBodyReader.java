@@ -45,7 +45,7 @@ public final class JaxRsMessageBodyReader<T> implements MessageBodyReader<T> {
 
     @Override
     public boolean isReadable(@NonNull Argument<T> type, @Nullable MediaType mediaType) {
-        return delegate.isReadable(type.getType(), type.asType(), type.getAnnotationMetadata().synthesizeAll(), JaxRsUtils.convert(mediaType));
+        return delegate.isReadable(type.getType(), type.asType(), JaxRsArgumentUtil.synthesizeAnnotations(type), JaxRsUtils.convert(mediaType));
     }
 
     @Override
@@ -54,7 +54,7 @@ public final class JaxRsMessageBodyReader<T> implements MessageBodyReader<T> {
             return delegate.readFrom(
                 type.getType(),
                 type.asType(),
-                type.getAnnotationMetadata().synthesizeAll(),
+                JaxRsArgumentUtil.synthesizeAnnotations(type),
                 JaxRsUtils.convert(mediaType),
                 new JaxRsHeadersMultivaluedMap(httpHeaders),
                 inputStream

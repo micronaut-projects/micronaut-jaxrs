@@ -18,9 +18,9 @@ package io.micronaut.jaxrs.common.body.standard;
 import io.micronaut.context.annotation.Prototype;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.Order;
-import io.micronaut.core.io.IOUtils;
 import io.micronaut.core.order.Ordered;
 import io.micronaut.jaxrs.common.JaxRsIOException;
+import io.micronaut.jaxrs.common.JaxRsMessageBodyProvider;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.WebApplicationException;
@@ -29,10 +29,8 @@ import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.ext.MessageBodyReader;
 import jakarta.ws.rs.ext.MessageBodyWriter;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
@@ -45,6 +43,12 @@ import java.nio.charset.StandardCharsets;
  * @since 4.9
  */
 @Order(Ordered.LOWEST_PRECEDENCE)
+@JaxRsMessageBodyProvider(
+    readerType = Boolean.class,
+    writerType = Boolean.class,
+    consumes = MediaType.TEXT_PLAIN,
+    produces = MediaType.TEXT_PLAIN
+)
 @Produces(MediaType.TEXT_PLAIN)
 @Consumes(MediaType.TEXT_PLAIN)
 @Prototype
@@ -63,12 +67,7 @@ final class JaxRsBooleanMessageBodyReaderWriter implements MessageBodyReader<Boo
 
     @Override
     public Boolean readFrom(Class<Boolean> type, Type genericType, Annotation[] annotations, MediaType mediaType, MultivaluedMap<String, String> httpHeaders, InputStream entityStream) throws IOException, WebApplicationException {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(entityStream, StandardCharsets.UTF_8))) {
-            String s = IOUtils.readText(reader);
-            return Boolean.parseBoolean(s);
-        } catch (IOException e) {
-            throw new JaxRsIOException(e);
-        }
+        return Boolean.parseBoolean(JaxRsStringMessageBodyReaderWriter.readToString(entityStream, mediaType, true));
     }
 
     @Override

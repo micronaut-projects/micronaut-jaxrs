@@ -4,6 +4,8 @@ Include the following server dependency:
 
 dependency:micronaut-jaxrs-server[scope="implementation",groupId="io.micronaut.jaxrs"]
 
+For the full Jakarta REST compliance dependency set, including optional reflection and XML/JAXB support, see <<specCompliance,Spec Compliance>>.
+
 ==== Supported Annotations
 
 Micronaut JAX-RS works by converting (at compilation time) a JAX-RS annotation definition into the equivalent Micronaut version.

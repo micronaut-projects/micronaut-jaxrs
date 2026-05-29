@@ -24,16 +24,21 @@ import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.client.ClientBuilder;
 import jakarta.ws.rs.client.ClientRequestContext;
 import jakarta.ws.rs.client.ClientRequestFilter;
+import jakarta.ws.rs.client.Entity;
 import jakarta.ws.rs.core.Response;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.lang.annotation.Annotation;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JaxRsClientRequestContextTest {
 
@@ -84,6 +89,45 @@ class JaxRsClientRequestContextTest {
             assertEquals(HttpMethod.PUT, context.getMutableHttpRequest().getMethod());
             assertEquals("value", context.getHeaderString("X-Test"));
             assertEquals("body", context.getEntity());
+        }
+    }
+
+    @Test
+    void wildcardEntityMediaTypeDoesNotCreateContentTypeHeader() {
+        AtomicReference<String> contentType = new AtomicReference<>();
+        AtomicReference<jakarta.ws.rs.core.MediaType> mediaType = new AtomicReference<>();
+        try (Client client = ClientBuilder.newClient()
+            .register((ClientRequestFilter) context -> {
+                contentType.set(context.getHeaderString("Content-Type"));
+                mediaType.set(context.getMediaType());
+                context.abortWith(Response.ok("ok").build());
+            })) {
+            String response = client.target("http://localhost/wildcard")
+                .request()
+                .post(Entity.entity("body", jakarta.ws.rs.core.MediaType.WILDCARD_TYPE), String.class);
+
+            assertEquals("ok", response);
+            assertNull(contentType.get());
+            assertEquals(jakarta.ws.rs.core.MediaType.WILDCARD_TYPE, mediaType.get());
+        }
+    }
+
+    @Test
+    void setEntityWithWildcardMediaTypeClearsContentTypeHeader() {
+        try (Client client = ClientBuilder.newClient()) {
+            MutableHttpRequest<String> request = HttpRequest.POST("http://localhost/request-entity", "body")
+                .contentType(MediaType.TEXT_PLAIN_TYPE);
+            JaxRsClientRequestContext context = new JaxRsClientRequestContext(
+                client,
+                client.getConfiguration(),
+                request,
+                Argument.STRING
+            );
+
+            context.setEntity("updated", new Annotation[0], jakarta.ws.rs.core.MediaType.WILDCARD_TYPE);
+
+            assertTrue(context.getMutableHttpRequest().getContentType().isEmpty());
+            assertEquals(jakarta.ws.rs.core.MediaType.WILDCARD_TYPE, context.getMediaType());
         }
     }
 

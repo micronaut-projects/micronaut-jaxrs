@@ -29,6 +29,7 @@ import jakarta.ws.rs.ext.MessageBodyWriter;
 import jakarta.ws.rs.ext.ParamConverter;
 import jakarta.ws.rs.ext.ParamConverterProvider;
 import jakarta.ws.rs.ext.Provider;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -62,11 +63,22 @@ class MatrixParamTest {
     @Client("/api/matrix-writer-locator")
     HttpClient writerLocatorClient;
 
+    @Inject
+    @Client("/api")
+    HttpClient apiClient;
+
     @Test
     void routesMatrixParameterRequests() {
         String response = client.toBlocking().retrieve("/colors;color=red;color=green/ids;id=1;id=2", String.class);
 
         assertEquals("red,green -> 1,2", response);
+    }
+
+    @Test
+    void routesClassLevelMatrixParameterRequests() {
+        String response = apiClient.toBlocking().retrieve("/matrix-param-root;root=blue", String.class);
+
+        assertEquals("blue", response);
     }
 
     @Test
@@ -144,6 +156,17 @@ class MatrixParamTest {
             HttpRequest<?> request = HttpRequest.GET("/api/matrix-param/custom");
 
             assertTrue(binder.bind(ConversionContext.of(argument), request).getValue().isEmpty());
+        }
+    }
+
+    @Test
+    void emptyMatrixParameterTokensAreIgnored() {
+        try (ApplicationContext context = ApplicationContext.run(Map.of("spec.name", "MatrixParamTest"))) {
+            RequestArgumentBinder<ConvertedMatrixParam> binder = customParamBinder(context);
+            Argument<ConvertedMatrixParam> argument = customArgument(context);
+            HttpRequest<?> request = HttpRequest.GET("/api/matrix-param/custom;;custom=blue");
+
+            assertEquals("blue", binder.bind(ConversionContext.of(argument), request).getValue().orElseThrow().value);
         }
     }
 
@@ -232,8 +255,19 @@ class MatrixParamTest {
         @GET
         @Path("/custom-sorted-set")
         @Produces("text/plain")
-        public String customSortedSet(@MatrixParam("routing") String ignored, @DefaultValue("default") @MatrixParam("custom") SortedSet<ConvertedMatrixParam> custom) {
+        public String customSortedSet(@Nullable @MatrixParam("routing") String ignored, @DefaultValue("default") @MatrixParam("custom") SortedSet<ConvertedMatrixParam> custom) {
             return custom == null || custom.isEmpty() ? "null" : custom.first().value;
+        }
+    }
+
+    @Requires(property = "spec.name", value = "MatrixParamTest")
+    @Path("/matrix-param-root")
+    static class RootMatrixController {
+
+        @GET
+        @Produces("text/plain")
+        public String root(@MatrixParam("root") String root) {
+            return root;
         }
     }
 

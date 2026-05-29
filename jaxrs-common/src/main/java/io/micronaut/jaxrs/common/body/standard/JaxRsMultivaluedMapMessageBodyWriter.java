@@ -70,7 +70,8 @@ public final class JaxRsMultivaluedMapMessageBodyWriter implements MessageBodyWr
             for (Map.Entry<String, List<String>> e : object.entrySet()) {
                 e.getValue().forEach(value -> encoder.addParam(e.getKey(), value));
             }
-            outputStream.write(encoder.toString().getBytes(StandardCharsets.UTF_8));
+            String encoded = encoder.toString();
+            outputStream.write((encoded.startsWith("?") ? encoded.substring(1) : encoded).getBytes(StandardCharsets.UTF_8));
         } catch (IOException e) {
             throw new JaxRsIOException(e);
         }

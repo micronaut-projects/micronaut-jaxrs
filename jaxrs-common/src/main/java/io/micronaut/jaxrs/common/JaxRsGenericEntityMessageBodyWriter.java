@@ -34,14 +34,17 @@ import io.micronaut.http.body.MessageBodyWriter;
 import io.micronaut.http.body.ResponseBodyWriter;
 import io.micronaut.http.codec.CodecException;
 import jakarta.inject.Singleton;
+import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.GenericEntity;
 import jakarta.ws.rs.core.MultivaluedMap;
+import jakarta.ws.rs.core.Response.StatusType;
 import jakarta.ws.rs.ext.WriterInterceptor;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -86,9 +89,11 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
         Argument<T> argument;
         final OutputStream originalOutputStream = outputStream;
         ByteArrayOutputStream delegateEntityStream = null;
+        List<WriterInterceptor> dynamicWriterInterceptors = List.of();
         if (genericEntity instanceof JaxRsGenericEntity<T> jaxRsGenericEntity) {
             argument = jaxRsGenericEntity.asArgument();
             delegateEntityStream = jaxRsGenericEntity.getDelegateEntityStream();
+            dynamicWriterInterceptors = jaxRsGenericEntity.getWriterInterceptors();
             OutputStream customEntityStream = jaxRsGenericEntity.getCustomEntityStream();
             if (customEntityStream != null) {
                 outputStream = customEntityStream;
@@ -98,19 +103,18 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
         }
         T entity = genericEntity.getEntity();
 
-        if (writerInterceptorsRegistrations.isEmpty()) {
+        if (writerInterceptorsRegistrations.isEmpty() && dynamicWriterInterceptors.isEmpty()) {
             write(argument, mediaType, entity, outgoingHeaders, outputStream);
+        } else if (dynamicWriterInterceptors.isEmpty()) {
+            intercept(argument, mediaType, entity, outgoingHeaders, outputStream);
         } else {
-            new JaxRsInterceptedWrite<T, JaxRsWriterInterceptorContextState.ClassicState>(writerInterceptorsRegistrations, nameBindingPredicate) {
-
-                @Override
-                protected void writeToAfterInterception(Argument<Object> argument,
-                                                        MediaType mediaType,
-                                                        JaxRsWriterInterceptorContextState.ClassicState state) {
-                    write(argument, mediaType, state.getEntity(), outgoingHeaders, state.getOutputStream());
-                }
-
-            }.intercept(argument, mediaType, new JaxRsWriterInterceptorContextState.ClassicState(outgoingHeaders, entity, outputStream));
+            List<WriterInterceptor> interceptors = new ArrayList<>(writerInterceptorsRegistrations.stream()
+                .filter(registration -> nameBindingPredicate.test(registration.getBeanDefinition()))
+                .map(BeanRegistration::getBean)
+                .toList());
+            interceptors.addAll(dynamicWriterInterceptors);
+            JaxRsUtils.sortByPriority(interceptors);
+            intercept(argument, mediaType, entity, outgoingHeaders, outputStream, interceptors);
         }
 
         if (delegateEntityStream != null) {
@@ -120,6 +124,41 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
                 throw new JaxRsIOException(e);
             }
         }
+    }
+
+    private void intercept(Argument<T> argument,
+                           MediaType mediaType,
+                           T entity,
+                           MutableHeaders outgoingHeaders,
+                           OutputStream outputStream) {
+        new JaxRsInterceptedWrite<T, JaxRsWriterInterceptorContextState.ClassicState>(writerInterceptorsRegistrations, nameBindingPredicate) {
+
+            @Override
+            protected void writeToAfterInterception(Argument<Object> argument,
+                                                    MediaType mediaType,
+                                                    JaxRsWriterInterceptorContextState.ClassicState state) {
+                write(argument, mediaType, state.getEntity(), outgoingHeaders, state.getOutputStream());
+            }
+
+        }.intercept(argument, mediaType, new JaxRsWriterInterceptorContextState.ClassicState(outgoingHeaders, entity, outputStream));
+    }
+
+    private void intercept(Argument<T> argument,
+                           MediaType mediaType,
+                           T entity,
+                           MutableHeaders outgoingHeaders,
+                           OutputStream outputStream,
+                           List<WriterInterceptor> writerInterceptors) {
+        new JaxRsInterceptedWrite<T, JaxRsWriterInterceptorContextState.ClassicState>(writerInterceptors) {
+
+            @Override
+            protected void writeToAfterInterception(Argument<Object> argument,
+                                                    MediaType mediaType,
+                                                    JaxRsWriterInterceptorContextState.ClassicState state) {
+                write(argument, mediaType, state.getEntity(), outgoingHeaders, state.getOutputStream());
+            }
+
+        }.intercept(argument, mediaType, new JaxRsWriterInterceptorContextState.ClassicState(outgoingHeaders, entity, outputStream));
     }
 
     private <K> void write(Argument<K> argument, MediaType mediaType, K entity, MutableHeaders outgoingHeaders, OutputStream outputStream) {
@@ -172,9 +211,6 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
             Arrays.stream(producedMediaTypes).allMatch(MediaType.ALL::equals);
     }
 
-    private record SelectedWriter<K>(MessageBodyWriter<K> writer, MediaType mediaType) {
-    }
-
     @Override
     public @NonNull ByteBodyHttpResponse<?> write(@NonNull ByteBodyFactory bodyFactory, @NonNull HttpRequest<?> request, @NonNull MutableHttpResponse<GenericEntity<T>> httpResponse, @NonNull Argument<GenericEntity<T>> type, @NonNull MediaType mediaType, GenericEntity<T> genericEntity) throws CodecException {
         var s = new ByteBodyState(bodyFactory, request, httpResponse, mediaType, genericEntity) {
@@ -196,12 +232,18 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
                 if (outputIntercepted) {
                     super.writeInner0(rbw, argument, entity);
                 } else {
-                    innerResponse = rbw.write(bodyFactory, request, (MutableHttpResponse<U>) httpResponse, argument, mediaType, entity);
+                    try {
+                        innerResponse = rbw.write(bodyFactory, request, (MutableHttpResponse<U>) httpResponse, argument, mediaType, entity);
+                    } catch (WebApplicationException e) {
+                        if (!handleWriteException(e)) {
+                            throw e;
+                        }
+                    }
                 }
             }
         };
         s.run();
-        if (s.outputIntercepted) {
+        if (s.outputIntercepted || s.innerResponse == null) {
             return ByteBodyHttpResponseWrapper.wrap(httpResponse, s.body);
         } else {
             return s.innerResponse;
@@ -213,6 +255,29 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
         var s = new ByteBodyState(bodyFactory, request, response, mediaType, genericEntity);
         s.run();
         return s.body;
+    }
+
+    private static Object applyExceptionResponse(WebApplicationException exception, MutableHttpResponse<?> response) {
+        jakarta.ws.rs.core.Response exceptionResponse = exception.getResponse();
+        StatusType statusInfo = exceptionResponse.getStatusInfo();
+        response.status(statusInfo.getStatusCode(), statusInfo.getReasonPhrase());
+        if (exceptionResponse instanceof JaxRsMutableResponse jaxRsResponse) {
+            MutableHttpResponse<?> source = jaxRsResponse.getResponse();
+            source.getAttributes().forEach(response::setAttribute);
+            source.getHeaders().forEach((name, values) -> {
+                for (String value : values) {
+                    response.getHeaders().add(name, value);
+                }
+            });
+            return source.getBody().orElse(null);
+        } else {
+            exceptionResponse.getHeaders().forEach((name, values) -> {
+                for (Object value : values) {
+                    response.getHeaders().add(name, value.toString());
+                }
+            });
+            return exceptionResponse.hasEntity() ? exceptionResponse.getEntity() : null;
+        }
     }
 
     /**
@@ -227,6 +292,7 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
         final HttpRequest<?> request;
         final HttpResponse<?> response;
         MediaType mediaType;
+        List<WriterInterceptor> dynamicWriterInterceptors = List.of();
 
         /**
          * Argument contained in the GenericEntity.
@@ -267,10 +333,13 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
             this.bodyFactory = bodyFactory;
             this.request = request;
             this.response = response;
-            this.headers = new JaxRsObjectHeadersMultivaluedMap(response.getHeaders());
+            this.headers = response.getHeaders() instanceof MutableHeaders mutableHeaders
+                ? new JaxRsMutableObjectHeadersMultivaluedMap(mutableHeaders)
+                : new JaxRsObjectHeadersMultivaluedMap(response.getHeaders());
             this.mediaType = mediaType;
             if (genericEntity instanceof JaxRsGenericEntity<T> jaxRsGenericEntity) {
                 argument = jaxRsGenericEntity.asArgument();
+                dynamicWriterInterceptors = jaxRsGenericEntity.getWriterInterceptors();
                 ByteArrayOutputStream delegateEntityStream = jaxRsGenericEntity.getDelegateEntityStream();
                 if (delegateEntityStream != null) {
                     outputIntercepted = true;
@@ -324,26 +393,18 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
         }
 
         final void run() {
-            if (writerInterceptorsRegistrations.isEmpty()) {
+            if (writerInterceptorsRegistrations.isEmpty() && dynamicWriterInterceptors.isEmpty()) {
                 writeInner();
+            } else if (dynamicWriterInterceptors.isEmpty()) {
+                intercept();
             } else {
-                try {
-                    new JaxRsInterceptedWrite<T, ByteBodyState>(writerInterceptorsRegistrations, nameBindingPredicate) {
-
-                        @Override
-                        protected void writeToAfterInterception(Argument<Object> argument,
-                                                                MediaType mediaType,
-                                                                ByteBodyState state) {
-                            ByteBodyState.this.argument = (Argument<T>) argument;
-                            ByteBodyState.this.mediaType = mediaType;
-                            writeInner();
-                        }
-                    }.intercept(argument, mediaType, this);
-                } catch (CodecException e) {
-                    throw e;
-                } catch (Exception e) {
-                    throw new CodecException("Failed to run JAX-RS WriterInterceptor", e);
-                }
+                List<WriterInterceptor> interceptors = new ArrayList<>(writerInterceptorsRegistrations.stream()
+                    .filter(registration -> nameBindingPredicate.test(registration.getBeanDefinition()))
+                    .map(BeanRegistration::getBean)
+                    .toList());
+                interceptors.addAll(dynamicWriterInterceptors);
+                JaxRsUtils.sortByPriority(interceptors);
+                intercept(interceptors);
             }
             if (outputIntercepted) {
                 finishIntercepted();
@@ -353,6 +414,54 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
                     throw new CodecException("Failed to buffer wrapped body", e);
                 }
                 body = bodyFactory.adapt(bufferStream.toByteArray());
+            }
+        }
+
+        private void intercept() {
+            try {
+                new JaxRsInterceptedWrite<T, ByteBodyState>(writerInterceptorsRegistrations, nameBindingPredicate) {
+
+                    @Override
+                    protected void writeToAfterInterception(Argument<Object> argument,
+                                                            MediaType mediaType,
+                                                            ByteBodyState state) {
+                        ByteBodyState.this.argument = (Argument<T>) argument;
+                        ByteBodyState.this.mediaType = mediaType;
+                        writeInner();
+                    }
+                }.intercept(argument, mediaType, this);
+            } catch (WebApplicationException e) {
+                if (!handleWriteException(e)) {
+                    throw e;
+                }
+            } catch (CodecException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new CodecException("Failed to run JAX-RS WriterInterceptor", e);
+            }
+        }
+
+        private void intercept(List<WriterInterceptor> writerInterceptors) {
+            try {
+                new JaxRsInterceptedWrite<T, ByteBodyState>(writerInterceptors) {
+
+                    @Override
+                    protected void writeToAfterInterception(Argument<Object> argument,
+                                                            MediaType mediaType,
+                                                            ByteBodyState state) {
+                        ByteBodyState.this.argument = (Argument<T>) argument;
+                        ByteBodyState.this.mediaType = mediaType;
+                        writeInner();
+                    }
+                }.intercept(argument, mediaType, this);
+            } catch (WebApplicationException e) {
+                if (!handleWriteException(e)) {
+                    throw e;
+                }
+            } catch (CodecException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new CodecException("Failed to run JAX-RS WriterInterceptor", e);
             }
         }
 
@@ -377,6 +486,10 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
         }
 
         private List<MediaType> mediaTypesForWriterSelection() {
+            return mediaTypesForWriterSelection(argument);
+        }
+
+        private List<MediaType> mediaTypesForWriterSelection(Argument<?> argument) {
             if (!isWildcard(mediaType) && !producesOnlyWildcard(argument)) {
                 return List.of(mediaType);
             }
@@ -392,7 +505,58 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
         }
 
         <U> void writeInner0(ResponseBodyWriter<U> rbw, Argument<U> argument, U entity) {
-            body = rbw.writePiece(bodyFactory, request, response, argument, mediaType, entity);
+            try {
+                body = rbw.writePiece(bodyFactory, request, response, argument, mediaType, entity);
+            } catch (WebApplicationException e) {
+                if (!handleWriteException(e)) {
+                    throw e;
+                }
+            }
         }
+
+        final boolean handleWriteException(WebApplicationException exception) {
+            if (response instanceof MutableHttpResponse<?> mutableResponse) {
+                Object exceptionEntity = applyExceptionResponse(exception, mutableResponse);
+                if (bufferStream != null) {
+                    bufferStream.reset();
+                }
+                if (exceptionEntity == null) {
+                    body = bodyFactory.createEmpty();
+                } else {
+                    writeExceptionEntity(exceptionEntity);
+                }
+                return true;
+            }
+            return false;
+        }
+
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        private void writeExceptionEntity(Object exceptionEntity) {
+            if (exceptionEntity instanceof GenericEntity<?> genericEntity) {
+                writeExceptionEntity0((Argument) JaxRsArgumentUtil.from(genericEntity), genericEntity.getEntity());
+            } else {
+                writeExceptionEntity0((Argument) Argument.of(exceptionEntity.getClass()), exceptionEntity);
+            }
+        }
+
+        private <U> void writeExceptionEntity0(Argument<U> argument, U exceptionEntity) {
+            List<MediaType> mediaTypes = mediaTypesForWriterSelection(argument);
+            Optional<SelectedWriter<U>> writer = findWriter(argument, mediaTypes, mediaTypes.get(0));
+            if (writer.isEmpty()) {
+                Optional<MessageBodyWriter<String>> stringWriter = registry.findWriter(Argument.STRING, List.of(mediaType));
+                if (stringWriter.isPresent()) {
+                    writeInner0(ResponseBodyWriter.wrap(stringWriter.get()), Argument.STRING, exceptionEntity.toString());
+                } else {
+                    throw new CodecException("Could not find MessageBodyWriter for media type " + mediaType + " for argument " + argument);
+                }
+            } else {
+                SelectedWriter<U> selectedWriter = writer.get();
+                this.mediaType = selectedWriter.mediaType();
+                writeInner0(ResponseBodyWriter.wrap(selectedWriter.writer().createSpecific(argument)), argument, exceptionEntity);
+            }
+        }
+    }
+
+    private record SelectedWriter<K>(MessageBodyWriter<K> writer, MediaType mediaType) {
     }
 }

@@ -39,6 +39,7 @@ import jakarta.ws.rs.ext.RuntimeDelegate;
 
 import java.net.URI;
 import java.util.Locale;
+import java.util.Objects;
 
 /**
  * The implementation of {@link Invocation.Builder}.
@@ -154,7 +155,7 @@ final class JaxRsInvocationBuilder implements Invocation.Builder {
 
     @Override
     public Invocation.Builder header(String name, Object value) {
-        mutableHttpHeaders.add(name, JaxRsHeaderUtil.headerToString(value));
+        mutableHttpHeaders.add(name, headerValue(value));
         return this;
     }
 
@@ -164,7 +165,7 @@ final class JaxRsInvocationBuilder implements Invocation.Builder {
             mutableHttpHeaders.remove(header);
         }
         if (headers != null) {
-            headers.forEach((key, values) -> values.forEach(value -> mutableHttpHeaders.add(key, JaxRsHeaderUtil.headerToString(value))));
+            headers.forEach((key, values) -> values.forEach(value -> mutableHttpHeaders.add(key, headerValue(value))));
         }
         return this;
     }
@@ -181,7 +182,7 @@ final class JaxRsInvocationBuilder implements Invocation.Builder {
 
     @Override
     public <T extends RxInvoker> T rx(Class<T> clazz) {
-        throw new IllegalStateException("unsupported");
+        return configuration.createRxInvoker(Objects.requireNonNull(clazz, "RxInvoker type cannot be null"), this);
     }
 
     @Override
@@ -319,5 +320,22 @@ final class JaxRsInvocationBuilder implements Invocation.Builder {
 
     private <T> String toRuntimeString(T value) {
         return RuntimeDelegate.getInstance().createHeaderDelegate((Class<T>) value.getClass()).toString(value);
+    }
+
+    private static String headerValue(Object value) {
+        String string = JaxRsHeaderUtil.headerToString(value);
+        int start = 0;
+        int end = string.length();
+        while (start < end && isOptionalWhitespace(string.charAt(start))) {
+            start++;
+        }
+        while (end > start && isOptionalWhitespace(string.charAt(end - 1))) {
+            end--;
+        }
+        return start == 0 && end == string.length() ? string : string.substring(start, end);
+    }
+
+    private static boolean isOptionalWhitespace(char c) {
+        return c == ' ' || c == '\t';
     }
 }

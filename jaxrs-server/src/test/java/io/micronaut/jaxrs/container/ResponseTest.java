@@ -79,6 +79,31 @@ public class ResponseTest {
     }
 
     @Test
+    void testStreamingOutputWebApplicationExceptionStatus() {
+        HttpClientResponseException exception = assertThrows(
+            HttpClientResponseException.class,
+            () -> httpClient.toBlocking().exchange("/notifications/streaming-output-web-application-exception", String.class)
+        );
+        assertEquals(HttpStatus.NOT_FOUND, exception.getStatus());
+    }
+
+    @Test
+    void testProviderContextResolverUsesDefaultResolverForNonSpecificMediaType() {
+        HttpRequest<Object> request = HttpRequest.GET("/notifications/providers/context-resolver")
+            .header("X-Provider-Media-Type", MediaType.APPLICATION_JSON);
+
+        assertEquals("DEFAULT", httpClient.toBlocking().retrieve(request));
+    }
+
+    @Test
+    void testProviderContextResolverUsesSpecificResolverForMatchingMediaType() {
+        HttpRequest<Object> request = HttpRequest.GET("/notifications/providers/context-resolver")
+            .header("X-Provider-Media-Type", MediaType.TEXT_PLAIN);
+
+        assertEquals("TEXT", httpClient.toBlocking().retrieve(request));
+    }
+
+    @Test
     void testGetResponse() {
         final Notification notification = client.getNotification(10);
 

@@ -19,6 +19,7 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.io.buffer.ByteBuffer;
 import io.micronaut.core.type.Argument;
+import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpMethod;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.MutableHttpRequest;
@@ -35,6 +36,7 @@ import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
+import org.jspecify.annotations.Nullable;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -70,16 +72,26 @@ final class JaxRsClientRequestContext implements ClientRequestContext {
     private Argument<?> bodyType;
     private Annotation[] annotations;
     private ByteArrayOutputStream entityStream;
+    private @Nullable MediaType logicalEntityMediaType;
 
     public JaxRsClientRequestContext(Client client,
                                      Configuration configuration,
                                      MutableHttpRequest<?> mutableHttpRequest,
                                      Argument<?> bodyType) {
+        this(client, configuration, mutableHttpRequest, bodyType, null);
+    }
+
+    public JaxRsClientRequestContext(Client client,
+                                     Configuration configuration,
+                                     MutableHttpRequest<?> mutableHttpRequest,
+                                     Argument<?> bodyType,
+                                     @Nullable MediaType logicalEntityMediaType) {
         this.client = client;
         this.configuration = configuration;
         this.mutableHttpRequest = mutableHttpRequest;
         this.jaxRsHttpHeaders = JaxRsMutableHttpHeaders.forRequest(mutableHttpRequest.getHeaders());
         this.bodyType = bodyType;
+        this.logicalEntityMediaType = logicalEntityMediaType;
     }
 
     @Override
@@ -176,7 +188,8 @@ final class JaxRsClientRequestContext implements ClientRequestContext {
 
     @Override
     public MediaType getMediaType() {
-        return jaxRsHttpHeaders.getMediaType();
+        MediaType mediaType = jaxRsHttpHeaders.getMediaType();
+        return mediaType == null ? logicalEntityMediaType : mediaType;
     }
 
     @Override
@@ -223,8 +236,11 @@ final class JaxRsClientRequestContext implements ClientRequestContext {
     @Override
     public void setEntity(Object entity, Annotation[] annotations, MediaType mediaType) {
         mutableHttpRequest.body(entity);
-        if (mediaType != null) {
+        logicalEntityMediaType = mediaType;
+        if (JaxRsUtils.isConcreteMediaType(mediaType)) {
             mutableHttpRequest.contentType(JaxRsUtils.convert(mediaType));
+        } else if (mediaType != null) {
+            mutableHttpRequest.getHeaders().remove(HttpHeaders.CONTENT_TYPE);
         }
         bodyType = Argument.of(entity.getClass());
         if (annotations != null) {
@@ -238,7 +254,7 @@ final class JaxRsClientRequestContext implements ClientRequestContext {
         if (annotations != null) {
             return annotations;
         }
-        return bodyType.getAnnotationMetadata().synthesizeAll();
+        return JaxRsArgumentUtil.synthesizeAnnotations(bodyType);
     }
 
     @Override

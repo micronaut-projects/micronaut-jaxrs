@@ -15,6 +15,7 @@
  */
 package io.micronaut.jaxrs.runtime.ext.bind;
 
+import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.HttpHeaderValues;
 import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpRequest;
@@ -31,6 +32,7 @@ import java.util.Objects;
  * @author graemerocher
  * @since 3.1.0
  */
+@Internal
 public class SimpleSecurityContextImpl implements SecurityContext {
 
     private final HttpRequest<?> request;

@@ -18,10 +18,12 @@ package io.micronaut.jaxrs.common;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.type.Argument;
 import jakarta.ws.rs.core.GenericEntity;
+import jakarta.ws.rs.ext.WriterInterceptor;
 
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
 import java.lang.annotation.Annotation;
+import java.util.List;
 
 /**
  * The simple variation of {@link GenericEntity}.
@@ -36,15 +38,25 @@ public final class JaxRsGenericEntity<T> extends GenericEntity<T> {
     private final Argument<T> argument;
     private final ByteArrayOutputStream delegateEntityStream;
     private final OutputStream customEntityStream;
+    private final List<WriterInterceptor> writerInterceptors;
 
     public JaxRsGenericEntity(T entity,
                               Argument<T> argument,
                               ByteArrayOutputStream delegateEntityStream,
                               OutputStream customEntityStream) {
+        this(entity, argument, delegateEntityStream, customEntityStream, List.of());
+    }
+
+    public JaxRsGenericEntity(T entity,
+                              Argument<T> argument,
+                              ByteArrayOutputStream delegateEntityStream,
+                              OutputStream customEntityStream,
+                              List<WriterInterceptor> writerInterceptors) {
         super(entity, argument.getType());
         this.argument = argument;
         this.delegateEntityStream = delegateEntityStream;
         this.customEntityStream = customEntityStream;
+        this.writerInterceptors = writerInterceptors;
     }
 
     JaxRsGenericEntity(T entity, Annotation[] annotations) {
@@ -52,6 +64,7 @@ public final class JaxRsGenericEntity<T> extends GenericEntity<T> {
         this.argument = JaxRsArgumentUtil.from(this, annotations);
         this.delegateEntityStream = null;
         this.customEntityStream = null;
+        this.writerInterceptors = List.of();
     }
 
     public Argument<T> asArgument() {
@@ -64,5 +77,9 @@ public final class JaxRsGenericEntity<T> extends GenericEntity<T> {
 
     public OutputStream getCustomEntityStream() {
         return customEntityStream;
+    }
+
+    public List<WriterInterceptor> getWriterInterceptors() {
+        return writerInterceptors;
     }
 }

@@ -33,7 +33,7 @@ import java.lang.annotation.Target;
 public @interface JaxRsSubResourceLocator {
 
     /**
-     * @return The zero-argument resource method to invoke on the object returned by the locator.
+     * @return The resource method to invoke on the object returned by the locator.
      */
     String value();
 
@@ -43,9 +43,64 @@ public @interface JaxRsSubResourceLocator {
     Class<?> type();
 
     /**
+     * @return The final route path to apply after core route validation.
+     */
+    String routePath() default "";
+
+    /**
      * @return The target method argument type names.
      */
     String[] argumentTypes() default {};
+
+    /**
+     * @return Candidate target method names for dynamic subresource target selection.
+     */
+    String[] targetMethods() default {};
+
+    /**
+     * @return Candidate target HTTP method names for dynamic subresource target selection.
+     */
+    String[] targetHttpMethods() default {};
+
+    /**
+     * @return Candidate target resource templates for dynamic subresource target selection.
+     */
+    String[] targetResourceTemplates() default {};
+
+    /**
+     * @return Flattened candidate target method argument type names.
+     */
+    String[] targetArgumentTypes() default {};
+
+    /**
+     * @return Candidate target method argument type counts.
+     */
+    int[] targetArgumentTypeCounts() default {};
+
+    /**
+     * @return Flattened candidate target consumed media types.
+     */
+    String[] targetConsumes() default {};
+
+    /**
+     * @return Candidate target consumed media type counts.
+     */
+    int[] targetConsumesCounts() default {};
+
+    /**
+     * @return Flattened candidate target produced media types.
+     */
+    String[] targetProduces() default {};
+
+    /**
+     * @return Candidate target produced media type counts.
+     */
+    int[] targetProducesCounts() default {};
+
+    /**
+     * @return Whether target selection must be performed from the runtime locator result type.
+     */
+    boolean dynamic() default false;
 
     /**
      * @return The zero-argument recursive locator method to invoke for each remaining path segment.

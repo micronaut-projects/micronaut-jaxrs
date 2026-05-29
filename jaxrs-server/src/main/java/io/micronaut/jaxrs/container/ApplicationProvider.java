@@ -21,6 +21,7 @@ import io.micronaut.context.annotation.Value;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.AnnotationMetadataProvider;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.http.HttpRequest;
 import io.micronaut.inject.BeanDefinition;
 import io.micronaut.jaxrs.common.JaxRsApplicationResources;
 import org.jspecify.annotations.NonNull;
@@ -100,6 +101,14 @@ public final class ApplicationProvider implements AnnotationMetadataProvider {
     }
 
     /**
+     * @param request The HTTP request
+     * @return Whether the request is inside the active Jakarta REST application path
+     */
+    public boolean isApplicationRequest(HttpRequest<?> request) {
+        return isApplicationPath(request.getPath());
+    }
+
+    /**
      * @return The annotationMetadata
      */
     @NonNull
@@ -133,10 +142,12 @@ public final class ApplicationProvider implements AnnotationMetadataProvider {
 
     @SuppressWarnings("unchecked")
     private static Set<String> applicationClassNames(BeanContext beanContext, List<BeanDefinition<?>> applicationDefinitions) {
+        boolean hasGeneratedResourceMetadata = applicationDefinitions.stream()
+            .anyMatch(definition -> definition.hasAnnotation(JaxRsApplicationResources.class));
         Set<String> generatedClassNames = applicationDefinitions.stream()
             .flatMap(definition -> Arrays.stream(definition.stringValues(JaxRsApplicationResources.class)))
             .collect(Collectors.toUnmodifiableSet());
-        if (!generatedClassNames.isEmpty()) {
+        if (hasGeneratedResourceMetadata) {
             return generatedClassNames;
         }
         return applicationDefinitions.stream()
@@ -181,6 +192,10 @@ public final class ApplicationProvider implements AnnotationMetadataProvider {
             contextPath = contextPath.substring(0, contextPath.length() - 1);
         }
         return contextPath;
+    }
+
+    private boolean isApplicationPath(String requestPath) {
+        return "/".equals(path) || requestPath.equals(path) || requestPath.startsWith(path + '/');
     }
 
 }

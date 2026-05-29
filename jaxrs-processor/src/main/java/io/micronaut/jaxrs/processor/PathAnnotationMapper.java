@@ -18,10 +18,11 @@ package io.micronaut.jaxrs.processor;
 import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.AnnotationValueBuilder;
 import io.micronaut.core.annotation.Internal;
-import org.jspecify.annotations.NonNull;
 import io.micronaut.http.annotation.HttpMethodMapping;
+import io.micronaut.http.annotation.UriMapping;
 import io.micronaut.inject.annotation.NamedAnnotationMapper;
 import io.micronaut.inject.visitor.VisitorContext;
+import org.jspecify.annotations.NonNull;
 
 import java.lang.annotation.Annotation;
 import java.util.Collections;
@@ -45,7 +46,8 @@ public class PathAnnotationMapper implements NamedAnnotationMapper {
     @Override
     public List<AnnotationValue<?>> map(AnnotationValue<Annotation> annotation, VisitorContext visitorContext) {
         final AnnotationValueBuilder<HttpMethodMapping> builder = AnnotationValue.builder(HttpMethodMapping.class);
-        annotation.stringValue().ifPresent(builder::value);
+        String path = annotation.stringValue().orElse(UriMapping.DEFAULT_URI);
+        builder.value(path.isEmpty() ? UriMapping.DEFAULT_URI : path);
         return Collections.singletonList(builder.build());
     }
 }

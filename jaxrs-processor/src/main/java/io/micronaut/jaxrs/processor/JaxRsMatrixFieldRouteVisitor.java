@@ -17,6 +17,7 @@ package io.micronaut.jaxrs.processor;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.annotation.HttpMethodMapping;
+import io.micronaut.jaxrs.common.JaxRsSubResourceLocatorMetadata;
 import io.micronaut.inject.ast.ClassElement;
 import io.micronaut.inject.ast.MethodElement;
 import io.micronaut.inject.visitor.TypeElementVisitor;
@@ -74,6 +75,13 @@ public final class JaxRsMatrixFieldRouteVisitor implements TypeElementVisitor<Ob
         }
         element.stringValue(HttpMethodMapping.class).ifPresent(path -> {
             String routePath = path;
+            String subResourceLocatorRoutePath = element.stringValue(
+                JaxRsTypeElementVisitor.SUB_RESOURCE_LOCATOR_ANNOTATION,
+                JaxRsSubResourceLocatorMetadata.MEMBER_ROUTE_PATH
+            ).orElse("");
+            if (!subResourceLocatorRoutePath.isEmpty()) {
+                routePath = subResourceLocatorRoutePath;
+            }
             if (JaxRsTypeElementVisitor.matrixParameterNames(element).isEmpty()) {
                 List<String> matrixFieldNames = JaxRsTypeElementVisitor.matrixFieldNames(currentClassElement);
                 if (!matrixFieldNames.isEmpty() && !routePath.contains(JaxRsTypeElementVisitor.MATRIX_PARAMETER_ROUTE_PATTERN)) {
@@ -82,7 +90,7 @@ public final class JaxRsMatrixFieldRouteVisitor implements TypeElementVisitor<Ob
             }
             String remainingPathVariable = element.stringValue(
                 JaxRsTypeElementVisitor.SUB_RESOURCE_LOCATOR_ANNOTATION,
-                "remaining"
+                JaxRsSubResourceLocatorMetadata.MEMBER_REMAINING
             ).orElse("");
             if (!remainingPathVariable.isEmpty() && !routePath.contains("{/" + remainingPathVariable + ":.*}")) {
                 routePath = routePath + "{/" + remainingPathVariable + ":.*}";

@@ -20,6 +20,7 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.Order;
 import io.micronaut.core.order.Ordered;
 import io.micronaut.jaxrs.common.JaxRsIOException;
+import io.micronaut.jaxrs.common.JaxRsMessageBodyProvider;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.WebApplicationException;
@@ -40,6 +41,12 @@ import java.lang.reflect.Type;
  * @since 4.9
  */
 @Order(Ordered.LOWEST_PRECEDENCE)
+@JaxRsMessageBodyProvider(
+    readerType = Character.class,
+    writerType = Character.class,
+    consumes = MediaType.TEXT_PLAIN,
+    produces = MediaType.TEXT_PLAIN
+)
 @Produces(MediaType.TEXT_PLAIN)
 @Consumes(MediaType.TEXT_PLAIN)
 @Prototype

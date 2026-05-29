@@ -1,0 +1,60 @@
+Micronaut JAX-RS can be used in a lightweight mode or with the aggregate Jakarta REST compliance support.
+
+For applications that need the broadest Jakarta REST behavior, add the annotation processor and the aggregate runtime dependency:
+
+dependency:micronaut-jaxrs-processor[scope="annotationProcessor",groupId="io.micronaut.jaxrs"]
+
+dependency:micronaut-jaxrs-jakarta[scope="implementation",groupId="io.micronaut.jaxrs"]
+
+The aggregate dependency brings in the server and client implementations, the reflection fallback module, and the optional XML/JAXB providers used by the compliance profile.
+
+If the application only needs a server runtime, use:
+
+dependency:micronaut-jaxrs-server[scope="implementation",groupId="io.micronaut.jaxrs"]
+
+If the application only needs the standalone Jakarta REST client runtime, use:
+
+dependency:micronaut-jaxrs-client[scope="implementation",groupId="io.micronaut.jaxrs"]
+
+==== Optional Modules
+
+The default server and client modules are compile-time oriented and avoid reflection fallback behavior unless an optional module is added.
+
+Add reflection fallback support only when the application must run Jakarta REST provider, application, or injection shapes that cannot be represented through Micronaut generated metadata:
+
+dependency:micronaut-jaxrs-reflection[scope="implementation",groupId="io.micronaut.jaxrs"]
+
+Add XML, JAXB, `Source`, `DataSource`, and `JAXBElement` entity providers only when those standard providers are required:
+
+dependency:micronaut-jaxrs-xml[scope="implementation",groupId="io.micronaut.jaxrs"]
+
+Add Micronaut Security integration when `SecurityContext.isUserInRole(..)` should delegate to Micronaut Security roles:
+
+dependency:micronaut-jaxrs-server-security[scope="implementation",groupId="io.micronaut.jaxrs"]
+
+When running on Micronaut Servlet, add the servlet integration module to expose servlet request context types through Jakarta REST `@Context` binding:
+
+dependency:micronaut-jaxrs-servlet[scope="implementation",groupId="io.micronaut.jaxrs"]
+
+JSON-B support is optional. The Jakarta aggregate publishes JSON-B API dependencies as optional dependencies and guards JSON-B providers behind the presence of `Jsonb`. Add a JSON-B implementation to the application runtime when JSON-B entity providers are required.
+
+==== Processor Strictness
+
+The processor fails compilation for unsupported Jakarta REST constructs by default. This keeps ordinary applications on the compile-time optimized path and exposes unsupported resource shapes early.
+
+The Jakarta REST TCK profile disables these unsupported-feature failures so the runtime fallback modules can exercise spec compliance cases:
+
+[source,groovy]
+----
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs.add("-Amicronaut.jaxrs.fail.on.unsupported=false")
+}
+----
+
+This option should be reserved for TCK-style compatibility runs or focused migration work. The default value is `true`.
+
+==== Compliance Profile
+
+The compliance profile is designed around generated Micronaut metadata first. The processor precomputes route templates, HTTP method names, request matching scores, provider metadata, subresource locator metadata, and `@BeanParam` request-bean introspection metadata where possible.
+
+Reflection is isolated in `micronaut-jaxrs-reflection` for spec-required fallback behavior that cannot be represented safely through generated metadata. XML and JAXB providers are isolated in `micronaut-jaxrs-xml`, so the core server and client modules do not require JAXB dependencies.

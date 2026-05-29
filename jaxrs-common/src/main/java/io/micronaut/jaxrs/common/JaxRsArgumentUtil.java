@@ -18,16 +18,23 @@ package io.micronaut.jaxrs.common;
 import io.micronaut.context.AnnotationReflectionUtils;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.reflect.ClassUtils;
 import io.micronaut.core.type.Argument;
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import jakarta.ws.rs.client.Entity;
 import jakarta.ws.rs.client.InvocationCallback;
 import jakarta.ws.rs.core.GenericEntity;
 import jakarta.ws.rs.core.GenericType;
+import org.jspecify.annotations.Nullable;
 
 import java.lang.annotation.Annotation;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * An argument util class.
@@ -93,6 +100,57 @@ public final class JaxRsArgumentUtil {
             annotationMetadata.addAnnotation(annotation.annotationType().getName(), Map.of());
         }
         return annotationMetadata;
+    }
+
+    public static Annotation[] synthesizeAnnotations(Argument<?> argument) {
+        return synthesizeAnnotations(argument.getAnnotationMetadata(), argument.getType().getClassLoader());
+    }
+
+    public static Annotation[] synthesizeAnnotations(AnnotationMetadata annotationMetadata, @Nullable ClassLoader classLoader) {
+        return synthesizeAnnotations(annotationMetadata, classLoader, annotationName -> true);
+    }
+
+    public static Annotation[] synthesizeEntityAnnotations(Argument<?> argument) {
+        return synthesizeAnnotations(argument.getAnnotationMetadata(), argument.getType().getClassLoader(), JaxRsArgumentUtil::isEntityAnnotation);
+    }
+
+    private static Annotation[] synthesizeAnnotations(AnnotationMetadata annotationMetadata,
+                                                      @Nullable ClassLoader classLoader,
+                                                      Predicate<String> annotationPredicate) {
+        Set<String> annotationNames = annotationMetadata.getAnnotationNames();
+        if (annotationNames.isEmpty()) {
+            return new Annotation[0];
+        }
+        MutableAnnotationMetadata metadata = MutableAnnotationMetadata.of(annotationMetadata);
+        List<Annotation> annotations = new ArrayList<>(annotationNames.size());
+        ClassLoader fallbackClassLoader = JaxRsArgumentUtil.class.getClassLoader();
+        for (String annotationName : annotationNames) {
+            if (!annotationPredicate.test(annotationName)) {
+                continue;
+            }
+            Optional<Class<? extends Annotation>> annotationType = findAnnotationType(annotationName, classLoader);
+            if (annotationType.isEmpty() && classLoader != fallbackClassLoader) {
+                annotationType = findAnnotationType(annotationName, fallbackClassLoader);
+            }
+            annotationType
+                .map(type -> metadata.synthesize(type, annotationName))
+                .ifPresent(annotations::add);
+        }
+        return annotations.toArray(new Annotation[0]);
+    }
+
+    private static boolean isEntityAnnotation(String annotationName) {
+        return !annotationName.startsWith("io.micronaut.context.annotation.")
+            && !annotationName.startsWith("io.micronaut.core.annotation.")
+            && !annotationName.startsWith("io.micronaut.http.annotation.")
+            && !annotationName.startsWith("io.micronaut.jaxrs.container.JaxRs");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Optional<Class<? extends Annotation>> findAnnotationType(String annotationName, @Nullable ClassLoader classLoader) {
+        return ClassUtils.forName(annotationName, classLoader)
+            .filter(Annotation.class::isAssignableFrom)
+            .map(type -> (Class<? extends Annotation>) type);
     }
 
 }
