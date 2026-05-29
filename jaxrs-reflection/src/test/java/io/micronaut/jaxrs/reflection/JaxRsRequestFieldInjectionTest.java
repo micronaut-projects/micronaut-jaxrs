@@ -182,6 +182,37 @@ class JaxRsRequestFieldInjectionTest {
     }
 
     @Test
+    void requestBeanBinderDoesNotMassBindUnannotatedPropertiesByName() {
+        MutableAnnotationMetadata annotationMetadata = new MutableAnnotationMetadata();
+        annotationMetadata.addAnnotation(RequestBean.class.getName(), Map.of());
+        annotationMetadata.addStereotype(List.of(RequestBean.class.getName()), Bindable.class.getName(), Map.of());
+        Argument<BeanParamRequest> argument = Argument.of(BeanParamRequest.class, "bean", annotationMetadata);
+
+        @SuppressWarnings("unchecked")
+        ArgumentBinder<BeanParamRequest, HttpRequest<?>> binder = (ArgumentBinder<BeanParamRequest, HttpRequest<?>>) binderRegistry
+            .findArgumentBinder(argument)
+            .orElseThrow();
+        BeanParamRequest bean = binder.bind(ConversionContext.of(argument), HttpRequest.GET("/bean?jaxrs-color=blue&unannotated=red"))
+            .getValue()
+            .orElseThrow();
+
+        assertEquals("blue", bean.color);
+        assertEquals("unchanged", bean.unannotated);
+    }
+
+    @Test
+    void reflectionFieldInjectionIgnoresStaticAndFinalFields() {
+        StaticFinalFieldResource resource = context.getBeansOfType(StaticFinalFieldResource.class)
+            .stream()
+            .filter(Intercepted.class::isInstance)
+            .findFirst()
+            .orElseThrow();
+        String response = ServerRequestContext.with(HttpRequest.GET("/static-final?staticColor=blue&finalColor=red"), (Supplier<String>) resource::get);
+
+        assertEquals("static:final", response);
+    }
+
+    @Test
     void discoveredParamConverterProviderWinsOverReflectionFallback() {
         BeanDefinition<QueryResource> definition = context.getBeanDefinition(QueryResource.class);
         ExecutableMethod<QueryResource, Object> method = definition.getRequiredMethod("converted", ConvertedQueryParam.class);
@@ -445,6 +476,24 @@ class JaxRsRequestFieldInjectionTest {
     static final class BeanParamRequest {
         @QueryParam("jaxrs-color")
         String color;
+
+        String unannotated = "unchanged";
+    }
+
+    @Requires(property = "spec.name", value = "JaxRsRequestFieldInjectionTest")
+    @Path("/static-final")
+    static class StaticFinalFieldResource {
+        @QueryParam("staticColor")
+        static String staticColor = "static";
+
+        @QueryParam("finalColor")
+        final String finalColor = "final";
+
+        @GET
+        @Produces("text/plain")
+        public String get() {
+            return staticColor + ":" + finalColor;
+        }
     }
 
     static final class ConvertedQueryParam {

@@ -41,18 +41,23 @@ public final class JaxRsMutableHeadersMultivaluedMap extends JaxRsHeadersMultiva
 
     @Override
     public void putSingle(String key, String value) {
+        JaxRsHeaderValues.validateToken(key);
+        JaxRsHeaderValues.validateHeaderValue(value);
         mutableHeaders.remove(key);
         mutableHeaders.add(key, value);
     }
 
     @Override
     public void add(String key, String value) {
+        JaxRsHeaderValues.validateToken(key);
+        JaxRsHeaderValues.validateHeaderValue(value);
         mutableHeaders.add(key, value);
     }
 
     @Override
     public List<String> put(String key, List<String> value) {
-        value.forEach(v -> mutableHeaders.add(key, v));
+        JaxRsHeaderValues.validateToken(key);
+        value.forEach(v -> mutableHeaders.add(key, JaxRsHeaderValues.validateHeaderValue(v)));
         return value;
     }
 }

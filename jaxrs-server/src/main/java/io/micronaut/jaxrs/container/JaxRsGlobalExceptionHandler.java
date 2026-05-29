@@ -78,9 +78,9 @@ final class JaxRsGlobalExceptionHandler implements ExceptionHandler<Throwable, H
             return ((JaxRsMutableResponse) exceptionMapper.toResponse(mappedException)).getResponse();
         }
         return responseProcessor.processResponse(ErrorContext.builder(request)
-            .errorMessage(exception.getMessage())
+            .errorMessage(HttpStatus.INTERNAL_SERVER_ERROR.getReason())
             .cause(exception)
-            .build(), HttpResponse.badRequest());
+            .build(), HttpResponse.serverError());
     }
 
     private static Throwable mappedException(Throwable exception) {

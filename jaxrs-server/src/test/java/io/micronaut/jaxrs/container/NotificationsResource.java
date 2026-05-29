@@ -218,6 +218,13 @@ public class NotificationsResource {
     public Response notSupportedWithoutResponse() {
         throw new NotSupportedException();
     }
+
+    @GET
+    @Path("/generic-error")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response genericError() {
+        throw new IllegalStateException("Sensitive implementation detail");
+    }
 }
 
 enum TestContextValue {

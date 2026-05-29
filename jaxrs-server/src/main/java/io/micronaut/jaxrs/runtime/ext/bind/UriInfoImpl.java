@@ -219,6 +219,7 @@ public final class UriInfoImpl implements UriInfo {
                 }
             }
             if (StringUtils.isNotEmpty(authority)) {
+                validateAuthority(authority);
                 builder.append(scheme).append("://").append(authority);
             }
         }
@@ -237,8 +238,18 @@ public final class UriInfoImpl implements UriInfo {
     }
 
     private static String authority(String host, int port) {
+        validateAuthority(host);
         String authorityHost = host.indexOf(':') > -1 && !host.startsWith("[") ? '[' + host + ']' : host;
         return port < 0 ? authorityHost : authorityHost + ':' + port;
+    }
+
+    private static void validateAuthority(String authority) {
+        for (int i = 0; i < authority.length(); i++) {
+            char c = authority.charAt(i);
+            if (c <= 0x20 || c == 0x7f) {
+                throw new IllegalArgumentException("Invalid URI authority");
+            }
+        }
     }
 
     @Override

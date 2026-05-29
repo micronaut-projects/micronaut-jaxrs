@@ -17,8 +17,20 @@ package io.micronaut.jaxrs.xml;
 
 import io.micronaut.core.annotation.Internal;
 
+import jakarta.xml.bind.JAXBContext;
+import jakarta.xml.bind.JAXBException;
+import jakarta.xml.bind.Marshaller;
+import jakarta.xml.bind.Unmarshaller;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 import javax.xml.XMLConstants;
 import javax.xml.stream.XMLInputFactory;
+import javax.xml.stream.XMLStreamException;
+import javax.xml.stream.XMLStreamReader;
 import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
 
@@ -36,6 +48,37 @@ final class JaxRsXmlFactories {
         disable(factory, XMLInputFactory.SUPPORT_DTD);
         disable(factory, "javax.xml.stream.isSupportingExternalEntities");
         return factory;
+    }
+
+    static XMLStreamReader xmlStreamReader(InputStream inputStream) throws XMLStreamException {
+        return xmlInputFactory().createXMLStreamReader(inputStream);
+    }
+
+    static XMLStreamReader xmlStreamReader(byte[] bytes) throws XMLStreamException {
+        return xmlStreamReader(new ByteArrayInputStream(bytes));
+    }
+
+    static Unmarshaller unmarshaller(JAXBContext context) throws JAXBException {
+        Unmarshaller unmarshaller = context.createUnmarshaller();
+        setProperty(unmarshaller, XMLConstants.ACCESS_EXTERNAL_DTD, "");
+        setProperty(unmarshaller, XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+        return unmarshaller;
+    }
+
+    static Marshaller marshaller(JAXBContext context) throws JAXBException {
+        Marshaller marshaller = context.createMarshaller();
+        setProperty(marshaller, XMLConstants.ACCESS_EXTERNAL_DTD, "");
+        setProperty(marshaller, XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+        return marshaller;
+    }
+
+    static byte[] validatedXmlBytes(InputStream inputStream) throws IOException {
+        byte[] bytes = inputStream.readAllBytes();
+        String prefix = new String(bytes, 0, Math.min(bytes.length, 512), StandardCharsets.ISO_8859_1).toUpperCase(Locale.ROOT);
+        if (prefix.contains("<!DOCTYPE") || prefix.contains("<!ENTITY")) {
+            throw new IOException("Unsafe XML entity");
+        }
+        return bytes;
     }
 
     static TransformerFactory transformerFactory() {
@@ -67,6 +110,22 @@ final class JaxRsXmlFactories {
             factory.setAttribute(attribute, value);
         } catch (IllegalArgumentException ignored) {
             // Some TransformerFactory implementations do not support every hardening attribute.
+        }
+    }
+
+    private static void setProperty(Unmarshaller unmarshaller, String property, String value) {
+        try {
+            unmarshaller.setProperty(property, value);
+        } catch (JAXBException ignored) {
+            // Some JAXB providers do not support every hardening property.
+        }
+    }
+
+    private static void setProperty(Marshaller marshaller, String property, String value) {
+        try {
+            marshaller.setProperty(property, value);
+        } catch (JAXBException ignored) {
+            // Some JAXB providers do not support every hardening property.
         }
     }
 }

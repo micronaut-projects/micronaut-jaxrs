@@ -51,7 +51,10 @@ public final class JaxRsMutableObjectHeadersMultivaluedMap extends JaxRsObjectHe
     public void add(String key, Object value) {
         Objects.requireNonNull(value);
         RuntimeDelegate.HeaderDelegate<Object> headerDelegate = RuntimeDelegate.getInstance().createHeaderDelegate((Class<Object>) value.getClass());
-        headers.add(key, headerDelegate.toString(value));
+        headers.add(
+            JaxRsHeaderValues.validateToken(key),
+            JaxRsHeaderValues.validateHeaderValue(headerDelegate.toString(value))
+        );
     }
 
     @Override

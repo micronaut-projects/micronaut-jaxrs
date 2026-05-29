@@ -93,9 +93,9 @@ public final class JaxRsJaxbElementMessageBodyReaderWriter implements MessageBod
         JAXBContext jaxbContext = jaxbContext(genericType, mediaType);
         if (jaxbContext != null) {
             try {
-                XMLStreamReader reader = JaxRsXmlFactories.xmlInputFactory().createXMLStreamReader(entityStream);
+                XMLStreamReader reader = JaxRsXmlFactories.xmlStreamReader(entityStream);
                 try {
-                    return jaxbContext.createUnmarshaller().unmarshal(reader, declaredType(genericType));
+                    return JaxRsXmlFactories.unmarshaller(jaxbContext).unmarshal(reader, declaredType(genericType));
                 } finally {
                     reader.close();
                 }
@@ -104,7 +104,7 @@ public final class JaxRsJaxbElementMessageBodyReaderWriter implements MessageBod
             }
         }
         try {
-            XMLStreamReader reader = JaxRsXmlFactories.xmlInputFactory().createXMLStreamReader(entityStream);
+            XMLStreamReader reader = JaxRsXmlFactories.xmlStreamReader(entityStream);
             try {
                 while (reader.hasNext()) {
                     if (reader.next() == XMLStreamConstants.START_ELEMENT) {
@@ -137,7 +137,7 @@ public final class JaxRsJaxbElementMessageBodyReaderWriter implements MessageBod
         JAXBContext jaxbContext = jaxbContext(genericType, mediaType);
         if (jaxbContext != null) {
             try {
-                jaxbContext.createMarshaller().marshal(element, entityStream);
+                JaxRsXmlFactories.marshaller(jaxbContext).marshal(element, entityStream);
                 return;
             } catch (JAXBException e) {
                 throw new IOException("Cannot write JAXBElement", e);

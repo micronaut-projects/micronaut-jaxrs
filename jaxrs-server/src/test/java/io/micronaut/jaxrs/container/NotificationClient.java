@@ -106,4 +106,8 @@ public interface NotificationClient {
     @GET
     @Path("/not-supported-without-response")
     HttpResponse<Notification> notSupportedWithoutResponse();
+
+    @GET
+    @Path("/generic-error")
+    HttpResponse<Notification> genericError();
 }

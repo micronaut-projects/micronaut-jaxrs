@@ -34,6 +34,8 @@ import jakarta.xml.bind.JAXBException;
 import jakarta.xml.bind.annotation.XmlRootElement;
 import jakarta.xml.bind.annotation.XmlType;
 
+import javax.xml.stream.XMLStreamException;
+import javax.xml.stream.XMLStreamReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -72,9 +74,14 @@ final class JaxRsJaxbMessageBodyReaderWriter implements MessageBodyReader<Object
                            MultivaluedMap<String, String> httpHeaders,
                            InputStream entityStream) throws IOException, WebApplicationException {
         try {
-            Object result = JAXBContext.newInstance(type).createUnmarshaller().unmarshal(entityStream);
-            return result instanceof JAXBElement<?> element ? element.getValue() : result;
-        } catch (JAXBException e) {
+            XMLStreamReader reader = JaxRsXmlFactories.xmlStreamReader(entityStream);
+            try {
+                Object result = JaxRsXmlFactories.unmarshaller(JAXBContext.newInstance(type)).unmarshal(reader);
+                return result instanceof JAXBElement<?> element ? element.getValue() : result;
+            } finally {
+                reader.close();
+            }
+        } catch (JAXBException | XMLStreamException e) {
             throw new IOException("Cannot read JAXB entity", e);
         }
     }
@@ -93,7 +100,7 @@ final class JaxRsJaxbMessageBodyReaderWriter implements MessageBodyReader<Object
                         MultivaluedMap<String, Object> httpHeaders,
                         OutputStream entityStream) throws IOException, WebApplicationException {
         try {
-            JAXBContext.newInstance(type).createMarshaller().marshal(entity, entityStream);
+            JaxRsXmlFactories.marshaller(JAXBContext.newInstance(type)).marshal(entity, entityStream);
         } catch (JAXBException e) {
             throw new IOException("Cannot write JAXB entity", e);
         }

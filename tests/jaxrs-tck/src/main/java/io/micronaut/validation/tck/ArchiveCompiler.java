@@ -104,7 +104,7 @@ final class ArchiveCompiler {
                     continue;
                 }
 
-                Path sourceFilePath = deploymentDir.source.resolve(sourceFile.substring(1)); // sourceFile begins with `/`
+                Path sourceFilePath = resolveInside(deploymentDir.source, sourceFile.substring(1)); // sourceFile begins with `/`
 
                 Files.createDirectories(sourceFilePath.getParent()); // make sure the directory exists
                 try (InputStream in = ArchiveCompiler.class.getResourceAsStream(sourceFile)) {
@@ -118,7 +118,7 @@ final class ArchiveCompiler {
                 sourceFiles.add(sourceFilePath.toFile());
             } else if (path.startsWith("/WEB-INF/classes/") && entry.getValue().getAsset() != null) {
                 String resource = path.replace("/WEB-INF/classes", "");
-                Path resourcePath = deploymentDir.target.resolve(resource.substring(1)); // resource begins with `/`
+                Path resourcePath = resolveInside(deploymentDir.target, resource.substring(1)); // resource begins with `/`
 
                 Files.createDirectories(resourcePath.getParent()); // make sure the directory exists
                 try (InputStream in = entry.getValue().getAsset().openStream()) {
@@ -126,7 +126,7 @@ final class ArchiveCompiler {
                 }
             } else if (path.startsWith("/WEB-INF/lib") && path.endsWith(".jar")) {
                 String jarFile = path.replace("/WEB-INF/lib", "");
-                Path jarFilePath = deploymentDir.lib.resolve(jarFile.substring(1)); // jarFile begins with `/`
+                Path jarFilePath = resolveInside(deploymentDir.lib, jarFile.substring(1)); // jarFile begins with `/`
 
                 Files.createDirectories(jarFilePath.getParent()); // make sure the directory exists
                 try (InputStream in = entry.getValue().getAsset().openStream()) {
@@ -498,8 +498,39 @@ final class ArchiveCompiler {
             .collect(Collectors.joining(", ", "Set.of(", ")"));
     }
 
-    private static String quote(String value) {
-        return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+    static String quote(String value) {
+        StringBuilder result = new StringBuilder(value.length() + 2);
+        result.append('"');
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            switch (c) {
+                case '\\' -> result.append("\\\\");
+                case '"' -> result.append("\\\"");
+                case '\b' -> result.append("\\b");
+                case '\t' -> result.append("\\t");
+                case '\n' -> result.append("\\n");
+                case '\f' -> result.append("\\f");
+                case '\r' -> result.append("\\r");
+                default -> {
+                    if (c < 0x20 || c == 0x7f) {
+                        result.append(String.format("\\u%04x", (int) c));
+                    } else {
+                        result.append(c);
+                    }
+                }
+            }
+        }
+        result.append('"');
+        return result.toString();
+    }
+
+    static Path resolveInside(Path root, String child) throws IOException {
+        Path normalizedRoot = root.toAbsolutePath().normalize();
+        Path resolved = normalizedRoot.resolve(child).normalize();
+        if (!resolved.startsWith(normalizedRoot)) {
+            throw new IOException("Archive entry escapes deployment directory: " + child);
+        }
+        return resolved;
     }
 
     private void doCompile(Collection<File> testSources, File outputDir) throws ArchiveCompilationException, IOException {

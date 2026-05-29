@@ -80,7 +80,7 @@ public final class JaxRsSourceMessageBodyReaderWriter implements MessageBodyRead
                            MediaType mediaType,
                            MultivaluedMap<String, String> httpHeaders,
                            InputStream entityStream) throws IOException, WebApplicationException {
-        return new StreamSource(new ByteArrayInputStream(entityStream.readAllBytes()));
+        return new StreamSource(new ByteArrayInputStream(JaxRsXmlFactories.validatedXmlBytes(entityStream)));
     }
 
     @Override

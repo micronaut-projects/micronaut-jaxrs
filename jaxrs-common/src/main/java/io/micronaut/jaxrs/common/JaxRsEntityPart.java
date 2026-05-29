@@ -176,15 +176,11 @@ public final class JaxRsEntityPart implements EntityPart {
     }
 
     private static String contentDisposition(String name, @Nullable String fileName) {
-        String value = "form-data; name=\"" + escape(name) + "\"";
+        String value = "form-data; name=" + JaxRsHeaderValues.quoteParameterValue(name);
         if (fileName != null) {
-            value += "; filename=\"" + escape(fileName) + "\"";
+            value += "; filename=" + JaxRsHeaderValues.quoteParameterValue(fileName);
         }
         return value;
-    }
-
-    private static String escape(String value) {
-        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     /**
@@ -214,9 +210,11 @@ public final class JaxRsEntityPart implements EntityPart {
 
         @Override
         public EntityPart.Builder header(String name, String... values) throws IllegalArgumentException {
-            JaxRsUtils.requireNonNull("name", name);
+            JaxRsHeaderValues.validateToken(name);
             if (values != null) {
-                headers.addAll(name, Arrays.asList(values));
+                headers.addAll(name, Arrays.stream(values)
+                    .map(JaxRsHeaderValues::validateHeaderValue)
+                    .toList());
             }
             return this;
         }
@@ -225,7 +223,10 @@ public final class JaxRsEntityPart implements EntityPart {
         public EntityPart.Builder headers(MultivaluedMap<String, String> headers) throws IllegalArgumentException {
             JaxRsUtils.requireNonNull("headers", headers);
             this.headers.clear();
-            this.headers.putAll(headers);
+            headers.forEach((name, values) -> this.headers.addAll(
+                JaxRsHeaderValues.validateToken(name),
+                values.stream().map(JaxRsHeaderValues::validateHeaderValue).toList()
+            ));
             return this;
         }
 

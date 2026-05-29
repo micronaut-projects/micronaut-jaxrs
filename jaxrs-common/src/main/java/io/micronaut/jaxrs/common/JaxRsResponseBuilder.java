@@ -150,6 +150,7 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
     @SuppressWarnings({"rawtypes", "unchecked"})
     @Override
     public Response.ResponseBuilder header(String name, Object value) {
+        JaxRsHeaderValues.validateToken(name);
         if (value != null) {
             metadata.add(name, value);
             if (value instanceof Date date) {
@@ -157,10 +158,10 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
             } else {
                 RuntimeDelegate.HeaderDelegate headerDelegate = getInstance().createHeaderDelegate(value.getClass());
                 if (headerDelegate == null) {
-                    response.header(name, value.toString());
+                    response.header(name, JaxRsHeaderValues.validateHeaderValue(value.toString()));
                 } else {
                     String stringValue = headerDelegate.toString(value);
-                    response.header(name, stringValue == null ? "" : stringValue);
+                    response.header(name, stringValue == null ? "" : JaxRsHeaderValues.validateHeaderValue(stringValue));
                 }
             }
         } else {
@@ -178,10 +179,11 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
         metadata.clear();
         if (headers != null) {
             headers.forEach((s, objects) -> {
+                JaxRsHeaderValues.validateToken(s);
                 for (Object object : objects) {
                     if (object != null) {
                         metadata.add(s, object);
-                        response.getHeaders().add(s, object.toString());
+                        response.getHeaders().add(s, JaxRsHeaderValues.validateHeaderValue(object.toString()));
                     }
                 }
             });

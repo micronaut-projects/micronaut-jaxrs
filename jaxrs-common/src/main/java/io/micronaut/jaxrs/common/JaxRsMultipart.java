@@ -44,6 +44,11 @@ public final class JaxRsMultipart {
     public static final String CONTENT_DISPOSITION = "Content-Disposition";
     public static final String CONTENT_TYPE = "Content-Type";
     private static final byte[] CRLF = "\r\n".getBytes(StandardCharsets.ISO_8859_1);
+    private static final int MAX_BOUNDARY_LENGTH = 70;
+    private static final int MAX_PARTS = 1_000;
+    private static final int MAX_HEADERS_PER_PART = 100;
+    private static final int MAX_HEADER_SECTION_LENGTH = 64 * 1024;
+    private static final int MAX_HEADER_LINE_LENGTH = 8 * 1024;
 
     private JaxRsMultipart() {
     }
@@ -75,9 +80,10 @@ public final class JaxRsMultipart {
      */
     public static List<EntityPart> readParts(byte[] bytes, MediaType mediaType) {
         String boundary = boundary(mediaType);
-        if (boundary == null || boundary.isBlank()) {
+        if (boundary == null) {
             throw new BadRequestException("Missing multipart boundary");
         }
+        validateBoundary(boundary);
         String body = new String(bytes, StandardCharsets.ISO_8859_1);
         String marker = "--" + boundary;
         List<EntityPart> parts = new ArrayList<>();
@@ -90,18 +96,24 @@ public final class JaxRsMultipart {
             partStart = skipLineBreak(body, partStart);
             int headersEnd = headerEnd(body, partStart);
             if (headersEnd < 0) {
-                break;
+                throw new BadRequestException("Malformed multipart headers");
             }
             String headerText = body.substring(partStart, headersEnd);
+            if (headerText.length() > MAX_HEADER_SECTION_LENGTH) {
+                throw new BadRequestException("Multipart headers are too large");
+            }
             int contentStart = headersEnd + headerSeparatorLength(body, headersEnd);
             int nextMarkerStart = nextMarker(body, marker, contentStart);
             if (nextMarkerStart < 0) {
-                break;
+                throw new BadRequestException("Multipart closing boundary is missing");
             }
             int contentEnd = trimLineBreakBefore(body, nextMarkerStart);
             MultivaluedMap<String, String> headers = parseHeaders(headerText);
             EntityPart part = part(headers, body.substring(contentStart, contentEnd).getBytes(StandardCharsets.ISO_8859_1));
             if (part != null) {
+                if (parts.size() == MAX_PARTS) {
+                    throw new BadRequestException("Too many multipart parts");
+                }
                 parts.add(part);
             }
             markerStart = nextMarkerStart + 1;
@@ -124,8 +136,9 @@ public final class JaxRsMultipart {
             outputStream.write(("--" + boundary).getBytes(StandardCharsets.ISO_8859_1));
             outputStream.write(CRLF);
             for (Map.Entry<String, List<String>> entry : part.getHeaders().entrySet()) {
+                String name = JaxRsHeaderValues.validateToken(entry.getKey());
                 for (String value : entry.getValue()) {
-                    outputStream.write((entry.getKey() + ": " + value).getBytes(StandardCharsets.ISO_8859_1));
+                    outputStream.write((name + ": " + JaxRsHeaderValues.validateHeaderValue(value)).getBytes(StandardCharsets.ISO_8859_1));
                     outputStream.write(CRLF);
                 }
             }
@@ -145,12 +158,16 @@ public final class JaxRsMultipart {
         if (disposition == null) {
             return null;
         }
+        JaxRsHeaderValues.validateHeaderValue(disposition);
         Map<String, String> parameters = headerParameters(disposition);
         String name = parameters.get("name");
         if (name == null || name.isBlank()) {
-            return null;
+            throw new BadRequestException("Multipart Content-Disposition name is required");
         }
         String contentType = first(headers, CONTENT_TYPE);
+        if (contentType != null) {
+            JaxRsHeaderValues.validateHeaderValue(contentType);
+        }
         MediaType mediaType = contentType == null ? MediaType.TEXT_PLAIN_TYPE : MediaType.valueOf(contentType);
         return JaxRsEntityPart.parsed(name, parameters.get("filename"), mediaType, headers, bytes);
     }
@@ -165,24 +182,43 @@ public final class JaxRsMultipart {
 
     private static MultivaluedMap<String, String> parseHeaders(String headerText) {
         MultivaluedMap<String, String> headers = new MultivaluedHashMap<>();
+        int count = 0;
         for (String line : headerText.replace("\r\n", "\n").split("\n")) {
+            if (line.length() > MAX_HEADER_LINE_LENGTH) {
+                throw new BadRequestException("Multipart header line is too large");
+            }
             int separator = line.indexOf(':');
             if (separator <= 0) {
-                continue;
+                throw new BadRequestException("Malformed multipart header");
             }
-            headers.add(line.substring(0, separator).trim(), line.substring(separator + 1).trim());
+            if (++count > MAX_HEADERS_PER_PART) {
+                throw new BadRequestException("Too many multipart headers");
+            }
+            headers.add(
+                JaxRsHeaderValues.validateToken(line.substring(0, separator).trim()),
+                JaxRsHeaderValues.validateHeaderValue(line.substring(separator + 1).trim())
+            );
         }
         return headers;
     }
 
     private static Map<String, String> headerParameters(String headerValue) {
         List<String> tokens = splitHeaderValue(headerValue);
+        if (tokens.isEmpty() || !"form-data".equalsIgnoreCase(tokens.get(0))) {
+            throw new BadRequestException("Malformed multipart Content-Disposition");
+        }
         MultivaluedMap<String, String> result = new MultivaluedHashMap<>();
         for (int i = 1; i < tokens.size(); i++) {
             String token = tokens.get(i);
             int separator = token.indexOf('=');
             if (separator > 0) {
-                result.putSingle(token.substring(0, separator).trim().toLowerCase(Locale.ROOT), unquote(token.substring(separator + 1).trim()));
+                String name = token.substring(0, separator).trim().toLowerCase(Locale.ROOT);
+                result.putSingle(
+                    JaxRsHeaderValues.validateToken(name),
+                    JaxRsHeaderValues.validateHeaderValue(unquote(token.substring(separator + 1).trim()))
+                );
+            } else {
+                throw new BadRequestException("Malformed multipart Content-Disposition parameter");
             }
         }
         return result.entrySet().stream().collect(java.util.stream.Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().get(0)));
@@ -242,9 +278,31 @@ public final class JaxRsMultipart {
                     result.append(c);
                 }
             }
+            if (escaped) {
+                throw new BadRequestException("Malformed quoted multipart parameter");
+            }
             return result.toString();
         }
         return value;
+    }
+
+    private static void validateBoundary(String boundary) {
+        if (boundary.isBlank() || boundary.length() > MAX_BOUNDARY_LENGTH) {
+            throw new BadRequestException("Invalid multipart boundary");
+        }
+        for (int i = 0; i < boundary.length(); i++) {
+            char c = boundary.charAt(i);
+            boolean valid = c >= '0' && c <= '9'
+                || c >= 'A' && c <= 'Z'
+                || c >= 'a' && c <= 'z'
+                || c == '\'' || c == '(' || c == ')' || c == '+'
+                || c == '_' || c == ',' || c == '-' || c == '.'
+                || c == '/' || c == ':' || c == '=' || c == '?'
+                || c == ' ';
+            if (!valid || c == ' ' && i == boundary.length() - 1) {
+                throw new BadRequestException("Invalid multipart boundary");
+            }
+        }
     }
 
     private static int skipLineBreak(String body, int index) {

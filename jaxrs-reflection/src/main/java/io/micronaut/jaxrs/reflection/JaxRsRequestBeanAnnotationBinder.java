@@ -22,6 +22,7 @@ import io.micronaut.core.beans.BeanIntrospection;
 import io.micronaut.core.beans.BeanIntrospector;
 import io.micronaut.core.beans.BeanProperty;
 import io.micronaut.core.bind.ArgumentBinder;
+import io.micronaut.core.bind.annotation.Bindable;
 import io.micronaut.core.bind.exceptions.UnsatisfiedArgumentException;
 import io.micronaut.core.convert.ArgumentConversionContext;
 import io.micronaut.core.convert.ConversionContext;
@@ -37,6 +38,13 @@ import io.micronaut.http.bind.binders.PostponedRequestArgumentBinder;
 import io.micronaut.http.bind.binders.RequestArgumentBinder;
 import io.micronaut.http.bind.binders.TypedRequestArgumentBinder;
 import jakarta.inject.Singleton;
+import jakarta.ws.rs.BeanParam;
+import jakarta.ws.rs.CookieParam;
+import jakarta.ws.rs.FormParam;
+import jakarta.ws.rs.HeaderParam;
+import jakarta.ws.rs.MatrixParam;
+import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.QueryParam;
 import org.jspecify.annotations.Nullable;
 
 import java.util.List;
@@ -113,7 +121,7 @@ final class JaxRsRequestBeanAnnotationBinder implements AnnotatedRequestArgument
                 Argument<Object> constructorArgument = (Argument<Object>) constructorArguments[i];
                 BeanProperty<Object, Object> beanProperty = beanProperties.get(constructorArgument.getName());
                 Argument<Object> argumentToBind = beanProperty == null ? constructorArgument : beanProperty.asArgument();
-                Optional<Object> bindableResult = getBindableResult(source, argumentToBind);
+                Optional<Object> bindableResult = isExplicitlyBindable(argumentToBind) ? getBindableResult(source, argumentToBind) : Optional.empty();
                 argumentValues[i] = constructorArgument.isOptional() ? bindableResult : bindableResult.orElse(null);
             }
             return () -> Optional.of(beanIntrospection.instantiate(false, argumentValues));
@@ -122,6 +130,9 @@ final class JaxRsRequestBeanAnnotationBinder implements AnnotatedRequestArgument
         Object bean = beanIntrospection.instantiate();
         for (BeanProperty<Object, Object> property : beanProperties.values()) {
             Argument<Object> propertyArgument = property.asArgument();
+            if (!isExplicitlyBindable(propertyArgument)) {
+                continue;
+            }
             Optional<Object> bindableResult = getBindableResult(source, propertyArgument);
             property.set(bean, propertyArgument.isOptional() ? bindableResult : bindableResult.orElse(null));
         }
@@ -149,5 +160,19 @@ final class JaxRsRequestBeanAnnotationBinder implements AnnotatedRequestArgument
             throw new UnsatisfiedArgumentException(argument);
         }
         return result.getValue();
+    }
+
+    private static boolean isExplicitlyBindable(Argument<?> argument) {
+        AnnotationMetadata metadata = argument.getAnnotationMetadata();
+        return metadata.hasAnnotation(Bindable.class)
+            || metadata.hasStereotype(Bindable.class)
+            || metadata.hasAnnotation(MatrixParam.class)
+            || metadata.hasAnnotation(QueryParam.class)
+            || metadata.hasAnnotation(HeaderParam.class)
+            || metadata.hasAnnotation(CookieParam.class)
+            || metadata.hasAnnotation(PathParam.class)
+            || metadata.hasAnnotation(FormParam.class)
+            || metadata.hasAnnotation(BeanParam.class)
+            || metadata.hasAnnotation(RequestBean.class);
     }
 }

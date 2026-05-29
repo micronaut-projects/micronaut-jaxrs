@@ -98,9 +98,7 @@ final class LinkBuilderImpl implements Link.Builder {
 
     @Override
     public Link.Builder param(String name, String value) throws IllegalArgumentException {
-        JaxRsUtils.requireNonNull("name", name);
-        JaxRsUtils.requireNonNull("value", value);
-        this.map.put(name, value);
+        this.map.put(JaxRsHeaderValues.validateToken(name), JaxRsHeaderValues.validateHeaderValue(value));
         return this;
     }
 

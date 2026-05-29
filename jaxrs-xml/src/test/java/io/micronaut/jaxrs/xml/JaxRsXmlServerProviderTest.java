@@ -32,11 +32,14 @@ import jakarta.ws.rs.core.Application;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.ProcessingException;
+import jakarta.xml.bind.annotation.XmlRootElement;
 import jakarta.xml.bind.JAXBElement;
 import javax.xml.transform.Source;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @MicronautTest
 @Property(name = "spec.name", value = "JaxRsXmlServerProviderTest")
@@ -69,6 +72,37 @@ class JaxRsXmlServerProviderTest {
         assertJaxbElementProvider(APPLICATION_ATOM_XML_TYPE);
     }
 
+    @Test
+    void sourceProviderRejectsDoctypeBeforeReturningReusableSource() {
+        HttpRequest<String> request = HttpRequest.POST("/source", unsafeXml())
+            .contentType(MediaType.APPLICATION_XML_TYPE);
+
+        assertThrows(Exception.class, () -> client.toBlocking().exchange(request, String.class));
+    }
+
+    @Test
+    void jaxbElementProviderRejectsDoctype() {
+        HttpRequest<String> request = HttpRequest.POST("/jaxb", unsafeXml())
+            .contentType(MediaType.APPLICATION_XML_TYPE);
+
+        assertThrows(Exception.class, () -> client.toBlocking().exchange(request, String.class));
+    }
+
+    @Test
+    void jaxbObjectProviderRejectsDoctype() {
+        HttpRequest<String> request = HttpRequest.POST("/jaxb-object", unsafeXml())
+            .contentType(MediaType.APPLICATION_XML_TYPE);
+
+        assertThrows(Exception.class, () -> client.toBlocking().exchange(request, String.class));
+    }
+
+    @Test
+    void sseXmlDataReaderRejectsDoctypeForSourceData() {
+        JaxRsXmlSseEventDataReader reader = new JaxRsXmlSseEventDataReader();
+
+        assertThrows(ProcessingException.class, () -> reader.readData(Source.class, Source.class, jakarta.ws.rs.core.MediaType.APPLICATION_XML_TYPE, unsafeXml()));
+    }
+
     private static HttpRequest<byte[]> emptyPost(String path) {
         return HttpRequest.POST(path, new byte[0])
             .contentType(MediaType.APPLICATION_OCTET_STREAM_TYPE);
@@ -82,6 +116,10 @@ class JaxRsXmlServerProviderTest {
         String body = client.toBlocking().retrieve(request);
 
         assertEquals("<tag>EXPECTED</tag>", body);
+    }
+
+    private static String unsafeXml() {
+        return "<!DOCTYPE tag [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><tag>&xxe;</tag>";
     }
 
     @Requires(property = "spec.name", value = "JaxRsXmlServerProviderTest")
@@ -115,8 +153,20 @@ class JaxRsXmlServerProviderTest {
             return Response.ok(jaxb).type(headers.getMediaType()).build();
         }
 
+        @POST
+        @Path("/jaxb-object")
+        @Produces(MediaType.TEXT_PLAIN)
+        String jaxbObject(XmlMessage message) {
+            return message.value;
+        }
+
         private static String isNull(Object value) {
             return value == null ? "NULL" : "EXPECTED";
         }
+    }
+
+    @XmlRootElement(name = "tag")
+    public static class XmlMessage {
+        public String value;
     }
 }

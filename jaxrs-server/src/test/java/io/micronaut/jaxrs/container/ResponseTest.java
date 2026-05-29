@@ -229,6 +229,14 @@ public class ResponseTest {
         assertEquals(HttpStatus.UNSUPPORTED_MEDIA_TYPE, exception.getStatus());
     }
 
+    @Test
+    void testGenericRuntimeExceptionUsesGenericInternalServerError() {
+        HttpClientResponseException exception = assertThrows(HttpClientResponseException.class, client::genericError);
+
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, exception.getStatus());
+        assertEquals("Internal Server Error", errorsMessage(exception));
+    }
+
     @Nullable
     private static String errorsMessage(HttpClientResponseException exception) {
         return errorsMessage(exception.getResponse());

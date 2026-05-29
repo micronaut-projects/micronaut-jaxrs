@@ -26,7 +26,6 @@ import jakarta.xml.bind.JAXBElement;
 import jakarta.xml.bind.JAXBException;
 
 import javax.xml.namespace.QName;
-import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
@@ -36,7 +35,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.StringReader;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.nio.charset.Charset;
@@ -64,13 +62,13 @@ public final class JaxRsXmlSseEventDataReader implements JaxRsSseEventDataReader
             return Optional.of(type.cast(new ByteArrayDataSource(data.getBytes(charset), mediaType == null ? MediaType.TEXT_PLAIN : mediaType.toString())));
         }
         if (Source.class.isAssignableFrom(type)) {
-            return Optional.of(type.cast(new StreamSource(new ByteArrayInputStream(data.getBytes(charset)))));
+            return Optional.of(type.cast(new StreamSource(new ByteArrayInputStream(validatedXmlBytes(data, charset)))));
         }
         if (JAXBElement.class.isAssignableFrom(type)) {
-            return Optional.of(type.cast(readJaxbElement(genericType, data)));
+            return Optional.of(type.cast(readJaxbElement(genericType, data, charset)));
         }
         if (isXml(mediaType)) {
-            return Optional.of(readJaxbObject(type, data));
+            return Optional.of(readJaxbObject(type, data, charset));
         }
         return Optional.empty();
     }
@@ -93,10 +91,10 @@ public final class JaxRsXmlSseEventDataReader implements JaxRsSseEventDataReader
         return DEFAULT_CHARSET;
     }
 
-    private static JAXBElement<?> readJaxbElement(Type genericType, String data) {
+    private static JAXBElement<?> readJaxbElement(Type genericType, String data, Charset charset) {
         Class<?> declaredType = declaredType(genericType);
         try {
-            XMLStreamReader reader = xmlInputFactory().createXMLStreamReader(new StringReader(data));
+            XMLStreamReader reader = JaxRsXmlFactories.xmlStreamReader(data.getBytes(charset));
             try {
                 while (reader.hasNext()) {
                     if (reader.next() == XMLStreamConstants.START_ELEMENT) {
@@ -121,14 +119,20 @@ public final class JaxRsXmlSseEventDataReader implements JaxRsSseEventDataReader
         }
     }
 
-    private static <T> T readJaxbObject(Class<T> type, String data) {
+    private static <T> T readJaxbObject(Class<T> type, String data, Charset charset) {
         try {
-            Object result = JAXBContext.newInstance(type).createUnmarshaller().unmarshal(new StringReader(data));
+            XMLStreamReader reader = JaxRsXmlFactories.xmlStreamReader(data.getBytes(charset));
+            Object result;
+            try {
+                result = JaxRsXmlFactories.unmarshaller(JAXBContext.newInstance(type)).unmarshal(reader);
+            } finally {
+                reader.close();
+            }
             if (result instanceof JAXBElement<?> element) {
                 result = element.getValue();
             }
             return type.cast(result);
-        } catch (JAXBException | ClassCastException e) {
+        } catch (JAXBException | XMLStreamException | ClassCastException e) {
             throw new ProcessingException("Cannot read SSE event data as " + type.getName(), e);
         }
     }
@@ -143,18 +147,11 @@ public final class JaxRsXmlSseEventDataReader implements JaxRsSseEventDataReader
         return String.class;
     }
 
-    private static XMLInputFactory xmlInputFactory() {
-        XMLInputFactory factory = XMLInputFactory.newFactory();
-        disable(factory, XMLInputFactory.SUPPORT_DTD);
-        disable(factory, "javax.xml.stream.isSupportingExternalEntities");
-        return factory;
-    }
-
-    private static void disable(XMLInputFactory factory, String propertyName) {
+    private static byte[] validatedXmlBytes(String data, Charset charset) {
         try {
-            factory.setProperty(propertyName, false);
-        } catch (IllegalArgumentException ignored) {
-            // Some XMLInputFactory implementations do not support every hardening property.
+            return JaxRsXmlFactories.validatedXmlBytes(new ByteArrayInputStream(data.getBytes(charset)));
+        } catch (IOException e) {
+            throw new ProcessingException("Cannot read SSE event data as Source", e);
         }
     }
 
