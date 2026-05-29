@@ -35,6 +35,7 @@ class ParameterAnnotationSpec extends AbstractTypeElementSpec {
     static final String PATH_PARAM_BINDING_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsPathParamBinding"
     static final String RESOURCE_TEMPLATE_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsResourceTemplate"
     static final String SUB_RESOURCE_LOCATOR_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsSubResourceLocator"
+    static final String DYNAMIC_SUB_RESOURCE_INDEX_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsDynamicSubResourceIndex"
     static final String ENTITY_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsEntity"
 
     private static <T> T withFailOnUnsupportedDisabled(Closure<T> closure) {
@@ -210,9 +211,35 @@ class Test {
 
         expect:
         method.stringValue(HttpMethodMapping).get() == '/colors{color:;[^/]*|}/ids{color:;[^/]*|}'
+        method.intValue(RESOURCE_TEMPLATE_ANNOTATION, JaxRsResourceTemplateMetadata.MEMBER_PATH_SEGMENT_COUNT).getAsInt() == 3
+        method.stringValues(RESOURCE_TEMPLATE_ANNOTATION, JaxRsResourceTemplateMetadata.MEMBER_PATH_PARAMETER_NAMES) == [] as String[]
         method.intValue(RESOURCE_TEMPLATE_ANNOTATION, JaxRsResourceTemplateMetadata.MEMBER_LITERAL_CHARACTERS).getAsInt() == 16
         method.intValue(RESOURCE_TEMPLATE_ANNOTATION, JaxRsResourceTemplateMetadata.MEMBER_CAPTURING_GROUPS).getAsInt() == 0
         method.intValue(RESOURCE_TEMPLATE_ANNOTATION, JaxRsResourceTemplateMetadata.MEMBER_NON_DEFAULT_CAPTURING_GROUPS).getAsInt() == 0
+    }
+
+    void "test resource template records path parameter layout"() {
+        given:
+        def definition = buildBeanDefinition('test.Test', """
+package test;
+
+@jakarta.ws.rs.Path("/test/{id}")
+class Test {
+
+    @jakarta.ws.rs.GET
+    @jakarta.ws.rs.Path("/child/{id:[0-9]+}/{slug}")
+    void test(@jakarta.ws.rs.PathParam("id") String id,
+              @jakarta.ws.rs.PathParam("slug") String slug) {}
+}
+""")
+
+        def method = definition.getRequiredMethod("test", String, String)
+
+        expect:
+        method.stringValue(RESOURCE_TEMPLATE_ANNOTATION).get() == '/test/{id}/child/{id:[0-9]+}/{slug}'
+        method.intValue(RESOURCE_TEMPLATE_ANNOTATION, JaxRsResourceTemplateMetadata.MEMBER_PATH_SEGMENT_COUNT).getAsInt() == 5
+        method.stringValues(RESOURCE_TEMPLATE_ANNOTATION, JaxRsResourceTemplateMetadata.MEMBER_PATH_PARAMETER_NAMES) == ['id', 'id', 'slug'] as String[]
+        method.getAnnotationMetadata().getValue(RESOURCE_TEMPLATE_ANNOTATION, JaxRsResourceTemplateMetadata.MEMBER_PATH_PARAMETER_SEGMENT_INDEXES, int[].class).get().toList() == [1, 3, 4]
     }
 
     void "test root resource method without method Path records root template once"() {
@@ -525,6 +552,9 @@ class MiddleResource {
         method.stringValues(SUB_RESOURCE_LOCATOR_ANNOTATION, JaxRsSubResourceLocatorMetadata.MEMBER_TARGET_METHODS) == ['get', 'post'] as String[]
         method.stringValues(SUB_RESOURCE_LOCATOR_ANNOTATION, JaxRsSubResourceLocatorMetadata.MEMBER_TARGET_HTTP_METHODS) == ['GET', 'POST'] as String[]
         method.stringValues(SUB_RESOURCE_LOCATOR_ANNOTATION, JaxRsSubResourceLocatorMetadata.MEMBER_TARGET_RESOURCE_TEMPLATES) == ['/resource/locator', '/resource/locator'] as String[]
+        method.stringValues(SUB_RESOURCE_LOCATOR_ANNOTATION, JaxRsSubResourceLocatorMetadata.MEMBER_TARGET_PATH_SEGMENTS) == ['resource', 'locator', 'resource', 'locator'] as String[]
+        method.getAnnotationMetadata().getValue(SUB_RESOURCE_LOCATOR_ANNOTATION, JaxRsSubResourceLocatorMetadata.MEMBER_TARGET_PATH_SEGMENT_COUNTS, int[].class).get().toList() == [2, 2]
+        method.getAnnotationMetadata().getValue(SUB_RESOURCE_LOCATOR_ANNOTATION, JaxRsSubResourceLocatorMetadata.MEMBER_TARGET_ROUTE_SCORES, int[].class).get().toList() == [17, 0, 0, 17, 0, 0]
     }
 
     void "test Object subresource locator emits dynamic fallback route when unsupported failures are disabled"() {
@@ -571,6 +601,50 @@ class LeafResource {
         method.stringValue(SUB_RESOURCE_LOCATOR_ANNOTATION, JaxRsSubResourceLocatorMetadata.MEMBER_ROUTE_PATH).get() == 'l2locator'
         method.booleanValue(SUB_RESOURCE_LOCATOR_ANNOTATION, JaxRsSubResourceLocatorMetadata.MEMBER_DYNAMIC).get()
         method.stringValue(SUB_RESOURCE_LOCATOR_ANNOTATION, JaxRsSubResourceLocatorMetadata.MEMBER_REMAINING).get() == JaxRsSubResourceLocatorMetadata.DYNAMIC_REMAINING_ROUTE_VARIABLE
+    }
+
+    void "test dynamic subresource runtime target class records method index"() {
+        given:
+        def context = withFailOnUnsupportedDisabled {
+            withSystemProperty("micronaut.route.validation", "false") {
+                buildContext('test.MiddleResource', """
+package test;
+
+class MiddleResource {
+
+    @jakarta.ws.rs.Path("leaf")
+    Object locator() {
+        return new LeafResource();
+    }
+
+    @jakarta.ws.rs.GET
+    @jakarta.ws.rs.Path("item/{id}")
+    @jakarta.ws.rs.Produces("text/plain")
+    String get(@jakarta.ws.rs.PathParam("id") String id) {
+        return id;
+    }
+}
+
+class LeafResource {
+
+    @jakarta.ws.rs.DELETE
+    String delete() {
+        return "ok";
+    }
+}
+""")
+            }
+        }
+        def definition = context.getBeanDefinition(context.getClassLoader().loadClass('test.MiddleResource'))
+
+        expect:
+        definition.stringValues(DYNAMIC_SUB_RESOURCE_INDEX_ANNOTATION, JaxRsSubResourceLocatorMetadata.DYNAMIC_INDEX_MEMBER_METHOD_NAMES) == ['locator', 'get'] as String[]
+        definition.stringValues(DYNAMIC_SUB_RESOURCE_INDEX_ANNOTATION, JaxRsSubResourceLocatorMetadata.DYNAMIC_INDEX_MEMBER_HTTP_METHODS) == ['', 'GET'] as String[]
+        definition.stringValues(DYNAMIC_SUB_RESOURCE_INDEX_ANNOTATION, JaxRsSubResourceLocatorMetadata.DYNAMIC_INDEX_MEMBER_ROUTE_PATH_SEGMENTS) == ['leaf', 'item', '{id}'] as String[]
+        definition.getAnnotationMetadata().getValue(DYNAMIC_SUB_RESOURCE_INDEX_ANNOTATION, JaxRsSubResourceLocatorMetadata.DYNAMIC_INDEX_MEMBER_ROUTE_PATH_SEGMENT_COUNTS, int[].class).get().toList() == [1, 2]
+        definition.stringValues(DYNAMIC_SUB_RESOURCE_INDEX_ANNOTATION, JaxRsSubResourceLocatorMetadata.DYNAMIC_INDEX_MEMBER_RESOURCE_TEMPLATES) == ['', '/item/{id}'] as String[]
+        definition.stringValues(DYNAMIC_SUB_RESOURCE_INDEX_ANNOTATION, JaxRsSubResourceLocatorMetadata.DYNAMIC_INDEX_MEMBER_PRODUCES) == ['text/plain'] as String[]
+        definition.getAnnotationMetadata().getValue(DYNAMIC_SUB_RESOURCE_INDEX_ANNOTATION, JaxRsSubResourceLocatorMetadata.DYNAMIC_INDEX_MEMBER_PRODUCES_COUNTS, int[].class).get().toList() == [0, 1]
     }
 
     void "test response returning terminal subresource locator is exposed as GET route"() {

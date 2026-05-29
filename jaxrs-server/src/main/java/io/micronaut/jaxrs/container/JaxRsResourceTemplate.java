@@ -63,6 +63,21 @@ public @interface JaxRsResourceTemplate {
     String[] matrixRouteVariableNames() default {};
 
     /**
+     * @return The number of URI path segments in the original Jakarta REST resource template.
+     */
+    int pathSegmentCount() default -1;
+
+    /**
+     * @return Path parameter names from the original Jakarta REST resource template.
+     */
+    String[] pathParameterNames() default {};
+
+    /**
+     * @return Segment indexes for each path parameter name.
+     */
+    int[] pathParameterSegmentIndexes() default {};
+
+    /**
      * @return The number of literal characters in the original Jakarta REST resource template.
      */
     int literalCharacters() default -1;

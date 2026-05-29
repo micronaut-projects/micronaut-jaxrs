@@ -28,6 +28,9 @@ public final class JaxRsResourceTemplateMetadata {
     public static final String MEMBER_ROOT_CLASS_NAME = "rootClassName";
     public static final String MEMBER_HTTP_METHOD = "httpMethod";
     public static final String MEMBER_MATRIX_ROUTE_VARIABLE_NAMES = "matrixRouteVariableNames";
+    public static final String MEMBER_PATH_SEGMENT_COUNT = "pathSegmentCount";
+    public static final String MEMBER_PATH_PARAMETER_NAMES = "pathParameterNames";
+    public static final String MEMBER_PATH_PARAMETER_SEGMENT_INDEXES = "pathParameterSegmentIndexes";
     public static final String MEMBER_LITERAL_CHARACTERS = "literalCharacters";
     public static final String MEMBER_CAPTURING_GROUPS = "capturingGroups";
     public static final String MEMBER_NON_DEFAULT_CAPTURING_GROUPS = "nonDefaultCapturingGroups";

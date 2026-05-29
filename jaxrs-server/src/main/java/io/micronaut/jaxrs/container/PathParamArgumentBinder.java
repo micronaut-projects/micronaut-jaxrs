@@ -16,6 +16,7 @@
 package io.micronaut.jaxrs.container;
 
 import io.micronaut.context.annotation.Prototype;
+import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.convert.ArgumentConversionContext;
 import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.convert.value.ConvertibleMultiValues;
@@ -26,6 +27,7 @@ import io.micronaut.http.HttpRequest;
 import io.micronaut.http.bind.binders.RequestArgumentBinder;
 import io.micronaut.http.uri.UriMatchInfo;
 import io.micronaut.http.uri.UriMatchVariable;
+import io.micronaut.jaxrs.common.JaxRsResourceTemplateMetadata;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.UriRouteInfo;
 import jakarta.ws.rs.Encoded;
@@ -54,6 +56,7 @@ import java.util.Optional;
 final class PathParamArgumentBinder<T> extends AbstractParamArgumentBinder<PathParam, T> {
 
     static final String URI_TEMPLATE_ATTRIBUTE = PathParamArgumentBinder.class.getName() + ".uriTemplate";
+    static final String URI_TEMPLATE_METADATA_ATTRIBUTE = PathParamArgumentBinder.class.getName() + ".uriTemplateMetadata";
 
     /**
      * Constructor.
@@ -116,7 +119,12 @@ final class PathParamArgumentBinder<T> extends AbstractParamArgumentBinder<PathP
 
     private ConvertibleMultiValues<String> pathParameters(HttpRequest<?> source, boolean decode) {
         Map<CharSequence, List<String>> values = new LinkedHashMap<>();
-        uriTemplate(source).ifPresent(template -> addTemplatePathParameters(values, template, source.getUri().getRawPath(), decode));
+        Optional<PathTemplateMetadata> metadata = pathTemplateMetadata(source);
+        if (metadata.isPresent()) {
+            addMetadataPathParameters(values, metadata.get(), source.getUri().getRawPath(), decode);
+        } else {
+            uriTemplate(source).ifPresent(template -> addTemplatePathParameters(values, template, source.getUri().getRawPath(), decode));
+        }
         if (values.isEmpty()) {
             BasicHttpAttributes.getRouteMatchInfo(source)
                 .ifPresent(matchInfo -> addMatchPathParameters(values, matchInfo, source.getUri().getRawPath(), decode));
@@ -125,23 +133,28 @@ final class PathParamArgumentBinder<T> extends AbstractParamArgumentBinder<PathP
     }
 
     private @Nullable PathSegment pathSegment(HttpRequest<?> source, String parameterName, boolean decode) {
-        Optional<String> uriTemplate = uriTemplate(source);
-        if (uriTemplate.isEmpty()) {
+        Optional<PathTemplateMetadata> metadata = pathTemplateMetadata(source);
+        if (metadata.isPresent()) {
+            return pathSegment(metadata.get(), source.getUri().getRawPath(), parameterName, decode);
+        } else {
+            Optional<String> uriTemplate = uriTemplate(source);
+            if (uriTemplate.isPresent()) {
+                List<String> templateSegments = pathSegments(uriTemplate.get());
+                List<String> pathSegments = pathSegments(source.getUri().getRawPath());
+                int pathOffset = Math.max(0, pathSegments.size() - templateSegments.size());
+                int count = Math.min(templateSegments.size(), pathSegments.size() - pathOffset);
+                for (int i = 0; i < count; i++) {
+                    String variableName = templateVariableName(templateSegments.get(i));
+                    if (parameterName.equals(variableName)) {
+                        return toPathSegment(pathSegments.get(pathOffset + i), decode);
+                    }
+                }
+                return null;
+            }
             return BasicHttpAttributes.getRouteMatchInfo(source)
                 .map(matchInfo -> pathSegment(matchInfo, source.getUri().getRawPath(), parameterName, decode))
                 .orElse(null);
         }
-        List<String> templateSegments = pathSegments(uriTemplate.get());
-        List<String> pathSegments = pathSegments(source.getUri().getRawPath());
-        int pathOffset = Math.max(0, pathSegments.size() - templateSegments.size());
-        int count = Math.min(templateSegments.size(), pathSegments.size() - pathOffset);
-        for (int i = 0; i < count; i++) {
-            String variableName = templateVariableName(templateSegments.get(i));
-            if (parameterName.equals(variableName)) {
-                return toPathSegment(pathSegments.get(pathOffset + i), decode);
-            }
-        }
-        return null;
     }
 
     private static @Nullable PathSegment pathSegment(UriMatchInfo matchInfo, String rawPath, String parameterName, boolean decode) {
@@ -172,6 +185,21 @@ final class PathParamArgumentBinder<T> extends AbstractParamArgumentBinder<PathP
         }
     }
 
+    private static void addMetadataPathParameters(Map<CharSequence, List<String>> values, PathTemplateMetadata metadata, String rawPath, boolean decode) {
+        List<String> pathSegments = pathSegments(rawPath);
+        int pathOffset = Math.max(0, pathSegments.size() - metadata.segmentCount());
+        int[] indexes = metadata.parameterSegmentIndexes();
+        String[] names = metadata.parameterNames();
+        int count = Math.min(names.length, indexes.length);
+        for (int i = 0; i < count; i++) {
+            int pathIndex = pathOffset + indexes[i];
+            if (pathIndex >= 0 && pathIndex < pathSegments.size()) {
+                values.computeIfAbsent(names[i], ignored -> new ArrayList<>())
+                    .add(pathValue(pathSegments.get(pathIndex), decode));
+            }
+        }
+    }
+
     private static void addMatchPathParameters(Map<CharSequence, List<String>> values, UriMatchInfo matchInfo, String rawPath, boolean decode) {
         List<UriMatchVariable> variables = matchInfo.getVariables();
         List<String> pathSegments = pathSegments(rawPath);
@@ -183,12 +211,55 @@ final class PathParamArgumentBinder<T> extends AbstractParamArgumentBinder<PathP
         }
     }
 
+    private static @Nullable PathSegment pathSegment(PathTemplateMetadata metadata, String rawPath, String parameterName, boolean decode) {
+        List<String> pathSegments = pathSegments(rawPath);
+        int pathOffset = Math.max(0, pathSegments.size() - metadata.segmentCount());
+        int[] indexes = metadata.parameterSegmentIndexes();
+        String[] names = metadata.parameterNames();
+        PathSegment result = null;
+        int count = Math.min(names.length, indexes.length);
+        for (int i = 0; i < count; i++) {
+            int pathIndex = pathOffset + indexes[i];
+            if (parameterName.equals(names[i]) && pathIndex >= 0 && pathIndex < pathSegments.size()) {
+                result = toPathSegment(pathSegments.get(pathIndex), decode);
+            }
+        }
+        return result;
+    }
+
     private static Optional<String> uriTemplate(HttpRequest<?> source) {
         return source.getAttribute(URI_TEMPLATE_ATTRIBUTE, String.class)
             .or(() -> RouteAttributes.getRouteInfo(source)
                 .filter(UriRouteInfo.class::isInstance)
                 .map(routeInfo -> ((UriRouteInfo<?, ?>) routeInfo).getUriMatchTemplate().toString()))
             .or(() -> BasicHttpAttributes.getUriTemplate(source));
+    }
+
+    private static Optional<PathTemplateMetadata> pathTemplateMetadata(HttpRequest<?> source) {
+        return source.getAttribute(URI_TEMPLATE_METADATA_ATTRIBUTE, PathTemplateMetadata.class)
+            .or(() -> RouteAttributes.getRouteInfo(source)
+                .filter(UriRouteInfo.class::isInstance)
+                .flatMap(routeInfo -> pathTemplateMetadata(((UriRouteInfo<?, ?>) routeInfo).getAnnotationMetadata())));
+    }
+
+    private static Optional<PathTemplateMetadata> pathTemplateMetadata(AnnotationMetadata annotationMetadata) {
+        Optional<Integer> segmentCount = annotationMetadata
+            .intValue(JaxRsResourceTemplate.class, JaxRsResourceTemplateMetadata.MEMBER_PATH_SEGMENT_COUNT)
+            .stream()
+            .boxed()
+            .findFirst();
+        if (segmentCount.isEmpty() || segmentCount.get() < 0) {
+            return Optional.empty();
+        }
+        String[] parameterNames = annotationMetadata
+            .stringValues(JaxRsResourceTemplate.class, JaxRsResourceTemplateMetadata.MEMBER_PATH_PARAMETER_NAMES);
+        int[] parameterSegmentIndexes = annotationMetadata
+            .getValue(JaxRsResourceTemplate.class, JaxRsResourceTemplateMetadata.MEMBER_PATH_PARAMETER_SEGMENT_INDEXES, int[].class)
+            .orElse(new int[0]);
+        if (parameterNames.length != parameterSegmentIndexes.length) {
+            return Optional.empty();
+        }
+        return Optional.of(new PathTemplateMetadata(segmentCount.get(), parameterNames, parameterSegmentIndexes));
     }
 
     private static @Nullable String templateVariableName(String templateSegment) {
@@ -287,5 +358,10 @@ final class PathParamArgumentBinder<T> extends AbstractParamArgumentBinder<PathP
         public MultivaluedMap<String, String> getMatrixParameters() {
             return matrixParameters;
         }
+    }
+
+    record PathTemplateMetadata(int segmentCount,
+                                String[] parameterNames,
+                                int[] parameterSegmentIndexes) {
     }
 }

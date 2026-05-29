@@ -106,6 +106,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * A type element visitor that turns a JAX-RS path into a controller.
@@ -119,6 +120,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     public static final int POSITION = 200;
     public static final String OPTION_FAIL_ON_UNSUPPORTED = "micronaut.jaxrs.fail.on.unsupported";
     static final String SUB_RESOURCE_LOCATOR_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsSubResourceLocator";
+    static final String DYNAMIC_SUB_RESOURCE_INDEX_ANNOTATION = "io.micronaut.jaxrs.container.JaxRsDynamicSubResourceIndex";
     static final String RECURSIVE_REMAINING_ROUTE_VARIABLE = "jaxrsRecursiveRemaining";
     static final String MATRIX_PARAMETER_ROUTE_PATTERN = ":;[^/]*|";
     static final String DYNAMIC_SUB_RESOURCE_LOCATOR_HTTP_METHOD = "JAXRS_SUB_RESOURCE_LOCATOR";
@@ -163,6 +165,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     );
     private static final Class<?>[] BINDABLE_TYPES = new Class<?>[] {Context.class, SecurityContext.class, UriInfo.class};
     private ClassElement currentClassElement;
+    private List<DynamicSubResourceIndexEntry> dynamicSubResourceIndexEntries = List.of();
     private final Set<String> generatedBeanParamIntrospections = new HashSet<>();
 
     private final List<Class<? extends Annotation>> JAX_RS_BINDING_ANNOTATIONS = List.of(
@@ -219,6 +222,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             return;
         }
         currentClassElement = element;
+        dynamicSubResourceIndexEntries = new ArrayList<>();
         if (!failOnUnsupported(context) && hasRequestParamField(element)) {
             annotateBeanParamType(element, new HashSet<>(), context);
         }
@@ -381,7 +385,10 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
                 annotateResourceTemplate(element, jaxRsMethodPath(element).orElse(UriMapping.DEFAULT_URI));
                 httpMethodRoutePath(element)
                     .map(path -> validationRoutePath(path, element))
-                    .ifPresent(path -> annotateHttpRoute(element, path));
+                    .ifPresent(path -> {
+                        annotateHttpRoute(element, path);
+                        annotateDynamicSubResourceIndex(element, path);
+                    });
                 return;
             }
             if (currentClassElement != null
@@ -402,7 +409,10 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
                 annotateResourceTemplate(element, jaxRsMethodPath(element).orElse(UriMapping.DEFAULT_URI), matrixParameterNames);
                 httpMethodRoutePath(element)
                     .map(path -> toServerRoutePath(element, path, matrixParameterNames))
-                    .ifPresent(path -> annotateHttpRoute(element, path));
+                    .ifPresent(path -> {
+                        annotateHttpRoute(element, path);
+                        annotateDynamicSubResourceIndex(element, path);
+                    });
             }
         }
     }
@@ -439,6 +449,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
                 routePath = toMatrixParameterAwareRoute(routePath, matrixParameterNames);
             }
             String finalRoutePath = routePath;
+            String[] targetResourceTemplates = targetResourceTemplates(currentClassElement, element, exposedTargetMethods);
             annotateSubResourceMediaTypes(element, exposedTargetMethods);
             annotateHttpRoute(element, targetMethod.routeAnnotation(), validationRoutePath(locatorPath, element));
             annotateResourceTemplate(element, resourceTemplatePath, matrixParameterNames);
@@ -451,7 +462,10 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
                 .member(JaxRsSubResourceLocatorMetadata.MEMBER_REMAINING, recursiveLocator == null ? "" : RECURSIVE_REMAINING_ROUTE_VARIABLE)
                 .member(JaxRsSubResourceLocatorMetadata.MEMBER_TARGET_METHODS, targetMethodNames(exposedTargetMethods))
                 .member(JaxRsSubResourceLocatorMetadata.MEMBER_TARGET_HTTP_METHODS, targetHttpMethods(exposedTargetMethods))
-                .member(JaxRsSubResourceLocatorMetadata.MEMBER_TARGET_RESOURCE_TEMPLATES, targetResourceTemplates(currentClassElement, element, exposedTargetMethods))
+                .member(JaxRsSubResourceLocatorMetadata.MEMBER_TARGET_RESOURCE_TEMPLATES, targetResourceTemplates)
+                .member(JaxRsSubResourceLocatorMetadata.MEMBER_TARGET_PATH_SEGMENTS, targetPathSegments(targetResourceTemplates))
+                .member(JaxRsSubResourceLocatorMetadata.MEMBER_TARGET_PATH_SEGMENT_COUNTS, targetPathSegmentCounts(targetResourceTemplates))
+                .member(JaxRsSubResourceLocatorMetadata.MEMBER_TARGET_ROUTE_SCORES, targetRouteScores(targetResourceTemplates))
                 .member(JaxRsSubResourceLocatorMetadata.MEMBER_TARGET_ARGUMENT_TYPES, targetArgumentTypes(exposedTargetMethods))
                 .member(JaxRsSubResourceLocatorMetadata.MEMBER_TARGET_ARGUMENT_TYPE_COUNTS, targetArgumentTypeCounts(exposedTargetMethods))
                 .member(JaxRsSubResourceLocatorMetadata.MEMBER_TARGET_CONSUMES, targetMediaTypes(exposedTargetMethods, Consumes.class))
@@ -471,6 +485,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             element.annotate(Executable.class);
             annotateDynamicHttpRoute(element, routePath);
             annotateResourceTemplate(element, routePath, matrixParameterNames);
+            annotateDynamicSubResourceIndex(element, finalLocatorPath, "", "", new String[0], new String[0]);
             element.annotate(SUB_RESOURCE_LOCATOR_ANNOTATION, builder -> builder
                 .value("")
                 .member(JaxRsSubResourceLocatorMetadata.MEMBER_TYPE, new AnnotationClassValue<>(subResourceType(element).getName()))
@@ -551,12 +566,16 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         String resourceTemplate = prependRoutePath(classPath, path);
         JaxRsRouteScore routeScore = JaxRsRouteScore.of(resourceTemplate);
         JaxRsRouteScore rootRouteScore = JaxRsRouteScore.of(rootTemplate);
+        PathTemplateMetadata pathTemplateMetadata = pathTemplateMetadata(resourceTemplate);
         method.annotate(RESOURCE_TEMPLATE_ANNOTATION, builder -> {
             builder
                 .value(resourceTemplate)
                 .member(JaxRsResourceTemplateMetadata.MEMBER_ROOT_PATH_SEGMENT_COUNT, pathSegmentCount(classPath))
                 .member(JaxRsResourceTemplateMetadata.MEMBER_ROOT_TEMPLATE, rootTemplate)
                 .member(JaxRsResourceTemplateMetadata.MEMBER_ROOT_CLASS_NAME, currentClassElement.getName())
+                .member(JaxRsResourceTemplateMetadata.MEMBER_PATH_SEGMENT_COUNT, pathTemplateMetadata.segmentCount())
+                .member(JaxRsResourceTemplateMetadata.MEMBER_PATH_PARAMETER_NAMES, pathTemplateMetadata.parameterNames())
+                .member(JaxRsResourceTemplateMetadata.MEMBER_PATH_PARAMETER_SEGMENT_INDEXES, pathTemplateMetadata.parameterSegmentIndexes())
                 .member(JaxRsResourceTemplateMetadata.MEMBER_LITERAL_CHARACTERS, routeScore.literalCharacters())
                 .member(JaxRsResourceTemplateMetadata.MEMBER_CAPTURING_GROUPS, routeScore.capturingGroups())
                 .member(JaxRsResourceTemplateMetadata.MEMBER_NON_DEFAULT_CAPTURING_GROUPS, routeScore.nonDefaultCapturingGroups())
@@ -1305,6 +1324,25 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         return variables;
     }
 
+    private static PathTemplateMetadata pathTemplateMetadata(String path) {
+        List<String> segments = routePathSegments(path);
+        List<String> names = new ArrayList<>();
+        List<Integer> indexes = new ArrayList<>();
+        for (int i = 0; i < segments.size(); i++) {
+            String segment = segments.get(i);
+            String variableName = routeTemplateVariableName(segment);
+            if (variableName != null && !segment.contains(MATRIX_PARAMETER_ROUTE_PATTERN)) {
+                names.add(variableName);
+                indexes.add(i);
+            }
+        }
+        return new PathTemplateMetadata(
+            segments.size(),
+            names.toArray(String[]::new),
+            indexes.stream().mapToInt(Integer::intValue).toArray()
+        );
+    }
+
     private static @Nullable String routeTemplateVariableName(String templateSegment) {
         if (!templateSegment.startsWith("{")) {
             return null;
@@ -1317,6 +1355,10 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         int colon = variableName.indexOf(':');
         if (colon > -1) {
             variableName = variableName.substring(0, colon);
+        }
+        int comma = variableName.indexOf(',');
+        if (comma > -1) {
+            variableName = variableName.substring(0, comma);
         }
         return variableName.isEmpty() ? null : variableName;
     }
@@ -1385,6 +1427,110 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
                 declaredMethodPath(targetMethod.method())
             ))
             .toArray(String[]::new);
+    }
+
+    private static String[] targetPathSegments(String[] resourceTemplates) {
+        return Arrays.stream(resourceTemplates)
+            .flatMap(resourceTemplate -> routePathSegments(resourceTemplate).stream())
+            .toArray(String[]::new);
+    }
+
+    private static int[] targetPathSegmentCounts(String[] resourceTemplates) {
+        return Arrays.stream(resourceTemplates)
+            .mapToInt(resourceTemplate -> routePathSegments(resourceTemplate).size())
+            .toArray();
+    }
+
+    private static int[] targetRouteScores(String[] resourceTemplates) {
+        int[] scores = new int[resourceTemplates.length * 3];
+        for (int i = 0; i < resourceTemplates.length; i++) {
+            JaxRsRouteScore score = JaxRsRouteScore.of(resourceTemplates[i]);
+            int offset = i * 3;
+            scores[offset] = score.literalCharacters();
+            scores[offset + 1] = score.capturingGroups();
+            scores[offset + 2] = score.nonDefaultCapturingGroups();
+        }
+        return scores;
+    }
+
+    private void annotateDynamicSubResourceIndex(MethodElement method, String routePath) {
+        annotateDynamicSubResourceIndex(
+            method,
+            routePath,
+            currentClassElement == null ? declaredMethodPath(method) : prependRoutePath(
+                jaxRsPath(currentClassElement).orElse(UriMapping.DEFAULT_URI),
+                declaredMethodPath(method)
+            ),
+            httpMethodName(method).orElse(""),
+            sourceMediaTypes(method, Consumes.class),
+            sourceMediaTypes(method, Produces.class)
+        );
+    }
+
+    private void annotateDynamicSubResourceIndex(MethodElement method,
+                                                 String routePath,
+                                                 String resourceTemplate,
+                                                 String httpMethod,
+                                                 String[] consumes,
+                                                 String[] produces) {
+        if (currentClassElement == null) {
+            return;
+        }
+        String[] routeSegments = routePathSegments(routePath).toArray(String[]::new);
+        JaxRsRouteScore routeScore = JaxRsRouteScore.of(routePath);
+        String[] argumentTypes = targetMethodArgumentTypes(method);
+        dynamicSubResourceIndexEntries.add(new DynamicSubResourceIndexEntry(
+            method.getName(),
+            argumentTypes,
+            httpMethod,
+            routeSegments,
+            resourceTemplate,
+            consumes,
+            produces,
+            routeScore
+        ));
+        currentClassElement.removeAnnotation(DYNAMIC_SUB_RESOURCE_INDEX_ANNOTATION);
+        currentClassElement.annotate(DYNAMIC_SUB_RESOURCE_INDEX_ANNOTATION, builder -> builder
+            .member(JaxRsSubResourceLocatorMetadata.DYNAMIC_INDEX_MEMBER_METHOD_NAMES, dynamicSubResourceIndexEntries.stream()
+                .map(DynamicSubResourceIndexEntry::methodName)
+                .toArray(String[]::new))
+            .member(JaxRsSubResourceLocatorMetadata.DYNAMIC_INDEX_MEMBER_ARGUMENT_TYPES, dynamicSubResourceIndexEntries.stream()
+                .flatMap(entry -> Arrays.stream(entry.argumentTypes()))
+                .toArray(String[]::new))
+            .member(JaxRsSubResourceLocatorMetadata.DYNAMIC_INDEX_MEMBER_ARGUMENT_TYPE_COUNTS, dynamicSubResourceIndexEntries.stream()
+                .mapToInt(entry -> entry.argumentTypes().length)
+                .toArray())
+            .member(JaxRsSubResourceLocatorMetadata.DYNAMIC_INDEX_MEMBER_HTTP_METHODS, dynamicSubResourceIndexEntries.stream()
+                .map(DynamicSubResourceIndexEntry::httpMethod)
+                .toArray(String[]::new))
+            .member(JaxRsSubResourceLocatorMetadata.DYNAMIC_INDEX_MEMBER_ROUTE_PATH_SEGMENTS, dynamicSubResourceIndexEntries.stream()
+                .flatMap(entry -> Arrays.stream(entry.routePathSegments()))
+                .toArray(String[]::new))
+            .member(JaxRsSubResourceLocatorMetadata.DYNAMIC_INDEX_MEMBER_ROUTE_PATH_SEGMENT_COUNTS, dynamicSubResourceIndexEntries.stream()
+                .mapToInt(entry -> entry.routePathSegments().length)
+                .toArray())
+            .member(JaxRsSubResourceLocatorMetadata.DYNAMIC_INDEX_MEMBER_RESOURCE_TEMPLATES, dynamicSubResourceIndexEntries.stream()
+                .map(DynamicSubResourceIndexEntry::resourceTemplate)
+                .toArray(String[]::new))
+            .member(JaxRsSubResourceLocatorMetadata.DYNAMIC_INDEX_MEMBER_CONSUMES, dynamicSubResourceIndexEntries.stream()
+                .flatMap(entry -> Arrays.stream(entry.consumes()))
+                .toArray(String[]::new))
+            .member(JaxRsSubResourceLocatorMetadata.DYNAMIC_INDEX_MEMBER_CONSUMES_COUNTS, dynamicSubResourceIndexEntries.stream()
+                .mapToInt(entry -> entry.consumes().length)
+                .toArray())
+            .member(JaxRsSubResourceLocatorMetadata.DYNAMIC_INDEX_MEMBER_PRODUCES, dynamicSubResourceIndexEntries.stream()
+                .flatMap(entry -> Arrays.stream(entry.produces()))
+                .toArray(String[]::new))
+            .member(JaxRsSubResourceLocatorMetadata.DYNAMIC_INDEX_MEMBER_PRODUCES_COUNTS, dynamicSubResourceIndexEntries.stream()
+                .mapToInt(entry -> entry.produces().length)
+                .toArray())
+            .member(JaxRsSubResourceLocatorMetadata.DYNAMIC_INDEX_MEMBER_ROUTE_SCORES, dynamicSubResourceIndexEntries.stream()
+                .flatMapToInt(entry -> IntStream.of(
+                    entry.routeScore().literalCharacters(),
+                    entry.routeScore().capturingGroups(),
+                    entry.routeScore().nonDefaultCapturingGroups()
+                ))
+                .toArray()));
     }
 
     private static String declaredMethodPath(MethodElement method) {
@@ -1747,6 +1893,21 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     }
 
     private record RecursiveSubResourceLocator(MethodElement method) {
+    }
+
+    private record PathTemplateMetadata(int segmentCount,
+                                        String[] parameterNames,
+                                        int[] parameterSegmentIndexes) {
+    }
+
+    private record DynamicSubResourceIndexEntry(String methodName,
+                                                String[] argumentTypes,
+                                                String httpMethod,
+                                                String[] routePathSegments,
+                                                String resourceTemplate,
+                                                String[] consumes,
+                                                String[] produces,
+                                                JaxRsRouteScore routeScore) {
     }
 
     private record ProviderTypeMetadata(ClassElement type, boolean typeVariable) {

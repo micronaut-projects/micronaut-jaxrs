@@ -206,6 +206,8 @@ final class JaxRsSubResourceLocatorWriter implements ResponseBodyWriter<Object>,
         subResource = invokeRecursiveLocators(type, request, beanDefinition, subResource);
         if (request != null && !target.resourceTemplate().isEmpty()) {
             request.setAttribute(PathParamArgumentBinder.URI_TEMPLATE_ATTRIBUTE, target.resourceTemplate());
+            target.pathTemplateMetadata().ifPresent(metadata ->
+                request.setAttribute(PathParamArgumentBinder.URI_TEMPLATE_METADATA_ATTRIBUTE, metadata));
         }
         ExecutableMethod<?, ?> method = findSubResourceMethod(beanDefinition, target.methodName(), target.argumentTypes());
         if (request != null) {
@@ -231,8 +233,10 @@ final class JaxRsSubResourceLocatorWriter implements ResponseBodyWriter<Object>,
         DynamicSubResourceTarget target = selectDynamicSubResourceTarget(subResource, remainingSegments, request);
         if (request != null) {
             request.setAttribute(PathParamArgumentBinder.URI_TEMPLATE_ATTRIBUTE, target.resourceTemplate());
+            target.pathTemplateMetadata().ifPresent(metadata ->
+                request.setAttribute(PathParamArgumentBinder.URI_TEMPLATE_METADATA_ATTRIBUTE, metadata));
         }
-        validateMediaTypes(target.method(), target.beanDefinition(), request);
+        validateMediaTypes(target, request);
         return invoke(target.method(), target.resource(), resolveArguments(target.method(), request));
     }
 
@@ -255,7 +259,7 @@ final class JaxRsSubResourceLocatorWriter implements ResponseBodyWriter<Object>,
             Optional<DynamicResourceMethod> resourceMethod = findDynamicResourceMethod(dynamicMethods.resourceMethods(), segments, requestMethod);
             if (resourceMethod.isPresent()) {
                 DynamicResourceMethod method = resourceMethod.get();
-                return new DynamicSubResourceTarget(current, beanDefinition, method.method(), method.resourceTemplate());
+                return new DynamicSubResourceTarget(current, beanDefinition, method.method(), method.resourceTemplate(), method.consumes(), method.produces(), method.mediaMetadata(), method.pathTemplateMetadata());
             }
             Optional<DynamicLocatorMethod> locatorMethod = findDynamicLocatorMethod(dynamicMethods.locatorMethods(), segments);
             if (locatorMethod.isEmpty()) {
@@ -281,6 +285,10 @@ final class JaxRsSubResourceLocatorWriter implements ResponseBodyWriter<Object>,
     }
 
     private static DynamicSubResourceMethods createDynamicSubResourceMethods(BeanDefinition<?> beanDefinition) {
+        Optional<DynamicSubResourceMethods> indexedMethods = createDynamicSubResourceMethodsFromIndex(beanDefinition);
+        if (indexedMethods.isPresent()) {
+            return indexedMethods.get();
+        }
         List<DynamicLocatorMethod> locatorMethods = new ArrayList<>();
         List<DynamicResourceMethod> resourceMethods = new ArrayList<>();
         for (ExecutableMethod<?, ?> method : beanDefinition.getExecutableMethods()) {
@@ -301,11 +309,83 @@ final class JaxRsSubResourceLocatorWriter implements ResponseBodyWriter<Object>,
                     httpMethod,
                     pathSegments(routePath),
                     JaxRsRouteScore.of(routePath),
-                    dynamicResourceTemplate(beanDefinition, method)
+                    dynamicResourceTemplate(beanDefinition, method),
+                    new String[0],
+                    new String[0],
+                    false,
+                    Optional.empty()
                 ));
             }
         }
         return new DynamicSubResourceMethods(List.copyOf(locatorMethods), List.copyOf(resourceMethods));
+    }
+
+    private static Optional<DynamicSubResourceMethods> createDynamicSubResourceMethodsFromIndex(BeanDefinition<?> beanDefinition) {
+        AnnotationMetadata annotationMetadata = beanDefinition.getAnnotationMetadata();
+        if (!annotationMetadata.hasAnnotation(JaxRsDynamicSubResourceIndex.class)) {
+            return Optional.empty();
+        }
+        String[] methodNames = annotationMetadata.stringValues(JaxRsDynamicSubResourceIndex.class, JaxRsSubResourceLocatorMetadata.DYNAMIC_INDEX_MEMBER_METHOD_NAMES);
+        String[] httpMethods = annotationMetadata.stringValues(JaxRsDynamicSubResourceIndex.class, JaxRsSubResourceLocatorMetadata.DYNAMIC_INDEX_MEMBER_HTTP_METHODS);
+        String[] argumentTypes = annotationMetadata.stringValues(JaxRsDynamicSubResourceIndex.class, JaxRsSubResourceLocatorMetadata.DYNAMIC_INDEX_MEMBER_ARGUMENT_TYPES);
+        int[] argumentTypeCounts = annotationMetadata.getValue(JaxRsDynamicSubResourceIndex.class, JaxRsSubResourceLocatorMetadata.DYNAMIC_INDEX_MEMBER_ARGUMENT_TYPE_COUNTS, int[].class)
+            .orElse(new int[0]);
+        String[] routePathSegments = annotationMetadata.stringValues(JaxRsDynamicSubResourceIndex.class, JaxRsSubResourceLocatorMetadata.DYNAMIC_INDEX_MEMBER_ROUTE_PATH_SEGMENTS);
+        int[] routePathSegmentCounts = annotationMetadata.getValue(JaxRsDynamicSubResourceIndex.class, JaxRsSubResourceLocatorMetadata.DYNAMIC_INDEX_MEMBER_ROUTE_PATH_SEGMENT_COUNTS, int[].class)
+            .orElse(new int[0]);
+        String[] resourceTemplates = annotationMetadata.stringValues(JaxRsDynamicSubResourceIndex.class, JaxRsSubResourceLocatorMetadata.DYNAMIC_INDEX_MEMBER_RESOURCE_TEMPLATES);
+        int[] routeScores = annotationMetadata.getValue(JaxRsDynamicSubResourceIndex.class, JaxRsSubResourceLocatorMetadata.DYNAMIC_INDEX_MEMBER_ROUTE_SCORES, int[].class)
+            .orElse(new int[0]);
+        String[] consumes = annotationMetadata.stringValues(JaxRsDynamicSubResourceIndex.class, JaxRsSubResourceLocatorMetadata.DYNAMIC_INDEX_MEMBER_CONSUMES);
+        int[] consumesCounts = annotationMetadata.getValue(JaxRsDynamicSubResourceIndex.class, JaxRsSubResourceLocatorMetadata.DYNAMIC_INDEX_MEMBER_CONSUMES_COUNTS, int[].class)
+            .orElse(new int[0]);
+        String[] produces = annotationMetadata.stringValues(JaxRsDynamicSubResourceIndex.class, JaxRsSubResourceLocatorMetadata.DYNAMIC_INDEX_MEMBER_PRODUCES);
+        int[] producesCounts = annotationMetadata.getValue(JaxRsDynamicSubResourceIndex.class, JaxRsSubResourceLocatorMetadata.DYNAMIC_INDEX_MEMBER_PRODUCES_COUNTS, int[].class)
+            .orElse(new int[0]);
+        if (methodNames.length == 0 || httpMethods.length != methodNames.length || argumentTypeCounts.length != methodNames.length
+            || routePathSegmentCounts.length != methodNames.length || resourceTemplates.length != methodNames.length
+            || routeScores.length != methodNames.length * 3 || consumesCounts.length != methodNames.length || producesCounts.length != methodNames.length) {
+            return Optional.empty();
+        }
+        List<DynamicLocatorMethod> locatorMethods = new ArrayList<>();
+        List<DynamicResourceMethod> resourceMethods = new ArrayList<>();
+        int argumentOffset = 0;
+        int routePathSegmentOffset = 0;
+        int consumesOffset = 0;
+        int producesOffset = 0;
+        for (int i = 0; i < methodNames.length; i++) {
+            int argumentTypeCount = argumentTypeCounts[i];
+            String[] methodArgumentTypes = Arrays.copyOfRange(argumentTypes, argumentOffset, argumentOffset + argumentTypeCount);
+            argumentOffset += argumentTypeCount;
+            ExecutableMethod<?, ?> method = findSubResourceMethod(beanDefinition, methodNames[i], methodArgumentTypes);
+            int routePathSegmentCount = routePathSegmentCounts[i];
+            List<String> methodRoutePathSegments = List.of(Arrays.copyOfRange(routePathSegments, routePathSegmentOffset, routePathSegmentOffset + routePathSegmentCount));
+            routePathSegmentOffset += routePathSegmentCount;
+            int scoreOffset = i * 3;
+            JaxRsRouteScore score = new JaxRsRouteScore(routeScores[scoreOffset], routeScores[scoreOffset + 1], routeScores[scoreOffset + 2]);
+            int consumesCount = consumesCounts[i];
+            String[] methodConsumes = Arrays.copyOfRange(consumes, consumesOffset, consumesOffset + consumesCount);
+            consumesOffset += consumesCount;
+            int producesCount = producesCounts[i];
+            String[] methodProduces = Arrays.copyOfRange(produces, producesOffset, producesOffset + producesCount);
+            producesOffset += producesCount;
+            if (httpMethods[i].isEmpty()) {
+                locatorMethods.add(new DynamicLocatorMethod(method, methodRoutePathSegments, score));
+            } else {
+                resourceMethods.add(new DynamicResourceMethod(
+                    method,
+                    httpMethods[i],
+                    methodRoutePathSegments,
+                    score,
+                    resourceTemplates[i],
+                    methodConsumes,
+                    methodProduces,
+                    true,
+                    pathTemplateMetadata(pathSegments(resourceTemplates[i]))
+                ));
+            }
+        }
+        return Optional.of(new DynamicSubResourceMethods(List.copyOf(locatorMethods), List.copyOf(resourceMethods)));
     }
 
     private static Optional<DynamicLocatorMethod> findDynamicLocatorMethod(List<DynamicLocatorMethod> methods,
@@ -381,7 +461,8 @@ final class JaxRsSubResourceLocatorWriter implements ResponseBodyWriter<Object>,
             new String[0],
             new String[0],
             false,
-            JaxRsRouteScore.of("")
+            JaxRsRouteScore.of(""),
+            Optional.empty()
         );
         String[] targetMethods = type.getAnnotationMetadata()
             .stringValues(JaxRsSubResourceLocator.class, JaxRsSubResourceLocatorMetadata.MEMBER_TARGET_METHODS);
@@ -407,6 +488,14 @@ final class JaxRsSubResourceLocatorWriter implements ResponseBodyWriter<Object>,
         int[] targetProducesCounts = type.getAnnotationMetadata()
             .getValue(JaxRsSubResourceLocator.class, JaxRsSubResourceLocatorMetadata.MEMBER_TARGET_PRODUCES_COUNTS, int[].class)
             .orElse(new int[0]);
+        String[] targetPathSegments = type.getAnnotationMetadata()
+            .stringValues(JaxRsSubResourceLocator.class, JaxRsSubResourceLocatorMetadata.MEMBER_TARGET_PATH_SEGMENTS);
+        int[] targetPathSegmentCounts = type.getAnnotationMetadata()
+            .getValue(JaxRsSubResourceLocator.class, JaxRsSubResourceLocatorMetadata.MEMBER_TARGET_PATH_SEGMENT_COUNTS, int[].class)
+            .orElse(new int[0]);
+        int[] targetRouteScores = type.getAnnotationMetadata()
+            .getValue(JaxRsSubResourceLocator.class, JaxRsSubResourceLocatorMetadata.MEMBER_TARGET_ROUTE_SCORES, int[].class)
+            .orElse(new int[0]);
         boolean recursive = type.getAnnotationMetadata()
             .stringValue(JaxRsSubResourceLocator.class, JaxRsSubResourceLocatorMetadata.MEMBER_RECURSIVE)
             .filter(value -> !value.isEmpty())
@@ -417,13 +506,18 @@ final class JaxRsSubResourceLocatorWriter implements ResponseBodyWriter<Object>,
                 targetMethods,
                 targetHttpMethods,
                 targetResourceTemplates,
-                targetArgumentTypes,
-                targetArgumentTypeCounts,
                 argumentTypes,
-                targetConsumes,
-                targetConsumesCounts,
-                targetProduces,
-                targetProducesCounts
+                new StaticTargetMetadata(
+                    targetArgumentTypes,
+                    targetArgumentTypeCounts,
+                    targetConsumes,
+                    targetConsumesCounts,
+                    targetProduces,
+                    targetProducesCounts,
+                    targetPathSegments,
+                    targetPathSegmentCounts,
+                    targetRouteScores
+                )
             ),
             recursive
         );
@@ -451,27 +545,25 @@ final class JaxRsSubResourceLocatorWriter implements ResponseBodyWriter<Object>,
     private static List<SubResourceTarget> subResourceTargets(String[] methods,
                                                              String[] httpMethods,
                                                              String[] resourceTemplates,
-                                                             String[] argumentTypes,
-                                                             int[] argumentTypeCounts,
                                                              String[] fallbackArgumentTypes,
-                                                             String[] consumes,
-                                                             int[] consumesCounts,
-                                                             String[] produces,
-                                                             int[] producesCounts) {
+                                                             StaticTargetMetadata metadata) {
         SubResourceTarget[] targets = new SubResourceTarget[methods.length];
         int argumentOffset = 0;
         int consumesOffset = 0;
         int producesOffset = 0;
-        boolean mediaMetadata = consumesCounts.length == methods.length && producesCounts.length == methods.length;
+        int pathSegmentOffset = 0;
+        boolean mediaMetadata = metadata.consumesCounts().length == methods.length && metadata.producesCounts().length == methods.length;
+        boolean pathSegmentMetadata = metadata.pathSegmentCounts().length == methods.length;
+        boolean scoreMetadata = metadata.routeScores().length == methods.length * 3;
         for (int i = 0; i < methods.length; i++) {
             String[] methodArgumentTypes;
-            if (argumentTypeCounts.length == methods.length) {
-                int argumentTypeCount = argumentTypeCounts[i];
-                methodArgumentTypes = Arrays.copyOfRange(argumentTypes, argumentOffset, argumentOffset + argumentTypeCount);
+            if (metadata.argumentTypeCounts().length == methods.length) {
+                int argumentTypeCount = metadata.argumentTypeCounts()[i];
+                methodArgumentTypes = Arrays.copyOfRange(metadata.argumentTypes(), argumentOffset, argumentOffset + argumentTypeCount);
                 argumentOffset += argumentTypeCount;
-            } else if (argumentTypes.length == methods.length) {
-                methodArgumentTypes = new String[] { argumentTypes[i] };
-            } else if (argumentTypes.length == 0) {
+            } else if (metadata.argumentTypes().length == methods.length) {
+                methodArgumentTypes = new String[] { metadata.argumentTypes()[i] };
+            } else if (metadata.argumentTypes().length == 0) {
                 methodArgumentTypes = new String[0];
             } else {
                 methodArgumentTypes = fallbackArgumentTypes;
@@ -480,24 +572,40 @@ final class JaxRsSubResourceLocatorWriter implements ResponseBodyWriter<Object>,
             String[] methodConsumes = new String[0];
             String[] methodProduces = new String[0];
             if (mediaMetadata) {
-                int consumesCount = consumesCounts[i];
-                methodConsumes = Arrays.copyOfRange(consumes, consumesOffset, consumesOffset + consumesCount);
+                int consumesCount = metadata.consumesCounts()[i];
+                methodConsumes = Arrays.copyOfRange(metadata.consumes(), consumesOffset, consumesOffset + consumesCount);
                 consumesOffset += consumesCount;
-                int producesCount = producesCounts[i];
-                methodProduces = Arrays.copyOfRange(produces, producesOffset, producesOffset + producesCount);
+                int producesCount = metadata.producesCounts()[i];
+                methodProduces = Arrays.copyOfRange(metadata.produces(), producesOffset, producesOffset + producesCount);
                 producesOffset += producesCount;
             }
             String resourceTemplate = resourceTemplates[i];
+            List<String> pathSegments;
+            if (pathSegmentMetadata) {
+                int pathSegmentCount = metadata.pathSegmentCounts()[i];
+                pathSegments = List.of(Arrays.copyOfRange(metadata.pathSegments(), pathSegmentOffset, pathSegmentOffset + pathSegmentCount));
+                pathSegmentOffset += pathSegmentCount;
+            } else {
+                pathSegments = pathSegments(resourceTemplate);
+            }
+            JaxRsRouteScore score;
+            if (scoreMetadata) {
+                int scoreOffset = i * 3;
+                score = new JaxRsRouteScore(metadata.routeScores()[scoreOffset], metadata.routeScores()[scoreOffset + 1], metadata.routeScores()[scoreOffset + 2]);
+            } else {
+                score = JaxRsRouteScore.of(resourceTemplate);
+            }
             targets[i] = new SubResourceTarget(
                 methods[i],
                 resourceTemplate,
-                pathSegments(resourceTemplate),
+                pathSegments,
                 methodArgumentTypes,
                 httpMethod,
                 methodConsumes,
                 methodProduces,
                 mediaMetadata,
-                JaxRsRouteScore.of(resourceTemplate)
+                score,
+                pathTemplateMetadata(pathSegments)
             );
         }
         return List.of(targets);
@@ -598,6 +706,46 @@ final class JaxRsSubResourceLocatorWriter implements ResponseBodyWriter<Object>,
         return Arrays.asList(path.split("/"));
     }
 
+    private static Optional<PathParamArgumentBinder.PathTemplateMetadata> pathTemplateMetadata(List<String> pathSegments) {
+        List<String> names = new ArrayList<>();
+        List<Integer> indexes = new ArrayList<>();
+        for (int i = 0; i < pathSegments.size(); i++) {
+            String variableName = templateVariableName(pathSegments.get(i));
+            if (variableName != null) {
+                names.add(variableName);
+                indexes.add(i);
+            }
+        }
+        if (names.isEmpty()) {
+            return Optional.of(new PathParamArgumentBinder.PathTemplateMetadata(pathSegments.size(), new String[0], new int[0]));
+        }
+        return Optional.of(new PathParamArgumentBinder.PathTemplateMetadata(
+            pathSegments.size(),
+            names.toArray(String[]::new),
+            indexes.stream().mapToInt(Integer::intValue).toArray()
+        ));
+    }
+
+    private static @Nullable String templateVariableName(String templateSegment) {
+        if (!templateSegment.startsWith("{")) {
+            return null;
+        }
+        int end = templateSegment.indexOf('}');
+        if (end < 0 || end != templateSegment.length() - 1) {
+            return null;
+        }
+        String variableName = templateSegment.substring(1, end);
+        int colon = variableName.indexOf(':');
+        if (colon > -1) {
+            variableName = variableName.substring(0, colon);
+        }
+        int comma = variableName.indexOf(',');
+        if (comma > -1) {
+            variableName = variableName.substring(0, comma);
+        }
+        return variableName.isEmpty() ? null : variableName;
+    }
+
     private static ExecutableMethod<?, ?> findSubResourceMethod(BeanDefinition<?> beanDefinition,
                                                                 String methodName,
                                                                 String[] argumentTypes) {
@@ -649,6 +797,25 @@ final class JaxRsSubResourceLocatorWriter implements ResponseBodyWriter<Object>,
             });
         }
         String[] produces = mediaTypes(beanDefinition, method, Produces.class);
+        if (produces.length > 0 && !anyProducedMediaTypeMatches(request.accept(), produces)) {
+            throw new NotAcceptableException();
+        }
+    }
+
+    private static void validateMediaTypes(DynamicSubResourceTarget target, HttpRequest<?> request) {
+        if (!target.mediaMetadata()) {
+            validateMediaTypes(target.method(), target.beanDefinition(), request);
+            return;
+        }
+        String[] consumes = target.consumes();
+        if (consumes.length > 0) {
+            request.getContentType().ifPresent(contentType -> {
+                if (!anyConsumedMediaTypeMatches(contentType, consumes)) {
+                    throw new NotSupportedException();
+                }
+            });
+        }
+        String[] produces = target.produces();
         if (produces.length > 0 && !anyProducedMediaTypeMatches(request.accept(), produces)) {
             throw new NotAcceptableException();
         }
@@ -873,7 +1040,8 @@ final class JaxRsSubResourceLocatorWriter implements ResponseBodyWriter<Object>,
                                      String[] consumes,
                                      String[] produces,
                                      boolean mediaMetadata,
-                                     JaxRsRouteScore score) {
+                                     JaxRsRouteScore score,
+                                     Optional<PathParamArgumentBinder.PathTemplateMetadata> pathTemplateMetadata) {
     }
 
     private record StaticSubResourceTargets(SubResourceTarget fallback,
@@ -886,10 +1054,25 @@ final class JaxRsSubResourceLocatorWriter implements ResponseBodyWriter<Object>,
                                                String routePath) {
     }
 
+    private record StaticTargetMetadata(String[] argumentTypes,
+                                        int[] argumentTypeCounts,
+                                        String[] consumes,
+                                        int[] consumesCounts,
+                                        String[] produces,
+                                        int[] producesCounts,
+                                        String[] pathSegments,
+                                        int[] pathSegmentCounts,
+                                        int[] routeScores) {
+    }
+
     private record DynamicSubResourceTarget(Object resource,
                                             BeanDefinition<?> beanDefinition,
                                             ExecutableMethod<?, ?> method,
-                                            String resourceTemplate) {
+                                            String resourceTemplate,
+                                            String[] consumes,
+                                            String[] produces,
+                                            boolean mediaMetadata,
+                                            Optional<PathParamArgumentBinder.PathTemplateMetadata> pathTemplateMetadata) {
     }
 
     private record DynamicSubResourceMethods(List<DynamicLocatorMethod> locatorMethods,
@@ -905,7 +1088,11 @@ final class JaxRsSubResourceLocatorWriter implements ResponseBodyWriter<Object>,
                                          String httpMethod,
                                          List<String> pathSegments,
                                          JaxRsRouteScore score,
-                                         String resourceTemplate) {
+                                         String resourceTemplate,
+                                         String[] consumes,
+                                         String[] produces,
+                                         boolean mediaMetadata,
+                                         Optional<PathParamArgumentBinder.PathTemplateMetadata> pathTemplateMetadata) {
     }
 
 }

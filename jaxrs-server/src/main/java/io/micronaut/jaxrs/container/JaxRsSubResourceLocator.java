@@ -68,6 +68,21 @@ public @interface JaxRsSubResourceLocator {
     String[] targetResourceTemplates() default {};
 
     /**
+     * @return Flattened candidate target path segments.
+     */
+    String[] targetPathSegments() default {};
+
+    /**
+     * @return Candidate target path segment counts.
+     */
+    int[] targetPathSegmentCounts() default {};
+
+    /**
+     * @return Flattened route score triples for candidate targets.
+     */
+    int[] targetRouteScores() default {};
+
+    /**
      * @return Flattened candidate target method argument type names.
      */
     String[] targetArgumentTypes() default {};
