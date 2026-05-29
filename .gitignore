@@ -40,3 +40,7 @@ src/main/docs/resources/img/micronaut-logo-white.svg
 
 # OpenCode files
 .sisyphus/
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+.beads-credential-key

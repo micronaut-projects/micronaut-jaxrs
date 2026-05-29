@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "jaxrs",
+  "project_id": "ea6a193e-b556-4218-9377-f6f934198bdc"
+}
