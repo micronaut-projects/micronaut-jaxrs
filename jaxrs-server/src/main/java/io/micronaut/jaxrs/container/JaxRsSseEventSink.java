@@ -279,7 +279,7 @@ final class JaxRsSseEventSink implements SseEventSink, Publisher<Event<String>> 
                     }
                     if (closed) {
                         completed = true;
-                        return Delivery.COMPLETE;
+                        return Delivery.COMPLETED;
                     }
                     return Delivery.NONE;
                 }
@@ -289,6 +289,6 @@ final class JaxRsSseEventSink implements SseEventSink, Publisher<Event<String>> 
 
     private record Delivery(@Nullable Event<String> event, boolean complete) {
         private static final Delivery NONE = new Delivery(null, false);
-        private static final Delivery COMPLETE = new Delivery(null, true);
+        private static final Delivery COMPLETED = new Delivery(null, true);
     }
 }

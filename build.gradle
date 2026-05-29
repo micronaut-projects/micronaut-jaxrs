@@ -2,6 +2,57 @@ plugins {
     id "io.micronaut.build.internal.parent"
 }
 
+def jakartaRestTckCoverageReport = layout.projectDirectory.file('tests/jaxrs-tck/build/reports/jacoco/test/jacocoTestReport.xml')
+
+plugins.withId('org.sonarqube') {
+    sonar {
+        properties {
+            property 'sonar.coverage.jacoco.xmlReportPaths', [
+                '**/build/reports/jacoco/test/jacocoTestReport.xml',
+                jakartaRestTckCoverageReport.asFile.absolutePath
+            ].join(',')
+            property 'sonar.issue.ignore.multicriteria', [
+                'jaxrsNullMarked',
+                'jaxrsNullableOverride',
+                'jaxrsSpecBranches',
+                'jaxrsSpecEmptyMethods',
+                'jaxrsArrayRecords',
+                'jaxrsComplexity',
+                'jaxrsVolatileDelegates',
+                'jaxrsWildcardApis',
+                'jaxrsProviderReturns',
+                'jaxrsSpecLiterals',
+                'jaxrsTestStateReset',
+                'jaxrsTestStubs'
+            ].join(',')
+            property 'sonar.issue.ignore.multicriteria.jaxrsNullMarked.ruleKey', 'java:S2637'
+            property 'sonar.issue.ignore.multicriteria.jaxrsNullMarked.resourceKey', '**/src/main/java/**'
+            property 'sonar.issue.ignore.multicriteria.jaxrsNullableOverride.ruleKey', 'java:S2638'
+            property 'sonar.issue.ignore.multicriteria.jaxrsNullableOverride.resourceKey', '**/src/main/java/**'
+            property 'sonar.issue.ignore.multicriteria.jaxrsSpecBranches.ruleKey', 'java:S2583'
+            property 'sonar.issue.ignore.multicriteria.jaxrsSpecBranches.resourceKey', '**/src/main/java/**'
+            property 'sonar.issue.ignore.multicriteria.jaxrsSpecEmptyMethods.ruleKey', 'java:S1186'
+            property 'sonar.issue.ignore.multicriteria.jaxrsSpecEmptyMethods.resourceKey', '**/src/main/java/**'
+            property 'sonar.issue.ignore.multicriteria.jaxrsArrayRecords.ruleKey', 'java:S6218'
+            property 'sonar.issue.ignore.multicriteria.jaxrsArrayRecords.resourceKey', '**/src/main/java/**'
+            property 'sonar.issue.ignore.multicriteria.jaxrsComplexity.ruleKey', 'java:S3776'
+            property 'sonar.issue.ignore.multicriteria.jaxrsComplexity.resourceKey', '**/src/main/java/**'
+            property 'sonar.issue.ignore.multicriteria.jaxrsVolatileDelegates.ruleKey', 'java:S3077'
+            property 'sonar.issue.ignore.multicriteria.jaxrsVolatileDelegates.resourceKey', '**/src/main/java/**'
+            property 'sonar.issue.ignore.multicriteria.jaxrsWildcardApis.ruleKey', 'java:S1452'
+            property 'sonar.issue.ignore.multicriteria.jaxrsWildcardApis.resourceKey', '**/src/main/java/**'
+            property 'sonar.issue.ignore.multicriteria.jaxrsProviderReturns.ruleKey', 'java:S1751'
+            property 'sonar.issue.ignore.multicriteria.jaxrsProviderReturns.resourceKey', '**/src/main/java/**'
+            property 'sonar.issue.ignore.multicriteria.jaxrsSpecLiterals.ruleKey', 'java:S1192'
+            property 'sonar.issue.ignore.multicriteria.jaxrsSpecLiterals.resourceKey', '**/src/main/java/**'
+            property 'sonar.issue.ignore.multicriteria.jaxrsTestStateReset.ruleKey', 'java:S2093'
+            property 'sonar.issue.ignore.multicriteria.jaxrsTestStateReset.resourceKey', '**/src/test/java/**'
+            property 'sonar.issue.ignore.multicriteria.jaxrsTestStubs.ruleKey', 'java:S1186'
+            property 'sonar.issue.ignore.multicriteria.jaxrsTestStubs.resourceKey', '**/src/test/java/**'
+        }
+    }
+}
+
 repositories {
     mavenCentral()
 }

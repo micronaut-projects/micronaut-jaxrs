@@ -1,6 +1,7 @@
 plugins {
     id "java-library"
     id "io.micronaut.build.internal.jaxrs-base"
+    id "jacoco"
 }
 
 repositories {
@@ -99,7 +100,10 @@ def configureJaxRsTckTask = { Test task, String filterMode ->
         systemProperty("signature.sigTestClasspath", sigTestClasspath)
     }
     task.useJUnitPlatform()
-    task.maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
+    task.maxParallelForks = 1
+    task.jacoco {
+        includes = ["io.micronaut.jaxrs.*"]
+    }
 }
 
 def servletTckClasspath = sourceSets.main.output + sourceSets.test.output + jakartaServletTckRuntimeClasspath
@@ -150,6 +154,10 @@ def jakartaTck = tasks.register("jakartaTck") {
     group = "verification"
     description = "Runs the Jakarta REST TCK compliance profile across the Netty baseline and Servlet-only profile."
     dependsOn(verifyJakartaTckKnownFailures, tasks.named("test"))
+}
+
+check {
+    dependsOn(jakartaTck)
 }
 
 def jakartaNettyNoExclusionTck = tasks.register("jakartaNettyNoExclusionTck", Test) { Test task ->
@@ -365,5 +373,39 @@ tasks.register("singleJakartaServletTck", Test) { Test task ->
         if (testMethod.present) {
             systemProperty("tckSingleMethod", testMethod.get())
         }
+    }
+}
+
+def jakartaCoverageProjects = [
+    project(':micronaut-jaxrs-common'),
+    project(':micronaut-jaxrs-client'),
+    project(':micronaut-jaxrs-server'),
+    project(':micronaut-jaxrs-server-security'),
+    project(':micronaut-jaxrs-servlet'),
+    project(':micronaut-jaxrs-reflection'),
+    project(':micronaut-jaxrs-xml'),
+    project(':micronaut-jaxrs-jakarta')
+]
+
+tasks.named('jacocoTestReport') {
+    mustRunAfter(
+        tasks.named('test'),
+        tasks.named('jakartaServletTck'),
+        jakartaNettyNoExclusionTck,
+        tasks.named('discoverFailingJakartaTck'),
+        tasks.named('failingJakartaTck'),
+        tasks.named('singleJakartaTck'),
+        tasks.named('singleJakartaServletTck')
+    )
+    executionData(fileTree(layout.buildDirectory.dir('jacoco')) {
+        include '*.exec'
+    })
+    dependsOn(jakartaCoverageProjects.collect { it.tasks.named('classes') })
+    additionalSourceDirs.from(jakartaCoverageProjects.collect { it.sourceSets.main.allSource.srcDirs })
+    sourceDirectories.from(jakartaCoverageProjects.collect { it.sourceSets.main.allSource.srcDirs })
+    classDirectories.from(jakartaCoverageProjects.collect { it.sourceSets.main.output })
+    reports {
+        xml.required = true
+        html.required = true
     }
 }
