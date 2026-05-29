@@ -58,3 +58,15 @@ This option should be reserved for TCK-style compatibility runs or focused migra
 The compliance profile is designed around generated Micronaut metadata first. The processor precomputes route templates, HTTP method names, request matching scores, provider metadata, subresource locator metadata, and `@BeanParam` request-bean introspection metadata where possible.
 
 Reflection is isolated in `micronaut-jaxrs-reflection` for spec-required fallback behavior that cannot be represented safely through generated metadata. XML and JAXB providers are isolated in `micronaut-jaxrs-xml`, so the core server and client modules do not require JAXB dependencies.
+
+==== Jakarta REST TCK Evidence
+
+The Jakarta REST TCK workflow publishes immutable evidence under `tck-results/<workflow-run-id>/` and refreshes the latest evidence page at https://micronaut-projects.github.io/micronaut-jaxrs/tck-results/latest/[Jakarta REST TCK Evidence].
+
+The evidence covers the opt-in `micronaut-jaxrs-jakarta` compliance stack. It includes:
+
+* a JDK-specific HTML summary;
+* a Markdown summary with product, commit, API artifact, TCK artifact, and SHA-256 information;
+* sanitized JUnit XML for the Netty baseline and the Servlet-only profile.
+
+The Netty baseline excludes the tracked Servlet request-context method in `tests/jaxrs-tck/failingTests.xml`; the Servlet profile runs that method against Micronaut Servlet/Jetty. The evidence page does not claim full upstream verification until the workflow has passed in the upstream repository.
