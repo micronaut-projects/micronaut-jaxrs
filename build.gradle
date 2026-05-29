@@ -3,7 +3,8 @@ plugins {
 }
 
 def jakartaRestTckCoverageReport = layout.projectDirectory.file('tests/jaxrs-tck/build/reports/jacoco/test/jacocoTestReport.xml')
-def jakartaRestTckCoverageReportPath = jakartaRestTckCoverageReport.asFile.absolutePath
+def jakartaRestTckSonarCoverageReport = layout.buildDirectory.file('reports/jacoco/jakartaRestTckSonar/jacocoRootReport.xml')
+def jakartaRestTckSonarCoverageReportPath = jakartaRestTckSonarCoverageReport.get().asFile.absolutePath
 def jaxRsRuntimeCoverageProjects = [
     'micronaut-jaxrs-common',
     'micronaut-jaxrs-client',
@@ -14,13 +15,69 @@ def jaxRsRuntimeCoverageProjects = [
     'micronaut-jaxrs-xml',
     'micronaut-jaxrs-jakarta'
 ] as Set
+def jaxRsCoverageProjects = (jaxRsRuntimeCoverageProjects + ['micronaut-jaxrs-processor']) as Set
+
+def generateJakartaRestTckSonarCoverage = tasks.register('generateJakartaRestTckSonarCoverage') {
+    inputs.file(jakartaRestTckCoverageReport)
+    outputs.file(jakartaRestTckSonarCoverageReport)
+    onlyIf {
+        jakartaRestTckCoverageReport.asFile.exists()
+    }
+    doLast {
+        def sourcePackagePrefixes = [:]
+        jaxRsRuntimeCoverageProjects.each { projectName ->
+            def sourceRoot = project(":${projectName}").layout.projectDirectory.dir('src/main/java').asFile
+            if (!sourceRoot.directory) {
+                return
+            }
+            fileTree(sourceRoot) {
+                include '**/*.java'
+            }.each { File sourceFile ->
+                def relativeSource = sourceRoot.toPath().relativize(sourceFile.toPath()).toString().replace(File.separatorChar, '/' as char)
+                def packageEnd = relativeSource.lastIndexOf('/')
+                if (packageEnd > 0) {
+                    def packageName = relativeSource.substring(0, packageEnd)
+                    sourcePackagePrefixes.putIfAbsent(packageName, "${projectName}/src/main/java")
+                }
+            }
+        }
+
+        def packagePattern = ~/(?s)<package name="([^"]+)">(.*?)<\/package>/
+        def matcher = packagePattern.matcher(jakartaRestTckCoverageReport.asFile.text)
+        def transformed = new StringBuffer()
+        while (matcher.find()) {
+            def packageName = matcher.group(1)
+            def packageBody = matcher.group(2)
+            def sourcePrefix = sourcePackagePrefixes[packageName]
+            if (sourcePrefix == null) {
+                matcher.appendReplacement(transformed, '')
+            } else {
+                matcher.appendReplacement(
+                    transformed,
+                    java.util.regex.Matcher.quoteReplacement("<package name=\"${sourcePrefix}/${packageName}\">${packageBody}</package>".toString())
+                )
+            }
+        }
+        matcher.appendTail(transformed)
+        def outputFile = jakartaRestTckSonarCoverageReport.get().asFile
+        outputFile.parentFile.mkdirs()
+        outputFile.text = transformed.toString()
+    }
+}
 
 plugins.withId('org.sonarqube') {
+    tasks.named('sonar') {
+        dependsOn(generateJakartaRestTckSonarCoverage)
+    }
     sonar {
         properties {
-            property 'sonar.coverage.jacoco.xmlReportPaths', [
-                '**/build/reports/jacoco/test/jacocoTestReport.xml',
-                jakartaRestTckCoverageReportPath
+            def coverageReports = jaxRsCoverageProjects.collect { projectName ->
+                project(":${projectName}").layout.buildDirectory.file('reports/jacoco/test/jacocoTestReport.xml').get().asFile.absolutePath
+            }
+            coverageReports.add(jakartaRestTckSonarCoverageReportPath)
+            property 'sonar.coverage.jacoco.xmlReportPaths', coverageReports.join(',')
+            property 'sonar.coverage.exclusions', [
+                'tests/jaxrs-tck/src/main/java/**'
             ].join(',')
             property 'sonar.issue.ignore.multicriteria', [
                 'jaxrsNullMarked',
@@ -60,21 +117,6 @@ plugins.withId('org.sonarqube') {
             property 'sonar.issue.ignore.multicriteria.jaxrsTestStateReset.resourceKey', '**/src/test/java/**'
             property 'sonar.issue.ignore.multicriteria.jaxrsTestStubs.ruleKey', 'java:S1186'
             property 'sonar.issue.ignore.multicriteria.jaxrsTestStubs.resourceKey', '**/src/test/java/**'
-        }
-    }
-}
-
-subprojects { Project subproject ->
-    subproject.plugins.withId('org.sonarqube') {
-        if (jaxRsRuntimeCoverageProjects.contains(subproject.name)) {
-            subproject.sonar {
-                properties {
-                    property 'sonar.coverage.jacoco.xmlReportPaths', [
-                        subproject.layout.buildDirectory.file('reports/jacoco/test/jacocoTestReport.xml').get().asFile.absolutePath,
-                        jakartaRestTckCoverageReportPath
-                    ].join(',')
-                }
-            }
         }
     }
 }
