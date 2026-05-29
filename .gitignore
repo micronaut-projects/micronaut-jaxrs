@@ -42,5 +42,6 @@ src/main/docs/resources/img/micronaut-logo-white.svg
 .sisyphus/
 
 # Beads / Dolt files (added by bd init)
+.beads/
 .dolt/
 .beads-credential-key
