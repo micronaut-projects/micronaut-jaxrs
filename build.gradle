@@ -3,13 +3,24 @@ plugins {
 }
 
 def jakartaRestTckCoverageReport = layout.projectDirectory.file('tests/jaxrs-tck/build/reports/jacoco/test/jacocoTestReport.xml')
+def jakartaRestTckCoverageReportPath = jakartaRestTckCoverageReport.asFile.absolutePath
+def jaxRsRuntimeCoverageProjects = [
+    'micronaut-jaxrs-common',
+    'micronaut-jaxrs-client',
+    'micronaut-jaxrs-server',
+    'micronaut-jaxrs-server-security',
+    'micronaut-jaxrs-servlet',
+    'micronaut-jaxrs-reflection',
+    'micronaut-jaxrs-xml',
+    'micronaut-jaxrs-jakarta'
+] as Set
 
 plugins.withId('org.sonarqube') {
     sonar {
         properties {
             property 'sonar.coverage.jacoco.xmlReportPaths', [
                 '**/build/reports/jacoco/test/jacocoTestReport.xml',
-                jakartaRestTckCoverageReport.asFile.absolutePath
+                jakartaRestTckCoverageReportPath
             ].join(',')
             property 'sonar.issue.ignore.multicriteria', [
                 'jaxrsNullMarked',
@@ -49,6 +60,21 @@ plugins.withId('org.sonarqube') {
             property 'sonar.issue.ignore.multicriteria.jaxrsTestStateReset.resourceKey', '**/src/test/java/**'
             property 'sonar.issue.ignore.multicriteria.jaxrsTestStubs.ruleKey', 'java:S1186'
             property 'sonar.issue.ignore.multicriteria.jaxrsTestStubs.resourceKey', '**/src/test/java/**'
+        }
+    }
+}
+
+subprojects { Project subproject ->
+    subproject.plugins.withId('org.sonarqube') {
+        if (jaxRsRuntimeCoverageProjects.contains(subproject.name)) {
+            subproject.sonar {
+                properties {
+                    property 'sonar.coverage.jacoco.xmlReportPaths', [
+                        subproject.layout.buildDirectory.file('reports/jacoco/test/jacocoTestReport.xml').get().asFile.absolutePath,
+                        jakartaRestTckCoverageReportPath
+                    ].join(',')
+                }
+            }
         }
     }
 }
