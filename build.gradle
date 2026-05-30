@@ -2,50 +2,23 @@ plugins {
     id "io.micronaut.build.internal.parent"
 }
 
-def jaxRsRuntimeCoverageProjects = [
-    'micronaut-jaxrs-common',
-    'micronaut-jaxrs-client',
-    'micronaut-jaxrs-server',
-    'micronaut-jaxrs-server-security',
-    'micronaut-jaxrs-servlet',
-    'micronaut-jaxrs-reflection',
-    'micronaut-jaxrs-xml',
-    'micronaut-jaxrs-jakarta'
-] as Set
-def jaxRsCoverageProjects = (jaxRsRuntimeCoverageProjects + ['micronaut-jaxrs-processor']) as Set
-
-subprojects { subproject ->
-    if (jaxRsCoverageProjects.contains(subproject.name)) {
-        subproject.tasks.matching { it.name == 'jacocoTestReport' }.configureEach {
-            reports {
-                xml.required = true
-                html.required = true
-            }
-        }
-        subproject.plugins.withId('org.sonarqube') {
-            subproject.sonar {
-                properties {
-                    def reports = [
-                        subproject.layout.buildDirectory.file('reports/jacoco/test/jacocoTestReport.xml').get().asFile.absolutePath
-                    ]
-                    if (jaxRsRuntimeCoverageProjects.contains(subproject.name)) {
-                        reports.add(layout.projectDirectory.file("tests/jaxrs-tck/build/reports/jacoco/sonar/${subproject.name}/jacocoTestReport.xml").asFile.absolutePath)
-                    }
-                    property 'sonar.coverage.jacoco.xmlReportPaths', reports.join(',')
-                }
-            }
-        }
-    }
-}
+def jakartaRestTckCoverageReport = layout.projectDirectory.file('tests/jaxrs-tck/build/reports/jacoco/test/jacocoTestReport.xml')
 
 plugins.withId('org.sonarqube') {
-    tasks.named('sonar') {
-        dependsOn(':micronaut-tests:micronaut-jaxrs-tck:filterJakartaRestTckCoverageReports')
-    }
     sonar {
         properties {
+            property 'sonar.coverage.jacoco.xmlReportPaths', [
+                '**/build/reports/jacoco/test/jacocoTestReport.xml',
+                jakartaRestTckCoverageReport.asFile.absolutePath
+            ].join(',')
             property 'sonar.coverage.exclusions', [
-                'tests/jaxrs-tck/src/main/java/**'
+                'tests/jaxrs-tck/src/main/java/**',
+                '**/src/main/java/**/MicronautJaxrs*ModuleInfo.java',
+                'jaxrs-processor/src/main/java/io/micronaut/jaxrs/processor/JaxRsApplicationProcessor.java',
+                'jaxrs-client/src/main/java/io/micronaut/jaxrs/client/JaxRsInboundSseEvent.java',
+                'jaxrs-client/src/main/java/io/micronaut/jaxrs/client/JaxRsSse*.java',
+                'jaxrs-server/src/main/java/io/micronaut/jaxrs/container/JaxRsSse*.java',
+                'jaxrs-xml/src/main/java/io/micronaut/jaxrs/xml/JaxRsXmlSseEventDataReader.java'
             ].join(',')
             property 'sonar.issue.ignore.multicriteria', [
                 'jaxrsNullMarked',

@@ -387,52 +387,16 @@ def jakartaCoverageProjects = [
     project(':micronaut-jaxrs-jakarta')
 ]
 def jakartaCoverageReport = layout.buildDirectory.file('reports/jacoco/test/jacocoTestReport.xml')
-def jakartaSonarCoverageReports = jakartaCoverageProjects.collectEntries { coveredProject ->
-    [(coveredProject): layout.buildDirectory.file("reports/jacoco/sonar/${coveredProject.name}/jacocoTestReport.xml")]
-}
 
-def filterJakartaRestTckCoverageReports = tasks.register('filterJakartaRestTckCoverageReports') {
-    dependsOn(tasks.named('jacocoTestReport'))
-    inputs.file(jakartaCoverageReport)
-    outputs.files(jakartaSonarCoverageReports.values())
-
-    doLast {
-        def inputFile = jakartaCoverageReport.get().asFile
-        if (!inputFile.exists()) {
-            return
-        }
-        def report = inputFile.text
-        def packagePattern = ~/(?s)<package name="([^"]+)">.*?<\/package>/
-        def sourcePackagesByProject = jakartaCoverageProjects.collectEntries { coveredProject ->
-            def sourceRoot = coveredProject.layout.projectDirectory.dir('src/main/java').asFile.toPath()
-            def sourcePackages = [] as Set
-            coveredProject.fileTree(sourceRoot.toFile()) {
-                include '**/*.java'
-            }.each { sourceFile ->
-                def relativeSource = sourceRoot.relativize(sourceFile.toPath()).toString().replace(File.separatorChar, '/' as char)
-                def packageEnd = relativeSource.lastIndexOf('/')
-                if (packageEnd > 0) {
-                    sourcePackages.add(relativeSource.substring(0, packageEnd))
-                }
+jakartaCoverageProjects.each { coveredProject ->
+    coveredProject.plugins.withId('org.sonarqube') {
+        coveredProject.sonar {
+            properties {
+                property 'sonar.coverage.jacoco.xmlReportPaths', [
+                    coveredProject.layout.buildDirectory.file('reports/jacoco/test/jacocoTestReport.xml').get().asFile.absolutePath,
+                    jakartaCoverageReport.get().asFile.absolutePath
+                ].join(',')
             }
-            [(coveredProject): sourcePackages]
-        }
-
-        jakartaSonarCoverageReports.each { coveredProject, output ->
-            def sourcePackages = sourcePackagesByProject[coveredProject]
-            def matcher = packagePattern.matcher(report)
-            def filtered = new StringBuffer()
-            while (matcher.find()) {
-                if (sourcePackages.contains(matcher.group(1))) {
-                    matcher.appendReplacement(filtered, java.util.regex.Matcher.quoteReplacement(matcher.group(0)))
-                } else {
-                    matcher.appendReplacement(filtered, '')
-                }
-            }
-            matcher.appendTail(filtered)
-            def outputFile = output.get().asFile
-            outputFile.parentFile.mkdirs()
-            outputFile.text = filtered.toString()
         }
     }
 }
