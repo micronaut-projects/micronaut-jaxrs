@@ -24,9 +24,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -123,6 +124,23 @@ class JaxRsSecurityHardeningTest {
         Path file = JaxRsTemporaryFiles.createTempFile("entity-", ".tmp", configured).toPath();
 
         assertEquals(configured, file.getParent());
+    }
+
+    @Test
+    void defaultTemporaryDirectoryRequiresUserHome() {
+        String userHome = System.getProperty("user.home");
+        try {
+            System.clearProperty("user.home");
+
+            IOException exception = assertThrows(IOException.class, () -> JaxRsTemporaryFiles.createTempFile("entity-", ".tmp", null));
+            assertEquals("JAX-RS temporary directory requires user.home or micronaut.jaxrs.temp-directory", exception.getMessage());
+        } finally {
+            if (userHome == null) {
+                System.clearProperty("user.home");
+            } else {
+                System.setProperty("user.home", userHome);
+            }
+        }
     }
 
     private static MediaType multipart(String boundary) {

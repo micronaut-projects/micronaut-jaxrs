@@ -77,8 +77,12 @@ public final class JaxRsTemporaryFiles {
         throw new IllegalArgumentException("Unsupported JAX-RS temporary directory value: " + value.getClass().getName());
     }
 
-    private static Path defaultDirectory() {
-        return Path.of(System.getProperty("user.home", "."), ".micronaut-jaxrs", "tmp");
+    private static Path defaultDirectory() throws IOException {
+        String userHome = System.getProperty("user.home");
+        if (userHome == null || userHome.isBlank()) {
+            throw new IOException("JAX-RS temporary directory requires user.home or " + TEMP_DIRECTORY_PROPERTY);
+        }
+        return Path.of(userHome, ".micronaut-jaxrs", "tmp");
     }
 
     private static Path ensurePrivateDirectory(Path directory) throws IOException {
