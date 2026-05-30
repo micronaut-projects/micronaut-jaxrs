@@ -437,22 +437,6 @@ def filterJakartaRestTckCoverageReports = tasks.register('filterJakartaRestTckCo
     }
 }
 
-jakartaCoverageProjects.each { coveredProject ->
-    coveredProject.plugins.withId('org.sonarqube') {
-        coveredProject.tasks.named('sonar') {
-            dependsOn(filterJakartaRestTckCoverageReports)
-        }
-        coveredProject.sonar {
-            properties {
-                property 'sonar.coverage.jacoco.xmlReportPaths', [
-                    coveredProject.layout.buildDirectory.file('reports/jacoco/test/jacocoTestReport.xml').get().asFile.absolutePath,
-                    jakartaSonarCoverageReports[coveredProject].get().asFile.absolutePath
-                ].join(',')
-            }
-        }
-    }
-}
-
 tasks.named('jacocoTestReport') {
     mustRunAfter(
         tasks.named('test'),
