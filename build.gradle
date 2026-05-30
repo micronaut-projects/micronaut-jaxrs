@@ -3,14 +3,107 @@ plugins {
 }
 
 def jakartaRestTckCoverageReport = layout.projectDirectory.file('tests/jaxrs-tck/build/reports/jacoco/test/jacocoTestReport.xml')
+def jakartaRestTckSonarCoverageReport = layout.buildDirectory.file('reports/jacoco/jakartaRestTckSonar/jacocoTestReport.xml')
+def jaxRsRuntimeCoverageProjects = [
+    'micronaut-jaxrs-common',
+    'micronaut-jaxrs-client',
+    'micronaut-jaxrs-server',
+    'micronaut-jaxrs-server-security',
+    'micronaut-jaxrs-servlet',
+    'micronaut-jaxrs-reflection',
+    'micronaut-jaxrs-xml',
+    'micronaut-jaxrs-jakarta'
+] as Set
+def jaxRsCoverageProjects = (jaxRsRuntimeCoverageProjects + ['micronaut-jaxrs-processor']) as Set
+def jaxRsCoverageReports = jaxRsCoverageProjects.collectEntries { projectName ->
+    [(projectName): project(":${projectName}").layout.buildDirectory.file('reports/jacoco/test/jacocoTestReport.xml')]
+}
+def sonarCoverageReports = jaxRsCoverageProjects.collectEntries { projectName ->
+    [(projectName): layout.buildDirectory.file("reports/jacoco/sonar/${projectName}/jacocoTestReport.xml")]
+}
+
+def generateSonarCoverageReports = tasks.register('generateSonarCoverageReports') {
+    inputs.files(jaxRsCoverageReports.values())
+    inputs.file(jakartaRestTckCoverageReport)
+    outputs.files(sonarCoverageReports.values())
+    outputs.file(jakartaRestTckSonarCoverageReport)
+    doLast {
+        def sourcePackagePrefixesByProject = [:]
+        jaxRsCoverageProjects.each { projectName ->
+            def sourceRoot = project(":${projectName}").layout.projectDirectory.dir('src/main/java').asFile
+            if (!sourceRoot.directory) {
+                return
+            }
+            def sourceRootPath = sourceRoot.toPath()
+            def sourceRootRelative = layout.projectDirectory.asFile.toPath().relativize(sourceRootPath).toString().replace(File.separatorChar, '/' as char)
+            def sourcePackagePrefixes = [:]
+            fileTree(sourceRoot) {
+                include '**/*.java'
+            }.each { File sourceFile ->
+                def relativeSource = sourceRootPath.relativize(sourceFile.toPath()).toString().replace(File.separatorChar, '/' as char)
+                def packageEnd = relativeSource.lastIndexOf('/')
+                if (packageEnd > 0) {
+                    def packageName = relativeSource.substring(0, packageEnd)
+                    sourcePackagePrefixes.putIfAbsent(packageName, sourceRootRelative)
+                }
+            }
+            sourcePackagePrefixesByProject[projectName] = sourcePackagePrefixes
+        }
+
+        def transformCoverageReport = { File inputFile, File outputFile, Map sourcePackagePrefixes ->
+            if (!inputFile.exists()) {
+                return
+            }
+            def packagePattern = ~/(?s)<package name="([^"]+)">(.*?)<\/package>/
+            def matcher = packagePattern.matcher(inputFile.text)
+            def transformed = new StringBuffer()
+            while (matcher.find()) {
+                def packageName = matcher.group(1)
+                def packageBody = matcher.group(2)
+                def sourcePrefix = sourcePackagePrefixes[packageName]
+                if (sourcePrefix == null) {
+                    matcher.appendReplacement(transformed, '')
+                } else {
+                    matcher.appendReplacement(
+                        transformed,
+                        java.util.regex.Matcher.quoteReplacement("<package name=\"${sourcePrefix}/${packageName}\">${packageBody}</package>".toString())
+                    )
+                }
+            }
+            matcher.appendTail(transformed)
+            outputFile.parentFile.mkdirs()
+            outputFile.text = transformed.toString()
+        }
+
+        jaxRsCoverageReports.each { projectName, report ->
+            transformCoverageReport(
+                report.get().asFile,
+                sonarCoverageReports[projectName].get().asFile,
+                sourcePackagePrefixesByProject[projectName]
+            )
+        }
+
+        def runtimeSourcePackagePrefixes = [:]
+        jaxRsRuntimeCoverageProjects.each { projectName ->
+            runtimeSourcePackagePrefixes.putAll(sourcePackagePrefixesByProject[projectName])
+        }
+        transformCoverageReport(
+            jakartaRestTckCoverageReport.asFile,
+            jakartaRestTckSonarCoverageReport.get().asFile,
+            runtimeSourcePackagePrefixes
+        )
+    }
+}
 
 plugins.withId('org.sonarqube') {
+    tasks.named('sonar') {
+        dependsOn(generateSonarCoverageReports)
+    }
     sonar {
         properties {
-            property 'sonar.coverage.jacoco.xmlReportPaths', [
-                '**/build/reports/jacoco/test/jacocoTestReport.xml',
-                jakartaRestTckCoverageReport.asFile.absolutePath
-            ].join(',')
+            def coverageReports = sonarCoverageReports.values().collect { it.get().asFile.absolutePath }
+            coverageReports.add(jakartaRestTckSonarCoverageReport.get().asFile.absolutePath)
+            property 'sonar.coverage.jacoco.xmlReportPaths', coverageReports.join(',')
             property 'sonar.coverage.exclusions', [
                 'tests/jaxrs-tck/src/main/java/**'
             ].join(',')

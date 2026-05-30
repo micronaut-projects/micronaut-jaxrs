@@ -387,6 +387,7 @@ def jakartaCoverageProjects = [
     project(':micronaut-jaxrs-jakarta')
 ]
 def jakartaCoverageReport = layout.buildDirectory.file('reports/jacoco/test/jacocoTestReport.xml')
+def jakartaSonarCoverageReport = rootProject.layout.buildDirectory.file('reports/jacoco/jakartaRestTckSonar/jacocoTestReport.xml')
 
 jakartaCoverageProjects.each { coveredProject ->
     coveredProject.plugins.withId('org.sonarqube') {
@@ -394,7 +395,7 @@ jakartaCoverageProjects.each { coveredProject ->
             properties {
                 property 'sonar.coverage.jacoco.xmlReportPaths', [
                     coveredProject.layout.buildDirectory.file('reports/jacoco/test/jacocoTestReport.xml').get().asFile.absolutePath,
-                    jakartaCoverageReport.get().asFile.absolutePath
+                    jakartaSonarCoverageReport.get().asFile.absolutePath
                 ].join(',')
             }
         }
