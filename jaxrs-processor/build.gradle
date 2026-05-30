@@ -20,3 +20,10 @@ dependencies {
     testImplementation(mnValidation.micronaut.validation)
     testImplementation(mn.micronaut.http.client)
 }
+
+tasks.named("jacocoTestReport") {
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}
