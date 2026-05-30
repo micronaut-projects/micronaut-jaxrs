@@ -386,6 +386,20 @@ def jakartaCoverageProjects = [
     project(':micronaut-jaxrs-xml'),
     project(':micronaut-jaxrs-jakarta')
 ]
+def jakartaCoverageReport = layout.buildDirectory.file('reports/jacoco/test/jacocoTestReport.xml')
+
+jakartaCoverageProjects.each { coveredProject ->
+    coveredProject.plugins.withId('org.sonarqube') {
+        coveredProject.sonar {
+            properties {
+                property 'sonar.coverage.jacoco.xmlReportPaths', [
+                    coveredProject.layout.buildDirectory.file('reports/jacoco/test/jacocoTestReport.xml').get().asFile.absolutePath,
+                    jakartaCoverageReport.get().asFile.absolutePath
+                ].join(',')
+            }
+        }
+    }
+}
 
 tasks.named('jacocoTestReport') {
     mustRunAfter(
