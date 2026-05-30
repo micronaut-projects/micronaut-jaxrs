@@ -2,8 +2,7 @@ plugins {
     id "io.micronaut.build.internal.parent"
 }
 
-def jakartaRestTckCoverageReport = layout.projectDirectory.file('tests/jaxrs-tck/build/reports/jacoco/test/jacocoTestReport.xml')
-def jaxRsCoverageProjects = [
+def jaxRsRuntimeCoverageProjects = [
     'micronaut-jaxrs-common',
     'micronaut-jaxrs-client',
     'micronaut-jaxrs-server',
@@ -11,9 +10,11 @@ def jaxRsCoverageProjects = [
     'micronaut-jaxrs-servlet',
     'micronaut-jaxrs-reflection',
     'micronaut-jaxrs-xml',
-    'micronaut-jaxrs-jakarta',
-    'micronaut-jaxrs-processor'
+    'micronaut-jaxrs-jakarta'
 ] as Set
+def jaxRsCoverageProjects = (jaxRsRuntimeCoverageProjects + ['micronaut-jaxrs-processor']) as Set
+def jaxRsCoverageReports = jaxRsCoverageProjects.collect { project(":${it}").layout.buildDirectory.file('reports/jacoco/test/jacocoTestReport.xml') }
+def jakartaRestTckCoverageReports = jaxRsRuntimeCoverageProjects.collect { layout.projectDirectory.file("tests/jaxrs-tck/build/reports/jacoco/sonar/${it}/jacocoTestReport.xml") }
 
 subprojects { subproject ->
     if (jaxRsCoverageProjects.contains(subproject.name)) {
@@ -27,12 +28,15 @@ subprojects { subproject ->
 }
 
 plugins.withId('org.sonarqube') {
+    tasks.named('sonar') {
+        dependsOn(':micronaut-tests:micronaut-jaxrs-tck:filterJakartaRestTckCoverageReports')
+    }
     sonar {
         properties {
             property 'sonar.coverage.jacoco.xmlReportPaths', [
-                '**/build/reports/jacoco/test/jacocoTestReport.xml',
-                jakartaRestTckCoverageReport.asFile.absolutePath
-            ].join(',')
+                jaxRsCoverageReports.collect { it.get().asFile.absolutePath },
+                jakartaRestTckCoverageReports.collect { it.asFile.absolutePath }
+            ].flatten().join(',')
             property 'sonar.coverage.exclusions', [
                 'tests/jaxrs-tck/src/main/java/**'
             ].join(',')
