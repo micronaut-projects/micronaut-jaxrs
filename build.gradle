@@ -3,6 +3,28 @@ plugins {
 }
 
 def jakartaRestTckCoverageReport = layout.projectDirectory.file('tests/jaxrs-tck/build/reports/jacoco/test/jacocoTestReport.xml')
+def jaxRsCoverageProjects = [
+    'micronaut-jaxrs-common',
+    'micronaut-jaxrs-client',
+    'micronaut-jaxrs-server',
+    'micronaut-jaxrs-server-security',
+    'micronaut-jaxrs-servlet',
+    'micronaut-jaxrs-reflection',
+    'micronaut-jaxrs-xml',
+    'micronaut-jaxrs-jakarta',
+    'micronaut-jaxrs-processor'
+] as Set
+
+subprojects { subproject ->
+    if (jaxRsCoverageProjects.contains(subproject.name)) {
+        subproject.tasks.matching { it.name == 'jacocoTestReport' }.configureEach {
+            reports {
+                xml.required = true
+                html.required = true
+            }
+        }
+    }
+}
 
 plugins.withId('org.sonarqube') {
     sonar {
