@@ -35,7 +35,7 @@ import java.util.Set;
  * Applies JAX-RS route adjustments that must run after core route validation.
  */
 @Internal
-public final class JaxRsMatrixFieldRouteVisitor implements TypeElementVisitor<Object, Object> {
+public final class JaxRsMatrixFieldRouteVisitor implements TypeElementVisitor<Object, HttpMethodMapping> {
 
     private static final int POSITION = JaxRsTypeElementVisitor.POSITION - 400;
     private static final String CLIENT_ANNOTATION = "io.micronaut.http.client.annotation.Client";
