@@ -20,7 +20,7 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.Order;
 import io.micronaut.core.order.Ordered;
 import io.micronaut.jaxrs.common.JaxRsMessageBodyProvider;
-import io.micronaut.jaxrs.common.JaxRsTemporaryFiles;
+import io.micronaut.jaxrs.common.JaxRsUtils;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
@@ -83,7 +83,7 @@ public final class JaxRsFileMessageBodyReaderWriter implements MessageBodyReader
                          MediaType mediaType,
                          MultivaluedMap<String, String> httpHeaders,
                          InputStream entityStream) throws IOException, WebApplicationException {
-        File file = JaxRsTemporaryFiles.createTempFile("jaxrs-entity-", ".tmp", tempDirectory);
+        File file = JaxRsUtils.createTempFile("jaxrs-entity-", ".tmp", tempDirectory);
         file.deleteOnExit();
         try (OutputStream outputStream = Files.newOutputStream(file.toPath())) {
             entityStream.transferTo(outputStream);

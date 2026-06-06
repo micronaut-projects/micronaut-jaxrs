@@ -22,7 +22,7 @@ import io.micronaut.http.HttpRequest;
 import io.micronaut.http.client.netty.DefaultHttpClient;
 import io.micronaut.http.client.sse.SseClient;
 import io.micronaut.http.sse.Event;
-import io.micronaut.jaxrs.common.JaxRsTemporaryFiles;
+import io.micronaut.jaxrs.common.JaxRsUtils;
 import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.ClientErrorException;
 import jakarta.ws.rs.ForbiddenException;
@@ -124,7 +124,7 @@ class JaxRsClientBuilderTest {
     @Test
     void tempDirectoryPropertyAcceptsPathValues() {
         Client client = new JaxRsClientBuilder()
-            .property(JaxRsTemporaryFiles.TEMP_DIRECTORY_PROPERTY, tempDir)
+            .property(JaxRsUtils.TEMP_DIRECTORY_PROPERTY, tempDir)
             .build();
         try {
             JaxRsConfiguration configuration = (JaxRsConfiguration) client.getConfiguration();

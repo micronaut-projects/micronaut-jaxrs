@@ -43,7 +43,6 @@ import io.micronaut.jaxrs.common.JaxRsIOException;
 import io.micronaut.jaxrs.common.JaxRsMessageBodyReader;
 import io.micronaut.jaxrs.common.JaxRsMessageBodyReaderDefinition;
 import io.micronaut.jaxrs.common.JaxRsMessageBodyWriter;
-import io.micronaut.jaxrs.common.JaxRsTemporaryFiles;
 import io.micronaut.jaxrs.common.JaxRsUtils;
 import io.micronaut.jaxrs.common.JaxRsWriterInterceptorContextState;
 import jakarta.ws.rs.ConstrainedTo;
@@ -167,7 +166,7 @@ final class JaxRsConfiguration implements Configuration {
     }
 
     @Nullable Path tempDirectory() {
-        return JaxRsTemporaryFiles.configuredDirectory(properties.get(JaxRsTemporaryFiles.TEMP_DIRECTORY_PROPERTY));
+        return JaxRsUtils.configuredTempDirectory(properties.get(JaxRsUtils.TEMP_DIRECTORY_PROPERTY));
     }
 
     public void addProperty(String name, Object value) {

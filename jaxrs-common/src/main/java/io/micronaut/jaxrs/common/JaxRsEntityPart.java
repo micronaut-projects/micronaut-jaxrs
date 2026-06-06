@@ -16,9 +16,6 @@
 package io.micronaut.jaxrs.common;
 
 import io.micronaut.core.annotation.Internal;
-import io.micronaut.http.multipart.CompletedPart;
-import io.micronaut.http.multipart.FormFieldMetadata;
-import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.EntityPart;
 import jakarta.ws.rs.core.GenericType;
@@ -39,7 +36,7 @@ import java.util.Optional;
  * Default {@link EntityPart} implementation.
  */
 @Internal
-public final class JaxRsEntityPart implements EntityPart {
+final class JaxRsEntityPart implements EntityPart {
 
     private final String name;
     private final @Nullable String fileName;
@@ -64,7 +61,7 @@ public final class JaxRsEntityPart implements EntityPart {
      * @param name The part name
      * @return A new builder
      */
-    public static Builder withName(String name) {
+    static Builder withName(String name) {
         return new Builder(name);
     }
 
@@ -72,7 +69,7 @@ public final class JaxRsEntityPart implements EntityPart {
      * @param fileName The part file name
      * @return A new builder
      */
-    public static Builder withFileName(String fileName) {
+    static Builder withFileName(String fileName) {
         return new Builder(null).fileName(fileName);
     }
 
@@ -86,33 +83,12 @@ public final class JaxRsEntityPart implements EntityPart {
      * @param content The content
      * @return The entity part
      */
-    public static EntityPart parsed(String name,
-                                    @Nullable String fileName,
-                                    MediaType mediaType,
-                                    MultivaluedMap<String, String> headers,
-                                    byte[] content) {
+    static EntityPart parsed(String name,
+                             @Nullable String fileName,
+                             MediaType mediaType,
+                             MultivaluedMap<String, String> headers,
+                             byte[] content) {
         return new JaxRsEntityPart(name, fileName, mediaType, new MultivaluedHashMap<>(headers), content.clone());
-    }
-
-    /**
-     * Creates a JAX-RS entity part from a completed Micronaut multipart part.
-     *
-     * @param part The completed Micronaut part
-     * @return The JAX-RS entity part
-     * @throws IOException If the part content cannot be read
-     */
-    public static EntityPart from(CompletedPart part) throws IOException {
-        FormFieldMetadata metadata = part.getMetadata();
-        String partName = metadata.name();
-        if (partName == null || partName.isBlank()) {
-            throw new BadRequestException("Multipart entity part name is required");
-        }
-        String partFileName = metadata.fileName();
-        MediaType partMediaType = metadata.mediaType() == null ? MediaType.TEXT_PLAIN_TYPE : JaxRsUtils.convert(metadata.mediaType());
-        MultivaluedMap<String, String> partHeaders = new MultivaluedHashMap<>();
-        partHeaders.putSingle(JaxRsMultipart.CONTENT_DISPOSITION, contentDisposition(partName, partFileName));
-        partHeaders.putSingle(JaxRsMultipart.CONTENT_TYPE, partMediaType.toString());
-        return new JaxRsEntityPart(partName, partFileName, partMediaType, partHeaders, part.getBytes());
     }
 
     @Override

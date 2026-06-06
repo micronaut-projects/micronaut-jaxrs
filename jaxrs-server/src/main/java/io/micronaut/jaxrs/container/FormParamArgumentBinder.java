@@ -40,7 +40,7 @@ import io.micronaut.http.multipart.RawFormField;
 import io.micronaut.http.server.multipart.FormFactory;
 import io.micronaut.http.server.multipart.FormRouteCompleter;
 import io.micronaut.http.uri.QueryStringDecoder;
-import io.micronaut.jaxrs.common.JaxRsEntityPart;
+import io.micronaut.jaxrs.common.JaxRsMultipart;
 import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.Encoded;
 import jakarta.ws.rs.FormParam;
@@ -368,7 +368,7 @@ final class FormParamArgumentBinder<T> extends AbstractParamArgumentBinder<FormP
         if (part == null) {
             return null;
         }
-        return JaxRsEntityPart.from(part);
+        return JaxRsMultipart.entityPart(part);
     }
 
     @SuppressWarnings("unchecked")

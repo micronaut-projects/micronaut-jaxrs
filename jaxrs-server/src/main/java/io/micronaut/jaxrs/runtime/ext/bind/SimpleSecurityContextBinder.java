@@ -20,7 +20,6 @@ import io.micronaut.core.convert.ArgumentConversionContext;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.bind.binders.TypedRequestArgumentBinder;
-import io.micronaut.jaxrs.common.JaxRsSecurityContextAttributes;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.core.SecurityContext;
 
@@ -37,11 +36,16 @@ import java.util.Optional;
 @Singleton
 public class SimpleSecurityContextBinder implements TypedRequestArgumentBinder<SecurityContext> {
 
+    /**
+     * Request attribute containing the active Jakarta REST security context.
+     */
+    public static final CharSequence SECURITY_CONTEXT_ATTRIBUTE = SimpleSecurityContextBinder.class.getName() + ".securityContext";
+
     private static final Argument<SecurityContext> ARGUMENT = Argument.of(SecurityContext.class);
 
     @Override
     public BindingResult<SecurityContext> bind(ArgumentConversionContext<SecurityContext> context, HttpRequest<?> source) {
-        SecurityContext securityContext = source.getAttribute(JaxRsSecurityContextAttributes.SECURITY_CONTEXT, SecurityContext.class)
+        SecurityContext securityContext = source.getAttribute(SECURITY_CONTEXT_ATTRIBUTE, SecurityContext.class)
             .orElse(null);
         if (securityContext != null) {
             return () -> Optional.of(securityContext);

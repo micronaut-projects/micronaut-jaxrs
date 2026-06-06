@@ -31,8 +31,8 @@ import java.util.Set;
  * Creates temporary files in a private directory instead of the shared system temp directory.
  */
 @Internal
-public final class JaxRsTemporaryFiles {
-    public static final String TEMP_DIRECTORY_PROPERTY = "micronaut.jaxrs.temp-directory";
+final class JaxRsTemporaryFiles {
+    static final String TEMP_DIRECTORY_PROPERTY = "micronaut.jaxrs.temp-directory";
 
     private static final Set<PosixFilePermission> DIRECTORY_PERMISSIONS = PosixFilePermissions.fromString("rwx------");
     private static final Set<PosixFilePermission> FILE_PERMISSIONS = PosixFilePermissions.fromString("rw-------");
@@ -49,7 +49,7 @@ public final class JaxRsTemporaryFiles {
      * @return The temporary file
      * @throws IOException If the file cannot be created safely
      */
-    public static File createTempFile(String prefix, String suffix, @Nullable Path configuredDirectory) throws IOException {
+    static File createTempFile(String prefix, String suffix, @Nullable Path configuredDirectory) throws IOException {
         Path directory = ensurePrivateDirectory(configuredDirectory == null ? defaultDirectory() : configuredDirectory);
         Path file = createTempFile(directory, prefix, suffix, PosixFilePermissions.asFileAttribute(FILE_PERMISSIONS));
         return file.toFile();
@@ -61,7 +61,7 @@ public final class JaxRsTemporaryFiles {
      * @param value The configured value
      * @return The resolved directory path
      */
-    public static @Nullable Path configuredDirectory(@Nullable Object value) {
+    static @Nullable Path configuredDirectory(@Nullable Object value) {
         if (value == null) {
             return null;
         }

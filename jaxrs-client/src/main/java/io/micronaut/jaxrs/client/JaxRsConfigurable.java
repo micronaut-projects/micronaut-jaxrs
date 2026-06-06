@@ -28,7 +28,7 @@ import java.util.Map;
  * @since 4.6
  */
 @Internal
-public sealed interface JaxRsConfigurable<C extends Configurable<C>> extends Configurable<C> permits JaxRsClient, JaxRsClientBuilder, JaxRsWebTarget {
+sealed interface JaxRsConfigurable<C extends Configurable<C>> extends Configurable<C> permits JaxRsClient, JaxRsClientBuilder, JaxRsWebTarget {
 
     C self();
 

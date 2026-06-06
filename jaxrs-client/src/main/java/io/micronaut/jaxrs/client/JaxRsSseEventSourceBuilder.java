@@ -26,6 +26,9 @@ import java.util.concurrent.TimeUnit;
 /**
  * Micronaut-backed {@link SseEventSource.Builder}.
  *
+ * <p>Public only so {@link java.util.ServiceLoader} can instantiate it from
+ * {@code META-INF/services/jakarta.ws.rs.sse.SseEventSource$Builder}.</p>
+ *
  * @since 5.0
  */
 @Internal

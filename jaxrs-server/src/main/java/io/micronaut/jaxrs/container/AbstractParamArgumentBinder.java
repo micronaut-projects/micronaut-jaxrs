@@ -46,7 +46,10 @@ import java.util.Optional;
  * @param <A> The annotation type
  * @param <T> The argument type
  */
-abstract class AbstractParamArgumentBinder<A extends Annotation, T> extends AbstractArgumentBinder<T> implements AnnotatedRequestArgumentBinder<A, T> {
+abstract sealed class AbstractParamArgumentBinder<A extends Annotation, T> extends AbstractArgumentBinder<T>
+    implements AnnotatedRequestArgumentBinder<A, T>
+    permits CookieParamArgumentBinder, FormParamArgumentBinder, HeaderParamArgumentBinder,
+    MatrixParamArgumentBinder, PathParamArgumentBinder, QueryParamArgumentBinder {
 
     private final List<ParamConverterProvider> paramConverterProviders;
     private final ParamConverter<T> paramConverter;

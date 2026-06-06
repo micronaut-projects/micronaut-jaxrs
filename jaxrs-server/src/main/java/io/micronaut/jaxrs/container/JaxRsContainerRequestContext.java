@@ -24,7 +24,7 @@ import io.micronaut.http.context.ServerRequestContext;
 import io.micronaut.jaxrs.common.JaxRsHttpHeaders;
 import io.micronaut.jaxrs.common.JaxRsMutableHeadersMultivaluedMap;
 import io.micronaut.jaxrs.common.JaxRsMutableHttpHeaders;
-import io.micronaut.jaxrs.common.JaxRsSecurityContextAttributes;
+import io.micronaut.jaxrs.runtime.ext.bind.SimpleSecurityContextBinder;
 import io.micronaut.jaxrs.runtime.ext.bind.UriInfoImpl;
 import jakarta.ws.rs.container.ContainerRequestContext;
 import jakarta.ws.rs.core.Cookie;
@@ -236,7 +236,7 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
     @Override
     public SecurityContext getSecurityContext() {
         if (securityContext == null) {
-            securityContext = mutableHttpRequest.getAttribute(JaxRsSecurityContextAttributes.SECURITY_CONTEXT, SecurityContext.class)
+            securityContext = mutableHttpRequest.getAttribute(SimpleSecurityContextBinder.SECURITY_CONTEXT_ATTRIBUTE, SecurityContext.class)
                 .orElseGet(JaxRsContextSecurityContext::new);
         }
         return securityContext;
@@ -246,7 +246,7 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
     public void setSecurityContext(SecurityContext context) {
         checkRequestFilteringInProgress();
         securityContext = context;
-        mutableHttpRequest.setAttribute(JaxRsSecurityContextAttributes.SECURITY_CONTEXT, context);
+        mutableHttpRequest.setAttribute(SimpleSecurityContextBinder.SECURITY_CONTEXT_ATTRIBUTE, context);
     }
 
     @Override

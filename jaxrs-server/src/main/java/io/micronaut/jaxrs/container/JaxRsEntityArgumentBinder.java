@@ -46,7 +46,7 @@ import io.micronaut.http.server.multipart.FormFactory;
 import io.micronaut.http.server.exceptions.UnsupportedMediaException;
 import io.micronaut.jaxrs.common.JaxRsContainerMessageBodyHandlerRegistry;
 import io.micronaut.jaxrs.common.HttpMessageEntityReader;
-import io.micronaut.jaxrs.common.JaxRsEntityPart;
+import io.micronaut.jaxrs.common.JaxRsMultipart;
 import io.micronaut.jaxrs.common.JaxRsIOException;
 import io.micronaut.jaxrs.common.JaxRsNoContentPlaceholderProvider;
 import jakarta.inject.Singleton;
@@ -200,7 +200,7 @@ final class JaxRsEntityArgumentBinder<T> implements AnnotatedRequestArgumentBind
                     }
                     try {
                         if (part != null) {
-                            parts.add(JaxRsEntityPart.from(part));
+                            parts.add(JaxRsMultipart.entityPart(part));
                         }
                     } catch (Throwable e) {
                         completeExceptionally(e);

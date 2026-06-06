@@ -1,7 +1,6 @@
 package io.micronaut.validation.tck;
 
 import ee.jakarta.tck.ws.rs.common.JAXRSCommonClient;
-import io.micronaut.jaxrs.client.JaxRsClientBuilder;
 import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
@@ -69,7 +68,7 @@ public class FilterExtension implements ExecutionCondition, BeforeEachCallback, 
 
     @Override
     public void beforeEach(ExtensionContext context) {
-        context.getStore(NAMESPACE).put(TESTING_CLIENT_MARKER, JaxRsClientBuilder.markTestingClients());
+        context.getStore(NAMESPACE).put(TESTING_CLIENT_MARKER, TrackingClientBuilder.markClients());
         Object testInstance = context.getRequiredTestInstance();
         if (testInstance instanceof JAXRSCommonClient commonClient) {
             commonClient.setup();
@@ -80,13 +79,13 @@ public class FilterExtension implements ExecutionCondition, BeforeEachCallback, 
     public void afterEach(ExtensionContext context) {
         Integer marker = context.getStore(NAMESPACE).remove(TESTING_CLIENT_MARKER, Integer.class);
         if (marker != null) {
-            JaxRsClientBuilder.closeTestingClientsAfter(marker);
+            TrackingClientBuilder.closeClientsAfter(marker);
         }
     }
 
     @Override
     public void afterAll(ExtensionContext context) {
-        JaxRsClientBuilder.closeTestingClients();
+        TrackingClientBuilder.closeClients();
     }
 
     private boolean isKnownFailure(String className, Optional<Method> testMethod) {

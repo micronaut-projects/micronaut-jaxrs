@@ -32,6 +32,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JaxRsSecurityHardeningTest {
 
@@ -97,6 +98,19 @@ class JaxRsSecurityHardeningTest {
         part.getHeaders().add("X-Test", "bad\r\nInjected: yes");
 
         assertThrows(IllegalArgumentException.class, () -> JaxRsMultipart.writeParts(List.of(part), new ByteArrayOutputStream()));
+    }
+
+    @Test
+    void multipartWriterUsesConfiguredBoundary() throws Exception {
+        EntityPart part = EntityPart.withName("field")
+            .content("value", String.class)
+            .build();
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+
+        String boundary = JaxRsMultipart.writeParts(List.of(part), outputStream, multipart("customBoundary"));
+
+        assertEquals("customBoundary", boundary);
+        assertTrue(outputStream.toString(StandardCharsets.ISO_8859_1).startsWith("--customBoundary\r\n"));
     }
 
     @Test

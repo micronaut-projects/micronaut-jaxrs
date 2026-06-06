@@ -18,7 +18,7 @@ package io.micronaut.jaxrs.client;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.convert.ConversionService;
 import io.micronaut.http.sse.Event;
-import io.micronaut.jaxrs.common.JaxRsTemporaryFiles;
+import io.micronaut.jaxrs.common.JaxRsUtils;
 import jakarta.ws.rs.ProcessingException;
 import jakarta.ws.rs.core.GenericType;
 import jakarta.ws.rs.core.MediaType;
@@ -172,7 +172,7 @@ final class JaxRsInboundSseEvent implements InboundSseEvent {
 
     private static File file(String data, Charset charset, @Nullable Path tempDirectory) {
         try {
-            File file = JaxRsTemporaryFiles.createTempFile("jaxrs-sse-", ".tmp", tempDirectory);
+            File file = JaxRsUtils.createTempFile("jaxrs-sse-", ".tmp", tempDirectory);
             file.deleteOnExit();
             java.nio.file.Files.writeString(file.toPath(), data, charset);
             return file;

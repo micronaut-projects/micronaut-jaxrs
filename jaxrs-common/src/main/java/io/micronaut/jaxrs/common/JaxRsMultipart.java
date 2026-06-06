@@ -16,6 +16,8 @@
 package io.micronaut.jaxrs.common;
 
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.http.multipart.CompletedPart;
+import io.micronaut.http.multipart.FormFieldMetadata;
 import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.core.EntityPart;
 import jakarta.ws.rs.core.MediaType;
@@ -43,6 +45,7 @@ public final class JaxRsMultipart {
     public static final String MULTIPART_FORM_DATA = "multipart/form-data";
     public static final String CONTENT_DISPOSITION = "Content-Disposition";
     public static final String CONTENT_TYPE = "Content-Type";
+    private static final String DEFAULT_BOUNDARY_PREFIX = "MicronautJaxRsBoundary";
     private static final byte[] CRLF = "\r\n".getBytes(StandardCharsets.ISO_8859_1);
     private static final int MAX_BOUNDARY_LENGTH = 70;
     private static final int MAX_PARTS = 1_000;
@@ -123,6 +126,46 @@ public final class JaxRsMultipart {
     }
 
     /**
+     * Creates a JAX-RS entity part from a completed Micronaut multipart part.
+     *
+     * @param part The completed Micronaut part
+     * @return The JAX-RS entity part
+     * @throws IOException If the part content cannot be read
+     */
+    public static EntityPart entityPart(CompletedPart part) throws IOException {
+        FormFieldMetadata metadata = part.getMetadata();
+        String partName = metadata.name();
+        if (partName == null || partName.isBlank()) {
+            throw new BadRequestException("Multipart entity part name is required");
+        }
+        String partFileName = metadata.fileName();
+        MediaType partMediaType = metadata.mediaType() == null ? MediaType.TEXT_PLAIN_TYPE : JaxRsUtils.convert(metadata.mediaType());
+        MultivaluedMap<String, String> partHeaders = new MultivaluedHashMap<>();
+        partHeaders.putSingle(CONTENT_DISPOSITION, contentDisposition(partName, partFileName));
+        partHeaders.putSingle(CONTENT_TYPE, partMediaType.toString());
+        return JaxRsEntityPart.parsed(partName, partFileName, partMediaType, partHeaders, part.getBytes());
+    }
+
+    /**
+     * Writes multipart/form-data.
+     *
+     * @param parts The entity parts
+     * @param outputStream The target stream
+     * @param mediaType The outbound media type
+     * @return The generated boundary
+     * @throws IOException If writing fails
+     */
+    public static String writeParts(List<EntityPart> parts, OutputStream outputStream, @Nullable MediaType mediaType) throws IOException {
+        String boundary = boundary(mediaType);
+        if (boundary == null) {
+            boundary = DEFAULT_BOUNDARY_PREFIX + UUID.randomUUID().toString().replace("-", "");
+        } else {
+            validateBoundary(boundary);
+        }
+        return writeParts(parts, outputStream, boundary);
+    }
+
+    /**
      * Writes multipart/form-data.
      *
      * @param parts The entity parts
@@ -131,7 +174,10 @@ public final class JaxRsMultipart {
      * @throws IOException If writing fails
      */
     public static String writeParts(List<EntityPart> parts, OutputStream outputStream) throws IOException {
-        String boundary = "MicronautJaxRsBoundary" + UUID.randomUUID().toString().replace("-", "");
+        return writeParts(parts, outputStream, (MediaType) null);
+    }
+
+    private static String writeParts(List<EntityPart> parts, OutputStream outputStream, String boundary) throws IOException {
         for (EntityPart part : parts) {
             outputStream.write(("--" + boundary).getBytes(StandardCharsets.ISO_8859_1));
             outputStream.write(CRLF);
@@ -173,11 +219,22 @@ public final class JaxRsMultipart {
     }
 
     private static @Nullable String boundary(MediaType mediaType) {
+        if (mediaType == null) {
+            return null;
+        }
         String boundary = mediaType.getParameters().get("boundary");
         if (boundary == null) {
             return null;
         }
         return unquote(boundary);
+    }
+
+    private static String contentDisposition(String name, @Nullable String fileName) {
+        String value = "form-data; name=" + JaxRsHeaderValues.quoteParameterValue(name);
+        if (fileName != null) {
+            value += "; filename=" + JaxRsHeaderValues.quoteParameterValue(fileName);
+        }
+        return value;
     }
 
     private static MultivaluedMap<String, String> parseHeaders(String headerText) {

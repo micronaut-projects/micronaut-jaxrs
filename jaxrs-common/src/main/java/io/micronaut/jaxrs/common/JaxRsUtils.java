@@ -19,7 +19,11 @@ import io.micronaut.context.BeanRegistration;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.MediaType;
 import jakarta.annotation.Priority;
+import org.jspecify.annotations.Nullable;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -32,6 +36,11 @@ import java.util.List;
  */
 @Internal
 public final class JaxRsUtils {
+
+    /**
+     * Configuration property for the private JAX-RS temporary directory.
+     */
+    public static final String TEMP_DIRECTORY_PROPERTY = JaxRsTemporaryFiles.TEMP_DIRECTORY_PROPERTY;
 
     public static <T> void sortByPriority(List<T> values) {
         sortByPriority(values, false);
@@ -78,6 +87,29 @@ public final class JaxRsUtils {
             throw new IllegalArgumentException("Argument [" + name + "] cannot be null");
         }
         return value;
+    }
+
+    /**
+     * Create a temporary file under the configured directory, or under a private default directory.
+     *
+     * @param prefix The file prefix
+     * @param suffix The file suffix
+     * @param configuredDirectory The configured temporary directory
+     * @return The temporary file
+     * @throws IOException If the file cannot be created safely
+     */
+    public static File createTempFile(String prefix, String suffix, @Nullable Path configuredDirectory) throws IOException {
+        return JaxRsTemporaryFiles.createTempFile(prefix, suffix, configuredDirectory);
+    }
+
+    /**
+     * Resolve a configured temporary directory value.
+     *
+     * @param value The configured value
+     * @return The resolved directory path
+     */
+    public static @Nullable Path configuredTempDirectory(@Nullable Object value) {
+        return JaxRsTemporaryFiles.configuredDirectory(value);
     }
 
     public static jakarta.ws.rs.core.MediaType convert(MediaType mediaType) {

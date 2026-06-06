@@ -32,7 +32,7 @@ import java.util.Objects;
  * @since 4.6
  */
 @Internal
-public final class JaxRsWebTarget implements WebTarget, JaxRsConfigurable<WebTarget> {
+final class JaxRsWebTarget implements WebTarget, JaxRsConfigurable<WebTarget> {
 
     private final JaxRsClient client;
     private final UriBuilder uriBuilder;

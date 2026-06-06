@@ -86,7 +86,7 @@ def configureJaxRsTckTask = { Test task, String filterMode ->
     task.systemProperty("java.util.logging.config.class", "x.LoggingConfig")
     task.systemProperty("webServerHost", "localhost")
     task.systemProperty("webServerPort", "8123")
-    task.systemProperty("micronaut.testing.jaxrs.min.clients", "32")
+    task.systemProperty("jakarta.ws.rs.client.ClientBuilder", "io.micronaut.validation.tck.TrackingClientBuilder")
     task.systemProperty("user", "j2ee")
     task.systemProperty("password", "j2ee")
     task.systemProperty("authuser", "javajoe")

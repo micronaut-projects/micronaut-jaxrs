@@ -43,7 +43,6 @@ import jakarta.ws.rs.core.Configuration;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
-import java.lang.ref.WeakReference;
 import java.net.URI;
 import java.security.KeyStore;
 import java.time.Duration;
@@ -67,10 +66,6 @@ import java.util.concurrent.TimeUnit;
  */
 @Internal
 public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConfigurable<ClientBuilder> {
-
-    // Only for testing
-    private static final List<WeakReference<DefaultHttpClient>> TESTING_CLIENTS = new ArrayList<>();
-    private static final int TESTING_MIN_CLIENTS = Optional.ofNullable(System.getProperty("micronaut.testing.jaxrs.min.clients")).map(Integer::parseInt).orElse(-1);
 
     private JaxRsConfiguration config = new JaxRsConfiguration();
     private SSLContext sslContext;
@@ -146,73 +141,7 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
             customizer.customize(componentRegistry);
         }
 
-        if (TESTING_MIN_CLIENTS > 0) {
-            synchronized (TESTING_CLIENTS) {
-                TESTING_CLIENTS.removeIf(w -> w.get() == null);
-                TESTING_CLIENTS.add(new WeakReference<>(httpClient));
-                if (TESTING_CLIENTS.size() > TESTING_MIN_CLIENTS) {
-                    DefaultHttpClient client = TESTING_CLIENTS.remove(0).get();
-                    if (client != null) {
-                        client.close();
-                    }
-                }
-            }
-        }
         return new JaxRsClient(httpClient, jaxRsConfiguration);
-    }
-
-    /**
-     * Closes clients tracked for external compatibility tests that create clients
-     * without closing them.
-     */
-    public static void closeTestingClients() {
-        if (TESTING_MIN_CLIENTS <= 0) {
-            return;
-        }
-        synchronized (TESTING_CLIENTS) {
-            for (WeakReference<DefaultHttpClient> clientReference : TESTING_CLIENTS) {
-                DefaultHttpClient client = clientReference.get();
-                if (client != null) {
-                    client.close();
-                }
-            }
-            TESTING_CLIENTS.clear();
-        }
-    }
-
-    /**
-     * Marks the current number of clients tracked for external compatibility tests.
-     *
-     * @return The marker to pass to {@link #closeTestingClientsAfter(int)}
-     */
-    public static int markTestingClients() {
-        if (TESTING_MIN_CLIENTS <= 0) {
-            return 0;
-        }
-        synchronized (TESTING_CLIENTS) {
-            TESTING_CLIENTS.removeIf(w -> w.get() == null);
-            return TESTING_CLIENTS.size();
-        }
-    }
-
-    /**
-     * Closes clients tracked after a marker returned by {@link #markTestingClients()}.
-     *
-     * @param marker The testing client marker
-     */
-    public static void closeTestingClientsAfter(int marker) {
-        if (TESTING_MIN_CLIENTS <= 0) {
-            return;
-        }
-        synchronized (TESTING_CLIENTS) {
-            int boundedMarker = Math.max(0, Math.min(marker, TESTING_CLIENTS.size()));
-            for (int i = TESTING_CLIENTS.size() - 1; i >= boundedMarker; i--) {
-                DefaultHttpClient client = TESTING_CLIENTS.remove(i).get();
-                if (client != null) {
-                    client.close();
-                }
-            }
-        }
     }
 
     @Override

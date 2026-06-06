@@ -79,7 +79,7 @@ public final class JaxRsMultipartMessageBodyReaderWriter implements MessageBodyR
                         MediaType mediaType,
                         MultivaluedMap<String, Object> httpHeaders,
                         OutputStream entityStream) throws IOException, WebApplicationException {
-        String boundary = JaxRsMultipart.writeParts(entityParts, entityStream);
+        String boundary = JaxRsMultipart.writeParts(entityParts, entityStream, mediaType);
         httpHeaders.putSingle(HttpHeaders.CONTENT_TYPE, JaxRsMultipart.MULTIPART_FORM_DATA + "; boundary=" + boundary);
     }
 
