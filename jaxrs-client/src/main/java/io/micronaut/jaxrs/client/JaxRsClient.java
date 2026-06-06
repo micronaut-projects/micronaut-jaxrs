@@ -37,7 +37,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * @since 4.6
  */
 @Internal
-final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
+public final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
 
     private final DefaultHttpClient httpClient;
     private final JaxRsConfiguration config;
@@ -49,7 +49,7 @@ final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
         this.config = config;
     }
 
-    HttpClient getHttpClient() {
+    public HttpClient getHttpClient() {
         checkOpen();
         return httpClient;
     }
