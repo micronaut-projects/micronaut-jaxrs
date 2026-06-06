@@ -7,7 +7,7 @@
 
 Micronaut JAX-RS adds the ability to use common JAX-RS types and annotations to a Micronaut application.
 
-This project is not an implementation of the JAX-RS specification and is designed to allow users familiar with the JAX-RS API to use the most common parts of the API within the context of a Micronaut application.
+This project is a Micronaut-native JAX-RS implementation that allows users familiar with the JAX-RS API to build Jakarta REST applications within the context of a Micronaut application.
 
 ## Documentation
 
