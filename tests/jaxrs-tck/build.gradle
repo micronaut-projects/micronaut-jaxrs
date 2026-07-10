@@ -1,6 +1,7 @@
 plugins {
     id "java-library"
     id "io.micronaut.build.internal.jaxrs-base"
+    id "jacoco"
 }
 
 repositories {
@@ -13,10 +14,12 @@ dependencies {
     implementation mn.micronaut.aop
     implementation mn.micronaut.context
     implementation mn.micronaut.http.server.netty
+    implementation mnServlet.servlet.api
     implementation mn.micronaut.jackson.databind
 
     implementation projects.micronautJaxrsServer
     implementation projects.micronautJaxrsClient
+    implementation projects.micronautJaxrsCommon
     implementation projects.micronautJaxrsProcessor
     implementation libs.jakarta.jaxrs.tck.tests
     implementation mnLogging.slf4j.jul.to.slf4j
@@ -35,16 +38,388 @@ dependencies {
     testRuntimeOnly mnTest.junit.jupiter.engine
 }
 
-test {
-    scanForTestClasses false
-    systemProperty("junit.jupiter.extensions.autodetection.enabled", "true")
-    systemProperty("java.util.logging.config.class", "x.LoggingConfig")
-    systemProperty("webServerHost", "localhost")
-    systemProperty("webServerPort", "8123")
-    systemProperty("micronaut.testing.jaxrs.min.clients", "5")
-    useJUnitPlatform()
-    maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
-    filter {
-        excludeTestsMatching "*BuilderClientIT.expiresTest"
+def jakartaTckRuntimeClasspath = configurations.create("jakartaTckRuntimeClasspath") {
+    canBeConsumed = false
+    canBeResolved = true
+    extendsFrom(configurations.testRuntimeClasspath)
+}
+
+def jakartaServletTckRuntimeClasspath = configurations.create("jakartaServletTckRuntimeClasspath") {
+    canBeConsumed = false
+    canBeResolved = true
+    extendsFrom(configurations.testRuntimeClasspath)
+    exclude group: "io.micronaut", module: "micronaut-http-server-netty"
+}
+
+dependencies {
+    add("jakartaTckRuntimeClasspath", projects.micronautJaxrsJakarta)
+    add("jakartaTckRuntimeClasspath", libs.jakarta.json.api)
+    add("jakartaTckRuntimeClasspath", libs.jakarta.json.bind.api)
+    add("jakartaTckRuntimeClasspath", libs.jakarta.tck.sigtest.maven.plugin) {
+        transitive = false
+    }
+    add("jakartaTckRuntimeClasspath", libs.jaxb.runtime)
+    add("jakartaTckRuntimeClasspath", libs.parsson)
+    add("jakartaTckRuntimeClasspath", libs.yasson)
+
+    add("jakartaServletTckRuntimeClasspath", projects.micronautJaxrsJakarta)
+    add("jakartaServletTckRuntimeClasspath", mnServlet.micronaut.http.server.jetty)
+    add("jakartaServletTckRuntimeClasspath", libs.jakarta.json.api)
+    add("jakartaServletTckRuntimeClasspath", libs.jakarta.json.bind.api)
+    add("jakartaServletTckRuntimeClasspath", libs.jaxb.runtime)
+    add("jakartaServletTckRuntimeClasspath", libs.parsson)
+    add("jakartaServletTckRuntimeClasspath", libs.yasson)
+}
+
+def configureJaxRsTckTask = { Test task, String filterMode ->
+    def jimageDir = layout.buildDirectory.dir("tck-jimage").get().asFile
+    def jimageModuleDirs = {
+        def jmodsDir = new File(System.getProperty("java.home"), "jmods")
+        if (!jmodsDir.directory) {
+            return [jimageDir]
+        }
+        return jmodsDir.listFiles({ File dir, String name -> name.endsWith(".jmod") } as FilenameFilter)
+            .collect { new File(jimageDir, it.name.substring(0, it.name.length() - ".jmod".length())) }
+    }
+    task.scanForTestClasses = false
+    task.systemProperty("junit.jupiter.extensions.autodetection.enabled", "true")
+    task.systemProperty("java.util.logging.config.class", "x.LoggingConfig")
+    task.systemProperty("webServerHost", "localhost")
+    task.systemProperty("webServerPort", "8123")
+    task.systemProperty("jakarta.ws.rs.client.ClientBuilder", "io.micronaut.validation.tck.TrackingClientBuilder")
+    task.systemProperty("user", "j2ee")
+    task.systemProperty("password", "j2ee")
+    task.systemProperty("authuser", "javajoe")
+    task.systemProperty("authpassword", "javajoe")
+    task.systemProperty("micronaut.jaxrs.tck.filter.mode", filterMode)
+    task.systemProperty("micronaut.jaxrs.tck.failing-tests", file("failingTests.xml").absolutePath)
+    task.systemProperty("jimage.dir", jimageDir.absolutePath)
+    task.doFirst {
+        def sigTestClasspath = files(jimageModuleDirs(), task.classpath).asPath
+        systemProperty("sigTestClasspath", sigTestClasspath)
+        systemProperty("signature.sigTestClasspath", sigTestClasspath)
+    }
+    task.useJUnitPlatform()
+    task.maxParallelForks = 1
+    task.jacoco {
+        includes = ["io.micronaut.jaxrs.*"]
+    }
+}
+
+def servletTckClasspath = sourceSets.main.output + sourceSets.test.output + jakartaServletTckRuntimeClasspath
+def servletOnlyKnownFailures = [
+    "ee.jakarta.tck.ws.rs.ee.rs.container.requestcontext.JAXRSClientIT#setPropertyIsReflectedInServletRequestTest"
+] as Set
+
+test { Test task ->
+    configureJaxRsTckTask(task, "exclude-known-failures")
+    classpath = sourceSets.test.runtimeClasspath + jakartaTckRuntimeClasspath
+}
+
+def verifyJakartaTckKnownFailures = tasks.register("verifyJakartaTckKnownFailures") {
+    group = "verification"
+    description = "Verifies that the tracked Netty TCK exclusions are covered by Servlet TCK tasks."
+    inputs.file(file("failingTests.xml"))
+
+    doLast {
+        def suiteFile = file("failingTests.xml")
+        def documentBuilderFactory = javax.xml.parsers.DocumentBuilderFactory.newInstance()
+        documentBuilderFactory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
+        documentBuilderFactory.setFeature("http://xml.org/sax/features/external-general-entities", false)
+        documentBuilderFactory.setFeature("http://xml.org/sax/features/external-parameter-entities", false)
+        documentBuilderFactory.setXIncludeAware(false)
+        documentBuilderFactory.setExpandEntityReferences(false)
+
+        def document = documentBuilderFactory.newDocumentBuilder().parse(suiteFile)
+        def classNodes = document.getElementsByTagName("class")
+        if (classNodes.length > 0) {
+            throw new GradleException("jakartaTck only permits method-level servlet-only Netty exclusions. Found ${classNodes.length} class exclusions in ${suiteFile}.")
+        }
+        def extraMethods = []
+        def testNodes = document.getElementsByTagName("test")
+        for (int i = 0; i < testNodes.length; i++) {
+            def test = testNodes.item(i)
+            def key = "${test.getAttribute("class")}#${test.getAttribute("method")}".toString()
+            if (!servletOnlyKnownFailures.contains(key)) {
+                extraMethods.add(key)
+            }
+        }
+        if (!extraMethods.empty) {
+            throw new GradleException("jakartaTck only permits servlet-only Netty exclusions covered by jakartaServletTck. Unexpected exclusions: ${extraMethods.join(", ")}")
+        }
+    }
+}
+
+def jakartaTck = tasks.register("jakartaTck") {
+    group = "verification"
+    description = "Runs the Jakarta REST TCK compliance profile across the Netty baseline and Servlet-only profile."
+    dependsOn(verifyJakartaTckKnownFailures, tasks.named("test"))
+}
+
+check {
+    dependsOn(jakartaTck)
+}
+
+def jakartaNettyNoExclusionTck = tasks.register("jakartaNettyNoExclusionTck", Test) { Test task ->
+    group = "verification"
+    description = "Runs the Netty Jakarta REST TCK profile with no known-failure exclusions."
+    configureJaxRsTckTask(task, "all")
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath + jakartaTckRuntimeClasspath
+    shouldRunAfter(test)
+}
+
+def writeFailingJakartaTckSuite = { File resultsDir, File suiteFile ->
+    if (!resultsDir.directory) {
+        throw new GradleException("No Jakarta REST TCK test results found at ${resultsDir}. Run discoverFailingJakartaTck first.")
+    }
+
+    def resultFiles = fileTree(resultsDir) {
+        include "TEST-*.xml"
+    }.files
+    if (resultFiles.empty) {
+        throw new GradleException("No Jakarta REST TCK XML test result files found at ${resultsDir}.")
+    }
+
+    def documentBuilderFactory = javax.xml.parsers.DocumentBuilderFactory.newInstance()
+    documentBuilderFactory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
+    documentBuilderFactory.setFeature("http://xml.org/sax/features/external-general-entities", false)
+    documentBuilderFactory.setFeature("http://xml.org/sax/features/external-parameter-entities", false)
+    documentBuilderFactory.setXIncludeAware(false)
+    documentBuilderFactory.setExpandEntityReferences(false)
+
+    def classLevelFailures = new TreeSet<String>()
+    def methodFailures = new TreeMap<String, TreeSet<String>>()
+    def resultTotals = [
+        tests: 0,
+        skipped: 0,
+        failures: 0,
+        errors: 0,
+    ]
+    def intAttribute = { node, String name ->
+        def value = node.getAttribute(name)
+        value ? value as int : 0
+    }
+    def normalizeMethodName = { String methodName ->
+        methodName == null ? "" : methodName.replaceFirst(/\(.*\)$/, "")
+    }
+    def configurationFailure = { String methodName ->
+        methodName == null || methodName.empty || methodName == "initializationError" || methodName.startsWith("arquillian")
+    }
+    resultFiles.each { resultFile ->
+        def document = documentBuilderFactory.newDocumentBuilder().parse(resultFile)
+        def testSuites = document.getElementsByTagName("testsuite")
+        for (int i = 0; i < testSuites.length; i++) {
+            def testSuite = testSuites.item(i)
+            resultTotals.tests += intAttribute(testSuite, "tests")
+            resultTotals.skipped += intAttribute(testSuite, "skipped")
+            resultTotals.failures += intAttribute(testSuite, "failures")
+            resultTotals.errors += intAttribute(testSuite, "errors")
+        }
+        def testcases = document.getElementsByTagName("testcase")
+        for (int i = 0; i < testcases.length; i++) {
+            def testcase = testcases.item(i)
+            if (testcase.getElementsByTagName("failure").length == 0 && testcase.getElementsByTagName("error").length == 0) {
+                continue
+            }
+            def className = testcase.getAttribute("classname")
+            def methodName = normalizeMethodName(testcase.getAttribute("name"))
+            if (configurationFailure(methodName)) {
+                classLevelFailures.add(className)
+                methodFailures.remove(className)
+            } else if (!classLevelFailures.contains(className)) {
+                def methods = methodFailures[className]
+                if (methods == null) {
+                    methods = new TreeSet<String>()
+                    methodFailures[className] = methods
+                }
+                methods.add(methodName)
+            }
+        }
+    }
+
+    def escapeXml = { String value ->
+        value.replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace("\"", "&quot;")
+            .replace("'", "&apos;")
+    }
+    def methodCount = methodFailures.values().sum(0) { it.size() }
+    def passedCount = resultTotals.tests - resultTotals.skipped - resultTotals.failures - resultTotals.errors
+
+    suiteFile.parentFile.mkdirs()
+    def builder = new StringBuilder()
+    builder << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+    builder << "<failingTests>\n"
+    builder << "    <!--\n"
+    builder << "        Jakarta REST TCK progress tracker.\n\n"
+    builder << "        Keep this file focused on tests that are known to fail in the\n"
+    builder << "        no-exclusion compliance profile. When a class or method passes,\n"
+    builder << "        remove it in the same focused commit as the implementation change.\n\n"
+    builder << "        Entries were generated from ${project.relativePath(resultsDir)}.\n"
+    builder << "        Test result tracker: total=${resultTotals.tests}, passed=${passedCount}, failed=${resultTotals.failures}, errors=${resultTotals.errors}, skipped=${resultTotals.skipped}.\n"
+    builder << "        Current tracker shape: ${classLevelFailures.size()} classes and ${methodCount} methods.\n"
+    builder << "    -->\n"
+    classLevelFailures.each { className ->
+        builder << "    <class name=\"${escapeXml(className)}\"/>\n"
+    }
+    methodFailures.each { className, methods ->
+        methods.each { methodName ->
+            builder << "    <test class=\"${escapeXml(className)}\" method=\"${escapeXml(methodName)}\"/>\n"
+        }
+    }
+    builder << "</failingTests>\n"
+    suiteFile.text = builder.toString()
+    logger.lifecycle("Wrote ${suiteFile} with ${classLevelFailures.size()} classes and ${methodCount} methods.")
+}
+
+def refreshFailingJakartaTckSuite = tasks.register("refreshFailingJakartaTckSuite") {
+    group = "verification"
+    description = "Regenerates failingTests.xml from the latest discoverFailingJakartaTck XML results."
+
+    def resultsDir = layout.buildDirectory.dir("test-results/discoverFailingJakartaTck")
+    inputs.dir(resultsDir)
+    outputs.file(file("failingTests.xml"))
+
+    doLast {
+        writeFailingJakartaTckSuite(resultsDir.get().asFile, file("failingTests.xml"))
+    }
+}
+
+tasks.register("discoverFailingJakartaTck", Test) { Test task ->
+    group = "verification"
+    description = "Runs the full Jakarta REST TCK and refreshes failingTests.xml from the failures."
+    configureJaxRsTckTask(task, "all")
+    ignoreFailures = true
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath + jakartaTckRuntimeClasspath
+    shouldRunAfter(jakartaNettyNoExclusionTck)
+    outputs.upToDateWhen { false }
+    finalizedBy(refreshFailingJakartaTckSuite)
+}
+
+tasks.register("failingJakartaTck", Test) { Test task ->
+    group = "verification"
+    description = "Runs only the tracked known failing Jakarta REST TCK tests."
+    configureJaxRsTckTask(task, "include-known-failures")
+    failOnNoDiscoveredTests = false
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath + jakartaTckRuntimeClasspath
+    shouldRunAfter(jakartaNettyNoExclusionTck)
+}
+
+tasks.register("singleJakartaTck", Test) { Test task ->
+    group = "verification"
+    description = "Runs one Jakarta REST TCK class or method. Use -PtckSingleClass=... and optional -PtckSingleMethod=..."
+    configureJaxRsTckTask(task, "single")
+    maxParallelForks = 1
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath + jakartaTckRuntimeClasspath
+    shouldRunAfter(jakartaNettyNoExclusionTck)
+
+    def testClass = providers.gradleProperty("tckSingleClass")
+    def testMethod = providers.gradleProperty("tckSingleMethod")
+    inputs.property("tckSingleClass", testClass.orElse(""))
+    inputs.property("tckSingleMethod", testMethod.orElse(""))
+
+    doFirst {
+        if (!testClass.present) {
+            throw new GradleException("singleJakartaTck requires -PtckSingleClass=...")
+        }
+        systemProperty("tckSingleClass", testClass.get())
+        if (testMethod.present) {
+            systemProperty("tckSingleMethod", testMethod.get())
+        }
+    }
+}
+
+tasks.register("jakartaServletTck", Test) { Test task ->
+    group = "verification"
+    description = "Runs Jakarta REST TCK tests that require a Servlet request runtime."
+    configureJaxRsTckTask(task, "single")
+    maxParallelForks = 1
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = servletTckClasspath
+    shouldRunAfter(test)
+
+    systemProperty("tckSingleClass", "ee.jakarta.tck.ws.rs.ee.rs.container.requestcontext.JAXRSClientIT")
+    systemProperty("tckSingleMethod", "setPropertyIsReflectedInServletRequestTest")
+}
+
+jakartaTck.configure {
+    dependsOn(tasks.named("jakartaServletTck"))
+}
+
+tasks.register("singleJakartaServletTck", Test) { Test task ->
+    group = "verification"
+    description = "Runs one Jakarta REST TCK class or method against the Servlet runtime. Use -PtckSingleClass=... and optional -PtckSingleMethod=..."
+    configureJaxRsTckTask(task, "single")
+    maxParallelForks = 1
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = servletTckClasspath
+    shouldRunAfter(jakartaServletTck)
+
+    def testClass = providers.gradleProperty("tckSingleClass")
+    def testMethod = providers.gradleProperty("tckSingleMethod")
+    inputs.property("tckSingleClass", testClass.orElse(""))
+    inputs.property("tckSingleMethod", testMethod.orElse(""))
+
+    doFirst {
+        if (!testClass.present) {
+            throw new GradleException("singleJakartaServletTck requires -PtckSingleClass=...")
+        }
+        systemProperty("tckSingleClass", testClass.get())
+        if (testMethod.present) {
+            systemProperty("tckSingleMethod", testMethod.get())
+        }
+    }
+}
+
+def jakartaCoverageProjects = [
+    project(':micronaut-jaxrs-common'),
+    project(':micronaut-jaxrs-client'),
+    project(':micronaut-jaxrs-server'),
+    project(':micronaut-jaxrs-server-security'),
+    project(':micronaut-jaxrs-servlet'),
+    project(':micronaut-jaxrs-reflection'),
+    project(':micronaut-jaxrs-xml'),
+    project(':micronaut-jaxrs-jakarta')
+]
+def jakartaCoverageReport = layout.buildDirectory.file('reports/jacoco/test/jacocoTestReport.xml')
+
+jakartaCoverageProjects.each { coveredProject ->
+    coveredProject.plugins.withId('org.sonarqube') {
+        coveredProject.sonar {
+            properties {
+                property 'sonar.coverage.jacoco.xmlReportPaths', [
+                    coveredProject.layout.buildDirectory.file('reports/jacoco/test/jacocoTestReport.xml').get().asFile.absolutePath,
+                    jakartaCoverageReport.get().asFile.absolutePath
+                ].join(',')
+            }
+        }
+    }
+}
+
+tasks.named('jacocoTestReport') {
+    mustRunAfter(
+        tasks.named('test'),
+        tasks.named('jakartaServletTck'),
+        jakartaNettyNoExclusionTck,
+        tasks.named('discoverFailingJakartaTck'),
+        tasks.named('failingJakartaTck'),
+        tasks.named('singleJakartaTck'),
+        tasks.named('singleJakartaServletTck')
+    )
+    executionData(fileTree(layout.buildDirectory.dir('jacoco')) {
+        include '*.exec'
+    })
+    dependsOn(jakartaCoverageProjects.collect { it.tasks.named('classes') })
+    additionalSourceDirs.from(jakartaCoverageProjects.collect { it.sourceSets.main.allSource.srcDirs })
+    sourceDirectories.from(jakartaCoverageProjects.collect { it.sourceSets.main.allSource.srcDirs })
+    classDirectories.from(jakartaCoverageProjects.collect { it.sourceSets.main.output })
+    reports {
+        xml.required = true
+        html.required = true
     }
 }

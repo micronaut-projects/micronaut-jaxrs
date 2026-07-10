@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<failingTests>
+    <!--
+        TCK tracker (excluded baseline, 2026-05-29):
+        total=2803, passed=2674, failed=0, errors=0, skipped=129.
+        Skipped breakdown: async executor=57, executor Rx=29,
+        RxInvoker=39, URI builder=1, URI info=1, SSE event source=1,
+        Netty servlet request context=1.
+        Netty-baseline exclusions: 0 classes and 1 method.
+        The servlet request-context method is covered by jakartaServletTck,
+        which runs it against Micronaut Servlet/Jetty.
+        Update these counts after each focused group changes this file.
+    -->
+    <test class="ee.jakarta.tck.ws.rs.ee.rs.container.requestcontext.JAXRSClientIT" method="setPropertyIsReflectedInServletRequestTest"/>
+</failingTests>

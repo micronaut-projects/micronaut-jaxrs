@@ -10,6 +10,7 @@ import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.ForbiddenException;
 import jakarta.ws.rs.GET;
+import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.NotAcceptableException;
 import jakarta.ws.rs.NotAllowedException;
 import jakarta.ws.rs.NotAuthorizedException;
@@ -19,12 +20,19 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Application;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.StreamingOutput;
+import jakarta.ws.rs.ext.ContextResolver;
+import jakarta.ws.rs.ext.Provider;
+import jakarta.ws.rs.ext.Providers;
 import org.junit.jupiter.api.Assertions;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.concurrent.ExecutorService;
 
 @Path("/notifications")
@@ -46,6 +54,47 @@ public class NotificationsResource {
         final Object o = application.getProperties().get("service.name");
         Assertions.assertEquals(serviceName, o);
         return Response.ok().entity("Service online: " + o).build();
+    }
+
+    @GET
+    @Path("/default-produces-string")
+    public String defaultProducesString() {
+        return "form-compatible";
+    }
+
+    @GET
+    @Path("/wildcard-produces")
+    @Produces("text/*")
+    public String wildcardProduces() {
+        return "wildcard-compatible";
+    }
+
+    @POST
+    @Path("/wildcard-produces")
+    @Produces("text/*")
+    public Response wildcardProducesResponse(String value) {
+        return Response.ok(value).build();
+    }
+
+    @GET
+    @Path("/streaming-output-web-application-exception")
+    public StreamingOutput streamingOutputWebApplicationException() {
+        return new StreamingOutput() {
+            @Override
+            public void write(OutputStream output) throws IOException {
+                throw new WebApplicationException(Response.Status.NOT_FOUND);
+            }
+        };
+    }
+
+    @GET
+    @Path("/providers/context-resolver")
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response contextResolver(@Context Providers providers,
+                                    @DefaultValue(MediaType.WILDCARD) @HeaderParam("X-Provider-Media-Type") String mediaTypeName) {
+        ContextResolver<TestContextValue> resolver = providers.getContextResolver(TestContextValue.class, MediaType.valueOf(mediaTypeName));
+        TestContextValue value = resolver == null ? null : resolver.getContext(TestContextValue.class);
+        return Response.ok(value == null ? "none" : value.name()).build();
     }
 
     @GET
@@ -168,5 +217,34 @@ public class NotificationsResource {
     @Produces(MediaType.APPLICATION_JSON)
     public Response notSupportedWithoutResponse() {
         throw new NotSupportedException();
+    }
+
+    @GET
+    @Path("/generic-error")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response genericError() {
+        throw new IllegalStateException("Sensitive implementation detail");
+    }
+}
+
+enum TestContextValue {
+    DEFAULT,
+    TEXT
+}
+
+@Provider
+class DefaultTestContextResolver implements ContextResolver<TestContextValue> {
+    @Override
+    public TestContextValue getContext(Class<?> type) {
+        return type == TestContextValue.class ? TestContextValue.DEFAULT : null;
+    }
+}
+
+@Provider
+@Produces(MediaType.TEXT_PLAIN)
+class TextPlainTestContextResolver implements ContextResolver<TestContextValue> {
+    @Override
+    public TestContextValue getContext(Class<?> type) {
+        return type == TestContextValue.class ? TestContextValue.TEXT : null;
     }
 }

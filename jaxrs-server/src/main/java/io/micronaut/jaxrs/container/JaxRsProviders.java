@@ -16,10 +16,15 @@
 package io.micronaut.jaxrs.container;
 
 import io.micronaut.context.BeanContext;
+import io.micronaut.context.BeanRegistration;
+import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.type.Argument;
 import io.micronaut.inject.qualifiers.MatchArgumentQualifier;
 import jakarta.inject.Singleton;
+import jakarta.ws.rs.ConstrainedTo;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.RuntimeType;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
@@ -34,7 +39,11 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Optional;
 
 /**
  * The JAX-RS {@link Providers}.
@@ -108,7 +117,62 @@ final class JaxRsProviders implements Providers {
 
     @Override
     public <T> ContextResolver<T> getContextResolver(Class<T> contextType, MediaType mediaType) {
-        // "null if no matching context providers are found"
-        return null;
+        MediaType requestedMediaType = mediaType == null ? MediaType.WILDCARD_TYPE : mediaType;
+        List<BeanRegistration<ContextResolver<T>>> registrations = contextResolverRegistrations(contextType);
+        registrations.sort(Comparator
+            .<BeanRegistration<ContextResolver<T>>>comparingInt(registration -> mediaTypeScore(registration.getBeanDefinition().getAnnotationMetadata(), requestedMediaType))
+            .reversed()
+            .thenComparingInt(BeanRegistration::getOrder));
+        return registrations.stream()
+            .filter(registration -> mediaTypeScore(registration.getBeanDefinition().getAnnotationMetadata(), requestedMediaType) >= 0)
+            .filter(registration -> isServerProvider(registration.getBeanDefinition().getAnnotationMetadata()))
+            .findFirst()
+            .map(BeanRegistration::getBean)
+            .orElse(null);
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private <T> List<BeanRegistration<ContextResolver<T>>> contextResolverRegistrations(Class<T> contextType) {
+        Collection registrations = beanContext.getBeanRegistrations(
+            Argument.of(ContextResolver.class),
+            MatchArgumentQualifier.covariant(ContextResolver.class, Argument.of(contextType))
+        );
+        return new ArrayList<>(registrations);
+    }
+
+    private static boolean isServerProvider(AnnotationMetadata annotationMetadata) {
+        Optional<RuntimeType> runtimeType = annotationMetadata.enumValue(ConstrainedTo.class, RuntimeType.class);
+        return runtimeType.isEmpty() || runtimeType.get() == RuntimeType.SERVER;
+    }
+
+    private static int mediaTypeScore(AnnotationMetadata annotationMetadata, MediaType requestedMediaType) {
+        String[] producedMediaTypes = annotationMetadata.stringValues(Produces.class);
+        if (producedMediaTypes.length == 0) {
+            producedMediaTypes = annotationMetadata.stringValues(io.micronaut.http.annotation.Produces.class);
+        }
+        if (producedMediaTypes.length == 0) {
+            return mediaTypeScore(MediaType.WILDCARD_TYPE, requestedMediaType);
+        }
+        int score = -1;
+        for (String producedMediaType : producedMediaTypes) {
+            score = Math.max(score, mediaTypeScore(MediaType.valueOf(producedMediaType), requestedMediaType));
+        }
+        return score;
+    }
+
+    private static int mediaTypeScore(MediaType producedMediaType, MediaType requestedMediaType) {
+        if (!producedMediaType.isCompatible(requestedMediaType)) {
+            return -1;
+        }
+        if (requestedMediaType.isWildcardType()) {
+            return producedMediaType.isWildcardType() ? 2 : 1;
+        }
+        if (producedMediaType.isWildcardType()) {
+            return 0;
+        }
+        if (producedMediaType.isWildcardSubtype()) {
+            return 1;
+        }
+        return 2;
     }
 }

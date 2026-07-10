@@ -33,7 +33,9 @@ import jakarta.ws.rs.ext.RuntimeDelegate;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.ServiceLoader;
 
 /**
  * RuntimeDelegate implementation for JAX-RS.
@@ -73,6 +75,8 @@ public final class MicronautRuntimeDelegate extends RuntimeDelegate {
 
     @Override
     public <T> T createEndpoint(Application application, Class<T> endpointType) throws IllegalArgumentException, UnsupportedOperationException {
+        JaxRsUtils.requireNonNull("application", application);
+        JaxRsUtils.requireNonNull("endpointType", endpointType);
         throw new UnsupportedOperationException("Method createEndpoint(..) not supported by implementation");
     }
 
@@ -89,22 +93,39 @@ public final class MicronautRuntimeDelegate extends RuntimeDelegate {
 
     @Override
     public SeBootstrap.Configuration.Builder createConfigurationBuilder() {
-        return SeBootstrap.Configuration.builder();
+        return new JaxRsSeBootstrapConfiguration.Builder();
     }
 
     @Override
     public CompletionStage<SeBootstrap.Instance> bootstrap(Application application, SeBootstrap.Configuration configuration) {
-        return SeBootstrap.start(application, configuration);
+        JaxRsUtils.requireNonNull("application", application);
+        JaxRsUtils.requireNonNull("configuration", configuration);
+        for (JaxRsSeBootstrapProvider provider : bootstrapProviders()) {
+            return provider.bootstrap(application, configuration);
+        }
+        return CompletableFuture.failedStage(new UnsupportedOperationException("SE bootstrap is not supported by this runtime delegate"));
     }
 
     @Override
     public CompletionStage<SeBootstrap.Instance> bootstrap(Class<? extends Application> clazz, SeBootstrap.Configuration configuration) {
-        return SeBootstrap.start(clazz, configuration);
+        JaxRsUtils.requireNonNull("clazz", clazz);
+        JaxRsUtils.requireNonNull("configuration", configuration);
+        for (JaxRsSeBootstrapProvider provider : bootstrapProviders()) {
+            return provider.bootstrap(clazz, configuration);
+        }
+        return CompletableFuture.failedStage(new UnsupportedOperationException("SE bootstrap is not supported by this runtime delegate"));
     }
 
     @Override
     public EntityPart.Builder createEntityPartBuilder(@NonNull String partName) throws IllegalArgumentException {
-        return EntityPart.withName(partName);
+        return JaxRsEntityPart.withName(partName);
+    }
+
+    private Iterable<JaxRsSeBootstrapProvider> bootstrapProviders() {
+        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        if (classLoader == null) {
+            classLoader = MicronautRuntimeDelegate.class.getClassLoader();
+        }
+        return ServiceLoader.load(JaxRsSeBootstrapProvider.class, classLoader);
     }
 }
-

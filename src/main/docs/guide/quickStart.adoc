@@ -1,4 +1,5 @@
-To use this project you to add the following annotation processor to any Micronaut project:
+To use this project add the following annotation processor to any Micronaut project that declares Jakarta REST resources or providers:
 
 dependency:micronaut-jaxrs-processor[scope="annotationProcessor",groupId="io.micronaut.jaxrs"]
 
+Then add the server or client runtime dependency that matches the application. For a spec-compliant setup that also includes optional Jakarta REST runtime integrations, see <<specCompliance,Spec Compliance>>.

@@ -20,6 +20,7 @@ import io.micronaut.core.annotation.Order;
 import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.order.Ordered;
 import io.micronaut.http.CaseInsensitiveMutableHttpHeaders;
+import io.micronaut.jaxrs.common.JaxRsMessageBodyProvider;
 import io.micronaut.jaxrs.common.JaxRsUtils;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.WebApplicationException;
@@ -44,6 +45,11 @@ import java.util.Map;
  * @since 4.6
  */
 @Order(Ordered.LOWEST_PRECEDENCE)
+@JaxRsMessageBodyProvider(
+    writerType = Reader.class,
+    writerTypeVariable = true,
+    produces = jakarta.ws.rs.core.MediaType.WILDCARD
+)
 @Singleton
 @Internal
 public final class JaxRsReaderMessageBodyWriter<T extends Reader> implements MessageBodyWriter<T> {

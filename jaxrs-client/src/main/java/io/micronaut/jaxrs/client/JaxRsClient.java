@@ -26,6 +26,9 @@ import jakarta.ws.rs.core.UriBuilder;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 import java.net.URI;
+import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * The implementation of {@link Client}.
@@ -34,10 +37,12 @@ import java.net.URI;
  * @since 4.6
  */
 @Internal
-final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
+public final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
 
     private final DefaultHttpClient httpClient;
     private final JaxRsConfiguration config;
+    private final List<AutoCloseable> closeables = new CopyOnWriteArrayList<>();
+    private volatile boolean closed;
 
     JaxRsClient(DefaultHttpClient httpClient, JaxRsConfiguration config) {
         this.httpClient = httpClient;
@@ -45,46 +50,70 @@ final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
     }
 
     public HttpClient getHttpClient() {
+        checkOpen();
         return httpClient;
     }
 
     @Override
     public Client self() {
+        checkOpen();
         return this;
     }
 
     @Override
     public void close() {
-        httpClient.close();
+        if (!closed) {
+            closed = true;
+            for (AutoCloseable closeable : closeables) {
+                try {
+                    closeable.close();
+                } catch (Exception ignored) {
+                    // Continue closing the underlying HTTP client.
+                }
+            }
+            closeables.clear();
+            httpClient.close();
+        }
     }
 
     @Override
     public JaxRsConfiguration getConfiguration() {
+        checkOpen();
         return config;
     }
 
     @Override
     public JaxRsWebTarget target(String uri) {
+        Objects.requireNonNull(uri, "URI cannot be null");
+        checkOpen();
         return target(UriBuilder.fromUri(uri));
     }
 
     @Override
     public JaxRsWebTarget target(URI uri) {
+        Objects.requireNonNull(uri, "URI cannot be null");
+        checkOpen();
         return target(UriBuilder.fromUri(uri));
     }
 
     @Override
     public JaxRsWebTarget target(UriBuilder uriBuilder) {
+        Objects.requireNonNull(uriBuilder, "URI builder cannot be null");
+        checkOpen();
         return new JaxRsWebTarget(this, uriBuilder, config.copy());
     }
 
     @Override
     public JaxRsWebTarget target(Link link) {
+        Objects.requireNonNull(link, "Link cannot be null");
+        checkOpen();
         return target(UriBuilder.fromLink(link));
     }
 
     @Override
     public Invocation.Builder invocation(Link link) {
+        Objects.requireNonNull(link, "Link cannot be null");
+        checkOpen();
         Invocation.Builder request = target(UriBuilder.fromLink(link)).request();
         String type = link.getType();
         if (type != null) {
@@ -95,11 +124,24 @@ final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
 
     @Override
     public SSLContext getSslContext() {
+        checkOpen();
         throw new UnsupportedOperationException();
     }
 
     @Override
     public HostnameVerifier getHostnameVerifier() {
+        checkOpen();
         throw new UnsupportedOperationException();
+    }
+
+    void checkOpen() {
+        if (closed) {
+            throw new IllegalStateException("Client is closed");
+        }
+    }
+
+    void registerCloseable(AutoCloseable closeable) {
+        checkOpen();
+        closeables.add(closeable);
     }
 }

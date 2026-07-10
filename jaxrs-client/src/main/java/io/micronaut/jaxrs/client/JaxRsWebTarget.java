@@ -32,7 +32,7 @@ import java.util.Objects;
  * @since 4.6
  */
 @Internal
-final class JaxRsWebTarget implements WebTarget, JaxRsConfigurable<WebTarget> {
+public final class JaxRsWebTarget implements WebTarget, JaxRsConfigurable<WebTarget> {
 
     private final JaxRsClient client;
     private final UriBuilder uriBuilder;
@@ -46,26 +46,36 @@ final class JaxRsWebTarget implements WebTarget, JaxRsConfigurable<WebTarget> {
 
     @Override
     public WebTarget self() {
+        client.checkOpen();
         return this;
     }
 
     @Override
     public JaxRsConfiguration getConfiguration() {
+        client.checkOpen();
         return configuration;
+    }
+
+    JaxRsClient client() {
+        client.checkOpen();
+        return client;
     }
 
     @Override
     public URI getUri() {
+        client.checkOpen();
         return uriBuilder.build();
     }
 
     @Override
     public UriBuilder getUriBuilder() {
+        client.checkOpen();
         return uriBuilder;
     }
 
     @Override
     public WebTarget path(String path) {
+        client.checkOpen();
         Objects.requireNonNull(path, "Path cannot be null");
         return new JaxRsWebTarget(
             client,
@@ -76,6 +86,7 @@ final class JaxRsWebTarget implements WebTarget, JaxRsConfigurable<WebTarget> {
 
     @Override
     public WebTarget resolveTemplate(String name, Object value) {
+        client.checkOpen();
         Objects.requireNonNull(name, "Name cannot be null");
         Objects.requireNonNull(value, "Value cannot be null");
         return new JaxRsWebTarget(
@@ -87,6 +98,7 @@ final class JaxRsWebTarget implements WebTarget, JaxRsConfigurable<WebTarget> {
 
     @Override
     public WebTarget resolveTemplate(String name, Object value, boolean encodeSlashInPath) {
+        client.checkOpen();
         Objects.requireNonNull(name, "Name cannot be null");
         Objects.requireNonNull(value, "Value cannot be null");
         return new JaxRsWebTarget(
@@ -98,6 +110,7 @@ final class JaxRsWebTarget implements WebTarget, JaxRsConfigurable<WebTarget> {
 
     @Override
     public WebTarget resolveTemplateFromEncoded(String name, Object value) {
+        client.checkOpen();
         Objects.requireNonNull(name, "Name cannot be null");
         Objects.requireNonNull(value, "Value cannot be null");
         return new JaxRsWebTarget(
@@ -109,6 +122,7 @@ final class JaxRsWebTarget implements WebTarget, JaxRsConfigurable<WebTarget> {
 
     @Override
     public WebTarget resolveTemplates(Map<String, Object> templateValues) {
+        client.checkOpen();
         Objects.requireNonNull(templateValues, "Template values cannot be null");
         if (templateValues.isEmpty()) {
             return this;
@@ -123,6 +137,7 @@ final class JaxRsWebTarget implements WebTarget, JaxRsConfigurable<WebTarget> {
 
     @Override
     public WebTarget resolveTemplates(Map<String, Object> templateValues, boolean encodeSlashInPath) {
+        client.checkOpen();
         Objects.requireNonNull(templateValues, "Template values cannot be null");
         if (templateValues.isEmpty()) {
             return this;
@@ -137,6 +152,7 @@ final class JaxRsWebTarget implements WebTarget, JaxRsConfigurable<WebTarget> {
 
     @Override
     public WebTarget resolveTemplatesFromEncoded(Map<String, Object> templateValues) {
+        client.checkOpen();
         Objects.requireNonNull(templateValues, "Template values cannot be null");
         if (templateValues.isEmpty()) {
             return this;
@@ -151,6 +167,7 @@ final class JaxRsWebTarget implements WebTarget, JaxRsConfigurable<WebTarget> {
 
     @Override
     public WebTarget matrixParam(String name, Object... values) {
+        client.checkOpen();
         Objects.requireNonNull(name, "Name cannot be null");
         Objects.requireNonNull(values, "Values cannot be null");
         checkForNullValues(values);
@@ -170,6 +187,7 @@ final class JaxRsWebTarget implements WebTarget, JaxRsConfigurable<WebTarget> {
 
     @Override
     public WebTarget queryParam(String name, Object... values) {
+        client.checkOpen();
         Objects.requireNonNull(name, "Name cannot be null");
         checkForNullValues(values);
         return new JaxRsWebTarget(
@@ -181,16 +199,19 @@ final class JaxRsWebTarget implements WebTarget, JaxRsConfigurable<WebTarget> {
 
     @Override
     public Invocation.Builder request() {
+        client.checkOpen();
         return new JaxRsInvocationBuilder(client, uriBuilder.build(), configuration);
     }
 
     @Override
     public Invocation.Builder request(String... acceptedResponseTypes) {
+        client.checkOpen();
         return request().accept(acceptedResponseTypes);
     }
 
     @Override
     public Invocation.Builder request(MediaType... acceptedResponseTypes) {
+        client.checkOpen();
         return request().accept(acceptedResponseTypes);
     }
 

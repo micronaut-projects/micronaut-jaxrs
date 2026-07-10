@@ -1,0 +1,259 @@
+/*
+ * Copyright 2017-2026 original authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.micronaut.jaxrs.reflection;
+
+import io.micronaut.aop.InterceptorBean;
+import io.micronaut.aop.MethodInterceptor;
+import io.micronaut.aop.MethodInvocationContext;
+import io.micronaut.core.annotation.AnnotationMetadata;
+import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.bind.ArgumentBinder;
+import io.micronaut.core.bind.annotation.Bindable;
+import io.micronaut.core.convert.ConversionContext;
+import io.micronaut.core.convert.exceptions.ConversionErrorException;
+import io.micronaut.core.type.Argument;
+import io.micronaut.http.HttpRequest;
+import io.micronaut.http.annotation.RequestBean;
+import io.micronaut.http.bind.RequestBinderRegistry;
+import io.micronaut.http.context.ServerRequestContext;
+import io.micronaut.inject.annotation.MutableAnnotationMetadata;
+import io.micronaut.jaxrs.container.JaxRsRequestFieldInjection;
+import jakarta.inject.Singleton;
+import jakarta.ws.rs.BeanParam;
+import jakarta.ws.rs.CookieParam;
+import jakarta.ws.rs.DefaultValue;
+import jakarta.ws.rs.Encoded;
+import jakarta.ws.rs.FormParam;
+import jakarta.ws.rs.HeaderParam;
+import jakarta.ws.rs.MatrixParam;
+import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.QueryParam;
+import org.jspecify.annotations.Nullable;
+
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+
+/**
+ * Reflection fallback for Jakarta REST request-scoped field injection.
+ */
+@Internal
+@Singleton
+@InterceptorBean(JaxRsRequestFieldInjection.class)
+final class JaxRsRequestFieldInjectionInterceptor implements MethodInterceptor<Object, Object> {
+
+    private final RequestBinderRegistry requestBinderRegistry;
+    private final ConcurrentMap<Class<?>, List<RequestField>> requestFields = new ConcurrentHashMap<>();
+
+    JaxRsRequestFieldInjectionInterceptor(RequestBinderRegistry requestBinderRegistry) {
+        this.requestBinderRegistry = requestBinderRegistry;
+    }
+
+    @Override
+    public @Nullable Object intercept(MethodInvocationContext<Object, Object> context) {
+        Optional<HttpRequest<Object>> currentRequest = ServerRequestContext.currentRequest();
+        currentRequest.ifPresent(request -> injectFields(context.getTarget(), request));
+        return context.proceed();
+    }
+
+    private void injectFields(Object target, HttpRequest<?> request) {
+        List<RequestField> fields = requestFields.computeIfAbsent(target.getClass(), JaxRsRequestFieldInjectionInterceptor::findRequestFields);
+        for (RequestField requestField : fields) {
+            injectField(target, request, requestField);
+        }
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private <T> void injectField(Object target, HttpRequest<?> request, RequestField requestField) {
+        Argument<T> argument = (Argument<T>) requestField.argument();
+        ArgumentBinder<T, HttpRequest<?>> binder = requestBinderRegistry.findArgumentBinder(argument)
+            .orElseThrow(() -> new IllegalStateException("No request argument binder for Jakarta REST field [" + argument + "]"));
+        ArgumentBinder.BindingResult<T> result = binder.bind(ConversionContext.of(argument), request);
+        if (!result.getConversionErrors().isEmpty()) {
+            throw new ConversionErrorException(argument, result.getConversionErrors().get(0));
+        }
+        Optional<T> value = result.getValue();
+        Field field = requestField.field();
+        try {
+            if (value.isPresent()) {
+                field.set(target, value.get());
+            } else if (!field.getType().isPrimitive()) {
+                field.set(target, null);
+            }
+        } catch (IllegalAccessException e) {
+            throw new IllegalStateException("Cannot inject Jakarta REST field [" + field + "]", e);
+        }
+    }
+
+    private static List<RequestField> findRequestFields(Class<?> resourceClass) {
+        List<RequestField> fields = new ArrayList<>();
+        Class<?> current = resourceClass;
+        boolean encodedResource = hasAnnotation(resourceClass, Encoded.class);
+        while (current != null && current != Object.class) {
+            for (Field field : current.getDeclaredFields()) {
+                if (isInjectableRequestField(field)) {
+                    field.setAccessible(true);
+                    fields.add(new RequestField(field, fieldArgument(field, encodedResource || hasAnnotation(current, Encoded.class))));
+                }
+            }
+            current = current.getSuperclass();
+        }
+        return List.copyOf(fields);
+    }
+
+    private static boolean isInjectableRequestField(Field field) {
+        int modifiers = field.getModifiers();
+        return (hasAnnotation(field, MatrixParam.class)
+            || hasAnnotation(field, QueryParam.class)
+            || hasAnnotation(field, HeaderParam.class)
+            || hasAnnotation(field, CookieParam.class)
+            || hasAnnotation(field, PathParam.class)
+            || hasAnnotation(field, FormParam.class)
+            || hasAnnotation(field, BeanParam.class))
+            && !Modifier.isStatic(modifiers)
+            && !Modifier.isFinal(modifiers);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Argument<Object> fieldArgument(Field field, boolean encodedResource) {
+        Argument<?> rawArgument = Argument.of(field.getGenericType());
+        MutableAnnotationMetadata annotationMetadata = new MutableAnnotationMetadata();
+        Annotation matrixParam = findAnnotation(field, MatrixParam.class);
+        Annotation queryParam = findAnnotation(field, QueryParam.class);
+        Annotation headerParam = findAnnotation(field, HeaderParam.class);
+        Annotation cookieParam = findAnnotation(field, CookieParam.class);
+        Annotation pathParam = findAnnotation(field, PathParam.class);
+        Annotation formParam = findAnnotation(field, FormParam.class);
+        Annotation beanParam = findAnnotation(field, BeanParam.class);
+        if (matrixParam != null) {
+            String value = annotationValue(matrixParam);
+            addRequestParam(annotationMetadata, MatrixParam.class, value);
+            addBindable(annotationMetadata, MatrixParam.class, value, fieldDefaultValue(field));
+        } else if (queryParam != null) {
+            String value = annotationValue(queryParam);
+            addRequestParam(annotationMetadata, QueryParam.class, value);
+            addBindable(annotationMetadata, QueryParam.class, value, fieldDefaultValue(field));
+        } else if (headerParam != null) {
+            String value = annotationValue(headerParam);
+            addRequestParam(annotationMetadata, HeaderParam.class, value);
+            addBindable(annotationMetadata, HeaderParam.class, value, fieldDefaultValue(field));
+        } else if (cookieParam != null) {
+            String value = annotationValue(cookieParam);
+            addRequestParam(annotationMetadata, CookieParam.class, value);
+            addBindable(annotationMetadata, CookieParam.class, value, fieldDefaultValue(field));
+        } else if (pathParam != null) {
+            String value = annotationValue(pathParam);
+            addRequestParam(annotationMetadata, PathParam.class, value);
+            addBindable(annotationMetadata, PathParam.class, value, fieldDefaultValue(field));
+        } else if (formParam != null) {
+            String value = annotationValue(formParam);
+            addRequestParam(annotationMetadata, FormParam.class, value);
+            addBindable(annotationMetadata, FormParam.class, value, fieldDefaultValue(field));
+        } else if (beanParam != null) {
+            annotationMetadata.addAnnotation(BeanParam.class.getName(), Map.of());
+            annotationMetadata.addAnnotation(RequestBean.class.getName(), Map.of());
+            annotationMetadata.addStereotype(List.of(RequestBean.class.getName()), Bindable.class.getName(), Map.of());
+        } else {
+            throw new IllegalStateException("Unsupported Jakarta REST request field [" + field + "]");
+        }
+        if (encodedResource || hasAnnotation(field, Encoded.class)) {
+            annotationMetadata.addAnnotation(Encoded.class.getName(), Map.of());
+        }
+        return (Argument<Object>) Argument.of(
+            (Class<Object>) rawArgument.getType(),
+            field.getName(),
+            annotationMetadata,
+            rawArgument.getTypeParameters()
+        );
+    }
+
+    private static void addRequestParam(MutableAnnotationMetadata annotationMetadata,
+                                        Class<? extends Annotation> annotationType,
+                                        String name) {
+        Map<CharSequence, Object> values = new LinkedHashMap<>();
+        values.put(AnnotationMetadata.VALUE_MEMBER, name);
+        annotationMetadata.addAnnotation(annotationType.getName(), values);
+    }
+
+    private static void addBindable(MutableAnnotationMetadata annotationMetadata,
+                                    Class<? extends Annotation> annotationType,
+                                    String name,
+                                    @Nullable String defaultValue) {
+        Map<CharSequence, Object> values = new LinkedHashMap<>();
+        values.put(AnnotationMetadata.VALUE_MEMBER, name);
+        if (defaultValue != null) {
+            values.put("defaultValue", defaultValue);
+        }
+        annotationMetadata.addStereotype(List.of(annotationType.getName()), Bindable.class.getName(), values);
+        annotationMetadata.addAnnotation(Bindable.class.getName(), values);
+    }
+
+    private static @Nullable String fieldDefaultValue(Field field) {
+        Annotation defaultValue = findAnnotation(field, DefaultValue.class);
+        if (defaultValue != null) {
+            return annotationValue(defaultValue);
+        }
+        if (!field.getType().isPrimitive()) {
+            return null;
+        }
+        return field.getType() == boolean.class ? "false" : "0";
+    }
+
+    private static boolean hasAnnotation(Field field, Class<? extends Annotation> annotationType) {
+        return findAnnotation(field, annotationType) != null;
+    }
+
+    private static boolean hasAnnotation(Class<?> type, Class<? extends Annotation> annotationType) {
+        return findAnnotation(type.getDeclaredAnnotations(), annotationType) != null;
+    }
+
+    private static @Nullable Annotation findAnnotation(Field field, Class<? extends Annotation> annotationType) {
+        return findAnnotation(field.getDeclaredAnnotations(), annotationType);
+    }
+
+    private static @Nullable Annotation findAnnotation(Annotation[] annotations, Class<? extends Annotation> annotationType) {
+        String annotationName = annotationType.getName();
+        for (Annotation annotation : annotations) {
+            if (annotation.annotationType().getName().equals(annotationName)) {
+                return annotation;
+            }
+        }
+        return null;
+    }
+
+    private static String annotationValue(Annotation annotation) {
+        try {
+            Method method = annotation.annotationType().getMethod(AnnotationMetadata.VALUE_MEMBER);
+            return (String) method.invoke(annotation);
+        } catch (NoSuchMethodException | IllegalAccessException e) {
+            throw new IllegalStateException("Cannot read value from Jakarta REST annotation [" + annotation.annotationType().getName() + "]", e);
+        } catch (InvocationTargetException e) {
+            throw new IllegalStateException("Cannot read value from Jakarta REST annotation [" + annotation.annotationType().getName() + "]", e.getCause());
+        }
+    }
+
+    private record RequestField(Field field, Argument<?> argument) {
+    }
+}

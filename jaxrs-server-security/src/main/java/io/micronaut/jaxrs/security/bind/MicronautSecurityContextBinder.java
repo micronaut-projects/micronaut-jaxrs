@@ -16,6 +16,7 @@
 package io.micronaut.jaxrs.security.bind;
 
 import io.micronaut.context.annotation.Replaces;
+import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.convert.ArgumentConversionContext;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.jaxrs.runtime.ext.bind.SimpleSecurityContextBinder;
@@ -31,6 +32,7 @@ import java.util.Optional;
  * @author graemerocher
  * @since 3.1.0
  */
+@Internal
 @Singleton
 @Replaces(SimpleSecurityContextBinder.class)
 public class MicronautSecurityContextBinder extends SimpleSecurityContextBinder {

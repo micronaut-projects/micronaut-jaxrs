@@ -17,9 +17,14 @@ package io.micronaut.jaxrs.container;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.MutableHttpRequest;
+import io.micronaut.http.ServerHttpRequest;
+import io.micronaut.http.body.ByteBody;
+import io.micronaut.http.body.CloseableAvailableByteBody;
+import io.micronaut.http.context.ServerRequestContext;
 import io.micronaut.jaxrs.common.JaxRsHttpHeaders;
 import io.micronaut.jaxrs.common.JaxRsMutableHeadersMultivaluedMap;
 import io.micronaut.jaxrs.common.JaxRsMutableHttpHeaders;
+import io.micronaut.jaxrs.runtime.ext.bind.SimpleSecurityContextBinder;
 import io.micronaut.jaxrs.runtime.ext.bind.UriInfoImpl;
 import jakarta.ws.rs.container.ContainerRequestContext;
 import jakarta.ws.rs.core.Cookie;
@@ -30,14 +35,17 @@ import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.SecurityContext;
 import jakarta.ws.rs.core.UriInfo;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.net.URI;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
-import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Predicate;
 
 /**
@@ -49,76 +57,97 @@ import java.util.function.Predicate;
 @Internal
 final class JaxRsContainerRequestContext implements ContainerRequestContext {
 
-    private final Map<String, Object> properties = new LinkedHashMap<>();
+    static final String REQUEST_URI_ATTRIBUTE = JaxRsContainerRequestContext.class.getName() + ".requestUri";
+    static final String REQUEST_METHOD_ATTRIBUTE = JaxRsContainerRequestContext.class.getName() + ".requestMethod";
+
     private final MutableHttpRequest<?> mutableHttpRequest;
+    private final ServerHttpRequest<?> serverHttpRequest;
     private final JaxRsHttpHeaders jaxRsHttpHeaders;
     private Response response;
     private final ApplicationProvider applicationProvider;
     private boolean finished;
-    private final boolean preMatching = false; // TODO: Support pre matching in Micronaut
+    private final boolean preMatching;
+    private InputStream entityStream;
+    private SecurityContext securityContext;
 
     JaxRsContainerRequestContext(MutableHttpRequest<?> mutableHttpRequest, ApplicationProvider applicationProvider) {
+        this(mutableHttpRequest, applicationProvider, false);
+    }
+
+    JaxRsContainerRequestContext(MutableHttpRequest<?> mutableHttpRequest,
+                                 ApplicationProvider applicationProvider,
+                                 boolean preMatching) {
         this.mutableHttpRequest = mutableHttpRequest;
         this.applicationProvider = applicationProvider;
+        this.preMatching = preMatching;
+        this.serverHttpRequest = ServerRequestContext.currentRequest()
+            .filter(ServerHttpRequest.class::isInstance)
+            .map(ServerHttpRequest.class::cast)
+            .orElse(null);
         this.jaxRsHttpHeaders = JaxRsMutableHttpHeaders.forRequest(mutableHttpRequest.getHeaders());
     }
 
     @Override
     public Object getProperty(String name) {
-        return properties.get(name);
+        return mutableHttpRequest.getAttributes().getValue(name);
     }
 
     @Override
     public boolean hasProperty(String name) {
-        return properties.containsKey(name);
+        return mutableHttpRequest.getAttributes().contains(name);
     }
 
     @Override
     public Collection<String> getPropertyNames() {
-        return properties.keySet();
+        return Collections.unmodifiableSet(new LinkedHashSet<>(mutableHttpRequest.getAttributes().names()));
     }
 
     @Override
     public void setProperty(String name, Object object) {
-        properties.put(name, object);
+        if (object == null) {
+            removeProperty(name);
+        } else {
+            mutableHttpRequest.getAttributes().put(name, object);
+        }
     }
 
     @Override
     public void removeProperty(String name) {
-        properties.remove(name);
+        mutableHttpRequest.getAttributes().remove(name);
     }
 
     @Override
     public UriInfo getUriInfo() {
-        return new UriInfoImpl(mutableHttpRequest, applicationProvider.getPath());
+        return new UriInfoImpl(mutableHttpRequest, applicationProvider.getPath(), applicationProvider.getApplicationPath());
     }
 
     @Override
     public void setRequestUri(URI requestUri) {
         checkIsRequestPreMatchingInProgress();
-        mutableHttpRequest.uri(requestUri);
+        setMutableRequestUri(requestUri);
     }
 
     @Override
     public void setRequestUri(URI baseUri, URI requestUri) {
         checkIsRequestPreMatchingInProgress();
-        throw new UnsupportedOperationException("Not supported yet.");
+        setMutableRequestUri(requestUri.isAbsolute() ? requestUri : baseUri.resolve(requestUri));
     }
 
     @Override
     public Request getRequest() {
-        throw new UnsupportedOperationException("Not supported yet.");
+        return new JaxRsContextRequest(mutableHttpRequest);
     }
 
     @Override
     public String getMethod() {
-        return mutableHttpRequest.getMethod().name();
+        return mutableHttpRequest.getAttribute(REQUEST_METHOD_ATTRIBUTE, String.class)
+            .orElseGet(mutableHttpRequest::getMethodName);
     }
 
     @Override
     public void setMethod(String method) {
         checkIsRequestPreMatchingInProgress();
-        throw new IllegalArgumentException("Not supported");
+        mutableHttpRequest.setAttribute(REQUEST_METHOD_ATTRIBUTE, method);
     }
 
     @Override
@@ -178,27 +207,46 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
 
     @Override
     public boolean hasEntity() {
-        return mutableHttpRequest.getBody().isPresent();
+        if (entityStream != null || mutableHttpRequest.getBody().isPresent() || mutableHttpRequest.getContentLength() > 0) {
+            return true;
+        }
+        return Optional.ofNullable(serverHttpRequest)
+            .flatMap(request -> request.byteBody().expectedLength().stream().boxed().findFirst())
+            .orElse(0L) > 0;
     }
 
     @Override
     public InputStream getEntityStream() {
-        return null;
+        if (entityStream != null) {
+            return entityStream;
+        }
+        byte[] body = Optional.ofNullable(serverHttpRequest)
+            .map(JaxRsContainerRequestContext::readBody)
+            .orElseGet(() -> mutableHttpRequest.getBody(byte[].class).orElseGet(() -> new byte[0]));
+        entityStream = new ByteArrayInputStream(body);
+        return entityStream;
     }
 
     @Override
     public void setEntityStream(InputStream input) {
         checkRequestFilteringInProgress();
+        entityStream = input;
     }
 
     @Override
     public SecurityContext getSecurityContext() {
-        return null;
+        if (securityContext == null) {
+            securityContext = mutableHttpRequest.getAttribute(SimpleSecurityContextBinder.SECURITY_CONTEXT_ATTRIBUTE, SecurityContext.class)
+                .orElseGet(JaxRsContextSecurityContext::new);
+        }
+        return securityContext;
     }
 
     @Override
     public void setSecurityContext(SecurityContext context) {
         checkRequestFilteringInProgress();
+        securityContext = context;
+        mutableHttpRequest.setAttribute(SimpleSecurityContextBinder.SECURITY_CONTEXT_ATTRIBUTE, context);
     }
 
     @Override
@@ -223,7 +271,21 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
 
     private void checkIsRequestPreMatchingInProgress() {
         if (!preMatching) {
-            throw new IllegalStateException("Request is already commited");
+            throw new IllegalStateException("Pre matching is not in progress");
+        }
+    }
+
+    private void setMutableRequestUri(URI requestUri) {
+        mutableHttpRequest.uri(requestUri);
+        mutableHttpRequest.setAttribute(REQUEST_URI_ATTRIBUTE, requestUri);
+    }
+
+    private static byte[] readBody(ServerHttpRequest<?> request) {
+        try (CloseableAvailableByteBody body = request.byteBody()
+            .split(ByteBody.SplitBackpressureMode.FASTEST)
+            .buffer()
+            .join()) {
+            return body.toByteArray();
         }
     }
 }

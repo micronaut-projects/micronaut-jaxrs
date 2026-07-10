@@ -110,7 +110,11 @@ public sealed class JaxRsHttpHeaders implements HttpHeaders permits JaxRsMutable
 
     @Override
     public List<MediaType> getAcceptableMediaTypes() {
-        return httpHeaders.getAll(io.micronaut.http.HttpHeaders.ACCEPT)
+        List<String> acceptHeaders = httpHeaders.getAll(io.micronaut.http.HttpHeaders.ACCEPT);
+        if (acceptHeaders.isEmpty()) {
+            return List.of(MediaType.WILDCARD_TYPE);
+        }
+        return acceptHeaders
             .stream()
             .flatMap(text -> {
                 int len = text.length();
@@ -120,8 +124,9 @@ public sealed class JaxRsHttpHeaders implements HttpHeaders permits JaxRsMutable
                 if (text.indexOf(',') > -1) {
                     return Arrays.stream(text.split(","))
                         .map(str -> {
-                            final int i = str.indexOf(';');
-                            final MediaType mt = MediaType.valueOf(str);
+                            String mediaType = str.trim();
+                            final int i = mediaType.indexOf(';');
+                            final MediaType mt = MediaType.valueOf(mediaType);
                             if (i > -1) {
                                 return new Weighted<>(mt, mt.getParameters());
                             } else {

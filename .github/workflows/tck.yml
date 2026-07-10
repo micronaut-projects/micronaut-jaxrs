@@ -1,0 +1,191 @@
+name: Jakarta REST TCK run
+on:
+  workflow_dispatch:
+jobs:
+  tck:
+    name: Jakarta REST TCK / JDK 25
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      contents: read
+    env:
+      TESTCONTAINERS_RYUK_DISABLED: true
+    steps:
+      - name: Remove system JDKs
+        run: |
+          sudo rm -rf /usr/lib/jvm/*
+          unset JAVA_HOME
+          export PATH=$(echo "$PATH" | tr ':' '\n' | grep -v '/usr/lib/jvm' | paste -sd:)
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          sudo rm -rf "/opt/ghc"
+          sudo rm -rf "/usr/share/dotnet"
+          sudo rm -rf "/usr/local/lib/android"
+          sudo apt-get clean
+          df -h
+
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup GraalVM CE
+        uses: graalvm/setup-graalvm@bef4b0e916c7dd079bf60fb95d49139f67e32c5f # v1
+        with:
+          distribution: 'graalvm'
+          java-version: '25'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # v6
+
+      - name: Optional setup step
+        run: |
+          [ -f ./setup.sh ] && ./setup.sh || [ ! -f ./setup.sh ]
+
+      - name: Run Jakarta REST TCK
+        env:
+          DEVELOCITY_ACCESS_KEY: ${{ secrets.GRADLE_ENTERPRISE_ACCESS_KEY }}
+          DEVELOCITY_CACHE_USERNAME: ${{ secrets.GRADLE_ENTERPRISE_CACHE_USERNAME }}
+          DEVELOCITY_CACHE_PASSWORD: ${{ secrets.GRADLE_ENTERPRISE_CACHE_PASSWORD }}
+          GH_TOKEN_PUBLIC_REPOS_READONLY: ${{ secrets.GH_TOKEN_PUBLIC_REPOS_READONLY }}
+          GH_USERNAME: ${{ secrets.GH_USERNAME }}
+        run: |
+          set -euo pipefail
+          ./gradlew :micronaut-tests:micronaut-jaxrs-tck:jakartaTck --no-daemon --continue
+
+      - name: Collect Jakarta REST TCK evidence
+        if: always()
+        run: |
+          bash .github/scripts/collect-jakarta-rest-tck-evidence.sh 25
+
+      - name: Publish Test Report
+        if: always()
+        uses: mikepenz/action-junit-report@bccf2e31636835cf0874589931c4116687171386 # v6
+        with:
+          check_name: Jakarta REST TCK run / Test Report (25)
+          report_paths: |
+            tests/jaxrs-tck/build/test-results/test/TEST-*.xml
+            tests/jaxrs-tck/build/test-results/jakartaServletTck/TEST-*.xml
+          check_retries: 'true'
+
+      - name: Upload Jakarta REST TCK evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: jakarta-rest-tck-jdk-25
+          path: build/tck-evidence/jakarta-rest/jdk-25
+          if-no-files-found: error
+
+  publish-results:
+    name: Publish Jakarta REST TCK results
+    needs: tck
+    if: always() && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Download Jakarta REST TCK evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: jakarta-rest-tck-jdk-25
+          path: downloaded-tck-results/jakarta-rest-tck-jdk-25
+
+      - name: Build Jakarta REST TCK results index
+        run: |
+          set -euo pipefail
+
+          run_results_dir="pages-tck-results/${GITHUB_RUN_ID}"
+          mkdir -p "${run_results_dir}/jdk-25"
+          cp -R "downloaded-tck-results/jakarta-rest-tck-jdk-25/." "${run_results_dir}/jdk-25/"
+
+          if [ ! -f "${run_results_dir}/jdk-25/index.html" ]; then
+            echo "Missing Jakarta REST TCK evidence for JDK 25." >&2
+            exit 1
+          fi
+
+          cat > "${run_results_dir}/index.html" <<EOF
+          <!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Micronaut JAX-RS Jakarta REST TCK Results</title>
+            <style>
+              body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.5; max-width: 960px; margin: 2rem auto; padding: 0 1rem; color: #1f2933; }
+              code { background: #f5f7fa; border-radius: 4px; padding: 0.1rem 0.25rem; }
+              .notice { border-left: 4px solid #d64545; background: #fff5f5; padding: 0.75rem 1rem; }
+            </style>
+          </head>
+          <body>
+            <h1>Micronaut JAX-RS Jakarta REST TCK Results</h1>
+            <p>Workflow run: <a href="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}">${GITHUB_RUN_ID}</a></p>
+            <div class="notice">
+              <strong>Scope:</strong> These results cover the opt-in <code>micronaut-jaxrs-jakarta</code> stack.
+            </div>
+            <p>This run provides evidence for JDK 25 only.</p>
+            <p>Excluded tests: Netty baseline excludes the tracked Servlet request-context method; the Servlet profile runs that method.</p>
+            <ul>
+              <li><a href="./jdk-25/">JDK 25 results</a></li>
+            </ul>
+          </body>
+          </html>
+          EOF
+
+      - name: Publish Jakarta REST TCK results to Github Pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          docs_branch="gh-pages"
+          docs_dir="$(mktemp -d)"
+          repository_url="https://github.com/${GITHUB_REPOSITORY}.git"
+          target_dir="${docs_dir}/tck-results/${GITHUB_RUN_ID}"
+          latest_dir="${docs_dir}/tck-results/latest"
+          askpass="$(mktemp)"
+
+          cat > "${askpass}" <<'EOF'
+          #!/usr/bin/env sh
+          case "$1" in
+            *Username*) printf '%s\n' 'x-access-token' ;;
+            *Password*) printf '%s\n' "${GH_TOKEN}" ;;
+            *) printf '\n' ;;
+          esac
+          EOF
+          chmod 700 "${askpass}"
+          trap 'rm -f "${askpass}"' EXIT
+
+          git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+          git config --global user.name "${GITHUB_ACTOR}"
+
+          if GIT_ASKPASS="${askpass}" GIT_TERMINAL_PROMPT=0 git ls-remote --exit-code --heads "${repository_url}" "${docs_branch}" > /dev/null 2>&1; then
+            GIT_ASKPASS="${askpass}" GIT_TERMINAL_PROMPT=0 git clone --depth 1 --branch "${docs_branch}" "${repository_url}" "${docs_dir}"
+          else
+            git init "${docs_dir}"
+            git -C "${docs_dir}" checkout -b "${docs_branch}"
+            git -C "${docs_dir}" remote add origin "${repository_url}"
+          fi
+
+          rm -rf "${target_dir}"
+          mkdir -p "${target_dir}"
+          cp -R "pages-tck-results/${GITHUB_RUN_ID}/." "${target_dir}/"
+
+          rm -rf "${latest_dir}"
+          mkdir -p "${latest_dir}"
+          cp -R "pages-tck-results/${GITHUB_RUN_ID}/." "${latest_dir}/"
+
+          touch "${docs_dir}/.nojekyll"
+
+          git -C "${docs_dir}" add -A
+          if git -C "${docs_dir}" diff --cached --quiet; then
+            echo "No Jakarta REST TCK result changes to publish."
+          else
+            git -C "${docs_dir}" commit -m "Deploy Jakarta REST TCK results for ${GITHUB_RUN_ID}"
+            GIT_ASKPASS="${askpass}" GIT_TERMINAL_PROMPT=0 git -C "${docs_dir}" push origin "${docs_branch}"
+          fi

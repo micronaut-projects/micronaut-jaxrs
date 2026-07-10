@@ -67,7 +67,7 @@ public final class JaxRsMessageBodyWriter<T> implements MessageBodyWriter<T> {
 
     @Override
     public boolean isWriteable(@NonNull Argument<T> type, @Nullable MediaType mediaType) {
-        return delegate.isWriteable(type.getType(), type.asType(), type.getAnnotationMetadata().synthesizeAll(), JaxRsUtils.convert(mediaType));
+        return delegate.isWriteable(type.getType(), type.asType(), JaxRsArgumentUtil.synthesizeAnnotations(type), JaxRsUtils.convert(mediaType));
     }
 
     @Override
@@ -81,14 +81,14 @@ public final class JaxRsMessageBodyWriter<T> implements MessageBodyWriter<T> {
             delegate.writeTo(object,
                 type.getType(),
                 type.asType(),
-                type.getAnnotationMetadata().synthesizeAll(),
+                JaxRsArgumentUtil.synthesizeAnnotations(type),
                 JaxRsUtils.convert(mediaType),
                 httpHeaders,
                 outputStream
             );
             if (!httpHeaders.containsKey(HttpHeaders.CONTENT_TYPE)) {
                 if (mediaType == null || JaxRsUtils.convert(mediaType).isWildcardType()) {
-                    if (produces.size() == 1) {
+                    if (produces.size() == 1 && isConcrete(produces.get(0))) {
                         httpHeaders.add(HttpHeaders.CONTENT_TYPE, produces.get(0).toString());
                     }
                 } else {
@@ -98,6 +98,10 @@ public final class JaxRsMessageBodyWriter<T> implements MessageBodyWriter<T> {
         } catch (IOException e) {
             throw new JaxRsIOException("Cannot write to", e);
         }
+    }
+
+    private static boolean isConcrete(MediaType mediaType) {
+        return !"*".equals(mediaType.getType()) && !"*".equals(mediaType.getSubtype());
     }
 
 }

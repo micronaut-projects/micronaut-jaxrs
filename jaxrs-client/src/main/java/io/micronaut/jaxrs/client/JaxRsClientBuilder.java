@@ -26,11 +26,13 @@ import io.micronaut.http.body.MessageBodyReader;
 import io.micronaut.http.body.MessageBodyWriter;
 import io.micronaut.http.client.DefaultHttpClientConfiguration;
 import io.micronaut.http.client.netty.DefaultHttpClient;
+import io.micronaut.jaxrs.common.body.standard.JaxRsFileMessageBodyReaderWriter;
 import io.micronaut.jaxrs.common.body.standard.JaxRsInputStreamMessageBodyReader;
 import io.micronaut.jaxrs.common.body.standard.JaxRsInputStreamMessageBodyWriter;
 import io.micronaut.jaxrs.common.body.standard.JaxRsMultivaluedMapMessageBodyWriter;
 import io.micronaut.jaxrs.common.body.standard.JaxRsMultivaluedStringObjectMapMessageBodyReader;
 import io.micronaut.jaxrs.common.body.standard.JaxRsMultivaluedStringStringMapMessageBodyReader;
+import io.micronaut.jaxrs.common.body.standard.JaxRsMultipartMessageBodyReaderWriter;
 import io.micronaut.jaxrs.common.body.standard.JaxRsReaderMessageBodyReader;
 import io.micronaut.jaxrs.common.body.standard.JaxRsReaderMessageBodyWriter;
 import io.micronaut.jaxrs.common.body.standard.JaxRsStreamingOutputMessageBodyWriter;
@@ -41,15 +43,17 @@ import jakarta.ws.rs.core.Configuration;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
-import java.lang.ref.WeakReference;
 import java.net.URI;
 import java.security.KeyStore;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.ServiceLoader;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -63,11 +67,7 @@ import java.util.concurrent.TimeUnit;
 @Internal
 public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConfigurable<ClientBuilder> {
 
-    // Only for testing
-    private static final List<WeakReference<DefaultHttpClient>> TESTING_CLIENTS = new ArrayList<>();
-    private static final int TESTING_MIN_CLIENTS = Optional.ofNullable(System.getProperty("micronaut.testing.jaxrs.min.clients")).map(Integer::parseInt).orElse(-1);
-
-    private JaxRsConfiguration config;
+    private JaxRsConfiguration config = new JaxRsConfiguration();
     private SSLContext sslContext;
     private Map<KeyStore, char[]> keyStores = new HashMap<>();
     private KeyStore trustStore;
@@ -82,9 +82,12 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
         DefaultHttpClientConfiguration configuration = new DefaultHttpClientConfiguration();
         configuration.setConnectTimeout(connectTimeout);
         configuration.setReadTimeout(readTimeout);
+        configuration.setDecompressionEnabled(false);
         DefaultHttpClient httpClient = new DefaultHttpClient((URI) null, configuration);
         ContextlessMessageBodyHandlerRegistry handlerRegistry = (ContextlessMessageBodyHandlerRegistry) httpClient.getHandlerRegistry();
-        JaxRsConfiguration jaxRsConfiguration = new JaxRsConfiguration();
+        JaxRsConfiguration jaxRsConfiguration = config.copy();
+        jaxRsConfiguration.setExecutorService(executorService);
+        jaxRsConfiguration.setScheduledExecutorService(scheduledExecutorService);
         httpClient.setHandlerRegistry(new MessageBodyHandlerRegistry() {
 
             @Override
@@ -113,17 +116,31 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
         jaxRsConfiguration.register(new JaxRsMultivaluedMapMessageBodyWriter());
         jaxRsConfiguration.register(new JaxRsMultivaluedStringObjectMapMessageBodyReader());
         jaxRsConfiguration.register(new JaxRsMultivaluedStringStringMapMessageBodyReader());
-
-        if (TESTING_MIN_CLIENTS > 0) {
-            TESTING_CLIENTS.removeIf(w -> w.get() == null);
-            TESTING_CLIENTS.add(new WeakReference<>(httpClient));
-            if (TESTING_CLIENTS.size() > TESTING_MIN_CLIENTS) {
-                DefaultHttpClient client = TESTING_CLIENTS.remove(0).get();
-                if (client != null) {
-                    client.close();
-                }
-            }
+        jaxRsConfiguration.register(new JaxRsFileMessageBodyReaderWriter(jaxRsConfiguration.tempDirectory()));
+        jaxRsConfiguration.register(new JaxRsMultipartMessageBodyReaderWriter());
+        ClassLoader customizerClassLoader = Thread.currentThread().getContextClassLoader();
+        if (customizerClassLoader == null) {
+            customizerClassLoader = JaxRsClientBuilder.class.getClassLoader();
         }
+        JaxRsClientConfigurationCustomizer.ComponentRegistry componentRegistry = new JaxRsClientConfigurationCustomizer.ComponentRegistry() {
+            @Override
+            public void register(Object component) {
+                jaxRsConfiguration.register(component);
+            }
+
+            @Override
+            public <T> Optional<jakarta.ws.rs.ext.ContextResolver<T>> findContextResolver(Class<T> contextType,
+                                                                                          jakarta.ws.rs.core.MediaType mediaType) {
+                return Optional.ofNullable(jaxRsConfiguration.getContextResolver(contextType, mediaType));
+            }
+        };
+        for (JaxRsClientConfigurationCustomizer customizer : ServiceLoader.load(
+            JaxRsClientConfigurationCustomizer.class,
+            customizerClassLoader
+        )) {
+            customizer.customize(componentRegistry);
+        }
+
         return new JaxRsClient(httpClient, jaxRsConfiguration);
     }
 
@@ -139,7 +156,30 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
 
     @Override
     public ClientBuilder withConfig(Configuration config) {
-        throw new IllegalStateException("Not supported");
+        Objects.requireNonNull(config, "Configuration cannot be null");
+        if (config instanceof JaxRsConfiguration jaxRsConfiguration) {
+            this.config = jaxRsConfiguration.copy();
+        } else {
+            JaxRsConfiguration copied = new JaxRsConfiguration(new LinkedHashMap<>(config.getProperties()), new ArrayList<>());
+            for (Class<?> componentClass : config.getClasses()) {
+                Map<Class<?>, Integer> contracts = config.getContracts(componentClass);
+                if (contracts == null || contracts.isEmpty()) {
+                    copied.register(componentClass);
+                } else {
+                    copied.register(componentClass, contracts);
+                }
+            }
+            for (Object component : config.getInstances()) {
+                Map<Class<?>, Integer> contracts = config.getContracts(component.getClass());
+                if (contracts == null || contracts.isEmpty()) {
+                    copied.register(component);
+                } else {
+                    copied.register(component, contracts);
+                }
+            }
+            this.config = copied;
+        }
+        return this;
     }
 
     @Override

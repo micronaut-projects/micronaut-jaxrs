@@ -19,6 +19,7 @@ import io.micronaut.context.annotation.Prototype;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.Order;
 import io.micronaut.core.order.Ordered;
+import io.micronaut.jaxrs.common.JaxRsMessageBodyProvider;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.StreamingOutput;
@@ -37,6 +38,11 @@ import java.lang.reflect.Type;
  * @since 4.6
  */
 @Order(Ordered.LOWEST_PRECEDENCE)
+@JaxRsMessageBodyProvider(
+    writerType = StreamingOutput.class,
+    writerTypeVariable = true,
+    produces = jakarta.ws.rs.core.MediaType.WILDCARD
+)
 @Prototype
 @Internal
 public final class JaxRsStreamingOutputMessageBodyWriter<T extends StreamingOutput> implements MessageBodyWriter<T> {

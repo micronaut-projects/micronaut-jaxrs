@@ -22,6 +22,7 @@ import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.order.Ordered;
 import io.micronaut.http.CaseInsensitiveMutableHttpHeaders;
 import io.micronaut.http.body.MessageBodyWriter;
+import io.micronaut.jaxrs.common.JaxRsMessageBodyProvider;
 import io.micronaut.jaxrs.common.JaxRsUtils;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.MediaType;
@@ -44,6 +45,10 @@ import java.util.Optional;
  * @since 4.6
  */
 @Order(Ordered.LOWEST_PRECEDENCE)
+@JaxRsMessageBodyProvider(
+    readerType = Reader.class,
+    consumes = MediaType.WILDCARD
+)
 @Prototype
 @Internal
 public final class JaxRsReaderMessageBodyReader implements MessageBodyReader<Reader> {

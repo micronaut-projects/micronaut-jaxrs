@@ -12,7 +12,6 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Consumer;
 
 @MicronautTest
 class UriInfoTest {
@@ -31,19 +30,53 @@ class UriInfoTest {
     }
 
     @Test
-    void testAbsolutePath() {
-        jakarta.ws.rs.core.UriInfo expectedUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo/?bar=baz&bar=bam"));
+    void testMatchedUris() {
+        HttpRequest<String> request = HttpRequest.GET("/api/matched/uris");
+        String respBody = client.toBlocking().retrieve(request, String.class);
+        Assertions.assertEquals("matched/uris,matched", respBody);
+    }
 
+    @Test
+    void testMatchedUrisWithMethodTemplate() {
+        HttpRequest<String> request = HttpRequest.GET("/api/matched/uris/abc");
+        String respBody = client.toBlocking().retrieve(request, String.class);
+        Assertions.assertEquals("matched/uris/abc,matched", respBody);
+    }
+
+    @Test
+    void testMatchedResources() {
+        HttpRequest<String> request = HttpRequest.GET("/api/matched/resources");
+        String respBody = client.toBlocking().retrieve(request, String.class);
+        Assertions.assertEquals(TestMatchedUriInfo.class.getName(), respBody);
+    }
+
+    @Test
+    void testMatchedResourceTemplate() {
+        HttpRequest<String> request = HttpRequest.GET("/api/matched/template/abc");
+        String respBody = client.toBlocking().retrieve(request, String.class);
+        Assertions.assertEquals("/api/matched/template/{id:[a-z]+}", respBody);
+    }
+
+    @Test
+    void testMatchedSubResourceTemplate() {
+        HttpRequest<String> request = HttpRequest.GET("/api/matched/subtemplate/abc/def");
+        String respBody = client.toBlocking().retrieve(request, String.class);
+        Assertions.assertEquals("/api/matched/subtemplate/{id:[a-z]+}/{child:[a-z]+}", respBody);
+    }
+
+    @Test
+    void testAbsolutePath() {
         UriInfo actualUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo/?bar=baz&bar=bam"));
-        Assertions.assertEquals(expectedUri.getAbsolutePath(), actualUri.getAbsolutePath());
+        Assertions.assertEquals("http://example.com/foo/", actualUri.getAbsolutePath().toString());
     }
 
     @Test
     void testBaseUri() {
-        jakarta.ws.rs.core.UriInfo expectedUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo/?bar=baz&bar=bam"));
-
         UriInfo actualUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo/?bar=baz&bar=bam"));
-        Assertions.assertEquals(expectedUri.getBaseUri(), actualUri.getBaseUri());
+        Assertions.assertEquals("http://example.com/", actualUri.getBaseUri().toString());
+
+        UriInfo actualUriWithBasePath = new UriInfoImpl(HttpRequest.GET("http://example.com/foo/bar?baz=bam"), "/foo");
+        Assertions.assertEquals("http://example.com/foo/", actualUriWithBasePath.getBaseUri().toString());
     }
 
     @Test
@@ -83,6 +116,15 @@ class UriInfoTest {
             new UriInfoImpl(HttpRequest.GET("http://example.com/foo;color=red/bar;color=green/?baz=bam"));
         Assertions.assertEquals(expectedUri.getPathSegments(false).get(0).getPath(),
             actualUri.getPathSegments(false).get(0).getPath());
+    }
+
+    @Test
+    void testRawEncodedPathSegments() {
+        UriInfo actualUri =
+            new UriInfoImpl(HttpRequest.GET("http://example.com/foo%20bar;color=red%20blue/?baz=bam"));
+
+        Assertions.assertEquals("foo%20bar", actualUri.getPathSegments(false).get(0).getPath());
+        Assertions.assertEquals("red%20blue", actualUri.getPathSegments(false).get(0).getMatrixParameters().getFirst("color"));
     }
 
     @Test
@@ -150,23 +192,11 @@ class UriInfoTest {
     }
 
     @Test
-    void testUnsupportedMethods() {
-        List<Consumer<UriInfo>> unsupportedMethods = Arrays.asList(
-            UriInfo::getRequestUriBuilder,
-            UriInfo::getAbsolutePathBuilder,
-            UriInfo::getBaseUriBuilder,
-            UriInfo::getMatchedURIs,
-            uriInfo -> uriInfo.getMatchedURIs(true),
-            UriInfo::getMatchedResources
-        );
-        UriInfo uriInfo = new UriInfoImpl(HttpRequest.GET("/api/uri-info"));
-        for (Consumer<UriInfo> unsupportedMethod : unsupportedMethods) {
-            try {
-                unsupportedMethod.accept(uriInfo);
-                Assertions.fail();
-            } catch (UnsupportedOperationException e) {
-                //expected
-            }
-        }
+    void testUriBuilders() {
+        UriInfo actualUri = new UriInfoImpl(HttpRequest.GET("http://example.com/foo/?bar=baz&bar=bam"), "/foo");
+        Assertions.assertEquals(actualUri.getRequestUri(), actualUri.getRequestUriBuilder().build());
+        Assertions.assertEquals(actualUri.getAbsolutePath(), actualUri.getAbsolutePathBuilder().build());
+        Assertions.assertEquals(actualUri.getBaseUri(), actualUri.getBaseUriBuilder().build());
     }
+
 }

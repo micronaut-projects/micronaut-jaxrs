@@ -44,7 +44,7 @@ final class JaxRsContextUriInfo implements UriInfo {
     }
 
     private UriInfoImpl getUriInfo() {
-        return new UriInfoImpl(ServerRequestContext.currentRequest().get(), applicationProvider.getPath());
+        return new UriInfoImpl(ServerRequestContext.currentRequest().get(), applicationProvider.getPath(), applicationProvider.getApplicationPath());
     }
 
     @Override
@@ -65,7 +65,7 @@ final class JaxRsContextUriInfo implements UriInfo {
 
     @Override
     public List<PathSegment> getPathSegments(boolean decode) {
-        return getUriInfo().getPathSegments();
+        return getUriInfo().getPathSegments(decode);
     }
 
     @Override
@@ -123,9 +123,9 @@ final class JaxRsContextUriInfo implements UriInfo {
         return getUriInfo().getMatchedURIs();
     }
 
-    //    @Override v4
+    @Override
     public String getMatchedResourceTemplate() {
-        return "";
+        return getUriInfo().getMatchedResourceTemplate();
     }
 
     @Override

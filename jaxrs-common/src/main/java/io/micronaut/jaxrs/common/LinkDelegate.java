@@ -45,10 +45,13 @@ final class LinkDelegate implements RuntimeDelegate.HeaderDelegate<Link> {
     public String toString(Link value) throws IllegalArgumentException {
         ArgumentUtils.requireNonNull("value", value);
         StringBuilder buf = new StringBuilder("<");
-        buf.append(value.getUri().toString()).append(">");
+        buf.append(JaxRsHeaderValues.validateHeaderValue(value.getUri().toString())).append(">");
 
         for (Map.Entry<String, String> entry : value.getParams().entrySet()) {
-            buf.append("; ").append(entry.getKey()).append("=\"").append(entry.getValue()).append("\"");
+            buf.append("; ")
+                .append(JaxRsHeaderValues.validateToken(entry.getKey()))
+                .append("=")
+                .append(JaxRsHeaderValues.quoteParameterValue(entry.getValue()));
         }
 
         return buf.toString();

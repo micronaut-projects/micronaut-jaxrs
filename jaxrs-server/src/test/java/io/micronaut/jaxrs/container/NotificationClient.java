@@ -18,6 +18,11 @@ public interface NotificationClient {
     HttpResponse<String> ping();
 
     @GET
+    @Path("/default-produces-string")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    HttpResponse<String> defaultProducesStringAsForm();
+
+    @GET
     @Path("/get/{id}")
     @Consumes(MediaType.APPLICATION_JSON)
     Notification getNotification(@PathParam("id") int id);
@@ -101,4 +106,8 @@ public interface NotificationClient {
     @GET
     @Path("/not-supported-without-response")
     HttpResponse<Notification> notSupportedWithoutResponse();
+
+    @GET
+    @Path("/generic-error")
+    HttpResponse<Notification> genericError();
 }

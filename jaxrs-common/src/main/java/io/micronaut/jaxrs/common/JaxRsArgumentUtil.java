@@ -24,10 +24,16 @@ import jakarta.ws.rs.client.Entity;
 import jakarta.ws.rs.client.InvocationCallback;
 import jakarta.ws.rs.core.GenericEntity;
 import jakarta.ws.rs.core.GenericType;
+import org.jspecify.annotations.Nullable;
 
 import java.lang.annotation.Annotation;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * An argument util class.
@@ -37,6 +43,7 @@ import java.util.Objects;
  */
 @Internal
 public final class JaxRsArgumentUtil {
+    public static final String MEMBER_DEFAULT_VALUE = "defaultValue";
 
     private JaxRsArgumentUtil() {
     }
@@ -93,6 +100,61 @@ public final class JaxRsArgumentUtil {
             annotationMetadata.addAnnotation(annotation.annotationType().getName(), Map.of());
         }
         return annotationMetadata;
+    }
+
+    public static Annotation[] synthesizeAnnotations(Argument<?> argument) {
+        return synthesizeAnnotations(argument.getAnnotationMetadata(), argument.getType().getClassLoader());
+    }
+
+    public static Annotation[] synthesizeAnnotations(AnnotationMetadata annotationMetadata, @Nullable ClassLoader classLoader) {
+        return synthesizeAnnotations(annotationMetadata, classLoader, annotationName -> true);
+    }
+
+    public static Annotation[] synthesizeEntityAnnotations(Argument<?> argument) {
+        return synthesizeAnnotations(argument.getAnnotationMetadata(), argument.getType().getClassLoader(), JaxRsArgumentUtil::isEntityAnnotation);
+    }
+
+    private static Annotation[] synthesizeAnnotations(AnnotationMetadata annotationMetadata,
+                                                      @Nullable ClassLoader classLoader,
+                                                      Predicate<String> annotationPredicate) {
+        Set<String> annotationNames = annotationMetadata.getAnnotationNames();
+        if (annotationNames.isEmpty()) {
+            return new Annotation[0];
+        }
+        List<String> entityAnnotationNames = annotationNames.stream()
+            .filter(annotationPredicate)
+            .toList();
+        if (entityAnnotationNames.isEmpty()) {
+            return new Annotation[0];
+        }
+        MutableAnnotationMetadata metadata = MutableAnnotationMetadata.of(annotationMetadata);
+        List<Annotation> annotations = new ArrayList<>(entityAnnotationNames.size());
+        ClassLoader fallbackClassLoader = JaxRsArgumentUtil.class.getClassLoader();
+        for (String annotationName : entityAnnotationNames) {
+            Optional<Class<? extends Annotation>> annotationType = findAnnotationType(annotationMetadata, annotationName, classLoader);
+            if (annotationType.isEmpty() && classLoader != fallbackClassLoader) {
+                annotationType = findAnnotationType(annotationMetadata, annotationName, fallbackClassLoader);
+            }
+            annotationType
+                .map(type -> metadata.synthesize(type, annotationName))
+                .ifPresent(annotations::add);
+        }
+        return annotations.toArray(new Annotation[0]);
+    }
+
+    private static boolean isEntityAnnotation(String annotationName) {
+        return !annotationName.startsWith("io.micronaut.context.annotation.")
+            && !annotationName.startsWith("io.micronaut.core.annotation.")
+            && !annotationName.startsWith("io.micronaut.http.annotation.")
+            && !annotationName.startsWith("io.micronaut.jaxrs.container.JaxRs");
+    }
+
+    private static Optional<Class<? extends Annotation>> findAnnotationType(AnnotationMetadata annotationMetadata,
+                                                                            String annotationName,
+                                                                            @Nullable ClassLoader classLoader) {
+        return classLoader == null
+            ? annotationMetadata.getAnnotationType(annotationName)
+            : annotationMetadata.getAnnotationType(annotationName, classLoader);
     }
 
 }

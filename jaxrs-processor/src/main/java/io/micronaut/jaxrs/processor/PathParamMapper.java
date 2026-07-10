@@ -18,13 +18,14 @@ package io.micronaut.jaxrs.processor;
 import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.AnnotationValueBuilder;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.bind.annotation.Bindable;
 import org.jspecify.annotations.NonNull;
 import io.micronaut.http.annotation.PathVariable;
 import io.micronaut.inject.annotation.NamedAnnotationMapper;
 import io.micronaut.inject.visitor.VisitorContext;
+import jakarta.ws.rs.PathParam;
 
 import java.lang.annotation.Annotation;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -45,9 +46,14 @@ public class PathParamMapper implements NamedAnnotationMapper {
     @Override
     public List<AnnotationValue<?>> map(AnnotationValue<Annotation> annotation, VisitorContext visitorContext) {
 
+        final AnnotationValueBuilder<PathParam> pathParamBuilder = AnnotationValue.builder(PathParam.class);
         final AnnotationValueBuilder<PathVariable> builder = AnnotationValue.builder(PathVariable.class);
-        annotation.stringValue().ifPresent(builder::value);
-        return Collections.singletonList(
+        annotation.stringValue().ifPresent(value -> {
+            pathParamBuilder.value(value);
+            builder.value(value);
+        });
+        return List.of(
+            pathParamBuilder.stereotype(AnnotationValue.builder(Bindable.class).build()).build(),
             builder.build()
         );
     }

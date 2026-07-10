@@ -18,10 +18,13 @@ package io.micronaut.jaxrs.common;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.io.buffer.ByteBuffer;
+import io.micronaut.core.reflect.ReflectionUtils;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpMessage;
+import jakarta.ws.rs.core.NoContentException;
 import jakarta.ws.rs.ProcessingException;
 
+import java.io.IOException;
 import java.util.Optional;
 
 /**
@@ -34,6 +37,7 @@ import java.util.Optional;
 public class HttpMessageEntityReader {
 
     public static final HttpMessageEntityReader DEFAULT = new HttpMessageEntityReader();
+    private static final String NO_CONTENT_MESSAGE = "No content";
 
     /**
      * Read the entity.
@@ -47,7 +51,13 @@ public class HttpMessageEntityReader {
         T result = message.getBody(entityType).orElse(null);
         if (result == null) {
             Optional<String> body = message.getBody(String.class);
+            if (body.isPresent() && body.get().isEmpty() && throwsNoContentForEmptyEntity(entityType)) {
+                throw noContentProcessingException();
+            }
             if (body.isEmpty()) {
+                if (throwsNoContentForEmptyEntity(entityType)) {
+                    throw noContentProcessingException();
+                }
                 return null;
             }
             return body
@@ -66,7 +76,36 @@ public class HttpMessageEntityReader {
      * @return The entity value
      */
     public <T> T readEntity(ByteBuffer<?> byteBuffer, Argument<T> entityType) {
-        return ConversionService.SHARED.convert(byteBuffer.toByteArray(), entityType).orElse(null);
+        byte[] bytes = byteBuffer.toByteArray();
+        if (bytes.length == 0 && throwsNoContentForEmptyEntity(entityType)) {
+            throw noContentProcessingException();
+        }
+        return ConversionService.SHARED.convert(bytes, entityType).orElse(null);
+    }
+
+    /**
+     * @param entityType The entity type
+     * @return Whether Jakarta REST requires a {@link NoContentException} for an empty entity
+     */
+    public static boolean throwsNoContentForEmptyEntity(Argument<?> entityType) {
+        Class<?> type = ReflectionUtils.getWrapperType(entityType.getType());
+        return type == Boolean.class || type == Character.class || Number.class.isAssignableFrom(type);
+    }
+
+    /**
+     * @return The Jakarta REST client exception for empty primitive-style entities
+     */
+    public static ProcessingException noContentProcessingException() {
+        return new ProcessingException(new NoContentException(NO_CONTENT_MESSAGE));
+    }
+
+    /**
+     * @param exception The exception to inspect
+     * @return Whether the exception wraps a {@link NoContentException}
+     */
+    public static boolean isNoContentException(Throwable exception) {
+        return exception instanceof NoContentException
+            || exception instanceof IOException && exception.getCause() instanceof NoContentException;
     }
 
 }

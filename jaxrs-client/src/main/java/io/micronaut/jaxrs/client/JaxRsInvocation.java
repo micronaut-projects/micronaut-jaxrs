@@ -33,7 +33,20 @@ import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
 import io.micronaut.jaxrs.common.JaxRsIOException;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import io.micronaut.jaxrs.common.JaxRsResponse;
+import io.micronaut.jaxrs.common.JaxRsUtils;
+import jakarta.ws.rs.BadRequestException;
+import jakarta.ws.rs.ClientErrorException;
+import jakarta.ws.rs.ForbiddenException;
+import jakarta.ws.rs.InternalServerErrorException;
+import jakarta.ws.rs.NotAcceptableException;
+import jakarta.ws.rs.NotAllowedException;
+import jakarta.ws.rs.NotAuthorizedException;
+import jakarta.ws.rs.NotFoundException;
+import jakarta.ws.rs.NotSupportedException;
 import jakarta.ws.rs.ProcessingException;
+import jakarta.ws.rs.RedirectionException;
+import jakarta.ws.rs.ServerErrorException;
+import jakarta.ws.rs.ServiceUnavailableException;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.client.AsyncInvoker;
 import jakarta.ws.rs.client.ClientRequestFilter;
@@ -53,10 +66,13 @@ import java.io.UncheckedIOException;
 import java.net.URI;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 /**
  * The implementation of {@link Invocation}, {@link CompletionStageRxInvoker} and {@link AsyncInvoker}.
@@ -66,6 +82,19 @@ import java.util.function.BiConsumer;
  */
 @Internal
 final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, AsyncInvoker {
+    private static final Map<Integer, Function<Response, WebApplicationException>> CLIENT_ERROR_EXCEPTIONS = Map.of(
+        400, BadRequestException::new,
+        401, NotAuthorizedException::new,
+        403, ForbiddenException::new,
+        404, NotFoundException::new,
+        405, NotAllowedException::new,
+        406, NotAcceptableException::new,
+        415, NotSupportedException::new
+    );
+    private static final Map<Integer, Function<Response, WebApplicationException>> SERVER_ERROR_EXCEPTIONS = Map.of(
+        500, InternalServerErrorException::new,
+        503, ServiceUnavailableException::new
+    );
 
     @NonNull
     private final JaxRsClient client;
@@ -174,6 +203,20 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
 
     private <T> CompletableFuture<T> async(String method, Argument<T> type, Entity<?> entity) {
         var future = new CompletableFuture<T>();
+        ExecutorService executorService = configuration.getExecutorService();
+        if (executorService == null) {
+            dispatchAsync(method, type, entity, future);
+        } else {
+            try {
+                executorService.execute(() -> dispatchAsync(method, type, entity, future));
+            } catch (RuntimeException e) {
+                future.completeExceptionally(new ProcessingException(e));
+            }
+        }
+        return future;
+    }
+
+    private <T> void dispatchAsync(String method, Argument<T> type, Entity<?> entity, CompletableFuture<T> future) {
         try {
             var requestBodyType = Argument.of(Object.class);
             if (entity == null) {
@@ -189,7 +232,13 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
                 }
             }
             List<ClientRequestFilter> requestFilters = configuration.getRequestFilters();
-            JaxRsClientRequestContext requestContext = new JaxRsClientRequestContext(client, configuration, request, requestBodyType);
+            JaxRsClientRequestContext requestContext = new JaxRsClientRequestContext(
+                client,
+                configuration,
+                request,
+                requestBodyType,
+                entity == null ? null : entity.getMediaType()
+            );
             if (!requestFilters.isEmpty()) {
                 for (ClientRequestFilter requestFilter : requestFilters) {
                     requestFilter.filter(requestContext);
@@ -198,18 +247,16 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
                         response = filterResponse(response, requestContext);
                         if (type.getType().equals(Response.class)) {
                             future.complete((T) response);
+                        } else if (isSuccessful(response)) {
+                            future.complete(response.readEntity(type.getType()));
                         } else {
-                            if (response.getStatusInfo().getFamily() == Response.Status.Family.SUCCESSFUL) {
-                                future.complete(response.readEntity(type.getType()));
-                            } else {
-                                future.completeExceptionally(new WebApplicationException(response));
-                            }
+                            future.completeExceptionally(exceptionFor(response));
                         }
-                        return future;
+                        return;
                     }
                 }
             }
-            client.getHttpClient().exchange(request)
+            client.getHttpClient().exchange(requestContext.getMutableHttpRequest())
                 .subscribe(new Subscriber<>() {
                     @Override
                     public void onSubscribe(Subscription subscription) {
@@ -230,16 +277,12 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
                     public void onError(Throwable throwable) {
                         if (throwable instanceof HttpClientResponseException httpClientResponseException) {
                             HttpResponse<?> response = httpClientResponseException.getResponse();
-                            if (isResponseReturn()) {
-                                try {
-                                    MutableHttpResponse<?> mutableResponse = response.toMutableResponse();
-                                    JaxRsMutableResponse jaxRsMutableResponse = filterResponse(mutableResponse, requestContext);
-                                    complete(jaxRsMutableResponse);
-                                } catch (Exception e) {
-                                    future.completeExceptionally(new ProcessingException(e));
-                                }
-                            } else {
-                                future.completeExceptionally(new WebApplicationException(new JaxRsResponse(response)));
+                            try {
+                                MutableHttpResponse<?> mutableResponse = response.toMutableResponse();
+                                JaxRsMutableResponse jaxRsMutableResponse = filterResponse(mutableResponse, requestContext);
+                                complete(jaxRsMutableResponse);
+                            } catch (Exception e) {
+                                future.completeExceptionally(new ProcessingException(e));
                             }
                         } else {
                             future.completeExceptionally(new ProcessingException(throwable));
@@ -256,8 +299,10 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
                     private void complete(JaxRsMutableResponse jaxRsMutableResponse) {
                         if (isResponseReturn()) {
                             future.complete((T) jaxRsMutableResponse);
-                        } else {
+                        } else if (isSuccessful(jaxRsMutableResponse)) {
                             future.complete(jaxRsMutableResponse.readEntity(type));
+                        } else {
+                            future.completeExceptionally(exceptionFor(jaxRsMutableResponse));
                         }
                     }
 
@@ -270,7 +315,6 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
         } catch (Exception e) {
             future.completeExceptionally(new ProcessingException(e));
         }
-        return future;
     }
 
     private Response filterResponse(Response response, JaxRsClientRequestContext requestContext) {
@@ -316,9 +360,14 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
         HttpMethod httpMethod = HttpMethod.valueOf(method);
         MutableHttpRequest<Object> mutableHttpRequest = httpMethod ==
             HttpMethod.CUSTOM ? HttpRequest.create(HttpMethod.CUSTOM, uri.toString(), method) : HttpRequest.create(httpMethod, uri.toString());
+        boolean wildcardEntityMediaType = false;
         if (entity != null) {
-            mutableHttpRequest = mutableHttpRequest.contentType(MediaType.of(entity.getMediaType().toString()));
-            mutableHttpRequest = mutableHttpRequest.body(entity.getEntity());
+            if (JaxRsUtils.isConcreteMediaType(entity.getMediaType())) {
+                mutableHttpRequest = mutableHttpRequest.contentType(MediaType.of(entity.getMediaType().toString()));
+            } else if (entity.getMediaType() != null) {
+                wildcardEntityMediaType = true;
+            }
+            mutableHttpRequest = mutableHttpRequest.body(entityBody(entity));
             Locale language = entity.getLanguage();
             if (language != null) {
                 mutableHttpRequest.getHeaders().set(HttpHeaders.CONTENT_LANGUAGE, language.toLanguageTag());
@@ -330,8 +379,8 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
         Argument<Object> bodyArgument;
         Object body;
         if (entity != null) {
-            bodyArgument = (Argument<Object>) JaxRsArgumentUtil.from(entity);
-            body = entity.getEntity();
+            bodyArgument = entityArgument(entity);
+            body = entityBody(entity);
         } else {
             body = mutableHttpRequest.getBody().orElse(null);
             if (body != null) {
@@ -341,7 +390,41 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
             }
         }
         configuration.writeBody(mutableHttpRequest, bodyArgument, body);
+        if (wildcardEntityMediaType) {
+            mutableHttpRequest.getHeaders().remove(HttpHeaders.CONTENT_TYPE);
+        }
         return mutableHttpRequest;
+    }
+
+    private static Object entityBody(Entity<?> entity) {
+        Object body = entity.getEntity();
+        return body instanceof GenericEntity<?> genericEntity ? genericEntity.getEntity() : body;
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static Argument<Object> entityArgument(Entity<?> entity) {
+        Object body = entity.getEntity();
+        if (body instanceof GenericEntity<?> genericEntity) {
+            return (Argument<Object>) JaxRsArgumentUtil.from((GenericEntity) genericEntity, entity.getAnnotations());
+        }
+        return (Argument<Object>) JaxRsArgumentUtil.from(entity);
+    }
+
+    private static boolean isSuccessful(Response response) {
+        return response.getStatusInfo().getFamily() == Response.Status.Family.SUCCESSFUL;
+    }
+
+    private static WebApplicationException exceptionFor(Response response) {
+        return switch (response.getStatusInfo().getFamily()) {
+            case REDIRECTION -> new RedirectionException(response);
+            case CLIENT_ERROR -> CLIENT_ERROR_EXCEPTIONS
+                .getOrDefault(response.getStatus(), ClientErrorException::new)
+                .apply(response);
+            case SERVER_ERROR -> SERVER_ERROR_EXCEPTIONS
+                .getOrDefault(response.getStatus(), ServerErrorException::new)
+                .apply(response);
+            default -> new WebApplicationException(response);
+        };
     }
 
     @Override

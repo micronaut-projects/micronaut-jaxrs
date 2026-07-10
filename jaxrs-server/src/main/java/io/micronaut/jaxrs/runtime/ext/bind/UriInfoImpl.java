@@ -16,18 +16,25 @@
 package io.micronaut.jaxrs.runtime.ext.bind;
 
 import io.micronaut.core.annotation.Internal;
-import org.jspecify.annotations.NonNull;
-import org.jspecify.annotations.Nullable;
 import io.micronaut.core.util.StringUtils;
+import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpRequest;
+import io.micronaut.http.annotation.HttpMethodMapping;
+import io.micronaut.jaxrs.container.JaxRsResourceTemplate;
+import io.micronaut.jaxrs.common.JaxRsResourceTemplateMetadata;
+import io.micronaut.web.router.MethodBasedRouteMatch;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.RouteMatch;
+import io.micronaut.web.router.UriRouteMatch;
 import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.PathSegment;
 import jakarta.ws.rs.core.UriBuilder;
 import jakarta.ws.rs.core.UriInfo;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
+import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLDecoder;
@@ -37,6 +44,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalInt;
 import java.util.stream.Stream;
 
 /**
@@ -49,6 +57,7 @@ import java.util.stream.Stream;
 public final class UriInfoImpl implements UriInfo {
     private final HttpRequest<?> request;
     private final String basePath;
+    private final String applicationPath;
 
     /**
      * Construct from an HTTP request.
@@ -57,8 +66,20 @@ public final class UriInfoImpl implements UriInfo {
      * @param basePath The base path
      */
     public UriInfoImpl(@NonNull HttpRequest<?> request, @Nullable String basePath) {
+        this(request, basePath, null);
+    }
+
+    /**
+     * Construct from an HTTP request.
+     *
+     * @param request         The HTTP request to this URI
+     * @param basePath        The base path
+     * @param applicationPath The application path
+     */
+    public UriInfoImpl(@NonNull HttpRequest<?> request, @Nullable String basePath, @Nullable String applicationPath) {
         this.request = request;
         this.basePath = basePath == null || basePath.equals("/") ? null : basePath;
+        this.applicationPath = applicationPath == null || applicationPath.equals("/") ? "" : normalizeAbsolutePath(applicationPath);
     }
 
     /**
@@ -91,7 +112,7 @@ public final class UriInfoImpl implements UriInfo {
 
     @Override
     public String getPath(boolean decode) {
-        return getPath(request.getPath(), decode);
+        return getPath(getRequestPath(decode), decode);
     }
 
     @Override
@@ -101,73 +122,134 @@ public final class UriInfoImpl implements UriInfo {
 
     @Override
     public List<PathSegment> getPathSegments(boolean decode) {
-        return Stream.of(request.getPath().split("/"))
+        return Stream.of(getRequestPath(decode).split("/"))
             .filter(StringUtils::isNotEmpty)
             .<PathSegment>map(token -> {
                 String[] segmentTokens = token.split(";");
                 MultivaluedMap<String, String> params = new MultiMapNullPermitted<>();
                 for (int i = 1; i < segmentTokens.length; ++i) {
+                    if (segmentTokens[i].isEmpty()) {
+                        continue;
+                    }
                     String[] keyVal = segmentTokens[i].split("=", 2);
                     String key = keyVal[0];
-                    String val = keyVal.length > 1 ? keyVal[1] : null;
-                    params.add(getPath(key, decode), getPath(val, decode));
+                    String val = keyVal.length > 1 ? getPath(keyVal[1], decode) : null;
+                    params.add(getPath(key, decode), val);
                 }
                 return new UriPathSegment(getPath(segmentTokens[0], decode), params);
             })
             .toList();
     }
 
-    @Override
-    public URI getRequestUri() {
-        return request.getUri();
+    private String getRequestPath(boolean decode) {
+        if (decode) {
+            return request.getPath();
+        }
+        String rawPath = request.getUri().getRawPath();
+        return rawPath == null ? request.getPath() : rawPath;
     }
 
-    /**
-     * This operation is not supported currently,
-     * so {@link UnsupportedOperationException} is thrown for all invocations.
-     *
-     * @throws UnsupportedOperationException this operation is not supported currently.
-     */
+    @Override
+    public URI getRequestUri() {
+        URI uri = request.getUri();
+        if (uri.isAbsolute() && uri.getRawAuthority() != null) {
+            return uri;
+        }
+        String rawPath = uri.getRawPath();
+        return uriWithRawPath(rawPath == null || rawPath.isEmpty() ? "/" : rawPath, uri.getRawQuery());
+    }
+
     @Override
     public UriBuilder getRequestUriBuilder() {
-        throw new UnsupportedOperationException();
+        return UriBuilder.fromUri(getRequestUri());
     }
 
     @Override
     public URI getAbsolutePath() {
-        return getBaseUri().resolve(getPath(false));
+        URI uri = request.getUri();
+        String rawPath = uri.getRawPath();
+        return uriWithRawPath(rawPath == null || rawPath.isEmpty() ? "/" : rawPath, null);
     }
 
-    /**
-     * This operation is not supported currently,
-     * so {@link UnsupportedOperationException} is thrown for all invocations.
-     *
-     * @throws UnsupportedOperationException this operation is not supported currently.
-     */
     @Override
     public UriBuilder getAbsolutePathBuilder() {
-        throw new UnsupportedOperationException();
+        return UriBuilder.fromUri(getAbsolutePath());
     }
 
     @Override
     public URI getBaseUri() {
+        return uriWithRawPath(baseUriPath(), null);
+    }
+
+    @Override
+    public UriBuilder getBaseUriBuilder() {
+        return UriBuilder.fromUri(getBaseUri());
+    }
+
+    private String baseUriPath() {
+        if (basePath == null) {
+            return "/";
+        }
+        String path = basePath.startsWith("/") ? basePath : "/" + basePath;
+        return path.endsWith("/") ? path : path + "/";
+    }
+
+    private URI uriWithRawPath(String rawPath, @Nullable String rawQuery) {
         URI uri = request.getUri();
+        StringBuilder builder = new StringBuilder();
+        String scheme = uri.getScheme();
+        String rawAuthority = uri.getRawAuthority();
+        if (scheme != null && rawAuthority != null) {
+            builder.append(scheme).append("://").append(rawAuthority);
+        } else {
+            scheme = request.isSecure() ? HttpRequest.SCHEME_HTTPS : HttpRequest.SCHEME_HTTP;
+            String authority = request.getHeaders().get(HttpHeaders.HOST);
+            if (StringUtils.isEmpty(authority)) {
+                String host = request.getServerName();
+                int port = uri.getPort();
+                InetSocketAddress serverAddress = request.getServerAddress();
+                if ((host == null || host.isBlank()) && serverAddress != null) {
+                    host = serverAddress.getHostString();
+                }
+                if (port < 0 && serverAddress != null) {
+                    port = serverAddress.getPort();
+                }
+                if (host != null && !host.isBlank()) {
+                    authority = authority(host, port);
+                }
+            }
+            if (StringUtils.isNotEmpty(authority)) {
+                validateAuthority(authority);
+                builder.append(scheme).append("://").append(authority);
+            }
+        }
+        if (!rawPath.startsWith("/")) {
+            builder.append('/');
+        }
+        builder.append(rawPath);
+        if (rawQuery != null) {
+            builder.append('?').append(rawQuery);
+        }
         try {
-            return new URI(uri.getScheme(), uri.getUserInfo(), uri.getHost(), uri.getPort(), "", uri.getQuery(), uri.getFragment());
+            return new URI(builder.toString());
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException("Unexpected URI format: " + uri.toASCIIString(), e);
         }
     }
 
-    /**
-     * This operation is not supported currently,
-     * so {@link UnsupportedOperationException} is thrown for all invocations.
-     *
-     * @throws UnsupportedOperationException this operation is not supported currently.
-     */
-    @Override
-    public UriBuilder getBaseUriBuilder() {
-        throw new UnsupportedOperationException();
+    private static String authority(String host, int port) {
+        validateAuthority(host);
+        String authorityHost = host.indexOf(':') > -1 && !host.startsWith("[") ? '[' + host + ']' : host;
+        return port < 0 ? authorityHost : authorityHost + ':' + port;
+    }
+
+    private static void validateAuthority(String authority) {
+        for (int i = 0; i < authority.length(); i++) {
+            char c = authority.charAt(i);
+            if (c <= 0x20 || c == 0x7f) {
+                throw new IllegalArgumentException("Invalid URI authority");
+            }
+        }
     }
 
     @Override
@@ -225,43 +307,112 @@ public final class UriInfoImpl implements UriInfo {
         return map;
     }
 
-
-    /**
-     * This operation is not supported currently,
-     * so {@link UnsupportedOperationException} is thrown for all invocations.
-     *
-     * @throws UnsupportedOperationException this operation is not supported currently.
-     */
     @Override
     public List<String> getMatchedURIs() {
-        throw new UnsupportedOperationException();
+        return getMatchedURIs(true);
     }
 
-    //    @Override v4
+    @Override
     public String getMatchedResourceTemplate() {
+        RouteMatch<?> match = routeMatch();
+        if (match instanceof UriRouteMatch<?, ?> uriRouteMatch) {
+            String template = match.getAnnotationMetadata()
+                .stringValue(JaxRsResourceTemplate.class)
+                .orElseGet(() -> stripPathPrefix(uriRouteMatch.getRouteInfo().getUriMatchTemplate().toString(), basePath));
+            if (!applicationPath.isEmpty()) {
+                template = applicationPath + normalizeAbsolutePath(template);
+            }
+            return normalizeAbsolutePath(template);
+        }
         return "";
     }
 
-    /**
-     * This operation is not supported currently,
-     * so {@link UnsupportedOperationException} is thrown for all invocations.
-     *
-     * @throws UnsupportedOperationException this operation is not supported currently.
-     */
     @Override
     public List<String> getMatchedURIs(boolean decode) {
-        throw new UnsupportedOperationException();
+        RouteMatch<?> match = routeMatch();
+        String matchedUri = normalizeMatchedUri(matchedUri(match, decode));
+        String resourceUri = rootResourceUri(match, matchedUri);
+        if (resourceUri.isEmpty() || resourceUri.equals(matchedUri)) {
+            return List.of(matchedUri);
+        }
+        return List.of(matchedUri, resourceUri);
     }
 
-    /**
-     * This operation is not supported currently,
-     * so {@link UnsupportedOperationException} is thrown for all invocations.
-     *
-     * @throws UnsupportedOperationException this operation is not supported currently.
-     */
     @Override
     public List<Object> getMatchedResources() {
-        throw new UnsupportedOperationException();
+        RouteMatch<?> match = routeMatch();
+        if (match instanceof MethodBasedRouteMatch<?, ?> methodBasedRouteMatch) {
+            return List.of(methodBasedRouteMatch.getTarget());
+        }
+        return List.of();
+    }
+
+    private RouteMatch<?> routeMatch() {
+        return RouteAttributes.getRouteMatch(request)
+            .orElseThrow(() -> new IllegalStateException("Route match not available!"));
+    }
+
+    private String matchedUri(RouteMatch<?> match, boolean decode) {
+        if (match instanceof UriRouteMatch<?, ?> uriRouteMatch) {
+            return getPath(uriRouteMatch.getUri(), decode);
+        }
+        return getPath(decode);
+    }
+
+    private static String rootResourceUri(RouteMatch<?> match, String matchedUri) {
+        OptionalInt rootPathSegmentCount = match.getAnnotationMetadata()
+            .intValue(JaxRsResourceTemplate.class, JaxRsResourceTemplateMetadata.MEMBER_ROOT_PATH_SEGMENT_COUNT);
+        if (rootPathSegmentCount.isPresent() && rootPathSegmentCount.getAsInt() > -1) {
+            return firstPathSegments(matchedUri, rootPathSegmentCount.getAsInt());
+        }
+        return match.getAnnotationMetadata()
+            .stringValue(HttpMethodMapping.class)
+            .map(UriInfoImpl::normalizeMatchedUri)
+            .filter(StringUtils::isNotEmpty)
+            .filter(methodUri -> matchedUri.endsWith(methodUri))
+            .map(methodUri -> normalizeMatchedUri(matchedUri.substring(0, matchedUri.length() - methodUri.length())))
+            .orElse("");
+    }
+
+    private static String firstPathSegments(String uri, int segmentCount) {
+        if (segmentCount <= 0 || uri.isEmpty()) {
+            return "";
+        }
+        int segments = 0;
+        for (int i = 0; i < uri.length(); i++) {
+            if (uri.charAt(i) == '/' && ++segments == segmentCount) {
+                return uri.substring(0, i);
+            }
+        }
+        return segments + 1 == segmentCount ? uri : "";
+    }
+
+    private static String normalizeMatchedUri(String uri) {
+        if (uri.startsWith("/")) {
+            uri = uri.substring(1);
+        }
+        if (uri.endsWith("/")) {
+            uri = uri.substring(0, uri.length() - 1);
+        }
+        return uri;
+    }
+
+    private static String stripPathPrefix(String path, @Nullable String prefix) {
+        if (prefix == null || prefix.isEmpty() || !path.startsWith(prefix)) {
+            return path;
+        }
+        int prefixLength = prefix.length();
+        if (path.length() == prefixLength || path.charAt(prefixLength) == '/') {
+            return path.substring(prefixLength);
+        }
+        return path;
+    }
+
+    private static String normalizeAbsolutePath(String path) {
+        if (path == null || path.isEmpty()) {
+            return "/";
+        }
+        return path.startsWith("/") ? path : '/' + path;
     }
 
     @Override

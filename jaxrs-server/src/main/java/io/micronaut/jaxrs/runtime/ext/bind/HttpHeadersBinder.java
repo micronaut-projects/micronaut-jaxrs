@@ -15,6 +15,7 @@
  */
 package io.micronaut.jaxrs.runtime.ext.bind;
 
+import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.convert.ArgumentConversionContext;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpRequest;
@@ -31,6 +32,7 @@ import java.util.Optional;
  * @author graemerocher
  * @since 1.0
  */
+@Internal
 @Singleton
 public class HttpHeadersBinder implements TypedRequestArgumentBinder<HttpHeaders> {
 

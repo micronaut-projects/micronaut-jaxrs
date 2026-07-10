@@ -17,24 +17,23 @@ package io.micronaut.jaxrs.container;
 
 import io.micronaut.context.annotation.Prototype;
 import io.micronaut.core.annotation.AnnotationMetadata;
-import org.jspecify.annotations.Nullable;
-import io.micronaut.core.bind.annotation.AbstractArgumentBinder;
-import io.micronaut.core.convert.ArgumentConversionContext;
-import io.micronaut.core.convert.ConversionError;
 import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.convert.value.ConvertibleMultiValues;
+import io.micronaut.core.convert.value.ConvertibleMultiValuesMap;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpRequest;
-import io.micronaut.http.bind.binders.AnnotatedRequestArgumentBinder;
 import io.micronaut.http.bind.binders.RequestArgumentBinder;
+import io.micronaut.jaxrs.runtime.ext.bind.UriInfoImpl;
+import jakarta.ws.rs.Encoded;
+import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.ext.ParamConverter;
 import jakarta.ws.rs.ext.ParamConverterProvider;
+import org.jspecify.annotations.Nullable;
 
-import java.lang.annotation.Annotation;
-import java.lang.reflect.Type;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
 
 /**
  * A binder for binding arguments annotated with {@link QueryParam}.
@@ -44,10 +43,7 @@ import java.util.Optional;
  * @since 4.10
  */
 @Prototype
-final class QueryParamArgumentBinder<T> extends AbstractArgumentBinder<T> implements AnnotatedRequestArgumentBinder<QueryParam, T> {
-
-    private final List<ParamConverterProvider> paramConverterProviders;
-    private final ParamConverter<T> paramConverter;
+final class QueryParamArgumentBinder<T> extends AbstractParamArgumentBinder<QueryParam, T> {
 
     /**
      * Constructor.
@@ -56,9 +52,7 @@ final class QueryParamArgumentBinder<T> extends AbstractArgumentBinder<T> implem
      * @param paramConverterProviders param converter providers
      */
     public QueryParamArgumentBinder(ConversionService conversionService, List<ParamConverterProvider> paramConverterProviders) {
-        super(conversionService);
-        this.paramConverterProviders = paramConverterProviders;
-        this.paramConverter = null;
+        super(conversionService, paramConverterProviders);
     }
 
     /**
@@ -67,29 +61,13 @@ final class QueryParamArgumentBinder<T> extends AbstractArgumentBinder<T> implem
      * @param conversionService conversion service
      * @param argument          The argument
      * @param paramConverter    The paramConverter
+     * @param elementParamConverter The element paramConverter
      */
-    public QueryParamArgumentBinder(ConversionService conversionService, Argument<T> argument, @Nullable ParamConverter<T> paramConverter) {
-        super(conversionService, argument);
-        this.paramConverterProviders = List.of();
-        this.paramConverter = paramConverter;
-
-    }
-
-    @Override
-    public RequestArgumentBinder<T> createSpecific(Argument<T> argument) {
-        ParamConverter<T> paramConverter = null;
-        if (!paramConverterProviders.isEmpty()) {
-            Class<T> rawType = argument.getType();
-            Type type = argument.asType();
-            Annotation[] annotations = argument.synthesizeAll();
-            for (ParamConverterProvider paramConverterProvider : paramConverterProviders) {
-                paramConverter = paramConverterProvider.getConverter(rawType, type, annotations);
-                if (paramConverter != null) {
-                    break;
-                }
-            }
-        }
-        return new QueryParamArgumentBinder<>(conversionService, argument, paramConverter);
+    public QueryParamArgumentBinder(ConversionService conversionService,
+                                    Argument<T> argument,
+                                    @Nullable ParamConverter<T> paramConverter,
+                                    @Nullable ParamConverter<?> elementParamConverter) {
+        super(conversionService, argument, paramConverter, elementParamConverter);
     }
 
     @Override
@@ -98,43 +76,31 @@ final class QueryParamArgumentBinder<T> extends AbstractArgumentBinder<T> implem
     }
 
     @Override
-    public BindingResult<T> bind(ArgumentConversionContext<T> context, HttpRequest<?> source) {
-        ConvertibleMultiValues<String> parameters = source.getParameters();
-        Argument<T> argument = context.getArgument();
+    protected boolean isBindable(Argument<T> argument, HttpRequest<?> source) {
         AnnotationMetadata annotationMetadata = argument.getAnnotationMetadata();
-
-        if (source.getMethod().permitsRequestBody() && !annotationMetadata.hasAnnotation(QueryParam.class)) {
-            // During the unmatched check avoid requests that don't allow bodies
-            return BindingResult.unsatisfied();
-        }
-
-        String parameterName = resolvedParameterName(argument);
-        if (paramConverter != null) {
-            String value = parameters.get(parameterName);
-            try {
-                T result = paramConverter.fromString(value);
-                return () -> Optional.ofNullable(result);
-            } catch (Exception e) {
-                return new BindingResult<>() {
-                    @Override
-                    public Optional<T> getValue() {
-                        return Optional.empty();
-                    }
-
-                    @Override
-                    public List<ConversionError> getConversionErrors() {
-                        return List.of(() -> e);
-                    }
-                };
-            }
-        }
-        return doBind(context, parameters, BindingResult.unsatisfied());
+        // During the unmatched check avoid requests that don't allow bodies.
+        return !source.getMethod().permitsRequestBody() || annotationMetadata.hasAnnotation(QueryParam.class);
     }
 
     @Override
-    protected String getParameterName(Argument<T> argument) {
-        return argument.getAnnotationMetadata()
-            .stringValue(QueryParam.class).
-            orElseThrow(() -> new IllegalStateException("Missing @QueryParam annotation on argument: " + argument));
+    protected ConvertibleMultiValues<String> parameterValues(HttpRequest<?> source, Argument<T> argument) {
+        if (!argument.getAnnotationMetadata().hasAnnotation(Encoded.class) || source.getUri().getRawQuery() == null) {
+            return source.getParameters();
+        }
+        Map<CharSequence, List<String>> values = new LinkedHashMap<>();
+        UriInfoImpl.getEncodedParameters(source.getUri()).forEach(values::put);
+        return new ConvertibleMultiValuesMap<>(values, conversionService);
+    }
+
+    @Override
+    protected RequestArgumentBinder<T> createSpecific(Argument<T> argument,
+                                                      @Nullable ParamConverter<T> paramConverter,
+                                                      @Nullable ParamConverter<?> elementParamConverter) {
+        return new QueryParamArgumentBinder<>(conversionService, argument, paramConverter, elementParamConverter);
+    }
+
+    @Override
+    protected RuntimeException conversionException(RuntimeException exception) {
+        return new NotFoundException(exception);
     }
 }

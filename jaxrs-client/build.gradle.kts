@@ -8,4 +8,12 @@ dependencies {
     implementation(projects.micronautJaxrsCommon)
     implementation(mn.micronaut.http.client)
     implementation(mn.micronaut.buffer.netty)
+
+    testAnnotationProcessor(mn.micronaut.inject.java)
+
+    testImplementation(mnTest.junit.jupiter.api)
+    testImplementation(mnSerde.micronaut.serde.jackson)
+
+    testRuntimeOnly(mnLogging.logback.classic)
+    testRuntimeOnly(mnTest.junit.jupiter.engine)
 }

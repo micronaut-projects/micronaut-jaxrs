@@ -7,13 +7,19 @@
 
 Micronaut JAX-RS adds the ability to use common JAX-RS types and annotations to a Micronaut application.
 
-This project is not an implementation of the JAX-RS specification and is designed to allow users familiar with the JAX-RS API to use the most common parts of the API within the context of a Micronaut application.
+This project is a Micronaut-native JAX-RS implementation that allows users familiar with the JAX-RS API to build Jakarta REST applications within the context of a Micronaut application.
 
 ## Documentation
 
 See the [Documentation](https://micronaut-projects.github.io/micronaut-jaxrs/latest/guide/) for more information.
 
 See the [Snapshot Documentation](https://micronaut-projects.github.io/micronaut-jaxrs/snapshot/guide/) for the current development docs.
+
+## Jakarta REST TCK Evidence
+
+The Jakarta REST TCK workflow publishes immutable evidence under `tck-results/<workflow-run-id>/` and refreshes the latest evidence page at [Jakarta REST TCK Evidence](https://micronaut-projects.github.io/micronaut-jaxrs/tck-results/latest/).
+
+This link is a stable entry point for future upstream workflow results. It does not claim full upstream verification until the workflow has passed in the upstream repository.
 
 ## Snapshots and Releases
 

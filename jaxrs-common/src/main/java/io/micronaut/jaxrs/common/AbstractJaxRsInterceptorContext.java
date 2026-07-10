@@ -98,7 +98,7 @@ abstract sealed class AbstractJaxRsInterceptorContext implements InterceptorCont
     @Override
     public Annotation[] getAnnotations() {
         if (annotations == null) {
-            return argument.getAnnotationMetadata().synthesizeAll();
+            return JaxRsArgumentUtil.synthesizeAnnotations(argument);
         }
         return annotations;
     }

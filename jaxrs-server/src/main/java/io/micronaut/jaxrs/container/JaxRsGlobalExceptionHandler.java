@@ -23,6 +23,7 @@ import io.micronaut.http.annotation.Produces;
 import io.micronaut.http.server.exceptions.ExceptionHandler;
 import io.micronaut.http.server.exceptions.response.ErrorContext;
 import io.micronaut.http.server.exceptions.response.ErrorResponseProcessor;
+import io.micronaut.jaxrs.common.JaxRsIOException;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
@@ -30,6 +31,8 @@ import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Providers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
 
 /**
  * Handles JAX-RS exceptions that occur during the execution of an HTTP request.
@@ -63,7 +66,8 @@ final class JaxRsGlobalExceptionHandler implements ExceptionHandler<Throwable, H
         if (LOG.isDebugEnabled()) {
             LOG.debug(exception.getMessage(), exception);
         }
-        ExceptionMapper exceptionMapper = providers.getExceptionMapper(exception.getClass());
+        Throwable mappedException = mappedException(exception);
+        ExceptionMapper exceptionMapper = providers.getExceptionMapper(mappedException.getClass());
         if (exceptionMapper != null) {
             String exceptionMapperName = exceptionMapper.getClass().getName();
             Object previousMapper = request.getAttributes().get(USED_EXCEPTION_MAPPER, String.class, null);
@@ -71,11 +75,18 @@ final class JaxRsGlobalExceptionHandler implements ExceptionHandler<Throwable, H
                 return HttpResponse.status(HttpStatus.INTERNAL_SERVER_ERROR);
             }
             request.getAttributes().put(USED_EXCEPTION_MAPPER, exceptionMapperName);
-            return ((JaxRsMutableResponse) exceptionMapper.toResponse(exception)).getResponse();
+            return ((JaxRsMutableResponse) exceptionMapper.toResponse(mappedException)).getResponse();
         }
         return responseProcessor.processResponse(ErrorContext.builder(request)
-            .errorMessage(exception.getMessage())
+            .errorMessage(HttpStatus.INTERNAL_SERVER_ERROR.getReason())
             .cause(exception)
-            .build(), HttpResponse.badRequest());
+            .build(), HttpResponse.serverError());
+    }
+
+    private static Throwable mappedException(Throwable exception) {
+        if (exception instanceof JaxRsIOException && exception.getCause() instanceof IOException cause) {
+            return cause;
+        }
+        return exception;
     }
 }

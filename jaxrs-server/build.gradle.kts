@@ -5,6 +5,7 @@ plugins {
 dependencies {
 	annotationProcessor(mn.micronaut.graal)
 
+	api(mn.micronaut.aop)
 	api(mn.micronaut.http)
 	api(libs.managed.jaxrs.api)
 

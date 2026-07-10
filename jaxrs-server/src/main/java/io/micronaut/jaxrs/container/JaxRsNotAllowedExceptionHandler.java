@@ -18,6 +18,8 @@ package io.micronaut.jaxrs.container;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.Order;
 import io.micronaut.core.order.Ordered;
+import io.micronaut.http.HttpHeaders;
+import io.micronaut.http.HttpMethod;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.annotation.Produces;
@@ -58,6 +60,14 @@ final class JaxRsNotAllowedExceptionHandler implements ExceptionHandler<NotAllow
     @Override
     public HttpResponse<?> handle(HttpRequest request, NotAllowedException exception) {
         var allowedMethods = new ArrayList<>(exception.getAllowedMethods());
+        if (request.getMethod() == HttpMethod.OPTIONS) {
+            if (!allowedMethods.contains(HttpMethod.OPTIONS.name())) {
+                int getIndex = allowedMethods.indexOf(HttpMethod.GET.name());
+                allowedMethods.add(getIndex > -1 ? getIndex + 1 : allowedMethods.size(), HttpMethod.OPTIONS.name());
+            }
+            return HttpResponse.ok()
+                .header(HttpHeaders.ALLOW, String.join(",", allowedMethods));
+        }
         var notAllowedException = new jakarta.ws.rs.NotAllowedException(
             allowedMethods.get(0),
             allowedMethods.subList(1, allowedMethods.size()).toArray(String[]::new)

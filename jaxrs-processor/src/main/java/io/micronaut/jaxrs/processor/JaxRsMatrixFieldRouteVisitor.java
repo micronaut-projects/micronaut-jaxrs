@@ -1,0 +1,115 @@
+/*
+ * Copyright 2017-2026 original authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.micronaut.jaxrs.processor;
+
+import io.micronaut.core.annotation.Internal;
+import io.micronaut.http.annotation.HttpMethodMapping;
+import io.micronaut.jaxrs.common.JaxRsSubResourceLocatorMetadata;
+import io.micronaut.inject.ast.ClassElement;
+import io.micronaut.inject.ast.MethodElement;
+import io.micronaut.inject.visitor.TypeElementVisitor;
+import io.micronaut.inject.visitor.VisitorContext;
+import jakarta.ws.rs.HttpMethod;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.ext.Provider;
+import org.jspecify.annotations.NonNull;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+
+/**
+ * Applies JAX-RS route adjustments that must run after core route validation.
+ */
+@Internal
+public final class JaxRsMatrixFieldRouteVisitor implements TypeElementVisitor<Object, HttpMethodMapping> {
+
+    private static final int POSITION = JaxRsTypeElementVisitor.POSITION - 400;
+    private static final String CLIENT_ANNOTATION = "io.micronaut.http.client.annotation.Client";
+
+    private ClassElement currentClassElement;
+
+    @Override
+    public int getOrder() {
+        return POSITION;
+    }
+
+    @NonNull
+    @Override
+    public VisitorKind getVisitorKind() {
+        return VisitorKind.ISOLATING;
+    }
+
+    @Override
+    public Set<String> getSupportedAnnotationNames() {
+        return Collections.singleton("jakarta.ws.rs.*");
+    }
+
+    @Override
+    public void visitClass(ClassElement element, VisitorContext context) {
+        if (!element.hasStereotype(Provider.class)) {
+            currentClassElement = element;
+        }
+    }
+
+    @Override
+    public void visitMethod(MethodElement element, VisitorContext context) {
+        if (currentClassElement == null
+            || isClientClass()
+            || !isRouteCandidate(element)
+            || isNonPublicServerResourceCandidate(element)) {
+            return;
+        }
+        element.stringValue(HttpMethodMapping.class).ifPresent(path -> {
+            String routePath = path;
+            String subResourceLocatorRoutePath = element.stringValue(
+                JaxRsTypeElementVisitor.SUB_RESOURCE_LOCATOR_ANNOTATION,
+                JaxRsSubResourceLocatorMetadata.MEMBER_ROUTE_PATH
+            ).orElse("");
+            if (!subResourceLocatorRoutePath.isEmpty()) {
+                routePath = subResourceLocatorRoutePath;
+            }
+            if (JaxRsTypeElementVisitor.matrixParameterNames(element).isEmpty()) {
+                List<String> matrixFieldNames = JaxRsTypeElementVisitor.matrixFieldNames(currentClassElement);
+                if (!matrixFieldNames.isEmpty() && !routePath.contains(JaxRsTypeElementVisitor.MATRIX_PARAMETER_ROUTE_PATTERN)) {
+                    routePath = JaxRsTypeElementVisitor.toMatrixParameterAwareRoute(routePath, matrixFieldNames);
+                }
+            }
+            String remainingPathVariable = element.stringValue(
+                JaxRsTypeElementVisitor.SUB_RESOURCE_LOCATOR_ANNOTATION,
+                JaxRsSubResourceLocatorMetadata.MEMBER_REMAINING
+            ).orElse("");
+            if (!remainingPathVariable.isEmpty() && !routePath.contains("{/" + remainingPathVariable + ":.*}")) {
+                routePath = routePath + "{/" + remainingPathVariable + ":.*}";
+            }
+            if (!routePath.equals(path)) {
+                JaxRsTypeElementVisitor.annotateHttpRoute(element, routePath);
+            }
+        });
+    }
+
+    private boolean isClientClass() {
+        return currentClassElement.hasStereotype(CLIENT_ANNOTATION) || currentClassElement.hasAnnotation(CLIENT_ANNOTATION);
+    }
+
+    private static boolean isRouteCandidate(MethodElement element) {
+        return element.hasStereotype(HttpMethod.class) || element.hasAnnotation(Path.class);
+    }
+
+    private boolean isNonPublicServerResourceCandidate(MethodElement element) {
+        return currentClassElement.isPublic() && !element.isPublic();
+    }
+}

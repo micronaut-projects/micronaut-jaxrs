@@ -27,6 +27,8 @@ import jakarta.ws.rs.ext.RuntimeDelegate;
 import jakarta.ws.rs.ext.RuntimeDelegate.HeaderDelegate;
 
 import java.io.ByteArrayInputStream;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 /**
  * Registers JAX-RS converters.
@@ -54,5 +56,14 @@ public final class JaxRsConverterRegistrar implements TypeConverterRegistrar {
         conversionService.addConverter(String.class, CacheControl.class, cacheControlHeaderDelegate::fromString);
         conversionService.addConverter(Cookie.class, String.class, Cookie::getValue);
         conversionService.addConverter(byte[].class, ByteArrayInputStream.class, bytes -> new ByteArrayInputStream(bytes));
+        conversionService.addConverter(TreeSet.class, Iterable.class, treeSet -> treeSet);
+        conversionService.addConverter(TreeSet.class, SortedSet.class, treeSet -> treeSet);
+        conversionService.addConverter(SortedSet.class, Iterable.class, sortedSet -> sortedSet);
+        conversionService.addConverter(SortedSet.class, SortedSet.class, sortedSet -> sortedSet);
+        conversionService.addConverter(Iterable.class, SortedSet.class, iterable -> {
+            TreeSet<Object> result = new TreeSet<>();
+            iterable.forEach(result::add);
+            return result;
+        });
     }
 }

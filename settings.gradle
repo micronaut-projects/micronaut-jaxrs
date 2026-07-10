@@ -22,6 +22,9 @@ include 'jaxrs-server-security'
 include 'jaxrs-servlet'
 include 'jaxrs-client'
 include 'jaxrs-common'
+include 'jaxrs-reflection'
+include 'jaxrs-xml'
+include 'jaxrs-jakarta'
 
 include 'tests:jaxrs-tck'
 
@@ -36,4 +39,3 @@ micronautBuild {
     importMicronautCatalog("micronaut-servlet")
     importMicronautCatalog("micronaut-reactor")
 }
-

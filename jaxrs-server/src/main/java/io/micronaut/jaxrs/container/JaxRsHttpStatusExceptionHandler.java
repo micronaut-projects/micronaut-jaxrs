@@ -50,6 +50,7 @@ import jakarta.ws.rs.ext.Providers;
 final class JaxRsHttpStatusExceptionHandler implements ExceptionHandler<HttpStatusException, HttpResponse<?>> {
     private final ErrorResponseProcessor<?> responseProcessor;
     private final Providers providers;
+    private final ApplicationProvider applicationProvider;
 
     /**
      * Constructor.
@@ -58,15 +59,18 @@ final class JaxRsHttpStatusExceptionHandler implements ExceptionHandler<HttpStat
      * @param providers         The providers
      */
     @Inject
-    JaxRsHttpStatusExceptionHandler(ErrorResponseProcessor<?> responseProcessor, Providers providers) {
+    JaxRsHttpStatusExceptionHandler(ErrorResponseProcessor<?> responseProcessor,
+                                    Providers providers,
+                                    ApplicationProvider applicationProvider) {
         this.responseProcessor = responseProcessor;
         this.providers = providers;
+        this.applicationProvider = applicationProvider;
     }
 
     @Override
     public HttpResponse<?> handle(HttpRequest request, HttpStatusException exception) {
         WebApplicationException webApplicationException = remap(exception);
-        if (webApplicationException != null) {
+        if (webApplicationException != null && applicationProvider.isApplicationRequest(request)) {
             ExceptionMapper exceptionMapper = providers.getExceptionMapper(webApplicationException.getClass());
             Response response;
             if (exceptionMapper != null) {
@@ -79,7 +83,7 @@ final class JaxRsHttpStatusExceptionHandler implements ExceptionHandler<HttpStat
         return responseProcessor.processResponse(ErrorContext.builder(request)
             .errorMessage(exception.getMessage())
             .cause(exception)
-            .build(), HttpResponse.badRequest());
+            .build(), HttpResponse.status(exception.getStatus()));
     }
 
     @Nullable

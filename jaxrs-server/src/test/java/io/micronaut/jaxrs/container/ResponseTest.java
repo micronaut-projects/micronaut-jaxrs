@@ -1,8 +1,13 @@
 package io.micronaut.jaxrs.container;
 
 import org.jspecify.annotations.Nullable;
+import io.micronaut.http.HttpHeaders;
+import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.HttpStatus;
+import io.micronaut.http.MediaType;
+import io.micronaut.http.client.HttpClient;
+import io.micronaut.http.client.annotation.Client;
 import io.micronaut.http.client.exceptions.HttpClientResponseException;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import org.junit.jupiter.api.Test;
@@ -18,9 +23,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 public class ResponseTest {
 
     private final NotificationClient client;
+    private final HttpClient httpClient;
 
-    public ResponseTest(NotificationClient client) {
+    public ResponseTest(NotificationClient client, @Client("/api") HttpClient httpClient) {
         this.client = client;
+        this.httpClient = httpClient;
     }
 
     @Test
@@ -35,6 +42,65 @@ public class ResponseTest {
             "Service online: notifications",
             response.body()
         );
+    }
+
+    @Test
+    void testDefaultProducesStringUsesAcceptContentType() {
+        HttpResponse<String> response = client.defaultProducesStringAsForm();
+
+        assertEquals(HttpStatus.OK, response.getStatus());
+        assertEquals(MediaType.APPLICATION_FORM_URLENCODED_TYPE, response.getContentType().orElse(null));
+        assertEquals("form-compatible", response.body());
+    }
+
+    @Test
+    void testWildcardProducesRequiresConcreteGetAccept() {
+        HttpRequest<Object> request = HttpRequest.GET("/notifications/wildcard-produces")
+            .header(HttpHeaders.ACCEPT, "text/*");
+
+        HttpClientResponseException exception = assertThrows(
+            HttpClientResponseException.class,
+            () -> httpClient.toBlocking().exchange(request, String.class)
+        );
+        assertEquals(HttpStatus.NOT_ACCEPTABLE, exception.getStatus());
+    }
+
+    @Test
+    void testWildcardProducesRequiresConcretePostAccept() {
+        HttpRequest<String> request = HttpRequest.POST("/notifications/wildcard-produces", "anything")
+            .contentType(MediaType.TEXT_PLAIN_TYPE)
+            .header(HttpHeaders.ACCEPT, "text/*");
+
+        HttpClientResponseException exception = assertThrows(
+            HttpClientResponseException.class,
+            () -> httpClient.toBlocking().exchange(request, String.class)
+        );
+        assertEquals(HttpStatus.NOT_ACCEPTABLE, exception.getStatus());
+    }
+
+    @Test
+    void testStreamingOutputWebApplicationExceptionStatus() {
+        HttpClientResponseException exception = assertThrows(
+            HttpClientResponseException.class,
+            () -> httpClient.toBlocking().exchange("/notifications/streaming-output-web-application-exception", String.class)
+        );
+        assertEquals(HttpStatus.NOT_FOUND, exception.getStatus());
+    }
+
+    @Test
+    void testProviderContextResolverUsesDefaultResolverForNonSpecificMediaType() {
+        HttpRequest<Object> request = HttpRequest.GET("/notifications/providers/context-resolver")
+            .header("X-Provider-Media-Type", MediaType.APPLICATION_JSON);
+
+        assertEquals("DEFAULT", httpClient.toBlocking().retrieve(request));
+    }
+
+    @Test
+    void testProviderContextResolverUsesSpecificResolverForMatchingMediaType() {
+        HttpRequest<Object> request = HttpRequest.GET("/notifications/providers/context-resolver")
+            .header("X-Provider-Media-Type", MediaType.TEXT_PLAIN);
+
+        assertEquals("TEXT", httpClient.toBlocking().retrieve(request));
     }
 
     @Test
@@ -161,6 +227,14 @@ public class ResponseTest {
     void testNotSupportedWithoutResponse() {
         HttpClientResponseException exception = assertThrows(HttpClientResponseException.class, client::notSupportedWithoutResponse);
         assertEquals(HttpStatus.UNSUPPORTED_MEDIA_TYPE, exception.getStatus());
+    }
+
+    @Test
+    void testGenericRuntimeExceptionUsesGenericInternalServerError() {
+        HttpClientResponseException exception = assertThrows(HttpClientResponseException.class, client::genericError);
+
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, exception.getStatus());
+        assertEquals("Internal Server Error", errorsMessage(exception));
     }
 
     @Nullable
