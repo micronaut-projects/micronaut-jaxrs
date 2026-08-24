@@ -1,0 +1,42 @@
+{
+  "reflection": [
+    {
+      "type": "io.micronaut.jaxrs.container.QueryParamArgumentBinder",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "io.micronaut.core.convert.ConversionService",
+            "java.util.List"
+          ]
+        },
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "io.micronaut.core.convert.ConversionService",
+            "io.micronaut.core.type.Argument",
+            "jakarta.ws.rs.ext.ParamConverter"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "io.micronaut.core.bind.annotation.AbstractArgumentBinder",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "io.micronaut.core.convert.ConversionService"
+          ]
+        },
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "io.micronaut.core.convert.ConversionService",
+            "io.micronaut.core.type.Argument"
+          ]
+        }
+      ]
+    }
+  ]
+}
