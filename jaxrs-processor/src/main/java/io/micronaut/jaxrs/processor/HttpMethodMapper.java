@@ -46,6 +46,9 @@ import java.util.Locale;
  */
 @Internal
 public class HttpMethodMapper implements NamedAnnotationMapper {
+    private static final String QUERY_METHOD = "QUERY";
+    private static final String QUERY_ANNOTATION = "io.micronaut.http.annotation.Query";
+
     @NonNull
     @Override
     public String getName() {
@@ -67,7 +70,11 @@ public class HttpMethodMapper implements NamedAnnotationMapper {
                 case TRACE -> AnnotationValue.builder(Trace.class);
                 case OPTIONS -> AnnotationValue.builder(Options.class);
                 case HEAD -> AnnotationValue.builder(Head.class);
-                case CUSTOM, CONNECT -> AnnotationValue.builder(CustomHttpMethod.class).member("method", name);
+                // QUERY (RFC 10008) has its own annotation since Micronaut 5.2; the router does not match a QUERY
+                // request against a custom method route, so use it by name when it is available
+                default -> QUERY_METHOD.equals(name) && visitorContext.getClassElement(QUERY_ANNOTATION).isPresent()
+                    ? AnnotationValue.builder(QUERY_ANNOTATION)
+                    : AnnotationValue.builder(CustomHttpMethod.class).member("method", name);
             };
             return Collections.singletonList(
                 builder.value(UriMapping.DEFAULT_URI).build()

@@ -291,6 +291,45 @@ class Test {
         "WATCH"   | CustomHttpMethod | "/test"
     }
 
+    void "test QUERY http method mapping"() {
+        given:
+        def definition = buildBeanDefinition('test.Test', """
+package test;
+
+import java.lang.annotation.*;
+
+@jakarta.ws.rs.Path("/test")
+class Test {
+
+    @QUERY
+    @jakarta.ws.rs.Path("/test")
+    String test() {
+        return "ok";
+    }
+}
+
+@Target({ElementType.METHOD})
+@Retention(RetentionPolicy.RUNTIME)
+@jakarta.ws.rs.HttpMethod("query")
+@Documented
+@interface QUERY {
+}
+""")
+        def executableMethod = definition.getRequiredMethod("test")
+        // io.micronaut.http.annotation.Query only exists since Micronaut 5.2
+        def queryAnnotation = "io.micronaut.http.annotation.Query"
+        def queryAnnotationPresent = io.micronaut.core.reflect.ClassUtils.isPresent(queryAnnotation, getClass().classLoader)
+
+        expect:
+        executableMethod.stringValue(HttpMethodMapping).get() == '/test'
+        if (queryAnnotationPresent) {
+            assert executableMethod.hasStereotype(queryAnnotation)
+            assert !executableMethod.hasStereotype(CustomHttpMethod)
+        } else {
+            assert executableMethod.stringValue(CustomHttpMethod, "method").get() == "QUERY"
+        }
+    }
+
     void "test mapped annotation from interface"() {
         given:
         def definition = buildBeanDefinition('test.Test', """
