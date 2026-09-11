@@ -291,6 +291,80 @@ class Test {
         "WATCH"   | CustomHttpMethod | "/test"
     }
 
+    private static final String QUERY_RESOURCE = """
+package test;
+
+import java.lang.annotation.*;
+
+@jakarta.ws.rs.Path("/test")
+class Test {
+
+    @QUERY
+    @jakarta.ws.rs.Path("/test")
+    String test() {
+        return "ok";
+    }
+}
+
+@Target({ElementType.METHOD})
+@Retention(RetentionPolicy.RUNTIME)
+@jakarta.ws.rs.HttpMethod("query")
+@Documented
+@interface QUERY {
+}
+"""
+
+    void "test QUERY http method mapping maps to @Query when the annotation is available"() {
+        given:
+        // stands in for io.micronaut.http.annotation.Query, which only exists since Micronaut 5.2
+        def files = new JavaFiles()
+                .add("io.micronaut.http.annotation.Query", """
+package io.micronaut.http.annotation;
+
+import io.micronaut.context.annotation.AliasFor;
+import java.lang.annotation.*;
+
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.METHOD)
+@HttpMethodMapping
+public @interface Query {
+    @AliasFor(annotation = HttpMethodMapping.class, member = "value")
+    @AliasFor(annotation = UriMapping.class, member = "value")
+    String value() default UriMapping.DEFAULT_URI;
+}
+""")
+                .add("test.Test", QUERY_RESOURCE)
+        def context = buildContext(files)
+        def definition = context.getBeanDefinition(context.getClassLoader().loadClass('test.Test'))
+        def executableMethod = definition.getRequiredMethod("test")
+
+        expect:
+        executableMethod.hasStereotype("io.micronaut.http.annotation.Query")
+        !executableMethod.hasStereotype(CustomHttpMethod)
+        executableMethod.stringValue(HttpMethodMapping).get() == '/test'
+
+        cleanup:
+        context?.close()
+    }
+
+    void "test QUERY http method mapping"() {
+        given:
+        def definition = buildBeanDefinition('test.Test', QUERY_RESOURCE)
+        def executableMethod = definition.getRequiredMethod("test")
+        // io.micronaut.http.annotation.Query only exists since Micronaut 5.2
+        def queryAnnotation = "io.micronaut.http.annotation.Query"
+        def queryAnnotationPresent = io.micronaut.core.reflect.ClassUtils.isPresent(queryAnnotation, getClass().classLoader)
+
+        expect:
+        executableMethod.stringValue(HttpMethodMapping).get() == '/test'
+        if (queryAnnotationPresent) {
+            assert executableMethod.hasStereotype(queryAnnotation)
+            assert !executableMethod.hasStereotype(CustomHttpMethod)
+        } else {
+            assert executableMethod.stringValue(CustomHttpMethod, "method").get() == "QUERY"
+        }
+    }
+
     void "test mapped annotation from interface"() {
         given:
         def definition = buildBeanDefinition('test.Test', """

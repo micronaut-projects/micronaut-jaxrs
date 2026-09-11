@@ -35,4 +35,15 @@ class MethodsSpec extends Specification {
         where:
         method << [HttpMethod.PUT, HttpMethod.GET, HttpMethod.DELETE, HttpMethod.POST, HttpMethod.OPTIONS]
     }
+
+    void 'test QUERY method mapping'() {
+        given:
+        // HttpMethod.QUERY only exists since Micronaut 5.2, before that QUERY parses to CUSTOM
+        def response = client.toBlocking().exchange(HttpRequest.create(
+                HttpMethod.parse("QUERY"), "/api/test-method/query", "QUERY"
+        ).body('search'), Argument.STRING)
+
+        expect:
+        response.body() == 'query search'
+    }
 }
