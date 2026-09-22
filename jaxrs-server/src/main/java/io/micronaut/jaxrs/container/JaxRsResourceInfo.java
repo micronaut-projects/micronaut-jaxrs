@@ -39,28 +39,16 @@ import java.lang.reflect.Method;
 @Internal
 public class JaxRsResourceInfo implements RequestAware, ResourceInfo {
 
-    private final JaxRsRouteSupport routeSupport;
     private RouteInfo<?> routeInfo;
-    private JaxRsRouteSupport.@Nullable RouteMetadata generatedRoute;
-
-    JaxRsResourceInfo(JaxRsRouteSupport routeSupport) {
-        this.routeSupport = routeSupport;
-    }
 
     @Override
     public void setRequest(HttpRequest<?> request) {
         routeInfo = RouteAttributes.getRouteMatch(request).map(RouteMatch::getRouteInfo).orElse(null);
-        generatedRoute = routeInfo instanceof MethodBasedRouteInfo<?, ?> methodBasedRouteInfo
-            ? routeSupport.metadata(methodBasedRouteInfo.getTargetMethod().getTarget())
-            : null;
     }
 
     @Nullable
     @Override
     public Method getResourceMethod() {
-        if (generatedRoute != null) {
-            return generatedRoute.resourceMethod();
-        }
         if (routeInfo instanceof MethodBasedRouteInfo<?, ?> methodBasedRouteInfo) {
             return methodBasedRouteInfo.getTargetMethod().getTargetMethod();
         }
@@ -70,9 +58,6 @@ public class JaxRsResourceInfo implements RequestAware, ResourceInfo {
     @Nullable
     @Override
     public Class<?> getResourceClass() {
-        if (generatedRoute != null) {
-            return generatedRoute.resourceClass();
-        }
         return routeInfo == null ? null : routeInfo.getDeclaringType();
     }
 }
