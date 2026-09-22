@@ -15,6 +15,7 @@
  */
 package io.micronaut.jaxrs.processor;
 
+import io.micronaut.core.annotation.AnnotationUtil;
 import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.AnnotationValueBuilder;
 import io.micronaut.core.annotation.Internal;
@@ -32,12 +33,14 @@ import io.micronaut.http.annotation.PathVariable;
 import io.micronaut.http.annotation.Produces;
 import io.micronaut.http.annotation.UriMapping;
 import io.micronaut.inject.ast.ClassElement;
+import io.micronaut.inject.ast.ElementQuery;
 import io.micronaut.inject.ast.FieldElement;
 import io.micronaut.inject.ast.MethodElement;
 import io.micronaut.inject.ast.ParameterElement;
 import io.micronaut.inject.ast.TypedElement;
 import io.micronaut.inject.visitor.TypeElementVisitor;
 import io.micronaut.inject.visitor.VisitorContext;
+import io.micronaut.jaxrs.processor.routes.JaxRsRoutesGenerator;
 import jakarta.inject.Named;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.BeanParam;
@@ -75,6 +78,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     public static final int POSITION = 200;
     private static final Class<?>[] BINDABLE_TYPES = new Class<?>[] {Context.class, SecurityContext.class, UriInfo.class};
     private ClassElement currentClassElement;
+    private boolean generateRoutes;
 
     private final List<Class<? extends Annotation>> JAX_RS_BINDING_ANNOTATIONS = List.of(
         HeaderParam.class,
@@ -129,18 +133,36 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             return;
         }
         currentClassElement = element;
-        if (element.hasAnnotation(Path.class) && !element.isAbstract()) {
-            element.stringValue(Path.class).ifPresent(p -> {
-                element.annotate(Controller.class, builder -> builder.value(p));
-                element.annotate(UriMapping.class, builder -> builder.value(p));
-            });
+        generateRoutes = context.getLanguage() == VisitorContext.Language.JAVA && JaxRsRoutesGenerator.isSupported(context);
+        if (!generateRoutes) {
+            // the generated routes are Java sources that need the JAX-RS server: other languages,
+            // and compilations without the server, keep the resources as controllers
+            if (element.hasAnnotation(Path.class) && !element.isAbstract()) {
+                element.stringValue(Path.class).ifPresent(p -> {
+                    element.annotate(Controller.class, builder -> builder.value(p));
+                    element.annotate(UriMapping.class, builder -> builder.value(p));
+                });
+            }
+            return;
+        }
+        if (!element.isAbstract() && !element.isInterface() && !element.hasStereotype(Controller.class)
+            && (element.hasAnnotation(Path.class) || !element.getEnclosedElements(ElementQuery.ALL_METHODS.onlyInstance()
+                .annotated(metadata -> metadata.hasStereotype(HttpMethod.class))).isEmpty())) {
+            // a resource: a bean whose methods are routed by generated handler functions. A class
+            // without @Path is routed from the root, like the controllers did
+            if (!element.hasStereotype(AnnotationUtil.SCOPE) && !element.hasStereotype(Controller.class)) {
+                element.annotate(Singleton.class);
+            }
+            if (!element.hasStereotype(Controller.class)) {
+                JaxRsRoutesGenerator.generate(element, context);
+            }
         }
     }
 
     @Override
     public void visitMethod(MethodElement element, VisitorContext context) {
         if (element.hasStereotype(HttpMethod.class)) {
-            if (currentClassElement != null && !currentClassElement.hasAnnotation(Controller.class) && !currentClassElement.isAbstract()) {
+            if (!generateRoutes && currentClassElement != null && !currentClassElement.hasAnnotation(Controller.class) && !currentClassElement.isAbstract()) {
                 currentClassElement.annotate(Controller.class);
             }
             if ((currentClassElement == null || !currentClassElement.hasAnnotation(Produces.class)) &&
