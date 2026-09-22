@@ -181,11 +181,11 @@ public final class UriInfoImpl implements UriInfo {
             .orElseThrow(() -> new IllegalStateException("Route match not available!"));
         MultivaluedMap<String, String> map = new MultivaluedHashMap<>();
         if (decode) {
-            match.getVariableValues().forEach((name, value) -> map.add(name, value.toString()));
+            match.getVariableValues().forEach((name, value) -> map.add(variableName(name), value.toString()));
         } else {
             // We should be able to access DefaultUriRouteMatch#matchInfo to get unencoded values
             match.getVariableValues().forEach((name, value) -> map.add(
-                name,
+                variableName(name),
                 URLEncoder.encode(value.toString(), StandardCharsets.UTF_8).replace("+", "%20")
             ));
         }
@@ -327,7 +327,16 @@ public final class UriInfoImpl implements UriInfo {
         }
     }
 
-    private static String trimSlashes(String path) {
+    /**
+     * The name of a variable: an earlier occurrence of a variable that repeats has the name of the
+     * variable, see {@link io.micronaut.jaxrs.container.JaxRsRouteTemplateEngine#repeated(String, int)}.
+     */
+    private static String variableName(String name) {
+        int mark = name.indexOf(io.micronaut.jaxrs.container.JaxRsRouteTemplateEngine.LOCATOR_MARK);
+        return mark < 0 ? name : name.substring(0, mark);
+    }
+
+        private static String trimSlashes(String path) {
         int start = path.startsWith("/") ? 1 : 0;
         int end = path.length() > start && path.endsWith("/") ? path.length() - 1 : path.length();
         return path.substring(start, end);

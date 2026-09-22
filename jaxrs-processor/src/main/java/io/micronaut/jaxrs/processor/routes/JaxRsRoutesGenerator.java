@@ -353,7 +353,7 @@ public final class JaxRsRoutesGenerator {
             List<Param> params = new ArrayList<>();
             for (ParameterElement parameter : method.getParameters()) {
                 Param param = isRequestAnnotated(parameter)
-                    ? requestParam(parameter, parameter, parameter.getName(), encoded(parameter, method))
+                    ? requestParam(jaxRsMetadata(parameter, method), parameter, parameter.getName(), encoded(parameter, method))
                     : null;
                 if (param == null) {
                     context.info("JAX-RS sub-resource locator with a parameter that is not read from the request is not routed", parameter);
@@ -460,7 +460,7 @@ public final class JaxRsRoutesGenerator {
          * @param name      The name of the parameter, for a {@code @Parameter} of a constructor
          * @param encoded   Whether the value is not decoded
          */
-        @Nullable Param requestParam(Element annotated, TypedElement typed, String name, boolean encoded) {
+        @Nullable Param requestParam(AnnotationMetadata annotated, TypedElement typed, String name, boolean encoded) {
             String defaultValue = annotated.stringValue(DefaultValue.class).orElse(null);
             if (annotated.hasAnnotation(PathParam.class)) {
                 return new Param(ParamKind.PATH, annotated.stringValue(PathParam.class).orElse(name), typed, defaultValue, encoded, null);
@@ -483,6 +483,21 @@ public final class JaxRsRoutesGenerator {
             return null;
         }
 
+        /**
+         * The annotations of a parameter of a resource method or locator, as JAX-RS inherits them
+         * (section 3.6): a method that declares a JAX-RS annotation itself does not inherit any
+         * from the method it overrides, on the method or its parameters.
+         */
+        private static AnnotationMetadata jaxRsMetadata(ParameterElement parameter, MethodElement method) {
+            AnnotationMetadata declared = method.getMethodAnnotationMetadata().getDeclaredMetadata();
+            for (String name : declared.getAnnotationNames()) {
+                if (name.startsWith("jakarta.ws.rs.")) {
+                    return parameter.getDeclaredMetadata();
+                }
+            }
+            return parameter;
+        }
+
         private @Nullable ResourceMethod resourceMethod(ClassElement owner, String template, MethodElement method) {
             String httpMethod = method.stringValue(HttpMethod.class).orElse("").toUpperCase(Locale.ENGLISH);
             List<Param> params = new ArrayList<>();
@@ -499,7 +514,7 @@ public final class JaxRsRoutesGenerator {
                     param = new Param(ParamKind.QUERY, parameter.stringValue(FormParam.class).orElse(parameter.getName()), parameter,
                         parameter.stringValue(DefaultValue.class).orElse(null), encoded(parameter, method), null);
                 } else if (isRequestAnnotated(parameter)) {
-                    param = requestParam(parameter, parameter, parameter.getName(), encoded(parameter, method));
+                    param = requestParam(jaxRsMetadata(parameter, method), parameter, parameter.getName(), encoded(parameter, method));
                     if (param == null) {
                         return null;
                     }
@@ -735,8 +750,11 @@ public final class JaxRsRoutesGenerator {
                 if (model.located) {
                     return StatementDef.multi(statements);
                 }
-                // the resource is not a bean in this context, e.g. disabled by @Requires
-                return aThis.field(resourceField).invoke("isPresent", TypeDef.Primitive.BOOLEAN).ifTrue(StatementDef.multi(statements));
+                // the resource is not a bean in this context, e.g. disabled by @Requires, or the
+                // Application lists its classes without it
+                return aThis.field(resourceField).invoke("isPresent", TypeDef.Primitive.BOOLEAN).ifTrue(
+                    support.invoke("isRegistered", TypeDef.Primitive.BOOLEAN, ExpressionDef.constant(ClassTypeDef.erasure(model.resource)))
+                        .ifTrue(StatementDef.multi(statements)));
             }));
         return router.build();
     }
