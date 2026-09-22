@@ -9,6 +9,11 @@ plugins {
 }
 dependencyResolutionManagement {
     repositories {
+        mavenLocal {
+            content {
+                includeVersionByRegex("io\\.micronaut.*", ".*", ".*-fnroutes-SNAPSHOT")
+            }
+        }
         mavenCentral()
     }
 }

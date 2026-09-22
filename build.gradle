@@ -10,3 +10,14 @@ configurations.configureEach {
         preferProjectModules()
     }
 }
+
+allprojects {
+    repositories {
+        mavenLocal {
+            content {
+                includeVersionByRegex("io\\.micronaut.*", ".*", ".*-fnroutes-SNAPSHOT")
+            }
+        }
+        mavenCentral()
+    }
+}
