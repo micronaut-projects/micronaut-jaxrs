@@ -321,6 +321,24 @@ public final class JaxRsRouteSupport {
     }
 
     /**
+     * Create a resource for a request: a resource whose constructor reads values of the request
+     * is a prototype, and gets them as its {@code @Parameter}s.
+     *
+     * @param type   The resource class
+     * @param names  The names of the constructor parameters read from the request
+     * @param values Their values
+     * @param <T>    The type of the resource
+     * @return The resource
+     */
+    public <T> T create(Class<T> type, String[] names, @Nullable Object[] values) {
+        Map<String, Object> arguments = new java.util.HashMap<>(names.length * 2);
+        for (int i = 0; i < names.length; i++) {
+            arguments.put(names[i], values[i]);
+        }
+        return beanContext.createBean(type, arguments);
+    }
+
+    /**
      * The type of an entity parameter: an entity is optional, a request without one is handled
      * with {@code null}.
      *

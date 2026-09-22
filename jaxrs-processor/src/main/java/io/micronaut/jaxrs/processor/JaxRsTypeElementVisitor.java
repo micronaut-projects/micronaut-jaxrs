@@ -33,6 +33,7 @@ import io.micronaut.http.annotation.PathVariable;
 import io.micronaut.http.annotation.Produces;
 import io.micronaut.http.annotation.UriMapping;
 import io.micronaut.inject.ast.ClassElement;
+import io.micronaut.inject.ast.ConstructorElement;
 import io.micronaut.inject.ast.ElementQuery;
 import io.micronaut.inject.ast.FieldElement;
 import io.micronaut.inject.ast.MethodElement;
@@ -41,6 +42,9 @@ import io.micronaut.inject.ast.TypedElement;
 import io.micronaut.inject.visitor.TypeElementVisitor;
 import io.micronaut.inject.visitor.VisitorContext;
 import io.micronaut.jaxrs.processor.routes.JaxRsRoutesGenerator;
+import io.micronaut.context.annotation.Parameter;
+import io.micronaut.context.annotation.Prototype;
+import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.BeanParam;
@@ -150,17 +154,36 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
                 .annotated(metadata -> metadata.hasStereotype(HttpMethod.class))).isEmpty())) {
             // a resource: a bean whose methods are routed by generated handler functions. A class
             // without @Path is routed from the root, like the controllers did
-            if (!element.hasStereotype(AnnotationUtil.SCOPE) && !element.hasStereotype(Controller.class)) {
+            ConstructorElement requestConstructor = JaxRsRoutesGenerator.requestConstructor(element);
+            if (requestConstructor != null) {
+                // a constructor with values of the request: created for every request, with
+                // those values passed as @Parameters by the generated route
+                if (!element.hasStereotype(AnnotationUtil.SCOPE)) {
+                    element.annotate(Prototype.class);
+                }
+                requestConstructor.annotate(Inject.class);
+                for (ParameterElement parameter : requestConstructor.getParameters()) {
+                    if (JaxRsRoutesGenerator.isRequestParameter(parameter)) {
+                        parameter.annotate(Parameter.class);
+                        if (!parameter.isPrimitive()) {
+                            parameter.annotate(Nullable.class);
+                        }
+                    }
+                }
+            } else if (!element.hasStereotype(AnnotationUtil.SCOPE)) {
                 element.annotate(Singleton.class);
             }
-            if (!element.hasStereotype(Controller.class)) {
-                JaxRsRoutesGenerator.generate(element, context);
-            }
+            JaxRsRoutesGenerator.generate(element, context);
         }
     }
 
     @Override
     public void visitMethod(MethodElement element, VisitorContext context) {
+        if (element.hasStereotype(HttpMethod.class) && element.isPrivate() && generateRoutes) {
+            // not a resource method: only public methods are, and a private method cannot be executable
+            element.removeAnnotationIf(annotation -> annotation.getAnnotationName().startsWith("io.micronaut.http.annotation."));
+            return;
+        }
         if (element.hasStereotype(HttpMethod.class)) {
             if (!generateRoutes && currentClassElement != null && !currentClassElement.hasAnnotation(Controller.class) && !currentClassElement.isAbstract()) {
                 currentClassElement.annotate(Controller.class);
