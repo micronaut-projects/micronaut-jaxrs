@@ -45,6 +45,13 @@ import java.util.Locale;
 @Singleton
 final class JaxRsContextRequest implements Request {
 
+    /**
+     * The request attribute with the value of the {@code Vary} header of the response, set by
+     * {@link #selectVariant(List)}.
+     */
+    static final String VARY = JaxRsContextRequest.class.getName() + ".vary";
+
+
     @Override
     public String getMethod() {
         return request().getMethodName();
@@ -59,6 +66,20 @@ final class JaxRsContextRequest implements Request {
         List<Weighted> accept = weighted(headers.getAll(HttpHeaders.ACCEPT));
         List<Weighted> languages = weighted(headers.getAll(HttpHeaders.ACCEPT_LANGUAGE));
         List<Weighted> encodings = weighted(headers.getAll(HttpHeaders.ACCEPT_ENCODING));
+        // the response varies with the headers of the dimensions the variants specify
+        List<String> vary = new ArrayList<>(3);
+        if (variants.stream().anyMatch(v -> v.getMediaType() != null)) {
+            vary.add(HttpHeaders.ACCEPT);
+        }
+        if (variants.stream().anyMatch(v -> v.getLanguage() != null)) {
+            vary.add(HttpHeaders.ACCEPT_LANGUAGE);
+        }
+        if (variants.stream().anyMatch(v -> v.getEncoding() != null)) {
+            vary.add(HttpHeaders.ACCEPT_ENCODING);
+        }
+        if (!vary.isEmpty()) {
+            request().setAttribute(VARY, String.join(", ", vary));
+        }
         Variant best = null;
         double bestScore = 0;
         for (Variant variant : variants) {

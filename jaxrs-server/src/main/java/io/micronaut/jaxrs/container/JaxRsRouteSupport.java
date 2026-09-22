@@ -19,6 +19,8 @@ import io.micronaut.context.BeanContext;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.web.router.RouteAttributes;
+import io.micronaut.web.router.RouteInfo;
+import io.micronaut.web.router.MethodBasedRouteInfo;
 import io.micronaut.core.annotation.AnnotationMetadataProvider;
 import io.micronaut.http.body.MessageBodyHandlerRegistry;
 import io.micronaut.http.body.MessageBodyReader;
@@ -45,6 +47,7 @@ import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
 import io.micronaut.jaxrs.common.JaxRsContainerMessageBodyHandlerRegistry;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import io.micronaut.http.form.FormData;
+import io.micronaut.web.router.builder.HttpRouteBuilder;
 import io.micronaut.web.router.builder.HttpRouteSpec;
 import io.micronaut.http.uri.RouteTemplate;
 import io.micronaut.web.router.RouteTable;
@@ -116,6 +119,7 @@ public final class JaxRsRouteSupport {
     private final Map<String, java.lang.reflect.Field> fields = new ConcurrentHashMap<>();
     private final Map<Class<?>, BeanParamBinder> beanParams = new ConcurrentHashMap<>();
     private final Map<Class<?>, RouteTable> locatedTables = new ConcurrentHashMap<>();
+    private final Map<RouteMetadata, Argument<?>> entityArguments = new ConcurrentHashMap<>();
     private volatile @Nullable Map<Class<?>, JaxRsLocatedRoutes> locatedRoutesByType;
 
     JaxRsRouteSupport(ApplicationProvider applicationProvider,
@@ -260,6 +264,40 @@ public final class JaxRsRouteSupport {
     }
 
     /**
+     * The entity of a resource method whose entity parameter is annotated: an empty entity is read
+     * with the annotations of the parameter.
+     *
+     * @param request  The request
+     * @param body     The entity read by the route, {@code null} for an empty body
+     * @param metadata The metadata of the resource method
+     * @param index    The index of the entity parameter
+     * @param argument The type of the entity, without the annotations
+     * @return The entity
+     */
+    public @Nullable Object entity(HttpRequest<?> request, @Nullable Object body, RouteMetadata metadata, int index, Argument<?> argument) {
+        if (body != null) {
+            return body;
+        }
+        return entity(request, null, entityArguments.computeIfAbsent(metadata, m -> entityArgument(m, index, argument)));
+    }
+
+    /**
+     * The body argument of a route whose entity parameter is annotated: the argument of the
+     * resource method, with the annotations of the parameter, which the message body readers see.
+     *
+     * @param metadata The metadata of the resource method
+     * @param index    The index of the entity parameter
+     * @param fallback The argument without the annotations, for a method that is not executable
+     * @return The body argument
+     */
+    public Argument<?> entityArgument(RouteMetadata metadata, int index, Argument<?> fallback) {
+        return beanContext.findBeanDefinition(metadata.resourceClass)
+            .flatMap(definition -> definition.findMethod(metadata.methodName, metadata.parameterTypes))
+            .<Argument<?>>map(method -> HttpRouteBuilder.nullableBody(method.getArguments()[index]))
+            .orElse(fallback);
+    }
+
+    /**
      * @param request       The request
      * @param pathVariables The path variables of the matched route
      * @param name          The name of the path parameter
@@ -390,14 +428,12 @@ public final class JaxRsRouteSupport {
         if (argument.getType() == String.class) {
             return "";
         }
-        // a JAX-RS reader reads an empty entity too
-        MediaType contentType = request.getContentType().orElse(null);
-        Optional<MessageBodyReader<Object>> reader = beanContext.getBean(MessageBodyHandlerRegistry.class)
-            .findReader((Argument) argument, contentType);
-        if (reader.isPresent() && reader.get() instanceof JaxRsMessageBodyReader<?>) {
-            return reader.get().read((Argument) argument, contentType, request.getHeaders(), InputStream.nullInputStream());
-        }
-        return null;
+        // a JAX-RS reader of the application reads an empty entity too
+        MediaType contentType = request.getContentType().orElse(MediaType.ALL_TYPE);
+        Optional<MessageBodyReader<Object>> reader = beanContext.getBean(JaxRsContainerMessageBodyHandlerRegistry.class)
+            .findReader((Argument) argument, List.of(contentType));
+        return reader.map(r -> r.read((Argument) argument, contentType, request.getHeaders(), InputStream.nullInputStream()))
+            .orElse(null);
     }
 
     /**
@@ -511,9 +547,13 @@ public final class JaxRsRouteSupport {
      * The annotations of the resource method of the route of a request: the writers see them.
      */
     private static AnnotationMetadata routeAnnotations(HttpRequest<?> request) {
-        return RouteAttributes.getRouteInfo(request)
-            .map(AnnotationMetadataProvider::getAnnotationMetadata)
-            .orElse(AnnotationMetadata.EMPTY_METADATA);
+        RouteInfo<?> route = RouteAttributes.getRouteInfo(request).orElse(null);
+        if (route instanceof MethodBasedRouteInfo<?, ?> methodRoute) {
+            // the Java annotations of the resource method, like JAX-RS passes them: not merged
+            // with the ones of its class
+            return JaxRsArgumentUtil.createAnnotationMetadata(methodRoute.getTargetMethod().getTargetMethod().getAnnotations());
+        }
+        return route == null ? AnnotationMetadata.EMPTY_METADATA : route.getAnnotationMetadata();
     }
 
     /**
@@ -582,11 +622,18 @@ public final class JaxRsRouteSupport {
         }
         List<MediaType> producible = beanContext.getBean(JaxRsContainerMessageBodyHandlerRegistry.class).producibleTypes((Argument) type);
         if (producible.isEmpty()) {
+            // no application writer writes the entity: the response is left to Micronaut
             return response;
         }
         MediaType mediaType = JaxRsRouteTemplateEngine.responseType(request.getHeaders().accept(), producible);
         if (mediaType == null) {
             throw new NotAcceptableException();
+        }
+        if (mediaType.equals(MediaType.APPLICATION_OCTET_STREAM_TYPE)
+            && producible.size() == 1 && producible.get(0).equals(MediaType.ALL_TYPE)
+            && request.getHeaders().accept().stream().noneMatch(MediaType.APPLICATION_OCTET_STREAM_TYPE::equals)) {
+            // any type is acceptable and any type is written: the response is left to Micronaut
+            return response;
         }
         return mutable.contentType(mediaType);
     }

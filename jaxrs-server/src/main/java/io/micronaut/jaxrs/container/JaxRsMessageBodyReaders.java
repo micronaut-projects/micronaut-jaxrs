@@ -61,6 +61,8 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
 
     @Override
     public boolean isReadable(@NonNull Argument<T> type, @Nullable MediaType mediaType) {
+        // whether a reader reads this argument, with its annotations: the reader is selected again
+        // with the argument of each value when it is read
         return registry.findReader(type, getMediaTypes(mediaType)).isPresent();
     }
 
@@ -71,7 +73,7 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
     @Override
     public @Nullable T read(@NonNull Argument<T> type, @Nullable MediaType mediaType, @NonNull Headers httpHeaders, @NonNull ByteBuffer<?> byteBuffer) throws CodecException {
         if (readerInterceptorsRegsRegistrations.isEmpty()) {
-            Optional<MessageBodyReader<T>> reader = registry.findReader(type, getMediaTypes(mediaType));
+            Optional<MessageBodyReader<T>> reader = registry.findSelectingReader(type, getMediaTypes(mediaType));
             if (reader.isPresent()) {
                 return reader
                     .get().read(type, mediaType, httpHeaders, byteBuffer);
@@ -82,7 +84,7 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
 
             @Override
             protected T readFromAfterInterception(Argument<Object> type, MediaType mediaType, Headers httpHeaders, InputStream inputStream) {
-                Optional<MessageBodyReader<Object>> reader = registry.findReader(type, getMediaTypes(mediaType));
+                Optional<MessageBodyReader<Object>> reader = registry.findSelectingReader(type, getMediaTypes(mediaType));
                 if (reader.isPresent()) {
                     return (T) reader.get().read(type, mediaType, httpHeaders, inputStream);
                 }
@@ -95,7 +97,7 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
     @Override
     public @Nullable T read(@NonNull Argument<T> type, @Nullable MediaType mediaType, @NonNull Headers httpHeaders, @NonNull InputStream inputStream) throws CodecException {
         if (readerInterceptorsRegsRegistrations.isEmpty()) {
-            Optional<MessageBodyReader<T>> reader = registry.findReader(type, getMediaTypes(mediaType));
+            Optional<MessageBodyReader<T>> reader = registry.findSelectingReader(type, getMediaTypes(mediaType));
             if (reader.isPresent()) {
                 return reader.get().read(type, mediaType, httpHeaders, inputStream);
             }
@@ -105,7 +107,7 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
 
             @Override
             protected T readFromAfterInterception(Argument<Object> type, MediaType mediaType, Headers httpHeaders, InputStream inputStream) {
-                Optional<MessageBodyReader<Object>> reader = registry.findReader(type, getMediaTypes(mediaType));
+                Optional<MessageBodyReader<Object>> reader = registry.findSelectingReader(type, getMediaTypes(mediaType));
                 if (reader.isPresent()) {
                     return (T) reader.get().read(type, mediaType, httpHeaders, inputStream);
                 }

@@ -15,18 +15,20 @@
  */
 package io.micronaut.jaxrs.common;
 
-import io.micronaut.context.AnnotationReflectionUtils;
 import io.micronaut.core.annotation.AnnotationMetadata;
+import io.micronaut.core.annotation.AnnotationValue;
+import io.micronaut.reflection.ReflectionAnnotations;
+import io.micronaut.reflection.ReflectionArguments;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.type.Argument;
-import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import jakarta.ws.rs.client.Entity;
 import jakarta.ws.rs.client.InvocationCallback;
 import jakarta.ws.rs.core.GenericEntity;
 import jakarta.ws.rs.core.GenericType;
 
 import java.lang.annotation.Annotation;
-import java.util.Map;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.Objects;
 
 /**
@@ -43,7 +45,7 @@ public final class JaxRsArgumentUtil {
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static <T> Argument<T> from(InvocationCallback<T> callback) {
-        Argument<InvocationCallback> invocationCallbackArgument = AnnotationReflectionUtils.resolveGenericToArgument(
+        Argument<InvocationCallback> invocationCallbackArgument = ReflectionArguments.resolveGenericToArgument(
             callback.getClass(),
             InvocationCallback.class);
         Objects.requireNonNull(invocationCallbackArgument, "InvocationCallback argument cannot be null");
@@ -80,19 +82,58 @@ public final class JaxRsArgumentUtil {
         return Argument.of(entityType, createAnnotationMetadata(annotations));
     }
 
+    /**
+     * The annotations of metadata as instances for a provider of the application: their types are
+     * the ones the class loader of the provider defines, as a provider compares them by identity,
+     * e.g. {@code annotation.annotationType() == EntityAnnotation.class}. An annotation the loader
+     * does not define is left out: the provider cannot refer to it.
+     *
+     * @param metadata The metadata
+     * @param provider The provider the annotations are handed to
+     * @return The annotations
+     */
+    public static Annotation[] annotations(AnnotationMetadata metadata, Object provider) {
+        if (metadata.isEmpty()) {
+            return new Annotation[0];
+        }
+        ClassLoader classLoader = provider.getClass().getClassLoader();
+        if (classLoader == null) {
+            return metadata.synthesizeAll();
+        }
+        List<Annotation> annotations = new ArrayList<>();
+        for (String name : metadata.getAnnotationNames()) {
+            AnnotationValue<Annotation> value = metadata.getAnnotation(name);
+            if (value == null) {
+                continue;
+            }
+            try {
+                annotations.add(ReflectionAnnotations.synthesize(value, classLoader));
+            } catch (IllegalArgumentException e) {
+                // not an annotation the provider can see
+            }
+        }
+        return annotations.toArray(Annotation[]::new);
+    }
+
+    /**
+     * The metadata of the annotations JAX-RS hands over as an array, e.g. the ones of an entity: with
+     * their members, defaults and stereotypes, like generated metadata.
+     *
+     * @param annotations The annotations
+     * @return The metadata
+     */
     public static AnnotationMetadata createAnnotationMetadata(Annotation[] annotations) {
         if (annotations == null || annotations.length == 0) {
             return AnnotationMetadata.EMPTY_METADATA;
         }
-        MutableAnnotationMetadata annotationMetadata = new MutableAnnotationMetadata();
+        List<Annotation> real = new ArrayList<>(annotations.length);
         for (Annotation annotation : annotations) {
-            if (annotation.annotationType() == null) {
-                // Fake annotation workaround
-                continue;
+            if (annotation.annotationType() != null) {
+                // a fake annotation of a test has no type
+                real.add(annotation);
             }
-            annotationMetadata.addAnnotation(annotation.annotationType().getName(), Map.of());
         }
-        return annotationMetadata;
+        return ReflectionAnnotations.metadataOf(real.toArray(Annotation[]::new));
     }
 
 }

@@ -216,6 +216,21 @@ public final class JaxRsRoutesGenerator {
     }
 
     /**
+     * @param type A class
+     * @return Whether the generated routes create it for every request and fill its members: a
+     * resource or sub-resource, with values of the request in its constructor, fields or setters.
+     * Other classes with {@code @Context} members, an {@code Application} or a provider, are beans
+     * whose members are injected with proxies of the current request.
+     */
+    public static boolean isCreatedPerRequest(ClassElement type) {
+        if (!isPerRequest(type)) {
+            return false;
+        }
+        return type.hasAnnotation(Path.class) || !type.getEnclosedElements(ElementQuery.ALL_METHODS.onlyInstance()
+            .annotated(metadata -> metadata.hasStereotype(HttpMethod.class) || metadata.hasDeclaredAnnotation(Path.class))).isEmpty();
+    }
+
+    /**
      * The constructor JAX-RS uses for an instance created per request: the public constructor
      * with the most parameters, when it has parameters read from the request.
      *
@@ -684,7 +699,9 @@ public final class JaxRsRoutesGenerator {
                         builderMethod = method.async ? "handleFormAsync" : "handleForm";
                     } else if (route.body) {
                         builderMethod = method.async ? "handleAsync" : "handle";
-                        handle.add(route.entityArgument);
+                        handle.add(route.annotatedEntity < 0
+                            ? route.entityArgument
+                            : support.invoke("entityArgument", ARGUMENT, route.metadata, ExpressionDef.constant(route.annotatedEntity), route.entityArgument));
                     } else {
                         builderMethod = method.async ? "handleAsync" : "handle";
                     }
@@ -813,12 +830,17 @@ public final class JaxRsRoutesGenerator {
         RouteModel routeModel(Route route, int index, @Nullable RequestType root) {
             ResourceMethod method = route.method;
             ExpressionDef entityArgument = null;
+            int annotatedEntity = -1;
             for (Param param : method.params) {
                 if (param.kind == ParamKind.BEAN) {
                     continue;
                 }
                 ExpressionDef argument = argument(param);
                 if (param.kind == ParamKind.ENTITY) {
+                    if (!param.element.getDeclaredAnnotationNames().isEmpty()) {
+                        // the readers see the annotations of the parameter, see RouteSupport#entityArgument
+                        annotatedEntity = List.of(method.method.getParameters()).indexOf(param.element);
+                    }
                     // an entity is optional
                     String key = "nullable " + signature(param.element.getGenericType());
                     entityArgument = arguments.get(key);
@@ -842,7 +864,7 @@ public final class JaxRsRoutesGenerator {
             boolean body = method.entity != null && method.entity.kind == ParamKind.ENTITY && !method.httpMethod.equals("GET");
             // a form is read for a type created per request when the method can have one and reads no entity
             boolean form = method.form || usesForm(route, root) && !NO_BODY_METHODS.contains(method.httpMethod) && method.entity == null;
-            return new RouteModel("route" + index, route, entityArgument, valueType, returnType, metadata, form, body && !form);
+            return new RouteModel("route" + index, route, entityArgument, annotatedEntity, valueType, returnType, metadata, form, body && !form);
         }
 
         private boolean usesForm(Route route, @Nullable RequestType root) {
@@ -902,7 +924,7 @@ public final class JaxRsRoutesGenerator {
                 .addParameter("form", types.form)
                 .returns(type)
                 .build((aThis, params) -> {
-                    Scope scope = new Scope(aThis, aThis.field(supportField), params.get(1), params.get(2), params.get(3), null);
+                    Scope scope = new Scope(aThis, aThis.field(supportField), params.get(1), params.get(2), params.get(3), null, null);
                     List<ExpressionDef> names = new ArrayList<>();
                     List<ExpressionDef> values = new ArrayList<>();
                     for (Param param : requestType.constructorParams) {
@@ -1001,7 +1023,7 @@ public final class JaxRsRoutesGenerator {
                 .returns(TypeDef.OBJECT)
                 .addThrows(ClassTypeDef.of(Exception.class))
                 .build((aThis, params) -> {
-                    Scope scope = new Scope(aThis, aThis.field(supportField), params.get(0), params.get(1), null, null);
+                    Scope scope = new Scope(aThis, aThis.field(supportField), params.get(0), params.get(1), null, null, null);
                     ExpressionDef instance = instance(aThis, scope, root, locator.locators);
                     List<ExpressionDef> arguments = new ArrayList<>();
                     for (Param param : locator.params) {
@@ -1040,7 +1062,7 @@ public final class JaxRsRoutesGenerator {
                 VariableDef pathVariables = params.get(1);
                 VariableDef third = params.size() > 2 ? params.get(2) : null;
                 Scope scope = new Scope(aThis, aThis.field(supportField), request, pathVariables,
-                    route.form ? third : null, route.body ? third : null);
+                    route.form ? third : null, route.body ? third : null, route);
 
                 ExpressionDef instance = instance(aThis, scope, root, route.route.locators);
                 List<ExpressionDef> arguments = new ArrayList<>();
@@ -1133,7 +1155,11 @@ public final class JaxRsRoutesGenerator {
                 case FORM -> support.invoke("formParam", TypeDef.OBJECT, scope.request, formOrNull(scope), name, argument, defaultValue, encoded);
                 case FORM_ENTITY -> support.invoke("formEntity", TypeDef.OBJECT, formOrNull(scope), argument);
                 case CONTEXT -> support.invoke("context", TypeDef.OBJECT, scope.request, argument, name);
-                case ENTITY -> support.invoke("entity", TypeDef.OBJECT, scope.request, scope.body == null ? ExpressionDef.nullValue() : scope.body, argument);
+                case ENTITY -> scope.route != null && scope.route.annotatedEntity() >= 0
+                    // an empty entity is read with the annotations of the parameter too
+                    ? support.invoke("entity", TypeDef.OBJECT, scope.request, scope.body == null ? ExpressionDef.nullValue() : scope.body,
+                        scope.route.metadata(), ExpressionDef.constant(scope.route.annotatedEntity()), argument)
+                    : support.invoke("entity", TypeDef.OBJECT, scope.request, scope.body == null ? ExpressionDef.nullValue() : scope.body, argument);
                 case BEAN -> throw new IllegalStateException("Handled above");
             };
             return value.cast(TypeDef.erasure(param.element.getType()));
@@ -1306,7 +1332,7 @@ public final class JaxRsRoutesGenerator {
      * @param body          The body parameter of a route with an entity
      */
     private record Scope(VariableDef.This router, VariableDef support, VariableDef request, VariableDef pathVariables,
-                         @Nullable VariableDef form, @Nullable VariableDef body) {
+                         @Nullable VariableDef form, @Nullable VariableDef body, @Nullable RouteModel route) {
     }
 
     /**
@@ -1321,7 +1347,7 @@ public final class JaxRsRoutesGenerator {
      * @param form           Whether the route reads a form
      * @param body           Whether the route reads an entity
      */
-    private record RouteModel(String name, Route route, @Nullable ExpressionDef entityArgument, @Nullable ClassElement valueType,
+    private record RouteModel(String name, Route route, @Nullable ExpressionDef entityArgument, int annotatedEntity, @Nullable ClassElement valueType,
                               ExpressionDef returnType, VariableDef.StaticField metadata, boolean form, boolean body) {
     }
 }
