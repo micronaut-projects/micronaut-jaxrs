@@ -16,7 +16,6 @@
 package io.micronaut.jaxrs.container;
 
 import io.micronaut.context.BeanContext;
-import io.micronaut.core.annotation.AnnotationUtil;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.bind.ArgumentBinder;
 import io.micronaut.core.convert.ArgumentConversionContext;
@@ -29,14 +28,12 @@ import io.micronaut.http.HttpResponse;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.bind.RequestBinderRegistry;
 import io.micronaut.http.uri.UriTemplate;
-import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.inject.qualifiers.Qualifiers;
 import io.micronaut.jaxrs.common.JaxRsGenericEntity;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
-import io.micronaut.scheduling.TaskExecutors;
-import io.micronaut.web.router.FormData;
-import io.micronaut.web.router.PathVariables;
-import io.micronaut.web.router.UriRoute;
+import io.micronaut.http.form.FormData;
+import io.micronaut.web.router.builder.HttpRouteSpec;
+import io.micronaut.web.router.builder.PathVariables;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.NotFoundException;
@@ -60,7 +57,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -87,7 +83,6 @@ public final class JaxRsRouteSupport {
     private final Map<Argument<?>, Optional<ArgumentBinder<Object, HttpRequest<?>>>> contextBinders = new ConcurrentHashMap<>();
     private final BeanContext beanContext;
     private final Map<Argument<?>, Object> paramConverters = new ConcurrentHashMap<>();
-    private final Map<Object, RouteMetadata> handlers = new ConcurrentHashMap<>();
 
     JaxRsRouteSupport(ApplicationProvider applicationProvider,
                       ConversionService conversionService,
@@ -120,16 +115,14 @@ public final class JaxRsRouteSupport {
     }
 
     /**
-     * Configure a route: its media types, the annotations of the resource method, and a blocking
-     * executor for a handler that waits. With the annotations of the resource method, the route
-     * is seen like a controller route by the container filters and their name bindings, the
-     * security rules and the message body writers.
+     * Configure a route: its media types, and the resource method it implements. With it, the
+     * route is seen like a controller route by the container filters and their name bindings,
+     * the security rules, {@code ResourceInfo} and the message body writers.
      *
      * @param route    The route
      * @param metadata The metadata of the resource method
-     * @param blocking Whether the handler waits for an asynchronous result
      */
-    public void configure(UriRoute route, RouteMetadata metadata, boolean blocking) {
+    public void configure(HttpRouteSpec route, RouteMetadata metadata) {
         if (metadata.consumes.length == 0) {
             route.consumesAll();
         } else {
@@ -138,10 +131,7 @@ public final class JaxRsRouteSupport {
         route.produces(metadata.produces.length == 0 ? new MediaType[]{MediaType.ALL_TYPE} : mediaTypes(metadata.produces));
         beanContext.findBeanDefinition(metadata.resourceClass)
             .flatMap(definition -> definition.findMethod(metadata.methodName, metadata.parameterTypes))
-            .ifPresent(method -> route.annotationMetadata(method.getAnnotationMetadata()));
-        if (blocking) {
-            route.executeOn(TaskExecutors.BLOCKING);
-        }
+            .ifPresent(route::implementing);
     }
 
     /**
@@ -314,24 +304,6 @@ public final class JaxRsRouteSupport {
     }
 
     /**
-     * The response of a resource method that completes later, waited for: used when the route
-     * also reads an entity or a form, and runs on a blocking executor.
-     *
-     * @param request    The request
-     * @param result     The stage returned by the method
-     * @param returnType The declared type of its value
-     * @param metadata   The metadata of the resource method
-     * @return The response
-     */
-    public HttpResponse<?> responseAwait(HttpRequest<?> request, CompletionStage<?> result, Argument<?> returnType, RouteMetadata metadata) {
-        try {
-            return response(request, result.toCompletableFuture().join(), returnType, metadata);
-        } catch (CompletionException e) {
-            return ExceptionUtils.sneakyThrow(e.getCause() == null ? e : e.getCause());
-        }
-    }
-
-    /**
      * Create a resource for a request: a resource whose constructor reads values of the request
      * is a prototype, and gets them as its {@code @Parameter}s.
      *
@@ -347,20 +319,6 @@ public final class JaxRsRouteSupport {
             arguments.put(names[i], values[i]);
         }
         return beanContext.createBean(type, arguments);
-    }
-
-    /**
-     * The type of an entity parameter: an entity is optional, a request without one is handled
-     * with {@code null}.
-     *
-     * @param argument The type of the parameter
-     * @param <T>      The type
-     * @return The nullable type
-     */
-    public static <T> Argument<T> nullable(Argument<T> argument) {
-        MutableAnnotationMetadata metadata = new MutableAnnotationMetadata();
-        metadata.addDeclaredAnnotation(AnnotationUtil.NULLABLE, Map.of());
-        return Argument.of(argument.getType(), argument.getName(), metadata, argument.getTypeParameters());
     }
 
     /**
@@ -457,29 +415,6 @@ public final class JaxRsRouteSupport {
             mediaTypes[i] = MediaType.of(values[i]);
         }
         return mediaTypes;
-    }
-
-    /**
-     * Register the handler function of a resource method, so that the route matched by a request
-     * leads back to the resource method, for {@link jakarta.ws.rs.container.ResourceInfo}.
-     *
-     * @param metadata The metadata of the resource method
-     * @param handler  The handler function
-     * @param <H>      The type of the handler
-     * @return The handler
-     */
-    public <H> H handler(RouteMetadata metadata, H handler) {
-        handlers.put(handler, metadata);
-        return handler;
-    }
-
-    /**
-     * @param handler The target of a matched route
-     * @return The metadata of the resource method it calls, or {@code null} if it is not a
-     * generated handler
-     */
-    @Nullable RouteMetadata metadata(@Nullable Object handler) {
-        return handler == null ? null : handlers.get(handler);
     }
 
     /**

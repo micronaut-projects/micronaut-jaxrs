@@ -100,7 +100,7 @@ public final class JaxRsRoutesGenerator {
     private static final String FORM_TYPE = "jakarta.ws.rs.core.Form";
     private static final String COMPLETION_STAGE = "java.util.concurrent.CompletionStage";
     private static final String SUPPORT = "io.micronaut.jaxrs.container.JaxRsRouteSupport";
-    private static final String ROUTER = "io.micronaut.web.router.";
+    private static final String ROUTER = "io.micronaut.web.router.builder.";
     private static final ClassTypeDef ARGUMENT = ClassTypeDef.of(Argument.class);
     private static final ClassTypeDef HTTP_METHOD = ClassTypeDef.of(io.micronaut.http.HttpMethod.class);
 
@@ -114,7 +114,7 @@ public final class JaxRsRoutesGenerator {
      */
     public static boolean isSupported(VisitorContext context) {
         return context.getClassElement(SUPPORT).isPresent()
-            && context.getClassElement("io.micronaut.web.router.RequestHandler").isPresent();
+            && context.getClassElement(ROUTER + "RequestHandler").isPresent();
     }
 
     /**
@@ -224,10 +224,7 @@ public final class JaxRsRoutesGenerator {
             return null;
         }
         String httpMethod = method.stringValue(HttpMethod.class).orElse("").toUpperCase(Locale.ENGLISH);
-        if (io.micronaut.http.HttpMethod.parse(httpMethod) == io.micronaut.http.HttpMethod.CUSTOM) {
-            context.warn("JAX-RS resource method with the HTTP method " + httpMethod + " is not routed yet", method);
-            return null;
-        }
+        boolean custom = io.micronaut.http.HttpMethod.parse(httpMethod) == io.micronaut.http.HttpMethod.CUSTOM;
         AnnotationMetadata methodMetadata = method.getMethodAnnotationMetadata();
         String template = template(classPath, methodMetadata.stringValue(Path.class).orElse(""));
         List<Param> params = new ArrayList<>();
@@ -275,6 +272,10 @@ public final class JaxRsRoutesGenerator {
             }
             params.add(param);
         }
+        if (form && custom) {
+            context.warn("JAX-RS resource method with a form and the HTTP method " + httpMethod + " is not routed yet", method);
+            return null;
+        }
         if (form && entity != null) {
             String entityType = entity.parameter.getType().getName();
             if (!entityType.equals(FORM_TYPES_MAP) && !entityType.equals(FORM_TYPE)) {
@@ -287,7 +288,7 @@ public final class JaxRsRoutesGenerator {
         boolean async = returnType.getName().equals(COMPLETION_STAGE) || returnType.isAssignable(COMPLETION_STAGE) && returnType.getName().startsWith("java.util.concurrent.");
         List<String> produces = mediaTypes(method, resource, Produces.class);
         List<String> consumes = mediaTypes(method, resource, Consumes.class);
-        return new ResourceMethod(method, httpMethod, template, params, form, entity, returnType, async, produces, consumes);
+        return new ResourceMethod(method, httpMethod, template, params, form, entity, returnType, async, custom, produces, consumes);
     }
 
     private static List<String> mediaTypes(MethodElement method, ClassElement resource, Class<? extends java.lang.annotation.Annotation> annotation) {
@@ -382,8 +383,8 @@ public final class JaxRsRoutesGenerator {
         ClassTypeDef resourceType = ClassTypeDef.erasure(resource);
         ClassTypeDef supportType = type(context, SUPPORT);
         ClassTypeDef metadataType = type(context, SUPPORT + ".RouteMetadata");
-        ClassTypeDef routeBuilderType = type(context, ROUTER + "RouteBuilder");
-        ClassTypeDef uriRouteType = type(context, ROUTER + "UriRoute");
+        ClassTypeDef routeBuilderType = type(context, ROUTER + "HttpRouteBuilder");
+        ClassTypeDef uriRouteType = type(context, ROUTER + "HttpRouteSpec");
 
         ClassDef.ClassDefBuilder router = ClassDef.builder(routerType.getName())
             .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
@@ -417,7 +418,8 @@ public final class JaxRsRoutesGenerator {
                 Param param = method.params.get(j);
                 ExpressionDef argument = argument(param.parameter.getGenericType());
                 if (param.kind == ParamKind.ENTITY) {
-                    argument = supportType.invokeStatic("nullable", ARGUMENT, argument);
+                    // an entity is optional
+                    argument = routeBuilderType.invokeStatic("nullableBody", ARGUMENT, argument);
                 }
                 arguments.add(constant(router, routerType, "A" + i + "_" + j, ARGUMENT, argument));
             }
@@ -459,27 +461,28 @@ public final class JaxRsRoutesGenerator {
                 VariableDef support = aThis.field(supportField);
                 List<StatementDef> statements = new ArrayList<>();
                 for (RouteModel route : routes) {
-                    ExpressionDef handler = support.invoke("handler", TypeDef.OBJECT, route.metadata, handlerLambda(aThis, route, context));
+                    ExpressionDef handler = handlerLambda(aThis, route, context);
                     List<ExpressionDef> handle = new ArrayList<>();
-                    handle.add(HTTP_METHOD.getStaticField(route.method.httpMethod, HTTP_METHOD));
+                    // a custom HTTP method is routed by its name
+                    handle.add(route.method.custom
+                        ? ExpressionDef.constant(route.method.httpMethod)
+                        : HTTP_METHOD.getStaticField(route.method.httpMethod, HTTP_METHOD));
                     handle.add(support.invoke("uri", TypeDef.STRING, ExpressionDef.constant(route.method.template)));
                     String builderMethod;
                     if (route.form) {
                         builderMethod = "handleForm";
                     } else if (route.method.entity != null && !route.method.httpMethod.equals("GET")) {
-                        builderMethod = "handle";
+                        builderMethod = route.method.async ? "handleAsync" : "handle";
                         handle.add(route.arguments.get(route.method.params.indexOf(route.method.entity)));
-                    } else if (route.method.async && route.method.entity == null) {
+                    } else if (route.method.async) {
                         builderMethod = "handleAsync";
                     } else {
                         builderMethod = "handle";
                     }
                     handle.add(handler);
-                    boolean blocking = route.method.async && (route.form || route.method.entity != null);
                     statements.add(support.invoke("configure", TypeDef.VOID,
                         params.get(0).invoke(builderMethod, uriRouteType, handle),
-                        route.metadata,
-                        ExpressionDef.constant(blocking)));
+                        route.metadata));
                 }
                 // the resource is not a bean in this context, e.g. disabled by @Requires
                 return aThis.field(resourceField).invoke("isPresent", TypeDef.Primitive.BOOLEAN).ifTrue(StatementDef.multi(statements));
@@ -492,11 +495,12 @@ public final class JaxRsRoutesGenerator {
      */
     private static String handlerType(RouteModel route) {
         ResourceMethod method = route.method;
+        boolean entity = method.entity != null && !method.httpMethod.equals("GET");
         if (route.form) {
-            return "FormRequestHandler";
-        } else if (method.entity != null && !method.httpMethod.equals("GET")) {
-            return "BodyRequestHandler";
-        } else if (method.async && method.entity == null) {
+            return method.async ? "AsyncFormRequestHandler" : "FormRequestHandler";
+        } else if (entity) {
+            return method.async ? "AsyncBodyRequestHandler" : "BodyRequestHandler";
+        } else if (method.async) {
             return "AsyncRequestHandler";
         }
         return "RequestHandler";
@@ -507,7 +511,7 @@ public final class JaxRsRoutesGenerator {
      */
     private static ExpressionDef handlerLambda(VariableDef.This aThis, RouteModel route, VisitorContext context) {
         String handlerType = handlerType(route);
-        Map<String, TypeDef> typeVariables = handlerType.equals("BodyRequestHandler") ? Map.of("B", TypeDef.OBJECT) : Map.of();
+        Map<String, TypeDef> typeVariables = handlerType.endsWith("BodyRequestHandler") ? Map.of("B", TypeDef.OBJECT) : Map.of();
         return type(context, ROUTER + handlerType).getLambda(typeVariables).implement((lambdaThis, lambdaParams) ->
             aThis.invoke(route.name, TypeDef.OBJECT, new ArrayList<ExpressionDef>(lambdaParams)).returning());
     }
@@ -522,30 +526,29 @@ public final class JaxRsRoutesGenerator {
                                          VisitorContext context) {
         ResourceMethod method = route.method;
         String handlerType = handlerType(route);
-        boolean async = handlerType.equals("AsyncRequestHandler");
+        boolean async = handlerType.startsWith("Async");
+        boolean formRoute = handlerType.endsWith("FormRequestHandler");
+        boolean bodyRoute = handlerType.endsWith("BodyRequestHandler");
         MethodDef.MethodDefBuilder builder = MethodDef.builder(route.name)
             .addModifiers(Modifier.PRIVATE)
             .addParameter("request", TypeDef.parameterized(ClassTypeDef.of("io.micronaut.http.HttpRequest"), TypeDef.wildcard()))
             .addParameter("pathVariables", type(context, ROUTER + "PathVariables"));
-        if (handlerType.equals("FormRequestHandler")) {
-            builder.addParameter("form", type(context, ROUTER + "FormData"));
-        } else if (handlerType.equals("BodyRequestHandler")) {
+        if (formRoute) {
+            builder.addParameter("form", type(context, "io.micronaut.http.form.FormData"));
+        } else if (bodyRoute) {
             builder.addParameter("body", TypeDef.OBJECT);
         }
         TypeDef response = TypeDef.parameterized(ClassTypeDef.of("io.micronaut.http.HttpResponse"), TypeDef.wildcard());
         builder.returns(async ? TypeDef.parameterized(ClassTypeDef.of(java.util.concurrent.CompletionStage.class), TypeDef.wildcardSubtypeOf(response)) : response);
-        if (!async) {
-            // like the handler interface; the asynchronous one throws no checked exception
-            builder.addThrows(ClassTypeDef.of(Exception.class));
-        }
+        builder.addThrows(ClassTypeDef.of(Exception.class));
         return builder.build((aThis, params) -> {
             VariableDef request = params.get(0);
             VariableDef pathVariables = params.get(1);
             @Nullable VariableDef third = params.size() > 2 ? params.get(2) : null;
             VariableDef support = aThis.field(supportField);
             HandlerScope scope = new HandlerScope(support, request, pathVariables,
-                handlerType.equals("FormRequestHandler") ? third : null,
-                handlerType.equals("BodyRequestHandler") ? third : null);
+                formRoute ? third : null,
+                bodyRoute ? third : null);
 
             ExpressionDef instance;
             if (constructorParams == null) {
@@ -580,13 +583,12 @@ public final class JaxRsRoutesGenerator {
                     support.invoke("response", TypeDef.OBJECT, request, ExpressionDef.nullValue(), route.returnType, route.metadata).returning()
                 );
             } else if (method.async) {
-                // with an entity or a form, the route is synchronous and waits for the stage on a blocking executor
-                result = support.invoke(async ? "responseAsync" : "responseAwait", TypeDef.OBJECT, request, call, route.returnType, route.metadata).returning();
+                result = support.invoke("responseAsync", TypeDef.OBJECT, request, call, route.returnType, route.metadata).returning();
             } else {
                 result = support.invoke("response", TypeDef.OBJECT, request, call, route.returnType, route.metadata).returning();
             }
-            if (throwsThrowable(method.method) || async && method.method.getThrownTypes().length > 0) {
-                // what the resource method throws is rethrown unchanged
+            if (throwsThrowable(method.method)) {
+                // a route handler can only throw exceptions
                 result = StatementDef.doTry(result).doCatch(Throwable.class, throwable ->
                     supportType.invokeStatic("rethrow", ClassTypeDef.of(RuntimeException.class), throwable).doThrow());
             }
@@ -720,6 +722,7 @@ public final class JaxRsRoutesGenerator {
                                   @Nullable Param entity,
                                   ClassElement returnType,
                                   boolean async,
+                                  boolean custom,
                                   List<String> produces,
                                   List<String> consumes) {
     }
