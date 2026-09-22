@@ -14,7 +14,6 @@ import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -48,7 +47,6 @@ class MediaTypeSelectionTest {
     }
 
     @Test
-    @Disabled("core pre-filters candidates with DefaultRouteInfo.doesProduce, which matches accepted types exactly: a wildcard Accept drops concrete routes before the selector")
     void wildcardSubtypeSelectsTheHighestQsOfTheType() {
         HttpResponse<String> response = post("text/*");
         assertEquals("text/plain", response.body());
@@ -56,7 +54,6 @@ class MediaTypeSelectionTest {
     }
 
     @Test
-    @Disabled("core pre-filters candidates with DefaultRouteInfo.doesProduce, which matches accepted types exactly: a wildcard Accept drops concrete routes before the selector")
     void concreteProducedTypeIsMoreSpecificThanAHigherQsWildcard() {
         HttpResponse<String> response = post("image/*");
         assertEquals("image/png", response.body());

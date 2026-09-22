@@ -255,13 +255,6 @@ ee.jakarta.tck.ws.rs.spec.resource.annotationprecedence.subclass.JAXRSClientIT#m
 ee.jakarta.tck.ws.rs.spec.resource.annotationprecedence.subclass.JAXRSClientIT#queryParamPqrTest
 ee.jakarta.tck.ws.rs.spec.resource.locator.JAXRSClientIT#checkEntityIsNotSetTest
 
-# Media type selection: core pre-filters routes with exact accepted types, so a wildcard Accept drops concrete routes before the JAX-RS selector
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#concreteOverStarWhenAcceptStarTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesOverridesDescendantSubResourcePathValueWeightTest
-ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#clientImagePreferenceTest
-ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#imagePreferenceTest
-ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#textPreferenceTest
-
 # Response type from the writers when the resource method declares none
 ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#classProducesTest
 ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#mesageBodyWriterProducesTest
