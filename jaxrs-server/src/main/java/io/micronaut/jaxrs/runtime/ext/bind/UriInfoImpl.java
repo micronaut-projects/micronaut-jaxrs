@@ -249,6 +249,10 @@ public final class UriInfoImpl implements UriInfo {
         JaxRsMatched matched = JaxRsMatched.get(request);
         if (matched != null) {
             for (int segments : matched.segments()) {
+                if (segments < 0) {
+                    // a target located at runtime: its prefix is not known
+                    continue;
+                }
                 String uri = firstSegments(path, segments);
                 if (!uri.equals(uris.get(uris.size() - 1))) {
                     uris.add(uri);

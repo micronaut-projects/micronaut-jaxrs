@@ -30,19 +30,20 @@ import io.micronaut.core.convert.ConversionContext;
 import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.type.Argument;
 import io.micronaut.core.util.ExceptionUtils;
-import io.micronaut.http.HttpMethod;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.inject.ExecutableMethod;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.bind.RequestBinderRegistry;
-import io.micronaut.http.uri.UriTemplate;
 import io.micronaut.inject.qualifiers.Qualifiers;
 import io.micronaut.jaxrs.common.JaxRsGenericEntity;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import io.micronaut.http.form.FormData;
 import io.micronaut.web.router.builder.HttpRouteSpec;
+import io.micronaut.http.uri.UriTemplate;
+import io.micronaut.web.router.RouteTable;
+import io.micronaut.web.router.RouteTableFactory;
 import io.micronaut.web.router.builder.RouteDeclaration;
 import io.micronaut.web.router.builder.PathVariables;
 import jakarta.inject.Singleton;
@@ -76,12 +77,14 @@ import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
 /**
  * The runtime of the routes generated for JAX-RS resources: the generated handler functions read
@@ -106,6 +109,8 @@ public final class JaxRsRouteSupport {
     private final Map<Argument<?>, StringConverter> converters = new ConcurrentHashMap<>();
     private final Map<String, java.lang.reflect.Field> fields = new ConcurrentHashMap<>();
     private final Map<Class<?>, BeanParamBinder> beanParams = new ConcurrentHashMap<>();
+    private final Map<Class<?>, RouteTable> locatedTables = new ConcurrentHashMap<>();
+    private volatile @Nullable Map<Class<?>, JaxRsLocatedRoutes> locatedRoutesByType;
 
     JaxRsRouteSupport(ApplicationProvider applicationProvider,
                       ConversionService conversionService,
@@ -123,18 +128,88 @@ public final class JaxRsRouteSupport {
     }
 
     /**
-     * The URI template of a route, under the {@code @ApplicationPath} of the application. The
-     * context path is applied by the router.
+     * The prefix of a sub-resource locator known only at runtime, under the
+     * {@code @ApplicationPath} of the application.
      *
-     * @param template The template of a resource method, the paths of its class and itself
-     * @return The URI template of the route
+     * @param template The prefix, in the Micronaut language
+     * @return The prefix
      */
-    public String uri(String template) {
+    public String prefix(String template) {
         if (applicationPath.isEmpty() || "/".equals(applicationPath)) {
             return template;
         }
         String prefix = applicationPath.charAt(0) == '/' ? applicationPath : '/' + applicationPath;
         return UriTemplate.of(prefix).nest(template).toString();
+    }
+
+    /**
+     * The prefix of a sub-resource locator of a located target: relative to the prefix that
+     * located it.
+     *
+     * @param template The prefix, in the Micronaut language
+     * @return The prefix
+     */
+    public String locatedPrefix(String template) {
+        return template;
+    }
+
+    /**
+     * The declaration of a route of a located target, relative to the prefix of its locator.
+     *
+     * @param method   The name of the HTTP method
+     * @param template The {@code @Path} of the resource method, in the Micronaut language: the
+     *                 route table of a located target composes Micronaut templates only
+     * @return The declaration
+     */
+    public RouteDeclaration locatedDeclaration(String method, String template) {
+        return RouteDeclaration.of(method, template);
+    }
+
+    /**
+     * @return The route table of the class of a target a locator located at runtime
+     */
+    public Function<Object, RouteTable> locatedTables() {
+        return target -> locatedTable(target.getClass());
+    }
+
+    private RouteTable locatedTable(Class<?> type) {
+        RouteTable table = locatedTables.get(type);
+        if (table == null) {
+            // the routes of the class, or of its nearest supertype that has routes
+            JaxRsLocatedRoutes routes = locatedRoutes(type);
+            RouteTableFactory factory = beanContext.getBean(RouteTableFactory.class);
+            table = factory.buildLocatedHttpRoutes(builder -> {
+                if (routes != null) {
+                    routes.routes(builder);
+                }
+            });
+            locatedTables.putIfAbsent(type, table);
+        }
+        return table;
+    }
+
+    private @Nullable JaxRsLocatedRoutes locatedRoutes(Class<?> type) {
+        Map<Class<?>, JaxRsLocatedRoutes> byType = locatedRoutesByType;
+        if (byType == null) {
+            byType = new HashMap<>();
+            for (JaxRsLocatedRoutes routes : beanContext.getBeansOfType(JaxRsLocatedRoutes.class)) {
+                byType.put(routes.type(), routes);
+            }
+            locatedRoutesByType = byType;
+        }
+        for (Class<?> t = type; t != null && t != Object.class; t = t.getSuperclass()) {
+            JaxRsLocatedRoutes routes = byType.get(t);
+            if (routes != null) {
+                return routes;
+            }
+            for (Class<?> i : t.getInterfaces()) {
+                routes = byType.get(i);
+                if (routes != null) {
+                    return routes;
+                }
+            }
+        }
+        return null;
     }
 
     /**
@@ -145,7 +220,7 @@ public final class JaxRsRouteSupport {
      * @param template The joined {@code @Path} values of the resource method
      * @return The declaration
      */
-    public RouteDeclaration declaration(HttpMethod method, String template) {
+    public RouteDeclaration declaration(String method, String template) {
         String expression = template;
         if (!applicationPath.isEmpty() && !"/".equals(applicationPath)) {
             String prefix = applicationPath.charAt(0) == '/' ? applicationPath : '/' + applicationPath;

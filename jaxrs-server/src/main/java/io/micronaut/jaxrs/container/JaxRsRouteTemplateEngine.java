@@ -297,6 +297,22 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateEngine {
             return count;
         }
 
+        /**
+         * The router prefers fewer variables with a regular expression; JAX-RS prefers more (spec
+         * 3.7.2, the tertiary key, descending): the count is negated until an engine can order
+         * this key itself.
+         */
+        @Override
+        public int patternVariableCount() {
+            int count = 0;
+            for (Part part : parts) {
+                if (part.regex != null) {
+                    count--;
+                }
+            }
+            return count;
+        }
+
         @Override
         public @Nullable List<RouteTemplateSegment> pathSegments() {
             // split at the slashes outside of the variables

@@ -19,9 +19,6 @@ public class TestSuite {
     @SelectPackages("ee.jakarta.tck.ws.rs")
     @ExcludePackages({EE_TEST_PACKAGE, API_TEST_PACKAGE})
     @IncludeClassNamePatterns(".*")
-    @ExcludeClassNamePatterns({
-        "ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT"
-    })
     public static class Tests {
     }
 
