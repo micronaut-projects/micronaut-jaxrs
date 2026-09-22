@@ -34,6 +34,7 @@ import io.micronaut.http.HttpMethod;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.inject.ExecutableMethod;
 import io.micronaut.http.HttpResponse;
+import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.bind.RequestBinderRegistry;
 import io.micronaut.http.uri.UriTemplate;
@@ -362,8 +363,21 @@ public final class JaxRsRouteSupport {
         if (response == null) {
             return HttpResponse.noContent();
         }
-        // the runtime delegate of the module creates every response
-        return ((JaxRsMutableResponse) response).getResponse();
+        if (response instanceof JaxRsMutableResponse mutableResponse) {
+            // created by the runtime delegate of the module
+            return mutableResponse.getResponse();
+        }
+        // a Response subclass of the application: only its public API is known
+        MutableHttpResponse<Object> httpResponse = HttpResponse.status(response.getStatus(), response.getStatusInfo().getReasonPhrase());
+        response.getMetadata().forEach((name, values) -> {
+            for (Object value : values) {
+                httpResponse.getHeaders().add(name, String.valueOf(value));
+            }
+        });
+        if (response.hasEntity()) {
+            httpResponse.body(response.getEntity());
+        }
+        return httpResponse;
     }
 
     /**
