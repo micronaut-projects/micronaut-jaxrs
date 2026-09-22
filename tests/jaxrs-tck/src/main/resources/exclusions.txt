@@ -199,11 +199,6 @@ ee.jakarta.tck.ws.rs.spec.filter.dynamicfeature.JAXRSClientIT#dynamicBindingTest
 
 # Sub-resources: still failing with locators known at runtime
 ee.jakarta.tck.ws.rs.ee.rs.ext.paramconverter.JAXRSClientIT#formParamInLocatorTest
-ee.jakarta.tck.ws.rs.ee.rs.pathparam.JAXRSClientIT#test6
-ee.jakarta.tck.ws.rs.ee.rs.pathparam.sub.JAXRSSubClientIT#test6
-ee.jakarta.tck.ws.rs.spec.resource.annotationprecedence.subclass.JAXRSClientIT#incorrectPathOnClassAndRequestTest
-ee.jakarta.tck.ws.rs.spec.resource.annotationprecedence.subclass.JAXRSClientIT#matrixParamPqrTest
-ee.jakarta.tck.ws.rs.spec.resource.annotationprecedence.subclass.JAXRSClientIT#queryParamPqrTest
 ee.jakarta.tck.ws.rs.spec.resource.locator.JAXRSClientIT#checkEntityIsNotSetTest
 
 
@@ -229,3 +224,5 @@ ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT#sourceProviderTest
 # Response type from the writers: the class-level @Produces of a resource
 ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#classProducesTest
 
+# The Application of this deployment is not a bean in the harness, so the resources it lists cannot be told from the others
+ee.jakarta.tck.ws.rs.spec.resource.annotationprecedence.subclass.JAXRSClientIT#incorrectPathOnClassAndRequestTest

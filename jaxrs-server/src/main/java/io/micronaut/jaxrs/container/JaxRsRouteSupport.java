@@ -69,6 +69,7 @@ import jakarta.ws.rs.NotAcceptableException;
 import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Cookie;
+import jakarta.ws.rs.core.Application;
 import jakarta.ws.rs.core.Form;
 import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.core.MultivaluedMap;
@@ -87,6 +88,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
@@ -120,6 +122,7 @@ public final class JaxRsRouteSupport {
     private final Map<Class<?>, BeanParamBinder> beanParams = new ConcurrentHashMap<>();
     private final Map<Class<?>, RouteTable> locatedTables = new ConcurrentHashMap<>();
     private final Map<RouteMetadata, Argument<?>> entityArguments = new ConcurrentHashMap<>();
+    private volatile @Nullable Set<Class<?>> registeredClasses;
     private volatile @Nullable Map<Class<?>, JaxRsLocatedRoutes> locatedRoutesByType;
 
     JaxRsRouteSupport(ApplicationProvider applicationProvider,
@@ -135,6 +138,30 @@ public final class JaxRsRouteSupport {
         this.paramConverterProviders = paramConverterProviders;
         this.binderRegistry = binderRegistry;
         this.beanContext = beanContext;
+    }
+
+    /**
+     * Whether a root resource class is registered with the application: an {@code Application}
+     * that lists its classes or singletons registers only those (JAX-RS 2.3), and one that lists
+     * none, every resource.
+     *
+     * @param resourceClass The class
+     * @return Whether it is registered
+     */
+    public boolean isRegistered(Class<?> resourceClass) {
+        Set<Class<?>> registered = registeredClasses;
+        if (registered == null) {
+            Set<Class<?>> classes = new HashSet<>();
+            beanContext.findBean(Application.class).ifPresent(application -> {
+                classes.addAll(application.getClasses());
+                for (Object singleton : application.getSingletons()) {
+                    classes.add(singleton.getClass());
+                }
+            });
+            registered = classes;
+            registeredClasses = registered;
+        }
+        return registered.isEmpty() || registered.contains(resourceClass);
     }
 
     /**
@@ -317,10 +344,26 @@ public final class JaxRsRouteSupport {
             return value.map(v -> Arrays.stream(v.split("/")).map(segment -> JaxRsPathSegments.pathSegment(request, segment, encoded)).toList())
                 .orElse(List.of());
         }
-        if (encoded) {
-            value = value.map(JaxRsRouteSupport::encode);
+        List<String> values;
+        if (value.isEmpty()) {
+            values = List.of();
+        } else {
+            // a variable that repeats: the values of every occurrence, the last one first
+            Optional<String> earlier = pathVariables.findString(JaxRsRouteTemplateEngine.repeated(name, 1));
+            if (earlier.isEmpty()) {
+                values = List.of(value.get());
+            } else {
+                values = new ArrayList<>();
+                values.add(value.get());
+                for (int i = 1; earlier.isPresent(); earlier = pathVariables.findString(JaxRsRouteTemplateEngine.repeated(name, ++i))) {
+                    values.add(earlier.get());
+                }
+            }
         }
-        return convert(value.map(List::of).orElse(List.of()), argument, defaultValue, true);
+        if (encoded) {
+            values = values.stream().map(JaxRsRouteSupport::encode).toList();
+        }
+        return convert(values, argument, defaultValue, true);
     }
 
     /**

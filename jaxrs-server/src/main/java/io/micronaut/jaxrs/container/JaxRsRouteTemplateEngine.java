@@ -33,6 +33,7 @@ import org.jspecify.annotations.Nullable;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -310,6 +311,18 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateEngine, Rout
     }
 
     /**
+     * The name of an earlier occurrence of a variable that repeats in a template, e.g. the first
+     * {@code id} of {@code {id}/{id}}: the last occurrence has the name itself.
+     *
+     * @param name     The name of the variable
+     * @param fromLast How many occurrences before the last one, 1 for the one before it
+     * @return The name of the occurrence
+     */
+    public static String repeated(String name, int fromLast) {
+        return name + LOCATOR_MARK + fromLast;
+    }
+
+        /**
      * @param expression A template, possibly with the marks of its root resource class and locators
      * @return The template as it was written, without the marks
      */
@@ -556,10 +569,21 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateEngine, Rout
 
         @Override
         public List<RouteTemplateVariable> variables() {
-            List<RouteTemplateVariable> variables = new ArrayList<>();
+            // a variable that repeats: the last occurrence has the name, the value of a
+            // single-valued parameter; the earlier ones are named by occurrence, see #repeated
+            Map<String, Integer> occurrences = new HashMap<>();
             for (Part part : parts) {
                 if (part.variable != null) {
-                    variables.add(RouteTemplateVariable.path(part.variable));
+                    occurrences.merge(part.variable, 1, Integer::sum);
+                }
+            }
+            List<RouteTemplateVariable> variables = new ArrayList<>();
+            Map<String, Integer> seen = new HashMap<>();
+            for (Part part : parts) {
+                if (part.variable != null) {
+                    int occurrence = seen.merge(part.variable, 1, Integer::sum);
+                    int fromLast = occurrences.get(part.variable) - occurrence;
+                    variables.add(RouteTemplateVariable.path(fromLast == 0 ? part.variable : repeated(part.variable, fromLast)));
                 }
             }
             return variables;
