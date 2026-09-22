@@ -44,7 +44,7 @@ final class JaxRsContextUriInfo implements UriInfo {
     }
 
     private UriInfoImpl getUriInfo() {
-        return new UriInfoImpl(ServerRequestContext.currentRequest().get(), applicationProvider.getPath());
+        return new UriInfoImpl(ServerRequestContext.currentRequest().get(), applicationProvider.getPath(), applicationProvider.getContextPath());
     }
 
     @Override
@@ -125,7 +125,7 @@ final class JaxRsContextUriInfo implements UriInfo {
 
     //    @Override v4
     public String getMatchedResourceTemplate() {
-        return "";
+        return getUriInfo().getMatchedResourceTemplate();
     }
 
     @Override

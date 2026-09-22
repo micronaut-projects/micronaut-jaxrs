@@ -40,6 +40,7 @@ import java.nio.charset.StandardCharsets;
 public final class ApplicationProvider implements AnnotationMetadataProvider {
 
     private final String path;
+    private final String contextPath;
     private final AnnotationMetadata annotationMetadata;
 
     /**
@@ -58,6 +59,7 @@ public final class ApplicationProvider implements AnnotationMetadataProvider {
             .map(path -> URLDecoder.decode(path, StandardCharsets.UTF_8))
             .orElse("/");
         this.path = concatContextPath(contextPath, applicationPath);
+        this.contextPath = contextPath == null || contextPath.isEmpty() || "/".equals(contextPath) ? "" : normalizeContextPath(contextPath);
 
     }
 
@@ -72,6 +74,15 @@ public final class ApplicationProvider implements AnnotationMetadataProvider {
     /**
      * @return The annotationMetadata
      */
+    /**
+     * @return The context path of the server, without the application path, an empty string if
+     * there is none
+     */
+    @NonNull
+    public String getContextPath() {
+        return contextPath;
+    }
+
     @NonNull
     public AnnotationMetadata getAnnotationMetadata() {
         return annotationMetadata;

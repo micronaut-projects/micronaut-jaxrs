@@ -282,11 +282,12 @@ public final class JaxRsRoutesGenerator {
                 AnnotationMetadata methodMetadata = method.getMethodAnnotationMetadata();
                 if (method.hasStereotype(HttpMethod.class)) {
                     String template = template(path, methodMetadata.stringValue(Path.class).orElse(""));
-                    if (hasDuplicateVariables(template)) {
+                    ResourceMethod resourceMethod = resourceMethod(type, template, method);
+                    if (resourceMethod != null && resourceMethod.custom && hasDuplicateVariables(template)) {
+                        // routed with a Micronaut template, which cannot repeat a variable
                         context.info("JAX-RS resource method with the template " + template + " is not routed: a variable repeats", method);
                         continue;
                     }
-                    ResourceMethod resourceMethod = resourceMethod(type, template, method);
                     if (resourceMethod != null) {
                         routes.add(new Route(resourceMethod, locators, type));
                     }
@@ -313,7 +314,7 @@ public final class JaxRsRoutesGenerator {
                 return;
             }
             int occurrences = visited.getOrDefault(returned.getName(), 0);
-            if (occurrences >= MAX_LOCATOR_REPEAT || hasDuplicateVariables(path)) {
+            if (occurrences >= MAX_LOCATOR_REPEAT) {
                 // recursive: the paths cannot be enumerated, only the first levels are routed
                 context.info("Recursive JAX-RS sub-resource locator is routed to a depth of " + MAX_LOCATOR_REPEAT, method);
                 return;
@@ -534,13 +535,12 @@ public final class JaxRsRoutesGenerator {
     }
 
     /**
-     * A URI template: the paths joined by a slash, with the spaces JAX-RS allows in a template
-     * variable removed.
+     * A route template in the language of JAX-RS: the paths joined by a slash.
      */
     static String template(String prefix, String path) {
         StringBuilder template = new StringBuilder();
         for (String part : new String[]{prefix, path}) {
-            String trimmed = strip(normalizeVariables(part));
+            String trimmed = strip(part);
             if (!trimmed.isEmpty()) {
                 template.append('/').append(trimmed);
             }
@@ -655,11 +655,15 @@ public final class JaxRsRoutesGenerator {
                 for (RouteModel route : routes) {
                     ResourceMethod method = route.route.method;
                     List<ExpressionDef> handle = new ArrayList<>();
-                    // a custom HTTP method is routed by its name
-                    handle.add(method.custom
-                        ? ExpressionDef.constant(method.httpMethod)
-                        : HTTP_METHOD.getStaticField(method.httpMethod, HTTP_METHOD));
-                    handle.add(support.invoke("uri", TypeDef.STRING, ExpressionDef.constant(method.template)));
+                    if (method.custom) {
+                        // a custom HTTP method is routed by its name, with the template in the Micronaut language
+                        handle.add(ExpressionDef.constant(method.httpMethod));
+                        handle.add(support.invoke("uri", TypeDef.STRING, ExpressionDef.constant(normalizeVariables(method.template))));
+                    } else {
+                        // declared with the template in the language of JAX-RS
+                        handle.add(support.invoke("declaration", types.routeDeclaration,
+                            HTTP_METHOD.getStaticField(method.httpMethod, HTTP_METHOD), ExpressionDef.constant(method.template)));
+                    }
                     String builderMethod;
                     if (route.form) {
                         builderMethod = method.async ? "handleFormAsync" : "handleForm";
@@ -689,6 +693,7 @@ public final class JaxRsRoutesGenerator {
         final ClassTypeDef metadata;
         final ClassTypeDef routeBuilder;
         final ClassTypeDef routeSpec;
+        final ClassTypeDef routeDeclaration;
         final TypeDef request = TypeDef.parameterized(ClassTypeDef.of("io.micronaut.http.HttpRequest"), TypeDef.wildcard());
         final TypeDef response = TypeDef.parameterized(ClassTypeDef.of(HTTP_RESPONSE), TypeDef.wildcard());
         final ClassTypeDef pathVariables;
@@ -700,6 +705,7 @@ public final class JaxRsRoutesGenerator {
             metadata = type(SUPPORT + ".RouteMetadata");
             routeBuilder = type(ROUTER + "HttpRouteBuilder");
             routeSpec = type(ROUTER + "HttpRouteSpec");
+            routeDeclaration = type(ROUTER + "RouteDeclaration");
             pathVariables = type(ROUTER + "PathVariables");
             form = type("io.micronaut.http.form.FormData");
         }
