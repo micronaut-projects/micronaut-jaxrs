@@ -124,6 +124,13 @@ public final class TckDeployableContainer implements DeployableContainer<TckCont
         }
         Class<?> testJavaClass = testClass.get().getJavaClass();
         Objects.requireNonNull(testJavaClass);
+        String ownArchive = ownArchiveName(testJavaClass);
+        if (ownArchive != null && !ownArchive.equals(archive.getName())) {
+            // a deployment inherited from the test class this one extends: every deployment gets its
+            // own server, and the tests only know the port of one, so only the test class's own starts
+            LOGGER.info("Skipping the inherited deployment {} of {}", archive.getName(), testJavaClass.getName());
+            return new ProtocolMetaData();
+        }
 
         try {
             DeploymentDir deploymentDir = new DeploymentDir();
@@ -161,6 +168,26 @@ public final class TckDeployableContainer implements DeployableContainer<TckCont
         }
 
         return new ProtocolMetaData();
+    }
+
+    /**
+     * @param testJavaClass The test class
+     * @return The name of the archive of the {@code @Deployment} method the test class declares
+     * itself, or {@code null}
+     */
+    private static String ownArchiveName(Class<?> testJavaClass) {
+        for (java.lang.reflect.Method method : testJavaClass.getDeclaredMethods()) {
+            if (method.isAnnotationPresent(org.jboss.arquillian.container.test.api.Deployment.class)
+                && java.lang.reflect.Modifier.isStatic(method.getModifiers()) && method.getParameterCount() == 0) {
+                try {
+                    method.setAccessible(true);
+                    return ((Archive<?>) method.invoke(null)).getName();
+                } catch (ReflectiveOperationException e) {
+                    return null;
+                }
+            }
+        }
+        return null;
     }
 
     @Override

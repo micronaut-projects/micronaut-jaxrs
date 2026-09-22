@@ -15,9 +15,20 @@
  */
 package io.micronaut.jaxrs.processor.routes;
 
-import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.context.BeanProvider;
+import io.micronaut.core.annotation.AnnotationMetadata;
+import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.type.Argument;
+import io.micronaut.inject.ast.ClassElement;
+import io.micronaut.inject.ast.ConstructorElement;
+import io.micronaut.inject.ast.Element;
+import io.micronaut.inject.ast.ElementQuery;
+import io.micronaut.inject.ast.FieldElement;
+import io.micronaut.inject.ast.MemberElement;
+import io.micronaut.inject.ast.MethodElement;
+import io.micronaut.inject.ast.ParameterElement;
+import io.micronaut.inject.ast.TypedElement;
+import io.micronaut.inject.visitor.VisitorContext;
 import io.micronaut.sourcegen.generator.SourceGenerators;
 import io.micronaut.sourcegen.model.ClassDef;
 import io.micronaut.sourcegen.model.ClassTypeDef;
@@ -27,13 +38,6 @@ import io.micronaut.sourcegen.model.MethodDef;
 import io.micronaut.sourcegen.model.StatementDef;
 import io.micronaut.sourcegen.model.TypeDef;
 import io.micronaut.sourcegen.model.VariableDef;
-import io.micronaut.core.annotation.Internal;
-import io.micronaut.inject.ast.ClassElement;
-import io.micronaut.inject.ast.ConstructorElement;
-import io.micronaut.inject.ast.ElementQuery;
-import io.micronaut.inject.ast.MethodElement;
-import io.micronaut.inject.ast.ParameterElement;
-import io.micronaut.inject.visitor.VisitorContext;
 import jakarta.ws.rs.BeanParam;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.CookieParam;
@@ -54,20 +58,28 @@ import org.jspecify.annotations.Nullable;
 import javax.lang.model.element.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * Routes a JAX-RS resource with handler functions, instead of turning it into a controller. For a
  * resource {@code Foo} it generates {@code Foo$JaxRsRouter}, an {@code HttpRoutes} bean that adds
- * a route per resource method with the route builder. Its handler function reads the parameters
+ * a route per resource method with the route builder. The method of a route reads the parameters
  * of the resource method in generated code, calls the method directly, and converts its result to
- * a response.
- * The runtime part, the conversion of parameters, the context objects, the response and the
- * container filters, is {@code io.micronaut.jaxrs.container.JaxRsRouteSupport}.
+ * a response, the conversion selected by the declared return type.
+ *
+ * <p>Sub-resources are flattened at compile time: a sub-resource locator, a method with
+ * {@code @Path} and no HTTP method, is followed to the type it returns, and every resource method
+ * of that type gets a route with the paths joined. The route calls the locators in order.</p>
+ *
+ * <p>A resource whose constructor, fields or setters read values of the request is created for
+ * every request, like a type a locator returns as a {@code Class}, and a {@code @BeanParam}: the
+ * router has a method per such type that creates and injects an instance.</p>
  *
  * @author Denis Stepanov
  * @since 5.2.0
@@ -99,10 +111,36 @@ public final class JaxRsRoutesGenerator {
     private static final String FORM_TYPES_MAP = "jakarta.ws.rs.core.MultivaluedMap";
     private static final String FORM_TYPE = "jakarta.ws.rs.core.Form";
     private static final String COMPLETION_STAGE = "java.util.concurrent.CompletionStage";
+    private static final String JAX_RS_RESPONSE = "jakarta.ws.rs.core.Response";
+    private static final String HTTP_RESPONSE = "io.micronaut.http.HttpResponse";
     private static final String SUPPORT = "io.micronaut.jaxrs.container.JaxRsRouteSupport";
     private static final String ROUTER = "io.micronaut.web.router.builder.";
     private static final ClassTypeDef ARGUMENT = ClassTypeDef.of(Argument.class);
     private static final ClassTypeDef HTTP_METHOD = ClassTypeDef.of(io.micronaut.http.HttpMethod.class);
+    /**
+     * How many times a type can appear in a chain of sub-resource locators: a locator returning
+     * its own type is routed to this depth.
+     */
+    private static final int MAX_LOCATOR_REPEAT = 2;
+    private static final Map<String, String> BUILT_IN_ARGUMENTS = Map.ofEntries(
+        Map.entry("java.lang.String", "STRING"),
+        Map.entry("int", "INT"),
+        Map.entry("long", "LONG"),
+        Map.entry("float", "FLOAT"),
+        Map.entry("double", "DOUBLE"),
+        Map.entry("byte", "BYTE"),
+        Map.entry("boolean", "BOOLEAN"),
+        Map.entry("char", "CHAR"),
+        Map.entry("short", "SHORT"),
+        Map.entry("void", "VOID"),
+        Map.entry("java.lang.Void", "VOID_OBJECT"),
+        Map.entry("java.lang.Object", "OBJECT_ARGUMENT"),
+        Map.entry("java.util.List<java.lang.String>", "LIST_OF_STRING")
+    );
+    private static final List<Class<? extends java.lang.annotation.Annotation>> REQUEST_ANNOTATIONS = List.of(
+        PathParam.class, QueryParam.class, MatrixParam.class, HeaderParam.class, CookieParam.class,
+        FormParam.class, BeanParam.class, Context.class
+    );
 
     private JaxRsRoutesGenerator() {
     }
@@ -110,7 +148,7 @@ public final class JaxRsRoutesGenerator {
     /**
      * @param context The visitor context
      * @return Whether the compilation has the runtime of the generated routes: the JAX-RS server
-     * and a router with declared routes
+     * and the route builder
      */
     public static boolean isSupported(VisitorContext context) {
         return context.getClassElement(SUPPORT).isPresent()
@@ -118,58 +156,51 @@ public final class JaxRsRoutesGenerator {
     }
 
     /**
-     * Generate the routes of a root resource.
+     * Generate the routes of a resource.
      *
-     * @param resource The resource class, annotated with {@code @Path}
+     * @param resource The resource class
      * @param context  The visitor context
      */
     public static void generate(ClassElement resource, VisitorContext context) {
-        List<Param> constructorParams = new ArrayList<>();
-        ConstructorElement constructor = requestConstructor(resource);
-        if (constructor != null) {
-            for (ParameterElement parameter : constructor.getParameters()) {
-                if (parameter.hasAnnotation(BeanParam.class) || parameter.hasAnnotation(Encoded.class)) {
-                    context.info("JAX-RS resource with unsupported constructor parameters is not routed", parameter);
-                    return;
-                }
-                Param param = constructorParam(parameter);
-                if (param != null) {
-                    constructorParams.add(param);
-                }
+        Model model = new Model(resource, context);
+        RequestType root = null;
+        if (isPerRequest(resource)) {
+            root = model.requestType(resource);
+            if (root == null) {
+                return;
             }
         }
-        String classPath = resource.stringValue(Path.class).orElse("");
-        List<ResourceMethod> methods = new ArrayList<>();
-        for (MethodElement method : resource.getEnclosedElements(ElementQuery.ALL_METHODS.onlyInstance().onlyConcrete())) {
-            if (!method.hasStereotype(HttpMethod.class)) {
-                continue;
-            }
-            ResourceMethod resourceMethod = resourceMethod(resource, classPath, method, context);
-            if (resourceMethod != null) {
-                methods.add(resourceMethod);
-            }
-        }
-        if (methods.isEmpty()) {
+        Map<String, Integer> visited = new LinkedHashMap<>();
+        visited.put(resource.getName(), 1);
+        model.collect(resource, resource.stringValue(Path.class).orElse(""), List.of(), visited, true);
+        if (model.routes.isEmpty()) {
             return;
         }
-        String simpleName = resource.getSimpleName();
-        String routerName = simpleName + "$JaxRsRouter";
-        ClassDef router = router(resource, routerName, methods, constructor == null ? null : constructorParams, context);
+        ClassDef router = router(model, root);
         SourceGenerators.findByLanguage(VisitorContext.Language.JAVA)
             .orElseThrow(() -> new IllegalStateException("No Java source generator"))
             .write(router, context, resource);
     }
 
     /**
-     * The constructor JAX-RS uses for a resource created per request: the public constructor with
-     * the most parameters, when it has parameters read from the request.
-     *
-     * @param resource The resource class
-     * @return The constructor, or {@code null} if the resource is a singleton
+     * @param type A resource class
+     * @return Whether it is created for every request: its constructor, fields or setters read
+     * values of the request
      */
-    public static @Nullable ConstructorElement requestConstructor(ClassElement resource) {
+    public static boolean isPerRequest(ClassElement type) {
+        return requestConstructor(type) != null || !requestMembers(type).isEmpty();
+    }
+
+    /**
+     * The constructor JAX-RS uses for an instance created per request: the public constructor
+     * with the most parameters, when it has parameters read from the request.
+     *
+     * @param type The class
+     * @return The constructor, or {@code null}
+     */
+    public static @Nullable ConstructorElement requestConstructor(ClassElement type) {
         ConstructorElement selected = null;
-        for (ConstructorElement constructor : resource.getEnclosedElements(ElementQuery.CONSTRUCTORS)) {
+        for (ConstructorElement constructor : type.getEnclosedElements(ElementQuery.CONSTRUCTORS)) {
             if (constructor.isPublic() && (selected == null || constructor.getParameters().length > selected.getParameters().length)) {
                 selected = constructor;
             }
@@ -178,7 +209,7 @@ public final class JaxRsRoutesGenerator {
             return null;
         }
         for (ParameterElement parameter : selected.getParameters()) {
-            if (isRequestParameter(parameter)) {
+            if (isRequestAnnotated(parameter)) {
                 return selected;
             }
         }
@@ -186,115 +217,309 @@ public final class JaxRsRoutesGenerator {
     }
 
     /**
-     * @param parameter A parameter of a resource constructor
+     * @param element A parameter, field or setter
      * @return Whether its value is read from the request: annotated with a JAX-RS parameter
      * annotation or {@code @Context}
      */
-    public static boolean isRequestParameter(ParameterElement parameter) {
-        return parameter.hasAnnotation(PathParam.class) || parameter.hasAnnotation(QueryParam.class)
-            || parameter.hasAnnotation(HeaderParam.class) || parameter.hasAnnotation(CookieParam.class)
-            || parameter.hasAnnotation(FormParam.class) || parameter.hasAnnotation(MatrixParam.class)
-            || parameter.hasAnnotation(BeanParam.class) || parameter.hasAnnotation(Context.class);
-    }
-
-    private static @Nullable Param constructorParam(ParameterElement parameter) {
-        String defaultValue = parameter.stringValue(DefaultValue.class).orElse(null);
-        if (parameter.hasAnnotation(PathParam.class)) {
-            return new Param(ParamKind.PATH, parameter.stringValue(PathParam.class).orElse(parameter.getName()), parameter, defaultValue);
-        } else if (parameter.hasAnnotation(QueryParam.class)) {
-            return new Param(ParamKind.QUERY, parameter.stringValue(QueryParam.class).orElse(parameter.getName()), parameter, defaultValue);
-        } else if (parameter.hasAnnotation(MatrixParam.class)) {
-            return new Param(ParamKind.MATRIX, parameter.stringValue(MatrixParam.class).orElse(parameter.getName()), parameter, defaultValue);
-        } else if (parameter.hasAnnotation(HeaderParam.class)) {
-            return new Param(ParamKind.HEADER, parameter.stringValue(HeaderParam.class).orElse(parameter.getName()), parameter, defaultValue);
-        } else if (parameter.hasAnnotation(CookieParam.class)) {
-            return new Param(ParamKind.COOKIE, parameter.stringValue(CookieParam.class).orElse(parameter.getName()), parameter, defaultValue);
-        } else if (parameter.hasAnnotation(FormParam.class)) {
-            return new Param(ParamKind.FORM, parameter.stringValue(FormParam.class).orElse(parameter.getName()), parameter, defaultValue);
-        } else if (parameter.hasAnnotation(Context.class)) {
-            return new Param(ParamKind.CONTEXT, parameter.stringValue(NAMED).orElse(null), parameter, null);
+    public static boolean isRequestAnnotated(Element element) {
+        for (Class<? extends java.lang.annotation.Annotation> annotation : REQUEST_ANNOTATIONS) {
+            if (element.hasAnnotation(annotation)) {
+                return true;
+            }
         }
-        // not from the request: injected like for any bean
-        return null;
+        return false;
     }
 
-    private static @Nullable ResourceMethod resourceMethod(ClassElement resource, String classPath, MethodElement method, VisitorContext context) {
-        if (method.isPrivate() || !method.isPublic() && !method.getDeclaringType().getPackageName().equals(resource.getPackageName())) {
-            // the generated router, in the package of the resource, calls the method directly
+    /**
+     * The fields and setters of a class that read values of the request.
+     *
+     * @param type The class
+     * @return The fields and setters
+     */
+    public static List<MemberElement> requestMembers(ClassElement type) {
+        List<MemberElement> members = new ArrayList<>();
+        for (FieldElement field : type.getEnclosedElements(ElementQuery.ALL_FIELDS.onlyInstance())) {
+            if (isRequestAnnotated(field)) {
+                members.add(field);
+            }
+        }
+        for (MethodElement method : type.getEnclosedElements(ElementQuery.ALL_METHODS.onlyInstance())) {
+            if (method.getParameters().length == 1 && !method.hasStereotype(HttpMethod.class)
+                && !method.getMethodAnnotationMetadata().hasAnnotation(Path.class) && isRequestAnnotated(method)) {
+                members.add(method);
+            }
+        }
+        return members;
+    }
+
+    /**
+     * What the generator collects for a resource: its routes, and the types it creates per
+     * request.
+     */
+    private static final class Model {
+        final ClassElement resource;
+        final VisitorContext context;
+        final List<Route> routes = new ArrayList<>();
+        final Map<String, RequestType> requestTypes = new LinkedHashMap<>();
+
+        Model(ClassElement resource, VisitorContext context) {
+            this.resource = resource;
+            this.context = context;
+        }
+
+        /**
+         * The routes of the resource methods of a type, and of the sub-resources of its locators.
+         */
+        void collect(ClassElement type, String path, List<Locator> locators, Map<String, Integer> visited, boolean root) {
+            ElementQuery<MethodElement> query = ElementQuery.ALL_METHODS.onlyInstance();
+            if (root) {
+                query = query.onlyConcrete();
+            }
+            for (MethodElement method : type.getEnclosedElements(query)) {
+                if (!accessible(method)) {
+                    continue;
+                }
+                AnnotationMetadata methodMetadata = method.getMethodAnnotationMetadata();
+                if (method.hasStereotype(HttpMethod.class)) {
+                    String template = template(path, methodMetadata.stringValue(Path.class).orElse(""));
+                    if (hasDuplicateVariables(template)) {
+                        context.info("JAX-RS resource method with the template " + template + " is not routed: a variable repeats", method);
+                        continue;
+                    }
+                    ResourceMethod resourceMethod = resourceMethod(type, template, method);
+                    if (resourceMethod != null) {
+                        routes.add(new Route(resourceMethod, locators, type));
+                    }
+                } else if (methodMetadata.hasAnnotation(Path.class)) {
+                    locator(method, template(path, methodMetadata.stringValue(Path.class).orElse("")), locators, visited);
+                }
+            }
+        }
+
+        /**
+         * Follow a sub-resource locator to the type it returns.
+         */
+        private void locator(MethodElement method, String path, List<Locator> locators, Map<String, Integer> visited) {
+            ClassElement returned = method.getGenericReturnType();
+            boolean classReturn = returned.getName().equals(Class.class.getName());
+            if (classReturn) {
+                Map<String, ClassElement> typeArguments = returned.getTypeArguments();
+                returned = typeArguments.isEmpty() ? null : typeArguments.values().iterator().next();
+            }
+            if (returned == null || returned.isPrimitive() || returned.getName().equals(Object.class.getName())
+                || returned.isGenericPlaceholder() || returned.isWildcard()) {
+                // known only at runtime
+                context.info("JAX-RS sub-resource locator returning " + (returned == null ? "a class" : returned.getName()) + " is not routed", method);
+                return;
+            }
+            int occurrences = visited.getOrDefault(returned.getName(), 0);
+            if (occurrences >= MAX_LOCATOR_REPEAT || hasDuplicateVariables(path)) {
+                // recursive: the paths cannot be enumerated, only the first levels are routed
+                context.info("Recursive JAX-RS sub-resource locator is routed to a depth of " + MAX_LOCATOR_REPEAT, method);
+                return;
+            }
+            visited.put(returned.getName(), occurrences + 1);
+            try {
+                List<Param> params = new ArrayList<>();
+                for (ParameterElement parameter : method.getParameters()) {
+                    Param param = isRequestAnnotated(parameter)
+                        ? requestParam(parameter, parameter, parameter.getName(), encoded(parameter, method))
+                        : null;
+                    if (param == null) {
+                        context.info("JAX-RS sub-resource locator with a parameter that is not read from the request is not routed", parameter);
+                        return;
+                    }
+                    params.add(param);
+                }
+                RequestType created = null;
+                if (classReturn) {
+                    created = requestType(returned);
+                    if (created == null) {
+                        return;
+                    }
+                }
+                List<Locator> chain = new ArrayList<>(locators);
+                chain.add(new Locator(method, params, returned, created));
+                collect(returned, path, chain, visited, false);
+            } finally {
+                visited.put(returned.getName(), occurrences);
+            }
+        }
+
+        /**
+         * How to create and inject an instance of a type per request.
+         */
+        @Nullable RequestType requestType(ClassElement type) {
+            RequestType existing = requestTypes.get(type.getName());
+            if (existing != null) {
+                return existing;
+            }
+            List<Param> constructorParams = new ArrayList<>();
+            ConstructorElement constructor = requestConstructor(type);
+            if (constructor != null) {
+                for (ParameterElement parameter : constructor.getParameters()) {
+                    if (isRequestAnnotated(parameter)) {
+                        Param param = requestParam(parameter, parameter, parameter.getName(), encoded(parameter, type));
+                        if (param == null) {
+                            return null;
+                        }
+                        constructorParams.add(param);
+                    }
+                }
+            }
+            List<Member> members = new ArrayList<>();
+            for (MemberElement member : requestMembers(type)) {
+                if (member instanceof FieldElement field) {
+                    Param param = requestParam(field, field, field.getName(), encoded(field, type));
+                    if (param == null) {
+                        return null;
+                    }
+                    members.add(new Member(param, field, null));
+                } else if (member instanceof MethodElement setter) {
+                    ParameterElement parameter = setter.getParameters()[0];
+                    Param param = requestParam(setter, parameter, parameter.getName(), encoded(setter, type));
+                    if (param == null) {
+                        return null;
+                    }
+                    members.add(new Member(param, null, setter));
+                }
+            }
+            RequestType requestType = new RequestType(type, "create" + requestTypes.size(), constructorParams, members);
+            requestTypes.put(type.getName(), requestType);
+            return requestType;
+        }
+
+        /**
+         * A parameter, field or setter read from the request.
+         *
+         * @param annotated The element with the annotations
+         * @param typed     The element with the type
+         * @param name      The name of the parameter, for a {@code @Parameter} of a constructor
+         * @param encoded   Whether the value is not decoded
+         */
+        @Nullable Param requestParam(Element annotated, TypedElement typed, String name, boolean encoded) {
+            String defaultValue = annotated.stringValue(DefaultValue.class).orElse(null);
+            if (annotated.hasAnnotation(PathParam.class)) {
+                return new Param(ParamKind.PATH, annotated.stringValue(PathParam.class).orElse(name), typed, defaultValue, encoded, null);
+            } else if (annotated.hasAnnotation(QueryParam.class)) {
+                return new Param(ParamKind.QUERY, annotated.stringValue(QueryParam.class).orElse(name), typed, defaultValue, encoded, null);
+            } else if (annotated.hasAnnotation(MatrixParam.class)) {
+                return new Param(ParamKind.MATRIX, annotated.stringValue(MatrixParam.class).orElse(name), typed, defaultValue, encoded, null);
+            } else if (annotated.hasAnnotation(HeaderParam.class)) {
+                return new Param(ParamKind.HEADER, annotated.stringValue(HeaderParam.class).orElse(name), typed, defaultValue, encoded, null);
+            } else if (annotated.hasAnnotation(CookieParam.class)) {
+                return new Param(ParamKind.COOKIE, annotated.stringValue(CookieParam.class).orElse(name), typed, defaultValue, encoded, null);
+            } else if (annotated.hasAnnotation(FormParam.class)) {
+                return new Param(ParamKind.FORM, annotated.stringValue(FormParam.class).orElse(name), typed, defaultValue, encoded, null);
+            } else if (annotated.hasAnnotation(BeanParam.class)) {
+                // initialized at runtime from its introspection
+                return new Param(ParamKind.BEAN, name, typed, null, encoded, null);
+            } else if (annotated.hasAnnotation(Context.class)) {
+                return new Param(ParamKind.CONTEXT, annotated.stringValue(NAMED).orElse(null), typed, null, false, null);
+            }
             return null;
         }
-        String httpMethod = method.stringValue(HttpMethod.class).orElse("").toUpperCase(Locale.ENGLISH);
-        boolean custom = io.micronaut.http.HttpMethod.parse(httpMethod) == io.micronaut.http.HttpMethod.CUSTOM;
-        AnnotationMetadata methodMetadata = method.getMethodAnnotationMetadata();
-        String template = template(classPath, methodMetadata.stringValue(Path.class).orElse(""));
-        List<Param> params = new ArrayList<>();
-        boolean form = false;
-        Param entity = null;
-        for (ParameterElement parameter : method.getParameters()) {
-            if (parameter.hasAnnotation(BeanParam.class)) {
-                context.fail("Unsupported JAX-RS annotation used on method: " + BeanParam.class.getName(), parameter);
-                return null;
-            }
-            if (parameter.hasAnnotation(Suspended.class)) {
-                context.warn("JAX-RS asynchronous responses with @Suspended are not routed yet", method);
-                return null;
-            }
-            String defaultValue = parameter.stringValue(DefaultValue.class).orElse(null);
-            Param param;
-            if (parameter.hasAnnotation(PathParam.class)) {
-                param = new Param(ParamKind.PATH, parameter.stringValue(PathParam.class).orElse(parameter.getName()), parameter, defaultValue);
-            } else if (parameter.hasAnnotation(QueryParam.class)) {
-                param = new Param(ParamKind.QUERY, parameter.stringValue(QueryParam.class).orElse(parameter.getName()), parameter, defaultValue);
-            } else if (parameter.hasAnnotation(MatrixParam.class)) {
-                param = new Param(ParamKind.MATRIX, parameter.stringValue(MatrixParam.class).orElse(parameter.getName()), parameter, defaultValue);
-            } else if (parameter.hasAnnotation(HeaderParam.class)) {
-                param = new Param(ParamKind.HEADER, parameter.stringValue(HeaderParam.class).orElse(parameter.getName()), parameter, defaultValue);
-            } else if (parameter.hasAnnotation(CookieParam.class)) {
-                param = new Param(ParamKind.COOKIE, parameter.stringValue(CookieParam.class).orElse(parameter.getName()), parameter, defaultValue);
-            } else if (parameter.hasAnnotation(FormParam.class)) {
-                String name = parameter.stringValue(FormParam.class).orElse(parameter.getName());
-                if (NO_BODY_METHODS.contains(httpMethod)) {
-                    // no form without a body: read from the query, like the controllers did
-                    param = new Param(ParamKind.QUERY, name, parameter, defaultValue);
-                } else {
-                    param = new Param(ParamKind.FORM, name, parameter, defaultValue);
-                    form = true;
-                }
-            } else if (parameter.hasAnnotation(Context.class) || CONTEXT_TYPES.contains(parameter.getType().getName())) {
-                param = new Param(ParamKind.CONTEXT, parameter.stringValue(NAMED).orElse(null), parameter, null);
-            } else {
-                if (entity != null) {
-                    context.fail("A JAX-RS resource method can have one entity parameter", parameter);
+
+        private @Nullable ResourceMethod resourceMethod(ClassElement owner, String template, MethodElement method) {
+            String httpMethod = method.stringValue(HttpMethod.class).orElse("").toUpperCase(Locale.ENGLISH);
+            boolean custom = io.micronaut.http.HttpMethod.parse(httpMethod) == io.micronaut.http.HttpMethod.CUSTOM;
+            List<Param> params = new ArrayList<>();
+            boolean form = false;
+            Param entity = null;
+            for (ParameterElement parameter : method.getParameters()) {
+                if (parameter.hasAnnotation(Suspended.class)) {
+                    context.warn("JAX-RS asynchronous responses with @Suspended are not routed yet", method);
                     return null;
                 }
-                param = new Param(ParamKind.ENTITY, parameter.getName(), parameter, null);
-                entity = param;
+                Param param;
+                if (parameter.hasAnnotation(FormParam.class) && NO_BODY_METHODS.contains(httpMethod)) {
+                    // no form without a body: read from the query, like the controllers did
+                    param = new Param(ParamKind.QUERY, parameter.stringValue(FormParam.class).orElse(parameter.getName()), parameter,
+                        parameter.stringValue(DefaultValue.class).orElse(null), encoded(parameter, method), null);
+                } else if (isRequestAnnotated(parameter)) {
+                    param = requestParam(parameter, parameter, parameter.getName(), encoded(parameter, method));
+                    if (param == null) {
+                        return null;
+                    }
+                    form |= param.kind == ParamKind.FORM;
+                } else if (CONTEXT_TYPES.contains(parameter.getType().getName())) {
+                    param = new Param(ParamKind.CONTEXT, parameter.stringValue(NAMED).orElse(null), parameter, null, false, null);
+                } else {
+                    if (entity != null) {
+                        context.fail("A JAX-RS resource method can have one entity parameter", parameter);
+                        return null;
+                    }
+                    param = new Param(ParamKind.ENTITY, parameter.getName(), parameter, null, false, null);
+                    entity = param;
+                }
+                params.add(param);
             }
-            params.add(param);
-        }
-        if (form && custom) {
-            context.warn("JAX-RS resource method with a form and the HTTP method " + httpMethod + " is not routed yet", method);
-            return null;
-        }
-        if (form && entity != null) {
-            String entityType = entity.parameter.getType().getName();
-            if (!entityType.equals(FORM_TYPES_MAP) && !entityType.equals(FORM_TYPE)) {
-                context.fail("The entity of a JAX-RS resource method with @FormParam parameters must be a form", entity.parameter);
+            if (form && custom) {
+                context.warn("JAX-RS resource method with a form and the HTTP method " + httpMethod + " is not routed yet", method);
                 return null;
             }
-            entity.kind = ParamKind.FORM_ENTITY;
+            if (form && entity != null) {
+                String entityType = entity.element.getType().getName();
+                if (!entityType.equals(FORM_TYPES_MAP) && !entityType.equals(FORM_TYPE)) {
+                    context.fail("The entity of a JAX-RS resource method with @FormParam parameters must be a form", entity.element);
+                    return null;
+                }
+                entity.kind = ParamKind.FORM_ENTITY;
+            }
+            ClassElement returnType = method.getGenericReturnType();
+            boolean async = returnType.getName().equals(COMPLETION_STAGE) || returnType.isAssignable(COMPLETION_STAGE) && returnType.getName().startsWith("java.util.concurrent.");
+            return new ResourceMethod(method, httpMethod, template, params, form, entity, returnType, async, custom,
+                mediaTypes(method, owner, Produces.class), mediaTypes(method, owner, Consumes.class));
         }
-        ClassElement returnType = method.getGenericReturnType();
-        boolean async = returnType.getName().equals(COMPLETION_STAGE) || returnType.isAssignable(COMPLETION_STAGE) && returnType.getName().startsWith("java.util.concurrent.");
-        List<String> produces = mediaTypes(method, resource, Produces.class);
-        List<String> consumes = mediaTypes(method, resource, Consumes.class);
-        return new ResourceMethod(method, httpMethod, template, params, form, entity, returnType, async, custom, produces, consumes);
+
+        /**
+         * @return Whether the generated router, in the package of the resource, can use the member
+         * directly
+         */
+        boolean accessible(MemberElement member) {
+            return !member.isPrivate() && (member.isPublic() || member.getDeclaringType().getPackageName().equals(resource.getPackageName()));
+        }
     }
 
-    private static List<String> mediaTypes(MethodElement method, ClassElement resource, Class<? extends java.lang.annotation.Annotation> annotation) {
+    /**
+     * @return Whether a {@code @BeanParam} type, or one nested in it, reads a form field
+     */
+    private static boolean beanUsesForm(ClassElement type, int depth) {
+        if (depth > 8) {
+            return false;
+        }
+        for (MemberElement member : requestMembers(type)) {
+            if (member.hasAnnotation(FormParam.class)
+                || member.hasAnnotation(BeanParam.class) && member instanceof FieldElement field && beanUsesForm(field.getType(), depth + 1)) {
+                return true;
+            }
+        }
+        ConstructorElement constructor = requestConstructor(type);
+        return constructor != null && Arrays.stream(constructor.getParameters()).anyMatch(p -> p.hasAnnotation(FormParam.class));
+    }
+
+    /**
+     * @return Whether a template has a variable more than once, which a route cannot match
+     */
+    static boolean hasDuplicateVariables(String template) {
+        Set<String> names = new java.util.HashSet<>();
+        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("\\{([^:}]+)").matcher(template);
+        while (matcher.find()) {
+            if (!names.add(matcher.group(1).trim())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean encoded(Element element, Element enclosing) {
+        return element.hasAnnotation(Encoded.class) || enclosing.hasAnnotation(Encoded.class);
+    }
+
+    private static List<String> mediaTypes(MethodElement method, ClassElement owner, Class<? extends java.lang.annotation.Annotation> annotation) {
         String[] values = method.getMethodAnnotationMetadata().stringValues(annotation);
         if (values.length == 0) {
-            values = resource.stringValues(annotation);
+            values = owner.stringValues(annotation);
         }
         List<String> mediaTypes = new ArrayList<>();
         for (String value : values) {
@@ -309,13 +534,13 @@ public final class JaxRsRoutesGenerator {
     }
 
     /**
-     * The URI template of a resource method: the paths of the class and the method, joined by a
-     * slash, with the spaces JAX-RS allows in a template variable removed.
+     * A URI template: the paths joined by a slash, with the spaces JAX-RS allows in a template
+     * variable removed.
      */
-    static String template(String classPath, String methodPath) {
+    static String template(String prefix, String path) {
         StringBuilder template = new StringBuilder();
-        for (String path : new String[]{classPath, methodPath}) {
-            String trimmed = strip(normalizeVariables(path));
+        for (String part : new String[]{prefix, path}) {
+            String trimmed = strip(normalizeVariables(part));
             if (!trimmed.isEmpty()) {
                 template.append('/').append(trimmed);
             }
@@ -375,68 +600,32 @@ public final class JaxRsRoutesGenerator {
 
     /**
      * The model of the router of a resource: an {@code HttpRoutes} bean with a route per resource
-     * method.
+     * method, and a method per type created per request.
      */
-    private static ClassDef router(ClassElement resource, String routerName, List<ResourceMethod> methods,
-                                   @Nullable List<Param> constructorParams, VisitorContext context) {
-        ClassTypeDef routerType = ClassTypeDef.of(resource.getPackageName() + "." + routerName);
+    private static ClassDef router(Model model, @Nullable RequestType root) {
+        ClassElement resource = model.resource;
+        ClassTypeDef routerType = ClassTypeDef.of(resource.getPackageName() + "." + resource.getSimpleName() + "$JaxRsRouter");
         ClassTypeDef resourceType = ClassTypeDef.erasure(resource);
-        ClassTypeDef supportType = type(context, SUPPORT);
-        ClassTypeDef metadataType = type(context, SUPPORT + ".RouteMetadata");
-        ClassTypeDef routeBuilderType = type(context, ROUTER + "HttpRouteBuilder");
-        ClassTypeDef uriRouteType = type(context, ROUTER + "HttpRouteSpec");
+        Types types = new Types(model.context);
 
         ClassDef.ClassDefBuilder router = ClassDef.builder(routerType.getName())
             .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
             .addAnnotation(ClassTypeDef.of("jakarta.inject.Singleton"))
-            .addSuperinterface(type(context, ROUTER + "HttpRoutes"))
+            .addSuperinterface(types.type(ROUTER + "HttpRoutes"))
             .addJavadoc("Implements the routes of the JAX-RS resource {@link " + resource.getCanonicalName() + "} with handler functions.");
+        Constants constants = new Constants(router, routerType);
 
         FieldDef resourceField = FieldDef.builder("resource", TypeDef.parameterized(ClassTypeDef.of(BeanProvider.class), resourceType))
             .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
             .build();
-        FieldDef supportField = FieldDef.builder("support", supportType)
+        FieldDef supportField = FieldDef.builder("support", types.support)
             .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
             .build();
-
-        // the constants of the constructor parameters read from the request
-        List<VariableDef.StaticField> constructorArguments = new ArrayList<>();
-        boolean constructorForm = false;
-        if (constructorParams != null) {
-            for (int j = 0; j < constructorParams.size(); j++) {
-                Param param = constructorParams.get(j);
-                constructorArguments.add(constant(router, routerType, "C" + j, ARGUMENT, argument(param.parameter.getGenericType())));
-                constructorForm |= param.kind == ParamKind.FORM;
-            }
-        }
+        Generator generator = new Generator(model, constants, types, resourceField, supportField);
 
         List<RouteModel> routes = new ArrayList<>();
-        for (int i = 0; i < methods.size(); i++) {
-            ResourceMethod method = methods.get(i);
-            List<VariableDef.StaticField> arguments = new ArrayList<>();
-            for (int j = 0; j < method.params.size(); j++) {
-                Param param = method.params.get(j);
-                ExpressionDef argument = argument(param.parameter.getGenericType());
-                if (param.kind == ParamKind.ENTITY) {
-                    // an entity is optional
-                    argument = routeBuilderType.invokeStatic("nullableBody", ARGUMENT, argument);
-                }
-                arguments.add(constant(router, routerType, "A" + i + "_" + j, ARGUMENT, argument));
-            }
-            ClassElement valueType = method.async ? firstTypeArgument(method.returnType) : method.returnType;
-            VariableDef.StaticField returnType = constant(router, routerType, "R" + i, ARGUMENT,
-                valueType == null || valueType.isVoid() ? ARGUMENT.getStaticField("VOID", ARGUMENT) : argument(valueType));
-            VariableDef.StaticField metadata = constant(router, routerType, "ROUTE" + i, metadataType, metadataType.instantiate(
-                ExpressionDef.constant(resourceType),
-                ExpressionDef.constant(method.method.getName()),
-                TypeDef.CLASS.array().instantiate(Arrays.stream(method.method.getParameters())
-                    .map(p -> (ExpressionDef) ExpressionDef.constant(TypeDef.erasure(p.getType()))).toList()),
-                strings(method.produces),
-                strings(method.consumes)
-            ));
-            // a form is read for the constructor when the method can have one and reads no entity
-            boolean form = method.form || constructorForm && !NO_BODY_METHODS.contains(method.httpMethod) && method.entity == null;
-            routes.add(new RouteModel("route" + i, method, arguments, returnType, metadata, form));
+        for (int i = 0; i < model.routes.size(); i++) {
+            routes.add(generator.routeModel(model.routes.get(i), i, root));
         }
 
         router.addField(resourceField);
@@ -444,44 +633,45 @@ public final class JaxRsRoutesGenerator {
         router.addMethod(MethodDef.constructor()
             .addModifiers(Modifier.PUBLIC)
             .addParameter("resource", resourceField.getType())
-            .addParameter("support", supportType)
+            .addParameter("support", types.support)
             .build((aThis, params) -> StatementDef.multi(
                 aThis.field(resourceField).assign(params.get(0)),
                 aThis.field(supportField).assign(params.get(1))
             )));
+        for (RequestType requestType : model.requestTypes.values()) {
+            router.addMethod(generator.createMethod(requestType));
+        }
         for (RouteModel route : routes) {
-            router.addMethod(routeMethod(resourceType, supportType, resourceField, supportField, route, constructorParams, constructorArguments, context));
+            router.addMethod(generator.routeMethod(route, root));
         }
         router.addMethod(MethodDef.builder("routes")
             .addModifiers(Modifier.PUBLIC)
             .addAnnotation(Override.class)
-            .addParameter("routes", routeBuilderType)
+            .addParameter("routes", types.routeBuilder)
             .returns(TypeDef.VOID)
             .build((aThis, params) -> {
                 VariableDef support = aThis.field(supportField);
                 List<StatementDef> statements = new ArrayList<>();
                 for (RouteModel route : routes) {
-                    ExpressionDef handler = handlerLambda(aThis, route, context);
+                    ResourceMethod method = route.route.method;
                     List<ExpressionDef> handle = new ArrayList<>();
                     // a custom HTTP method is routed by its name
-                    handle.add(route.method.custom
-                        ? ExpressionDef.constant(route.method.httpMethod)
-                        : HTTP_METHOD.getStaticField(route.method.httpMethod, HTTP_METHOD));
-                    handle.add(support.invoke("uri", TypeDef.STRING, ExpressionDef.constant(route.method.template)));
+                    handle.add(method.custom
+                        ? ExpressionDef.constant(method.httpMethod)
+                        : HTTP_METHOD.getStaticField(method.httpMethod, HTTP_METHOD));
+                    handle.add(support.invoke("uri", TypeDef.STRING, ExpressionDef.constant(method.template)));
                     String builderMethod;
                     if (route.form) {
-                        builderMethod = "handleForm";
-                    } else if (route.method.entity != null && !route.method.httpMethod.equals("GET")) {
-                        builderMethod = route.method.async ? "handleAsync" : "handle";
-                        handle.add(route.arguments.get(route.method.params.indexOf(route.method.entity)));
-                    } else if (route.method.async) {
-                        builderMethod = "handleAsync";
+                        builderMethod = method.async ? "handleFormAsync" : "handleForm";
+                    } else if (route.body) {
+                        builderMethod = method.async ? "handleAsync" : "handle";
+                        handle.add(route.entityArgument);
                     } else {
-                        builderMethod = "handle";
+                        builderMethod = method.async ? "handleAsync" : "handle";
                     }
-                    handle.add(handler);
+                    handle.add(generator.handlerLambda(aThis, route));
                     statements.add(support.invoke("configure", TypeDef.VOID,
-                        params.get(0).invoke(builderMethod, uriRouteType, handle),
+                        params.get(0).invoke(builderMethod, types.routeSpec, handle),
                         route.metadata));
                 }
                 // the resource is not a bean in this context, e.g. disabled by @Requires
@@ -491,168 +681,411 @@ public final class JaxRsRoutesGenerator {
     }
 
     /**
-     * The interface of the handler function of a route, and its type variables.
+     * The types the generated code uses.
      */
-    private static String handlerType(RouteModel route) {
-        ResourceMethod method = route.method;
-        boolean entity = method.entity != null && !method.httpMethod.equals("GET");
-        if (route.form) {
-            return method.async ? "AsyncFormRequestHandler" : "FormRequestHandler";
-        } else if (entity) {
-            return method.async ? "AsyncBodyRequestHandler" : "BodyRequestHandler";
-        } else if (method.async) {
-            return "AsyncRequestHandler";
+    private static final class Types {
+        final VisitorContext context;
+        final ClassTypeDef support;
+        final ClassTypeDef metadata;
+        final ClassTypeDef routeBuilder;
+        final ClassTypeDef routeSpec;
+        final TypeDef request = TypeDef.parameterized(ClassTypeDef.of("io.micronaut.http.HttpRequest"), TypeDef.wildcard());
+        final TypeDef response = TypeDef.parameterized(ClassTypeDef.of(HTTP_RESPONSE), TypeDef.wildcard());
+        final ClassTypeDef pathVariables;
+        final ClassTypeDef form;
+
+        Types(VisitorContext context) {
+            this.context = context;
+            support = type(SUPPORT);
+            metadata = type(SUPPORT + ".RouteMetadata");
+            routeBuilder = type(ROUTER + "HttpRouteBuilder");
+            routeSpec = type(ROUTER + "HttpRouteSpec");
+            pathVariables = type(ROUTER + "PathVariables");
+            form = type("io.micronaut.http.form.FormData");
         }
-        return "RequestHandler";
+
+        ClassTypeDef type(String name) {
+            return ClassTypeDef.erasure(context.getClassElement(name)
+                .orElseThrow(() -> new IllegalStateException("The type " + name + " is not on the classpath of the compilation")));
+        }
     }
 
     /**
-     * The handler function of a route: calls the method of the route.
+     * The {@code private static final} constants of the router.
      */
-    private static ExpressionDef handlerLambda(VariableDef.This aThis, RouteModel route, VisitorContext context) {
-        String handlerType = handlerType(route);
-        Map<String, TypeDef> typeVariables = handlerType.endsWith("BodyRequestHandler") ? Map.of("B", TypeDef.OBJECT) : Map.of();
-        return type(context, ROUTER + handlerType).getLambda(typeVariables).implement((lambdaThis, lambdaParams) ->
-            aThis.invoke(route.name, TypeDef.OBJECT, new ArrayList<ExpressionDef>(lambdaParams)).returning());
+    private static final class Constants {
+        final ClassDef.ClassDefBuilder router;
+        final ClassTypeDef routerType;
+        int count;
+
+        Constants(ClassDef.ClassDefBuilder router, ClassTypeDef routerType) {
+            this.router = router;
+            this.routerType = routerType;
+        }
+
+        VariableDef.StaticField add(String prefix, ClassTypeDef type, ExpressionDef value) {
+            FieldDef field = FieldDef.builder(prefix + count++, type)
+                .addModifiers(Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL)
+                .initializer(value)
+                .build();
+            router.addField(field);
+            return routerType.getStaticField(field);
+        }
     }
 
     /**
-     * The method of a route: reads the parameters, calls the resource method and returns the
-     * response.
+     * Generates the methods of the router.
      */
-    private static MethodDef routeMethod(ClassTypeDef resourceType, ClassTypeDef supportType,
-                                         FieldDef resourceField, FieldDef supportField, RouteModel route,
-                                         @Nullable List<Param> constructorParams, List<VariableDef.StaticField> constructorArguments,
-                                         VisitorContext context) {
-        ResourceMethod method = route.method;
-        String handlerType = handlerType(route);
-        boolean async = handlerType.startsWith("Async");
-        boolean formRoute = handlerType.endsWith("FormRequestHandler");
-        boolean bodyRoute = handlerType.endsWith("BodyRequestHandler");
-        MethodDef.MethodDefBuilder builder = MethodDef.builder(route.name)
-            .addModifiers(Modifier.PRIVATE)
-            .addParameter("request", TypeDef.parameterized(ClassTypeDef.of("io.micronaut.http.HttpRequest"), TypeDef.wildcard()))
-            .addParameter("pathVariables", type(context, ROUTER + "PathVariables"));
-        if (formRoute) {
-            builder.addParameter("form", type(context, "io.micronaut.http.form.FormData"));
-        } else if (bodyRoute) {
-            builder.addParameter("body", TypeDef.OBJECT);
-        }
-        TypeDef response = TypeDef.parameterized(ClassTypeDef.of("io.micronaut.http.HttpResponse"), TypeDef.wildcard());
-        builder.returns(async ? TypeDef.parameterized(ClassTypeDef.of(java.util.concurrent.CompletionStage.class), TypeDef.wildcardSubtypeOf(response)) : response);
-        builder.addThrows(ClassTypeDef.of(Exception.class));
-        return builder.build((aThis, params) -> {
-            VariableDef request = params.get(0);
-            VariableDef pathVariables = params.get(1);
-            @Nullable VariableDef third = params.size() > 2 ? params.get(2) : null;
-            VariableDef support = aThis.field(supportField);
-            HandlerScope scope = new HandlerScope(support, request, pathVariables,
-                formRoute ? third : null,
-                bodyRoute ? third : null);
+    private static final class Generator {
+        final Model model;
+        final Constants constants;
+        final Types types;
+        final FieldDef resourceField;
+        final FieldDef supportField;
+        final Map<String, ExpressionDef> arguments = new LinkedHashMap<>();
 
-            ExpressionDef instance;
-            if (constructorParams == null) {
-                instance = aThis.field(resourceField).invoke("get", TypeDef.OBJECT).cast(resourceType);
-            } else {
-                // created per request, with the values of the request as its @Parameters
-                List<ExpressionDef> names = new ArrayList<>();
-                List<ExpressionDef> values = new ArrayList<>();
-                for (int j = 0; j < constructorParams.size(); j++) {
-                    Param param = constructorParams.get(j);
-                    Param source = param.kind == ParamKind.FORM && !route.form
-                        ? new Param(ParamKind.QUERY, param.name, param.parameter, param.defaultValue)
-                        : param;
-                    names.add(ExpressionDef.constant(param.parameter.getName()));
-                    values.add(value(source, constructorArguments.get(j), scope));
+        Generator(Model model, Constants constants, Types types, FieldDef resourceField, FieldDef supportField) {
+            this.model = model;
+            this.constants = constants;
+            this.types = types;
+            this.resourceField = resourceField;
+            this.supportField = supportField;
+        }
+
+        ExpressionDef argument(Param param) {
+            return argument(param.element.getGenericType());
+        }
+
+        /**
+         * The {@code Argument} of a type: a constant of {@code Argument} for the common types, or
+         * a constant of the router shared by every value of the same type.
+         */
+        ExpressionDef argument(ClassElement type) {
+            String signature = signature(type);
+            ExpressionDef existing = arguments.get(signature);
+            if (existing != null) {
+                return existing;
+            }
+            String builtIn = BUILT_IN_ARGUMENTS.get(signature);
+            ExpressionDef argument = builtIn != null
+                ? ARGUMENT.getStaticField(builtIn, ARGUMENT)
+                : constants.add("A", ARGUMENT, JaxRsRoutesGenerator.argument(type, this));
+            arguments.put(signature, argument);
+            return argument;
+        }
+
+        RouteModel routeModel(Route route, int index, @Nullable RequestType root) {
+            ResourceMethod method = route.method;
+            ExpressionDef entityArgument = null;
+            for (Param param : method.params) {
+                if (param.kind == ParamKind.BEAN) {
+                    continue;
                 }
-                instance = support.invoke("create", TypeDef.OBJECT,
-                    ExpressionDef.constant(resourceType),
-                    TypeDef.STRING.array().instantiate(names),
-                    TypeDef.OBJECT.array().instantiate(values)
-                ).cast(resourceType);
+                ExpressionDef argument = argument(param);
+                if (param.kind == ParamKind.ENTITY) {
+                    // an entity is optional
+                    String key = "nullable " + signature(param.element.getGenericType());
+                    entityArgument = arguments.get(key);
+                    if (entityArgument == null) {
+                        entityArgument = constants.add("B", ARGUMENT, types.routeBuilder.invokeStatic("nullableBody", ARGUMENT, argument));
+                        arguments.put(key, entityArgument);
+                    }
+                }
             }
-            List<ExpressionDef> arguments = new ArrayList<>();
-            for (int j = 0; j < method.params.size(); j++) {
-                arguments.add(value(method.params.get(j), route.arguments.get(j), scope));
-            }
-            ExpressionDef call = instance.invoke(method.method, arguments);
-            StatementDef result;
-            if (method.returnType.isVoid()) {
-                result = StatementDef.multi(
-                    (StatementDef) call,
-                    support.invoke("response", TypeDef.OBJECT, request, ExpressionDef.nullValue(), route.returnType, route.metadata).returning()
-                );
-            } else if (method.async) {
-                result = support.invoke("responseAsync", TypeDef.OBJECT, request, call, route.returnType, route.metadata).returning();
-            } else {
-                result = support.invoke("response", TypeDef.OBJECT, request, call, route.returnType, route.metadata).returning();
-            }
-            if (throwsThrowable(method.method)) {
-                // a route handler can only throw exceptions
-                result = StatementDef.doTry(result).doCatch(Throwable.class, throwable ->
-                    supportType.invokeStatic("rethrow", ClassTypeDef.of(RuntimeException.class), throwable).doThrow());
-            }
-            return result;
-        });
-    }
+            ClassElement valueType = method.async ? firstTypeArgument(method.returnType) : method.returnType;
+            ExpressionDef returnType = valueType == null || valueType.isVoid() ? ARGUMENT.getStaticField("VOID", ARGUMENT) : argument(valueType);
+            VariableDef.StaticField metadata = constants.add("ROUTE", types.metadata, types.metadata.instantiate(
+                ExpressionDef.constant(ClassTypeDef.erasure(route.owner)),
+                ExpressionDef.constant(method.method.getName()),
+                TypeDef.CLASS.array().instantiate(Arrays.stream(method.method.getParameters())
+                    .map(p -> (ExpressionDef) ExpressionDef.constant(TypeDef.erasure(p.getType()))).toList()),
+                strings(method.produces),
+                strings(method.consumes),
+                ExpressionDef.constant(ClassTypeDef.erasure(model.resource))
+            ));
+            boolean body = method.entity != null && method.entity.kind == ParamKind.ENTITY && !method.httpMethod.equals("GET");
+            // a form is read for a type created per request when the method can have one and reads no entity
+            boolean form = method.form || usesForm(route, root) && !NO_BODY_METHODS.contains(method.httpMethod) && method.entity == null && !method.custom;
+            return new RouteModel("route" + index, route, entityArgument, valueType, returnType, metadata, form, body && !form);
+        }
 
-    /**
-     * The value of a parameter, read from the request and converted.
-     */
-    private static ExpressionDef value(Param param, VariableDef.StaticField argument, HandlerScope scope) {
-        ExpressionDef defaultValue = param.defaultValue == null ? ExpressionDef.nullValue() : ExpressionDef.constant(param.defaultValue);
-        ExpressionDef name = param.name == null ? ExpressionDef.nullValue() : ExpressionDef.constant(param.name);
-        VariableDef support = scope.support;
-        ExpressionDef value = switch (param.kind) {
-            case PATH -> support.invoke("pathParam", TypeDef.OBJECT, scope.request, scope.pathVariables, name, argument, defaultValue);
-            case QUERY -> support.invoke("queryParam", TypeDef.OBJECT, scope.request, name, argument, defaultValue);
-            case MATRIX -> support.invoke("matrixParam", TypeDef.OBJECT, scope.request, name, argument, defaultValue);
-            case HEADER -> support.invoke("headerParam", TypeDef.OBJECT, scope.request, name, argument, defaultValue);
-            case COOKIE -> support.invoke("cookieParam", TypeDef.OBJECT, scope.request, name, argument, defaultValue);
-            case FORM -> support.invoke("formParam", TypeDef.OBJECT, Objects.requireNonNull(scope.form, "form"), name, argument, defaultValue);
-            case FORM_ENTITY -> support.invoke("formEntity", TypeDef.OBJECT, Objects.requireNonNull(scope.form, "form"), argument);
-            case CONTEXT -> support.invoke("context", TypeDef.OBJECT, scope.request, argument, name);
-            case ENTITY -> support.invoke("entity", TypeDef.OBJECT, scope.body == null ? ExpressionDef.nullValue() : scope.body, argument);
-        };
-        return value.cast(TypeDef.erasure(param.parameter.getType()));
-    }
+        private boolean usesForm(Route route, @Nullable RequestType root) {
+            if (root != null && root.usesForm()) {
+                return true;
+            }
+            for (Locator locator : route.locators) {
+                for (Param param : locator.params) {
+                    if (param.kind == ParamKind.FORM || param.kind == ParamKind.BEAN && beanUsesForm(param.element.getType(), 0)) {
+                        return true;
+                    }
+                }
+                if (locator.created != null && locator.created.usesForm()) {
+                    return true;
+                }
+            }
+            for (Param param : route.method.params) {
+                if (param.kind == ParamKind.BEAN && beanUsesForm(param.element.getType(), 0)) {
+                    return true;
+                }
+            }
+            return false;
+        }
 
-    /**
-     * A {@code private static final} constant of the router.
-     */
-    private static VariableDef.StaticField constant(ClassDef.ClassDefBuilder router, ClassTypeDef routerType, String name, ClassTypeDef type, ExpressionDef value) {
-        FieldDef field = FieldDef.builder(name, type)
-            .addModifiers(Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL)
-            .initializer(value)
-            .build();
-        router.addField(field);
-        return routerType.getStaticField(field);
+        /**
+         * The handler function of a route: calls the method of the route.
+         */
+        ExpressionDef handlerLambda(VariableDef.This aThis, RouteModel route) {
+            String handlerType = handlerType(route);
+            Map<String, TypeDef> typeVariables = handlerType.endsWith("BodyRequestHandler") ? Map.of("B", TypeDef.OBJECT) : Map.of();
+            return types.type(ROUTER + handlerType).getLambda(typeVariables).implement((lambdaThis, lambdaParams) ->
+                aThis.invoke(route.name, TypeDef.OBJECT, new ArrayList<ExpressionDef>(lambdaParams)).returning());
+        }
+
+        private String handlerType(RouteModel route) {
+            boolean async = route.route.method.async;
+            if (route.form) {
+                return async ? "AsyncFormRequestHandler" : "FormRequestHandler";
+            } else if (route.body) {
+                return async ? "AsyncBodyRequestHandler" : "BodyRequestHandler";
+            }
+            return async ? "AsyncRequestHandler" : "RequestHandler";
+        }
+
+        /**
+         * The method that creates an instance of a type per request: with the values of the
+         * request as the {@code @Parameter}s of its constructor, and injected into its fields and
+         * setters.
+         */
+        MethodDef createMethod(RequestType requestType) {
+            ClassTypeDef type = ClassTypeDef.erasure(requestType.type);
+            return MethodDef.builder(requestType.method)
+                .addModifiers(Modifier.PRIVATE)
+                .addParameter("type", TypeDef.CLASS)
+                .addParameter("request", types.request)
+                .addParameter("pathVariables", types.pathVariables)
+                .addParameter("form", types.form)
+                .returns(type)
+                .build((aThis, params) -> {
+                    Scope scope = new Scope(aThis, aThis.field(supportField), params.get(1), params.get(2), params.get(3), null);
+                    List<ExpressionDef> names = new ArrayList<>();
+                    List<ExpressionDef> values = new ArrayList<>();
+                    for (Param param : requestType.constructorParams) {
+                        names.add(ExpressionDef.constant(param.element.getName()));
+                        values.add(value(param, scope));
+                    }
+                    ExpressionDef instance = scope.support.invoke("create", TypeDef.OBJECT,
+                        params.get(0),
+                        TypeDef.STRING.array().instantiate(names),
+                        TypeDef.OBJECT.array().instantiate(values)
+                    ).cast(type);
+                    if (requestType.members.isEmpty()) {
+                        return instance.returning();
+                    }
+                    return instance.newLocal("instance", local -> {
+                        List<StatementDef> statements = new ArrayList<>();
+                        for (Member member : requestType.members) {
+                            statements.add(inject(local, member, scope));
+                        }
+                        statements.add(local.returning());
+                        return StatementDef.multi(statements);
+                    });
+                });
+        }
+
+        private StatementDef inject(VariableDef instance, Member member, Scope scope) {
+            ExpressionDef value = value(member.param, scope);
+            FieldElement field = member.field;
+            if (field != null) {
+                // the source generator renders a field access only on the generated class itself
+                return scope.support.invoke("setField", TypeDef.VOID, instance,
+                    ExpressionDef.constant(ClassTypeDef.erasure(field.getDeclaringType())),
+                    ExpressionDef.constant(field.getName()), value);
+            }
+            MethodElement setter = member.setter;
+            if (model.accessible(setter)) {
+                return instance.invoke(setter, value);
+            }
+            return scope.support.invoke("invokeSetter", TypeDef.VOID, instance,
+                ExpressionDef.constant(ClassTypeDef.erasure(setter.getDeclaringType())),
+                ExpressionDef.constant(setter.getName()),
+                ExpressionDef.constant(TypeDef.erasure(setter.getParameters()[0].getType())), value);
+        }
+
+        /**
+         * The method of a route: creates or gets the resource, calls the locators, reads the
+         * parameters, calls the resource method and returns the response.
+         */
+        MethodDef routeMethod(RouteModel route, @Nullable RequestType root) {
+            ResourceMethod method = route.route.method;
+            String handlerType = handlerType(route);
+            MethodDef.MethodDefBuilder builder = MethodDef.builder(route.name)
+                .addModifiers(Modifier.PRIVATE)
+                .addParameter("request", types.request)
+                .addParameter("pathVariables", types.pathVariables);
+            if (route.form) {
+                builder.addParameter("form", types.form);
+            } else if (route.body) {
+                builder.addParameter("body", TypeDef.OBJECT);
+            }
+            builder.returns(handlerType.startsWith("Async")
+                ? TypeDef.parameterized(ClassTypeDef.of(java.util.concurrent.CompletionStage.class), TypeDef.wildcardSubtypeOf(types.response))
+                : types.response);
+            builder.addThrows(ClassTypeDef.of(Exception.class));
+            return builder.build((aThis, params) -> {
+                VariableDef request = params.get(0);
+                VariableDef pathVariables = params.get(1);
+                VariableDef third = params.size() > 2 ? params.get(2) : null;
+                Scope scope = new Scope(aThis, aThis.field(supportField), request, pathVariables,
+                    route.form ? third : null, route.body ? third : null);
+
+                ClassTypeDef resourceType = ClassTypeDef.erasure(model.resource);
+                ExpressionDef instance = root == null
+                    ? aThis.field(resourceField).invoke("get", TypeDef.OBJECT).cast(resourceType)
+                    : aThis.invoke(root.method, resourceType, ExpressionDef.constant(resourceType), request, pathVariables, formOrNull(scope));
+                for (Locator locator : route.route.locators) {
+                    List<ExpressionDef> arguments = new ArrayList<>();
+                    for (Param param : locator.params) {
+                        arguments.add(value(param, scope));
+                    }
+                    // a locator returning null is a 404
+                    ExpressionDef located = scope.support.invoke("located", TypeDef.OBJECT, instance.invoke(locator.method, arguments));
+                    ClassTypeDef locatedType = ClassTypeDef.erasure(locator.type);
+                    if (locator.created != null) {
+                        // the locator returned the class: an instance is created for the request
+                        instance = aThis.invoke(locator.created.method, locatedType, located.cast(TypeDef.CLASS), request, pathVariables, formOrNull(scope));
+                    } else {
+                        instance = located.cast(locatedType);
+                    }
+                }
+                List<ExpressionDef> arguments = new ArrayList<>();
+                for (Param param : method.params) {
+                    arguments.add(value(param, scope));
+                }
+                ExpressionDef call = instance.invoke(method.method, arguments);
+                StatementDef result;
+                if (method.returnType.isVoid()) {
+                    result = StatementDef.multi(
+                        (StatementDef) call,
+                        scope.support.invoke("noContent", TypeDef.OBJECT).returning()
+                    );
+                } else if (method.async) {
+                    result = call.invoke("thenApply", ClassTypeDef.of(COMPLETION_STAGE),
+                        types.type(Function.class.getName()).getLambda(Map.of("T", TypeDef.OBJECT, "R", TypeDef.OBJECT)).implement((lambdaThis, lambdaParams) ->
+                            response(route, lambdaParams.get(0), scope).returning())
+                    ).returning();
+                } else {
+                    result = response(route, call, scope).returning();
+                }
+                if (throwsThrowable(method.method) || route.route.locators.stream().anyMatch(l -> throwsThrowable(l.method))) {
+                    // a route handler can only throw exceptions
+                    result = StatementDef.doTry(result).doCatch(Throwable.class, throwable ->
+                        types.support.invokeStatic("rethrow", ClassTypeDef.of(RuntimeException.class), throwable).doThrow());
+                }
+                return result;
+            });
+        }
+
+        /**
+         * The response of a result, converted as its declared type says.
+         */
+        private ExpressionDef response(RouteModel route, ExpressionDef result, Scope scope) {
+            ClassElement type = route.valueType;
+            VariableDef support = scope.support;
+            if (type == null || type.getName().equals(Object.class.getName()) || type.isGenericPlaceholder() || type.isWildcard()) {
+                // known only at runtime
+                return support.invoke("anyResponse", TypeDef.OBJECT, scope.request, result, route.returnType);
+            }
+            if (type.isAssignable(JAX_RS_RESPONSE)) {
+                return support.invoke("jaxRsResponse", TypeDef.OBJECT, result.cast(ClassTypeDef.of(JAX_RS_RESPONSE)));
+            }
+            if (type.isAssignable(HTTP_RESPONSE)) {
+                return support.invoke("httpResponse", TypeDef.OBJECT, result.cast(ClassTypeDef.of(HTTP_RESPONSE)));
+            }
+            if (!type.isArray() && !type.getTypeArguments().isEmpty()) {
+                // the declared type, with its type arguments, selects the message body writer
+                return support.invoke("genericEntityResponse", TypeDef.OBJECT, result, route.returnType);
+            }
+            return support.invoke("entityResponse", TypeDef.OBJECT, result);
+        }
+
+        private ExpressionDef formOrNull(Scope scope) {
+            return scope.form == null ? ExpressionDef.nullValue() : scope.form;
+        }
+
+        /**
+         * The value of a parameter, read from the request and converted.
+         */
+        ExpressionDef value(Param param, Scope scope) {
+            ExpressionDef defaultValue = param.defaultValue == null ? ExpressionDef.nullValue() : ExpressionDef.constant(param.defaultValue);
+            ExpressionDef name = param.name == null ? ExpressionDef.nullValue() : ExpressionDef.constant(param.name);
+            ExpressionDef encoded = ExpressionDef.constant(param.encoded);
+            VariableDef support = scope.support;
+            if (param.kind == ParamKind.BEAN) {
+                ClassTypeDef beanType = ClassTypeDef.erasure(param.element.getType());
+                return support.invoke("beanParam", TypeDef.OBJECT,
+                    ExpressionDef.constant(beanType), scope.request, scope.pathVariables, formOrNull(scope)).cast(beanType);
+            }
+            ExpressionDef argument = argument(param);
+            ExpressionDef value = switch (param.kind) {
+                case PATH -> support.invoke("pathParam", TypeDef.OBJECT, scope.request, scope.pathVariables, name, argument, defaultValue, encoded);
+                case QUERY -> support.invoke("queryParam", TypeDef.OBJECT, scope.request, name, argument, defaultValue, encoded);
+                case MATRIX -> support.invoke("matrixParam", TypeDef.OBJECT, scope.request, name, argument, defaultValue, encoded);
+                case HEADER -> support.invoke("headerParam", TypeDef.OBJECT, scope.request, name, argument, defaultValue);
+                case COOKIE -> support.invoke("cookieParam", TypeDef.OBJECT, scope.request, name, argument, defaultValue);
+                // read from the query when the route reads no form
+                case FORM -> support.invoke("formParam", TypeDef.OBJECT, scope.request, formOrNull(scope), name, argument, defaultValue, encoded);
+                case FORM_ENTITY -> support.invoke("formEntity", TypeDef.OBJECT, formOrNull(scope), argument);
+                case CONTEXT -> support.invoke("context", TypeDef.OBJECT, scope.request, argument, name);
+                case ENTITY -> support.invoke("entity", TypeDef.OBJECT, scope.body == null ? ExpressionDef.nullValue() : scope.body, argument);
+                case BEAN -> throw new IllegalStateException("Handled above");
+            };
+            return value.cast(TypeDef.erasure(param.element.getType()));
+        }
     }
 
     /**
      * An expression creating the {@code Argument} of a type, with its type arguments.
      */
-    private static ExpressionDef argument(ClassElement type) {
-        if (type.isGenericPlaceholder() || type.isWildcard()) {
-            return ARGUMENT.getStaticField("OBJECT_ARGUMENT", ARGUMENT);
-        }
+    private static ExpressionDef argument(ClassElement type, Generator generator) {
         List<ExpressionDef> values = new ArrayList<>();
         values.add(ExpressionDef.constant(TypeDef.erasure(type)));
         if (!type.isArray() && !type.isPrimitive()) {
             for (ClassElement typeArgument : type.getTypeArguments().values()) {
-                values.add(argument(typeArgument));
+                values.add(generator.argument(typeArgument));
             }
         }
         return ARGUMENT.invokeStatic("of", ARGUMENT, values);
     }
 
-    private static ExpressionDef strings(List<String> values) {
-        return TypeDef.STRING.array().instantiate(values.stream().map(v -> (ExpressionDef) ExpressionDef.constant(v)).toList());
+    /**
+     * The generic signature of a type, which identifies its {@code Argument}.
+     */
+    private static String signature(ClassElement type) {
+        if (type.isGenericPlaceholder() || type.isWildcard()) {
+            return Object.class.getName();
+        }
+        StringBuilder signature = new StringBuilder(type.getName());
+        if (type.isArray()) {
+            signature.append("[]".repeat(Math.max(1, type.getArrayDimensions())));
+            return signature.toString();
+        }
+        if (!type.isPrimitive() && !type.getTypeArguments().isEmpty()) {
+            signature.append('<');
+            boolean first = true;
+            for (ClassElement typeArgument : type.getTypeArguments().values()) {
+                if (!first) {
+                    signature.append(',');
+                }
+                signature.append(signature(typeArgument));
+                first = false;
+            }
+            signature.append('>');
+        }
+        return signature.toString();
     }
 
-    private static ClassTypeDef type(VisitorContext context, String name) {
-        return ClassTypeDef.erasure(context.getClassElement(name)
-            .orElseThrow(() -> new IllegalStateException("The type " + name + " is not on the classpath of the compilation")));
+    private static ExpressionDef strings(List<String> values) {
+        return TypeDef.STRING.array().instantiate(values.stream().map(v -> (ExpressionDef) ExpressionDef.constant(v)).toList());
     }
 
     private static boolean throwsThrowable(MethodElement method) {
@@ -669,49 +1102,76 @@ public final class JaxRsRoutesGenerator {
         return typeArguments.isEmpty() ? null : typeArguments.values().iterator().next();
     }
 
-    /**
-     * What a route method needs to read a value.
-     *
-     * @param support       The route support field
-     * @param request       The request parameter
-     * @param pathVariables The path variables parameter
-     * @param form          The form parameter of a form route
-     * @param body          The body parameter of a route with an entity
-     */
-    private record HandlerScope(VariableDef support, VariableDef request, VariableDef pathVariables,
-                                @Nullable VariableDef form, @Nullable VariableDef body) {
-    }
-
-    /**
-     * A route of the router, with its constants.
-     *
-     * @param name       The name of the route method
-     * @param method     The resource method
-     * @param arguments  The argument constants of its parameters
-     * @param returnType The argument constant of its result
-     * @param metadata   The route metadata constant
-     * @param form       Whether the route reads a form
-     */
-    private record RouteModel(String name, ResourceMethod method, List<VariableDef.StaticField> arguments,
-                              VariableDef.StaticField returnType, VariableDef.StaticField metadata, boolean form) {
-    }
-
     private enum ParamKind {
-        PATH, QUERY, MATRIX, HEADER, COOKIE, FORM, FORM_ENTITY, CONTEXT, ENTITY
+        PATH, QUERY, MATRIX, HEADER, COOKIE, FORM, FORM_ENTITY, CONTEXT, ENTITY, BEAN
     }
 
+    /**
+     * A value a resource method, locator, constructor, field or setter reads.
+     */
     private static final class Param {
         ParamKind kind;
         final @Nullable String name;
-        final ParameterElement parameter;
+        final TypedElement element;
         final @Nullable String defaultValue;
+        final boolean encoded;
+        final @Nullable RequestType bean;
 
-        Param(ParamKind kind, @Nullable String name, ParameterElement parameter, @Nullable String defaultValue) {
+        Param(ParamKind kind, @Nullable String name, TypedElement element, @Nullable String defaultValue, boolean encoded, @Nullable RequestType bean) {
             this.kind = kind;
             this.name = name;
-            this.parameter = parameter;
+            this.element = element;
             this.defaultValue = defaultValue;
+            this.encoded = encoded;
+            this.bean = bean;
         }
+    }
+
+    /**
+     * A field or setter injected per request.
+     *
+     * @param param  The value
+     * @param field  The field
+     * @param setter The setter
+     */
+    private record Member(Param param, @Nullable FieldElement field, @Nullable MethodElement setter) {
+    }
+
+    /**
+     * A type created per request.
+     *
+     * @param type              The type
+     * @param method            The name of the router method that creates it
+     * @param constructorParams The constructor parameters read from the request
+     * @param members           The fields and setters read from the request
+     */
+    private record RequestType(ClassElement type, String method, List<Param> constructorParams, List<Member> members) {
+
+        boolean usesForm() {
+            return constructorParams.stream().anyMatch(p -> p.kind == ParamKind.FORM || p.kind == ParamKind.BEAN && beanUsesForm(p.element.getType(), 0))
+                || members.stream().anyMatch(m -> m.param.kind == ParamKind.FORM || m.param.kind == ParamKind.BEAN && beanUsesForm(m.param.element.getType(), 0));
+        }
+    }
+
+    /**
+     * A sub-resource locator of a route.
+     *
+     * @param method  The locator
+     * @param params  Its parameters
+     * @param type    The type it returns, or the type of the class it returns
+     * @param created How the class it returns is created, or {@code null} if it returns an instance
+     */
+    private record Locator(MethodElement method, List<Param> params, ClassElement type, @Nullable RequestType created) {
+    }
+
+    /**
+     * A route: the locators leading to a resource method.
+     *
+     * @param method   The resource method
+     * @param locators The locators, from the resource
+     * @param owner    The type of the resource method
+     */
+    private record Route(ResourceMethod method, List<Locator> locators, ClassElement owner) {
     }
 
     private record ResourceMethod(MethodElement method,
@@ -725,5 +1185,35 @@ public final class JaxRsRoutesGenerator {
                                   boolean custom,
                                   List<String> produces,
                                   List<String> consumes) {
+    }
+
+    /**
+     * What a generated method needs to read a value.
+     *
+     * @param router        The router
+     * @param support       The route support field
+     * @param request       The request parameter
+     * @param pathVariables The path variables parameter
+     * @param form          The form, if the route reads one
+     * @param body          The body parameter of a route with an entity
+     */
+    private record Scope(VariableDef.This router, VariableDef support, VariableDef request, VariableDef pathVariables,
+                         @Nullable VariableDef form, @Nullable VariableDef body) {
+    }
+
+    /**
+     * A route of the router, with its constants.
+     *
+     * @param name           The name of the route method
+     * @param route          The route
+     * @param entityArgument The nullable body argument constant
+     * @param valueType      The declared type of the result, of the stage of an asynchronous method
+     * @param returnType     The argument constant of the result
+     * @param metadata       The route metadata constant
+     * @param form           Whether the route reads a form
+     * @param body           Whether the route reads an entity
+     */
+    private record RouteModel(String name, Route route, @Nullable ExpressionDef entityArgument, @Nullable ClassElement valueType,
+                              ExpressionDef returnType, VariableDef.StaticField metadata, boolean form, boolean body) {
     }
 }

@@ -21,6 +21,9 @@ import io.micronaut.http.HttpRequest;
 import io.micronaut.http.annotation.RequestFilter;
 import io.micronaut.http.annotation.ServerFilter;
 import io.micronaut.http.server.annotation.PreMatching;
+import jakarta.ws.rs.core.MultivaluedHashMap;
+import jakarta.ws.rs.core.MultivaluedMap;
+import jakarta.ws.rs.core.PathSegment;
 import org.jspecify.annotations.Nullable;
 
 import java.net.URI;
@@ -73,9 +76,10 @@ final class JaxRsMatrixParams implements Ordered {
      *
      * @param request The request
      * @param name    The name of the parameter
+     * @param encoded Whether the values are not decoded
      * @return The decoded values, empty if the parameter is not present
      */
-    static List<String> values(HttpRequest<?> request, String name) {
+    static List<String> values(HttpRequest<?> request, String name, boolean encoded) {
         @Nullable String path = request.getAttribute(MATRIX_PATH, String.class).orElse(null);
         if (path == null) {
             return List.of();
@@ -89,10 +93,48 @@ final class JaxRsMatrixParams implements Ordered {
             int equals = part.indexOf('=');
             String key = URLDecoder.decode(equals < 0 ? part : part.substring(0, equals), StandardCharsets.UTF_8);
             if (key.equals(name)) {
-                values.add(equals < 0 ? "" : URLDecoder.decode(part.substring(equals + 1), StandardCharsets.UTF_8));
+                String value = equals < 0 ? "" : part.substring(equals + 1);
+                values.add(encoded ? value : URLDecoder.decode(value, StandardCharsets.UTF_8));
             }
         }
         return values;
+    }
+
+    /**
+     * The path segment a path variable matched, with its matrix parameters.
+     *
+     * @param request The request
+     * @param value   The value of the variable
+     * @param encoded Whether the path and the parameters are not decoded
+     * @return The segment
+     */
+    static PathSegment pathSegment(HttpRequest<?> request, String value, boolean encoded) {
+        String path = request.getAttribute(MATRIX_PATH, String.class).orElseGet(() -> request.getUri().getRawPath());
+        for (String segment : path.split("/")) {
+            String[] parts = segment.split(";");
+            String decoded = URLDecoder.decode(parts[0], StandardCharsets.UTF_8);
+            if (decoded.equals(value) || parts[0].equals(value)) {
+                MultivaluedMap<String, String> parameters = new MultivaluedHashMap<>();
+                for (int i = 1; i < parts.length; i++) {
+                    int equals = parts[i].indexOf('=');
+                    String key = equals < 0 ? parts[i] : parts[i].substring(0, equals);
+                    String parameter = equals < 0 ? "" : parts[i].substring(equals + 1);
+                    parameters.add(encoded ? key : URLDecoder.decode(key, StandardCharsets.UTF_8),
+                        encoded ? parameter : URLDecoder.decode(parameter, StandardCharsets.UTF_8));
+                }
+                return new Segment(encoded ? parts[0] : decoded, parameters);
+            }
+        }
+        return new Segment(value, new MultivaluedHashMap<>());
+    }
+
+    /**
+     * A path segment and its matrix parameters.
+     *
+     * @param getPath             The path of the segment
+     * @param getMatrixParameters Its matrix parameters
+     */
+    private record Segment(String getPath, MultivaluedMap<String, String> getMatrixParameters) implements PathSegment {
     }
 
     @Override
