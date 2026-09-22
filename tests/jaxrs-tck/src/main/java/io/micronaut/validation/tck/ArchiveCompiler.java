@@ -100,6 +100,13 @@ final class ArchiveCompiler {
                 }
 
                 sourceFiles.add(sourceFilePath.toFile());
+            } else if (path.startsWith("/WEB-INF/classes/") && entry.getValue().getAsset() != null) {
+                // a resource of the deployment, e.g. a META-INF/services file of a JAX-RS feature
+                Path resourcePath = deploymentDir.target.resolve(path.substring("/WEB-INF/classes/".length()));
+                Files.createDirectories(resourcePath.getParent());
+                try (InputStream in = entry.getValue().getAsset().openStream()) {
+                    Files.copy(in, resourcePath);
+                }
             } else if (path.startsWith("/WEB-INF/lib") && path.endsWith(".jar")) {
                 String jarFile = path.replace("/WEB-INF/lib", "");
                 Path jarFilePath = deploymentDir.lib.resolve(jarFile.substring(1)); // jarFile begins with `/`
