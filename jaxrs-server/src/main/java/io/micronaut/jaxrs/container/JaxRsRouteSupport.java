@@ -27,6 +27,7 @@ import io.micronaut.core.convert.ConversionContext;
 import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.type.Argument;
 import io.micronaut.core.util.ExceptionUtils;
+import io.micronaut.http.HttpMethod;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.inject.ExecutableMethod;
 import io.micronaut.http.HttpResponse;
@@ -38,6 +39,7 @@ import io.micronaut.jaxrs.common.JaxRsGenericEntity;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import io.micronaut.http.form.FormData;
 import io.micronaut.web.router.builder.HttpRouteSpec;
+import io.micronaut.web.router.builder.RouteDeclaration;
 import io.micronaut.web.router.builder.PathVariables;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.BadRequestException;
@@ -128,6 +130,24 @@ public final class JaxRsRouteSupport {
         }
         String prefix = applicationPath.charAt(0) == '/' ? applicationPath : '/' + applicationPath;
         return UriTemplate.of(prefix).nest(template).toString();
+    }
+
+    /**
+     * The declaration of a route, with its template in the language of JAX-RS, under the
+     * {@code @ApplicationPath} of the application. The context path is applied by the router.
+     *
+     * @param method   The HTTP method
+     * @param template The joined {@code @Path} values of the resource method
+     * @return The declaration
+     */
+    public RouteDeclaration declaration(HttpMethod method, String template) {
+        String expression = template;
+        if (!applicationPath.isEmpty() && !"/".equals(applicationPath)) {
+            String prefix = applicationPath.charAt(0) == '/' ? applicationPath : '/' + applicationPath;
+            prefix = prefix.endsWith("/") ? prefix.substring(0, prefix.length() - 1) : prefix;
+            expression = "/".equals(template) ? prefix : prefix + template;
+        }
+        return RouteDeclaration.of(method, JaxRsRouteTemplateEngine.template(expression));
     }
 
     /**

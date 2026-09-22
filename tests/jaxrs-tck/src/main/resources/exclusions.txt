@@ -1,10 +1,3 @@
-# matching weirdness
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#locatorNameTooLongAgainTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#slashUriTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#slashAppNameTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#wrongAppNameTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#descendantResourcePathValueTest
-
 # Why multivaluedmap of headers should accept nulls???
 ee.jakarta.tck.ws.rs.api.rs.core.multivaluedmap.JAXRSClientIT
 
@@ -211,15 +204,8 @@ ee.jakarta.tck.ws.rs.spec.provider.sort.JAXRSClientIT#contentTypeTextHmtlGotText
 ee.jakarta.tck.ws.rs.spec.provider.sort.JAXRSClientIT#contentTypeApplicationGotWildCardTest
 ee.jakarta.tck.ws.rs.spec.provider.sort.JAXRSClientIT#contentTypeTextPlainGotTextPlainTest
 
-# routing issues
-ee.jakarta.tck.ws.rs.spec.template.JAXRSClientIT#Test1
-ee.jakarta.tck.ws.rs.spec.template.JAXRSClientIT#Test2
-
 # Arquillian issue but test is likely broken anyway because we don't use jsonb
 ee.jakarta.tck.ws.rs.spec.contextprovider.JsonbContextProviderIT
-
-# path param issues
-ee.jakarta.tck.ws.rs.jaxrs40.ee.rs.core.uriinfo.UriInfo40ClientIT
 
 # @Encoded
 ee.jakarta.tck.ws.rs.ee.rs.formparam.JAXRSClientIT
@@ -286,3 +272,8 @@ ee.jakarta.tck.ws.rs.spec.resource.annotationprecedence.subclass.JAXRSClientIT#i
 ee.jakarta.tck.ws.rs.spec.resource.annotationprecedence.subclass.JAXRSClientIT#matrixParamPqrTest
 ee.jakarta.tck.ws.rs.spec.resource.annotationprecedence.subclass.JAXRSClientIT#queryParamPqrTest
 ee.jakarta.tck.ws.rs.spec.resource.locator.JAXRSClientIT#checkEntityIsNotSetTest
+
+# Route selection has two keys, literal length then the number of variables: a variable with a
+# custom regular expression and one without are equally specific, e.g. {id} and {id: .+}
+ee.jakarta.tck.ws.rs.spec.template.JAXRSClientIT#Test1
+ee.jakarta.tck.ws.rs.spec.template.JAXRSClientIT#Test2

@@ -49,6 +49,7 @@ import java.util.stream.Stream;
 public final class UriInfoImpl implements UriInfo {
     private final HttpRequest<?> request;
     private final String basePath;
+    private final String contextPath;
 
     /**
      * Construct from an HTTP request.
@@ -57,8 +58,20 @@ public final class UriInfoImpl implements UriInfo {
      * @param basePath The base path
      */
     public UriInfoImpl(@NonNull HttpRequest<?> request, @Nullable String basePath) {
+        this(request, basePath, "");
+    }
+
+    /**
+     * Construct from an HTTP request.
+     *
+     * @param request     The request
+     * @param basePath    The base path: the context path and the application path
+     * @param contextPath The context path of the server
+     */
+    public UriInfoImpl(@NonNull HttpRequest<?> request, @Nullable String basePath, @NonNull String contextPath) {
         this.request = request;
         this.basePath = basePath == null || basePath.equals("/") ? null : basePath;
+        this.contextPath = contextPath;
     }
 
     /**
@@ -239,7 +252,12 @@ public final class UriInfoImpl implements UriInfo {
 
     //    @Override v4
     public String getMatchedResourceTemplate() {
-        return "";
+        // the template of the matched route, relative to the context path of the server
+        return io.micronaut.web.router.RouteAttributes.getRouteInfo(request)
+            .filter(io.micronaut.web.router.UriRouteInfo.class::isInstance)
+            .map(route -> ((io.micronaut.web.router.UriRouteInfo<?, ?>) route).getRouteTemplate().expression())
+            .map(template -> !contextPath.isEmpty() && template.startsWith(contextPath) ? template.substring(contextPath.length()) : template)
+            .orElse("");
     }
 
     /**
