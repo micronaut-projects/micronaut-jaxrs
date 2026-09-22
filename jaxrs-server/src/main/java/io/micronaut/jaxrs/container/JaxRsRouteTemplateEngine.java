@@ -61,13 +61,40 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateEngine, Rout
     private static final String QS = "qs";
     private static final String WILDCARD = "*";
     /**
+     * Marks the end of the {@code @Path} of the root resource class in a template: JAX-RS selects
+     * the root resource class first (section 3.7.2, step 1).
+     */
+    public static final char ROOT_MARK = '\u001E';
+    /**
+     * Marks the end of the {@code @Path} of a sub-resource locator in a template: a resource method
+     * is selected before a locator that matches as specifically (section 3.7.2, step 2).
+     */
+    public static final char LOCATOR_MARK = '\u001F';
+    /**
      * The order of specificity of JAX-RS (section 3.7.2): more literal characters, then more
      * template variables, then more variables with a regular expression.
      */
-    private static final Comparator<ParsedRouteTemplate> ORDER = Comparator
+    private static final Comparator<ParsedRouteTemplate> SPECIFICITY = Comparator
         .comparingInt(ParsedRouteTemplate::rawLength).reversed()
         .thenComparing(Comparator.comparingInt(ParsedRouteTemplate::pathVariableCount).reversed())
         .thenComparing(Comparator.comparingInt(ParsedRouteTemplate::patternVariableCount).reversed());
+    /**
+     * The order of JAX-RS routes: the root resource class, by the specificity of its {@code @Path},
+     * then the whole template, then fewer sub-resource locators.
+     */
+    private static final Comparator<ParsedRouteTemplate> ORDER = (a, b) -> {
+        if (a instanceof Parsed pa && b instanceof Parsed pb) {
+            // the templates of this engine know their root resource class and their locators
+            int result = SPECIFICITY.compare(pa.root(), pb.root());
+            if (result == 0) {
+                result = SPECIFICITY.compare(a, b);
+            }
+            return result == 0 ? Integer.compare(pa.locators, pb.locators) : result;
+        }
+        return SPECIFICITY.compare(a, b);
+    };
+
+    private static final Parsed EMPTY = new Parsed(template(""), List.of(), null, 0);
 
     private final Map<RouteTemplate, ParsedRouteTemplate> parsedTemplates = new ConcurrentHashMap<>();
 
@@ -244,7 +271,60 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateEngine, Rout
         if (!ID.equals(template.engineId())) {
             throw new IllegalArgumentException("Not a JAX-RS template: " + template);
         }
-        return new Parsed(template, parts(template.expression()));
+        return parsed(template, "");
+    }
+
+    /**
+     * A template, with the root resource class and the locators its marks record.
+     *
+     * @param template The template
+     * @param prefix   The literal prefix the template starts with, mounted by the router, or empty
+     */
+    private static Parsed parsed(RouteTemplate template, String prefix) {
+        String expression = template.expression();
+        int rootMark = expression.indexOf(ROOT_MARK);
+        int locators = 0;
+        StringBuilder clean = new StringBuilder(expression.length());
+        for (int i = 0; i < expression.length(); i++) {
+            char c = expression.charAt(i);
+            if (c == LOCATOR_MARK) {
+                locators++;
+            } else if (c != ROOT_MARK) {
+                clean.append(c);
+            }
+        }
+        @Nullable Parsed root = null;
+        if (rootMark >= 0) {
+            String rootExpression = expression.substring(0, rootMark);
+            root = new Parsed(template(rootExpression), parts(rootExpression), null, 0);
+        }
+        List<Part> parts = parts(clean.toString());
+        if (!prefix.isEmpty()) {
+            // the prefix is literal: a brace in it is not a variable
+            List<Part> literalPrefix = new ArrayList<>();
+            literalPrefix.add(Part.literal(prefix));
+            literalPrefix.addAll(parts(clean.substring(prefix.length())));
+            parts = List.copyOf(literalPrefix);
+        }
+        return new Parsed(template, parts, root, locators);
+    }
+
+    /**
+     * @param expression A template, possibly with the marks of its root resource class and locators
+     * @return The template as it was written, without the marks
+     */
+    public static String withoutMarks(String expression) {
+        if (expression.indexOf(ROOT_MARK) < 0 && expression.indexOf(LOCATOR_MARK) < 0) {
+            return expression;
+        }
+        StringBuilder clean = new StringBuilder(expression.length());
+        for (int i = 0; i < expression.length(); i++) {
+            char c = expression.charAt(i);
+            if (c != ROOT_MARK && c != LOCATOR_MARK) {
+                clean.append(c);
+            }
+        }
+        return clean.toString();
     }
 
     @Override
@@ -258,12 +338,8 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateEngine, Rout
 
     @Override
     public ParsedRouteTemplate mount(String prefix, ParsedRouteTemplate template) {
-        // the prefix is literal: a brace in it is not a variable
         Parsed parsed = (Parsed) template;
-        List<Part> parts = new ArrayList<>();
-        parts.add(Part.literal(prefix));
-        parts.addAll(parsed.parts);
-        return new Parsed(template(prefix + parsed.template.expression()), List.copyOf(parts));
+        return parsed(template(prefix + parsed.template.expression()), prefix);
     }
 
     @Override
@@ -459,9 +535,19 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateEngine, Rout
      * A parsed template.
      *
      * @param template The template
-     * @param parts    Its parts
+     * @param parts    Its parts, without the marks
+     * @param rootPart The template of the {@code @Path} of its root resource class, or {@code null}
+     * @param locators The number of sub-resource locators leading to the resource method
      */
-    private record Parsed(RouteTemplate template, List<Part> parts) implements ParsedRouteTemplate {
+    private record Parsed(RouteTemplate template, List<Part> parts, @Nullable Parsed rootPart, int locators) implements ParsedRouteTemplate {
+
+        /**
+         * @return The template of the root resource class, empty if unknown
+         */
+        ParsedRouteTemplate root() {
+            return rootPart == null ? EMPTY : rootPart;
+        }
+
 
         @Override
         public String engineVersion() {

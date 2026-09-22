@@ -122,6 +122,14 @@ public final class JaxRsRoutesGenerator {
      * its own type is routed to this depth.
      */
     private static final int MAX_LOCATOR_REPEAT = 2;
+    /**
+     * See {@code JaxRsRouteTemplateEngine#ROOT_MARK}.
+     */
+    private static final char ROOT_MARK = '\u001E';
+    /**
+     * See {@code JaxRsRouteTemplateEngine#LOCATOR_MARK}.
+     */
+    private static final char LOCATOR_MARK = '\u001F';
     private static final String GENERIC_ENTITY = "jakarta.ws.rs.core.GenericEntity";
     private static final String LOCATED_ROUTES = "io.micronaut.jaxrs.container.JaxRsLocatedRoutes";
     private static final Map<String, String> BUILT_IN_ARGUMENTS = Map.ofEntries(
@@ -175,7 +183,10 @@ public final class JaxRsRoutesGenerator {
         Map<String, Integer> visited = new LinkedHashMap<>();
         visited.put(resource.getName(), 1);
         model.rootSegments = segments(resource.stringValue(Path.class).orElse(""));
-        model.collect(resource, resource.stringValue(Path.class).orElse(""), List.of(), visited, true);
+        String rootPath = resource.stringValue(Path.class).orElse("");
+        // the root resource class is selected first by the specificity of its @Path: the end of
+        // it is marked in the templates, for the JAX-RS route template engine
+        model.collect(resource, strip(rootPath).isEmpty() ? rootPath : strip(rootPath) + ROOT_MARK, List.of(), visited, true);
         if (model.routes.isEmpty() && model.runtimeLocators.isEmpty()) {
             return;
         }
@@ -329,7 +340,8 @@ public final class JaxRsRoutesGenerator {
                         routes.add(new Route(resourceMethod, locators, type));
                     }
                 } else if (methodMetadata.hasAnnotation(Path.class)) {
-                    locator(method, template(path, methodMetadata.stringValue(Path.class).orElse("")), locators, visited);
+                    // a resource method is selected before a locator: the end of its @Path is marked
+                    locator(method, template(path, methodMetadata.stringValue(Path.class).orElse("")) + LOCATOR_MARK, locators, visited);
                 }
             }
         }

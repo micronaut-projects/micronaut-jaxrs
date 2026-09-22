@@ -207,12 +207,7 @@ ee.jakarta.tck.ws.rs.spec.resource.annotationprecedence.subclass.JAXRSClientIT#q
 ee.jakarta.tck.ws.rs.spec.resource.locator.JAXRSClientIT#checkEntityIsNotSetTest
 
 
-# Request matching: a resource method and a locator, or sub-resource methods, that JAX-RS tells apart
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#resourceLocatorTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#descendantResourcePathValueTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#descendantSubResourcePathValueTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#consumesOverridesDescendantSubResourcePathValueTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesOverridesDescendantSubResourcePathValuePostTest
+# Request matching: JAX-RS commits to the most specific root resource class, and answers 404 when none of its methods match
 ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#locatorNameTooLongAgainTest
 
 # Request matching: the harness serves the deployment at the root, so a wrong application name is still routed
