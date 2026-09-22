@@ -1,10 +1,10 @@
 package io.micronaut.jaxrs.container;
 
 import io.micronaut.context.annotation.Value;
-import io.micronaut.http.annotation.QueryValue;
 import io.micronaut.scheduling.TaskExecutors;
 import jakarta.inject.Named;
 import jakarta.validation.constraints.Min;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DefaultValue;
@@ -73,7 +73,7 @@ public class NotificationsResource {
     @GET
     @Path("/query")
     @Produces(MediaType.APPLICATION_JSON)
-    public Response getDefault(@DefaultValue("10") @QueryValue("id") int id) {
+    public Response getDefault(@DefaultValue("10") @QueryParam("id") int id) {
         return Response.ok()
             .entity(new Notification(id, "john", "test notification"))
             .build();
