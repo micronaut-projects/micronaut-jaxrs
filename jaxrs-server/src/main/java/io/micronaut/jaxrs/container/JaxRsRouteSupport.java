@@ -36,7 +36,6 @@ import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import io.micronaut.scheduling.TaskExecutors;
 import io.micronaut.web.router.FormData;
 import io.micronaut.web.router.PathVariables;
-import io.micronaut.web.router.RouteDeclaration;
 import io.micronaut.web.router.UriRoute;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.BadRequestException;
@@ -106,18 +105,18 @@ public final class JaxRsRouteSupport {
     }
 
     /**
-     * The declaration of a route, under the {@code @ApplicationPath} of the application. The
+     * The URI template of a route, under the {@code @ApplicationPath} of the application. The
      * context path is applied by the router.
      *
-     * @param declaration The declaration generated for a resource method
-     * @return The declaration of the route
+     * @param template The template of a resource method, the paths of its class and itself
+     * @return The URI template of the route
      */
-    public RouteDeclaration declaration(RouteDeclaration declaration) {
+    public String uri(String template) {
         if (applicationPath.isEmpty() || "/".equals(applicationPath)) {
-            return declaration;
+            return template;
         }
         String prefix = applicationPath.charAt(0) == '/' ? applicationPath : '/' + applicationPath;
-        return RouteDeclaration.of(declaration.httpMethod(), UriTemplate.of(prefix).nest(declaration.uriTemplate()).toString());
+        return UriTemplate.of(prefix).nest(template).toString();
     }
 
     /**
