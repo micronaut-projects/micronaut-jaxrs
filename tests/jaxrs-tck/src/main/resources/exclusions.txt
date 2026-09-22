@@ -14,17 +14,8 @@ ee.jakarta.tck.ws.rs.spec.filter.interceptor.JAXRSClientIT
 # Security
 ee.jakarta.tck.ws.rs.ee.rs.container.requestcontext.security.JAXRSClientIT
 
-# Support multiple context beans
-ee.jakarta.tck.ws.rs.spec.context.server.JAXRSClientIT
-
-ee.jakarta.tck.ws.rs.jaxrs21.spec.classsubresourcelocator.JAXRSClientIT
-
 # Standard writers / readers cannot be replaced - support JAXBElement
 ee.jakarta.tck.ws.rs.spec.provider.standardhaspriority.JAXRSClientIT#readWriteJaxbProviderTest
-
-# Dynamic features not supported
-ee.jakarta.tck.ws.rs.spec.filter.dynamicfeature.JAXRSClientIT
-ee.jakarta.tck.ws.rs.jaxrs31.spec.extensions.JAXRSClientIT
 
 # Closed client
 ee.jakarta.tck.ws.rs.api.client.client.JAXRSClientIT
@@ -99,16 +90,6 @@ ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT#clientMultivaluedMa
 # Fake response 1 to String incorrectly converts
 ee.jakarta.tck.ws.rs.api.client.clientrequestcontext.JAXRSClientIT#getPropertyNamesIsImmutableTest
 
-# Investigate
-ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#writeIOExceptionUsingWriterTest
-ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#readEntityWebException400Test
-
-# Test expect writers to be evaluated after the controller method. Micronaut resolve them before
-ee.jakarta.tck.ws.rs.spec.provider.writer.JAXRSClientIT#responseSubClassTest
-ee.jakarta.tck.ws.rs.spec.provider.writer.JAXRSClientIT#supportAllTest
-ee.jakarta.tck.ws.rs.spec.provider.writer.JAXRSClientIT#supportXmlByXmlWriterTest
-ee.jakarta.tck.ws.rs.spec.provider.writer.JAXRSClientIT#supportXmlByDefaultWriterTest
-
 # Not supported to change the method in ClientRequestContext
 ee.jakarta.tck.ws.rs.ee.rs.client.clientrequestcontext.JAXRSClientIT#setMethodTest
 
@@ -134,17 +115,8 @@ ee.jakarta.tck.ws.rs.ee.rs.ext.interceptor.containerwriter.interceptorcontext.JA
 # HttpServletRequest
 ee.jakarta.tck.ws.rs.ee.rs.container.requestcontext.JAXRSClientIT
 
-# TCK BUG Micronaut return more annotations
-ee.jakarta.tck.ws.rs.ee.rs.container.responsecontext.JAXRSClientIT#getEntityAnnotationsWhenAnnotationsOnEntityTest
-
 # Client body readers / writers with @Context annotations
 ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT#bodyReaderTest
-
-# JAX-RS Body readers / writers expect the resource method annotations merged with the body argument
-ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#readEntityFromBodyTest
-ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#readEntityFromHeaderTest
-ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#readEntityIOExceptionTest
-ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#readEntityWebException410Test
 
 # Support a special way to resolve body readers / writers
 ee.jakarta.tck.ws.rs.spec.provider.overridestandard.JAXRSClientIT#readWriteByteArrayProviderTest
@@ -156,47 +128,14 @@ ee.jakarta.tck.ws.rs.spec.provider.overridestandard.JAXRSClientIT#readWriteJaxbP
 ee.jakarta.tck.ws.rs.spec.provider.overridestandard.JAXRSClientIT#readWriteMapProviderTest
 ee.jakarta.tck.ws.rs.spec.provider.overridestandard.JAXRSClientIT#readWriteSourceProviderTest
 
-# TCK BUG @Path without a HTTP method annotation it's only allowed because of the subresource support
-ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#webApplicationExceptionHasResponseWithoutEntityDoesUseMapperTest
-
 # Exception mapper needs to support @Context injection
 ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT#exceptionMapperTest
-
-# Get context
-ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#isRegisteredAppJsonContextResolverTest
-ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#isRegisteredTextPlainContextResolverTest
-ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT#contextResolverTest
-
-# TCK BUG missing method annotation
-ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#webApplicationExceptionHasResponseWithEntityDoesNotUseMapperTest
 
 # cookies do not contain version=1
 ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#cookieTest
 ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#getCookiesTest
 ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT#cookieTest
 ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT#getCookiesTest
-
-# media type behavior
-ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#clientAnyPreferenceTest
-ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#textPreferenceTest
-ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#defaultResponseErrorTest
-ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#clientImagePreferenceTest
-ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#defaultErrorTest
-ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#mesageBodyWriterProducesTest
-ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#noPreferenceTest
-ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#imagePreferenceTest
-
-# response entity negotiation
-ee.jakarta.tck.ws.rs.spec.returntype.JAXRSClientIT#entityResponseTest
-
-# UriInfo unsupported methods
-ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#getMatchedURIsTest
-ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#getMatchedURIsTest1
-ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#getMatchedURIsTest2
-ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#getMatchedResourcesTest
-ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#requestURITest
-ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#aPathTest
-ee.jakarta.tck.ws.rs.ee.rs.core.uriinfo.JAXRSClientIT#baseUriTest
 
 # StringBean
 ee.jakarta.tck.ws.rs.spec.provider.sort.JAXRSClientIT#contentTypeTextXmlGotTextWildCardTest
@@ -209,13 +148,6 @@ ee.jakarta.tck.ws.rs.spec.contextprovider.JsonbContextProviderIT
 
 # @Encoded
 ee.jakarta.tck.ws.rs.ee.rs.formparam.JAXRSClientIT
-
-# security context test issues, probably just need a harness fix
-ee.jakarta.tck.ws.rs.ee.rs.core.securitycontext.basic.JAXRSBasicClientIT
-
-# @Context on route method parameter
-ee.jakarta.tck.ws.rs.ee.rs.core.request.JAXRSClientIT
-ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#clientHtmlXmlPreferenceTest
 
 # Content type in HEAD response, our behavior is fine
 ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#classProducesTest
@@ -277,3 +209,63 @@ ee.jakarta.tck.ws.rs.spec.resource.locator.JAXRSClientIT#checkEntityIsNotSetTest
 # custom regular expression and one without are equally specific, e.g. {id} and {id: .+}
 ee.jakarta.tck.ws.rs.spec.template.JAXRSClientIT#Test1
 ee.jakarta.tck.ws.rs.spec.template.JAXRSClientIT#Test2
+
+# Still failing after the functional routes rewrite, by reason
+
+# A WebApplicationException with a response is not passed to its exception mapper as JAX-RS orders it
+ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#webApplicationExceptionHasResponseWithEntityDoesNotUseMapperTest
+ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#webApplicationExceptionHasResponseWithoutEntityDoesUseMapperTest
+
+# ContainerResponseContext.getEntityAnnotations does not carry the annotations of a Response entity
+ee.jakarta.tck.ws.rs.ee.rs.container.responsecontext.JAXRSClientIT#getEntityAnnotationsWhenAnnotationsOnEntityTest
+
+# Request.selectVariant does not add a Vary header to the response
+ee.jakarta.tck.ws.rs.ee.rs.core.request.JAXRSClientIT#selectVariantResponseVaryTest
+
+# The harness does not configure the users and passwords the tests authenticate with
+ee.jakarta.tck.ws.rs.ee.rs.core.securitycontext.basic.JAXRSBasicClientIT
+
+# Providers: context resolvers and the readers of an injected Providers are not looked up per JAX-RS
+ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#isRegisteredAppJsonContextResolverTest
+ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#isRegisteredTextPlainContextResolverTest
+ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#readEntityFromBodyTest
+ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#readEntityFromHeaderTest
+ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#readEntityIOExceptionTest
+ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#readEntityWebException400Test
+ee.jakarta.tck.ws.rs.ee.rs.ext.providers.JAXRSProvidersClientIT#readEntityWebException410Test
+
+# Features and dynamic features registered through the Application are not reported as registered
+ee.jakarta.tck.ws.rs.jaxrs31.spec.extensions.JAXRSClientIT#dynamicFeatureIsRegisteredTest
+ee.jakarta.tck.ws.rs.jaxrs31.spec.extensions.JAXRSClientIT#featureIsRegisteredTest
+
+# @Context injection into providers and the Application
+ee.jakarta.tck.ws.rs.spec.context.server.JAXRSClientIT#applicationInjectionTest
+ee.jakarta.tck.ws.rs.spec.context.server.JAXRSClientIT#methodArgumentsInjectionTest
+ee.jakarta.tck.ws.rs.spec.context.server.JAXRSClientIT#resourceInjectionTest
+ee.jakarta.tck.ws.rs.spec.context.server.JAXRSClientIT#serverReaderInjectionTest
+ee.jakarta.tck.ws.rs.spec.context.server.JAXRSClientIT#serverWriterInjectionTest
+
+# Dynamic features not supported
+ee.jakarta.tck.ws.rs.spec.filter.dynamicfeature.JAXRSClientIT#dynamicBindingTest
+
+# Package-private context resolvers are not found
+ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT#contextResolverTest
+
+# Writers selected by the declared media types and by the Response subclass
+ee.jakarta.tck.ws.rs.spec.provider.writer.JAXRSClientIT#responseSubClassTest
+ee.jakarta.tck.ws.rs.spec.provider.writer.JAXRSClientIT#supportAllTest
+ee.jakarta.tck.ws.rs.spec.provider.writer.JAXRSClientIT#supportXmlByDefaultWriterTest
+ee.jakarta.tck.ws.rs.spec.provider.writer.JAXRSClientIT#supportXmlByXmlWriterTest
+
+# Response media type chosen from the writers and the qs of the produced types
+ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#clientAnyPreferenceTest
+ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#clientImagePreferenceTest
+ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#defaultErrorTest
+ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#defaultResponseErrorTest
+ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#imagePreferenceTest
+ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#mesageBodyWriterProducesTest
+ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#noPreferenceTest
+ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#textPreferenceTest
+
+# An entity Response without a writer
+ee.jakarta.tck.ws.rs.spec.returntype.JAXRSClientIT#entityResponseTest

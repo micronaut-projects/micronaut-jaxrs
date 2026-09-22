@@ -10,9 +10,9 @@ import jakarta.ws.rs.core.UriInfo;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.net.URI;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Consumer;
 
 @MicronautTest
 class UriInfoTest {
@@ -150,23 +150,17 @@ class UriInfoTest {
     }
 
     @Test
-    void testUnsupportedMethods() {
-        List<Consumer<UriInfo>> unsupportedMethods = Arrays.asList(
-            UriInfo::getRequestUriBuilder,
-            UriInfo::getAbsolutePathBuilder,
-            UriInfo::getBaseUriBuilder,
-            UriInfo::getMatchedURIs,
-            uriInfo -> uriInfo.getMatchedURIs(true),
-            UriInfo::getMatchedResources
-        );
-        UriInfo uriInfo = new UriInfoImpl(HttpRequest.GET("/api/uri-info"));
-        for (Consumer<UriInfo> unsupportedMethod : unsupportedMethods) {
-            try {
-                unsupportedMethod.accept(uriInfo);
-                Assertions.fail();
-            } catch (UnsupportedOperationException e) {
-                //expected
-            }
-        }
+    void testBuilders() {
+        UriInfo uriInfo = new UriInfoImpl(HttpRequest.GET("http://example.com/api/uri-info?a=b"), "/api");
+        Assertions.assertEquals(URI.create("http://example.com/api/uri-info?a=b"), uriInfo.getRequestUriBuilder().build());
+        Assertions.assertEquals(URI.create("http://example.com/api/uri-info"), uriInfo.getAbsolutePathBuilder().build());
+        Assertions.assertEquals(URI.create("http://example.com/api/"), uriInfo.getBaseUriBuilder().build());
+    }
+
+    @Test
+    void testMatchedWithoutResource() {
+        UriInfo uriInfo = new UriInfoImpl(HttpRequest.GET("/api/uri-info"), "/api");
+        Assertions.assertEquals(List.of("uri-info"), uriInfo.getMatchedURIs());
+        Assertions.assertEquals(List.of(), uriInfo.getMatchedResources());
     }
 }

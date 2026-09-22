@@ -172,6 +172,7 @@ public final class JaxRsRoutesGenerator {
         }
         Map<String, Integer> visited = new LinkedHashMap<>();
         visited.put(resource.getName(), 1);
+        model.rootSegments = segments(resource.stringValue(Path.class).orElse(""));
         model.collect(resource, resource.stringValue(Path.class).orElse(""), List.of(), visited, true);
         if (model.routes.isEmpty()) {
             return;
@@ -261,6 +262,7 @@ public final class JaxRsRoutesGenerator {
         final VisitorContext context;
         final List<Route> routes = new ArrayList<>();
         final Map<String, RequestType> requestTypes = new LinkedHashMap<>();
+        int rootSegments;
 
         Model(ClassElement resource, VisitorContext context) {
             this.resource = resource;
@@ -340,7 +342,7 @@ public final class JaxRsRoutesGenerator {
                     }
                 }
                 List<Locator> chain = new ArrayList<>(locators);
-                chain.add(new Locator(method, params, returned, created));
+                chain.add(new Locator(method, params, returned, created, segments(path)));
                 collect(returned, path, chain, visited, false);
             } finally {
                 visited.put(returned.getName(), occurrences);
@@ -546,6 +548,31 @@ public final class JaxRsRoutesGenerator {
             }
         }
         return template.isEmpty() ? "/" : template.toString();
+    }
+
+    /**
+     * The number of path segments a template matches, a variable with a regular expression
+     * counted as one.
+     */
+    static int segments(String template) {
+        int segments = 0;
+        int depth = 0;
+        boolean inSegment = false;
+        for (int i = 0; i < template.length(); i++) {
+            char c = template.charAt(i);
+            if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth--;
+            }
+            if (c == '/' && depth == 0) {
+                inSegment = false;
+            } else if (!inSegment) {
+                inSegment = true;
+                segments++;
+            }
+        }
+        return segments;
     }
 
     private static String strip(String path) {
@@ -948,6 +975,8 @@ public final class JaxRsRoutesGenerator {
                 ExpressionDef instance = root == null
                     ? aThis.field(resourceField).invoke("get", TypeDef.OBJECT).cast(resourceType)
                     : aThis.invoke(root.method, resourceType, ExpressionDef.constant(resourceType), request, pathVariables, formOrNull(scope));
+                // the matched resources and URIs of UriInfo
+                instance = scope.support.invoke("matched", TypeDef.OBJECT, request, instance, ExpressionDef.constant(model.rootSegments)).cast(resourceType);
                 for (Locator locator : route.route.locators) {
                     List<ExpressionDef> arguments = new ArrayList<>();
                     for (Param param : locator.params) {
@@ -962,6 +991,7 @@ public final class JaxRsRoutesGenerator {
                     } else {
                         instance = located.cast(locatedType);
                     }
+                    instance = scope.support.invoke("matched", TypeDef.OBJECT, request, instance, ExpressionDef.constant(locator.segments)).cast(locatedType);
                 }
                 List<ExpressionDef> arguments = new ArrayList<>();
                 for (Param param : method.params) {
@@ -1042,7 +1072,7 @@ public final class JaxRsRoutesGenerator {
                 case FORM -> support.invoke("formParam", TypeDef.OBJECT, scope.request, formOrNull(scope), name, argument, defaultValue, encoded);
                 case FORM_ENTITY -> support.invoke("formEntity", TypeDef.OBJECT, formOrNull(scope), argument);
                 case CONTEXT -> support.invoke("context", TypeDef.OBJECT, scope.request, argument, name);
-                case ENTITY -> support.invoke("entity", TypeDef.OBJECT, scope.body == null ? ExpressionDef.nullValue() : scope.body, argument);
+                case ENTITY -> support.invoke("entity", TypeDef.OBJECT, scope.request, scope.body == null ? ExpressionDef.nullValue() : scope.body, argument);
                 case BEAN -> throw new IllegalStateException("Handled above");
             };
             return value.cast(TypeDef.erasure(param.element.getType()));
@@ -1166,8 +1196,9 @@ public final class JaxRsRoutesGenerator {
      * @param params  Its parameters
      * @param type    The type it returns, or the type of the class it returns
      * @param created How the class it returns is created, or {@code null} if it returns an instance
+     * @param segments The number of path segments the resource it locates matches
      */
-    private record Locator(MethodElement method, List<Param> params, ClassElement type, @Nullable RequestType created) {
+    private record Locator(MethodElement method, List<Param> params, ClassElement type, @Nullable RequestType created, int segments) {
     }
 
     /**
