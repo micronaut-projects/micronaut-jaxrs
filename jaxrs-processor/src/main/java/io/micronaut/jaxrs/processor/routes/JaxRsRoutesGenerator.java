@@ -18,6 +18,7 @@ package io.micronaut.jaxrs.processor.routes;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.inject.ast.ClassElement;
+import io.micronaut.inject.ast.ConstructorElement;
 import io.micronaut.inject.ast.ElementQuery;
 import io.micronaut.inject.ast.MethodElement;
 import io.micronaut.inject.ast.ParameterElement;
@@ -27,6 +28,7 @@ import jakarta.ws.rs.BeanParam;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.CookieParam;
 import jakarta.ws.rs.DefaultValue;
+import jakarta.ws.rs.Encoded;
 import jakarta.ws.rs.FormParam;
 import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.HttpMethod;
@@ -109,6 +111,20 @@ public final class JaxRsRoutesGenerator {
      * @param context  The visitor context
      */
     public static void generate(ClassElement resource, VisitorContext context) {
+        List<Param> constructorParams = new ArrayList<>();
+        ConstructorElement constructor = requestConstructor(resource);
+        if (constructor != null) {
+            for (ParameterElement parameter : constructor.getParameters()) {
+                if (parameter.hasAnnotation(MatrixParam.class) || parameter.hasAnnotation(BeanParam.class) || parameter.hasAnnotation(Encoded.class)) {
+                    context.info("JAX-RS resource with unsupported constructor parameters is not routed", parameter);
+                    return;
+                }
+                Param param = constructorParam(parameter);
+                if (param != null) {
+                    constructorParams.add(param);
+                }
+            }
+        }
         String classPath = resource.stringValue(Path.class).orElse("");
         List<ResourceMethod> methods = new ArrayList<>();
         for (MethodElement method : resource.getEnclosedElements(ElementQuery.ALL_METHODS.onlyInstance().onlyConcrete())) {
@@ -125,7 +141,63 @@ public final class JaxRsRoutesGenerator {
         }
         String simpleName = resource.getSimpleName();
         String routerName = simpleName + "$JaxRsRouter";
-        write(context, resource, routerName, routerSource(resource, routerName, methods));
+        write(context, resource, routerName, routerSource(resource, routerName, methods, constructor == null ? null : constructorParams));
+    }
+
+    /**
+     * The constructor JAX-RS uses for a resource created per request: the public constructor with
+     * the most parameters, when it has parameters read from the request.
+     *
+     * @param resource The resource class
+     * @return The constructor, or {@code null} if the resource is a singleton
+     */
+    public static @Nullable ConstructorElement requestConstructor(ClassElement resource) {
+        ConstructorElement selected = null;
+        for (ConstructorElement constructor : resource.getEnclosedElements(ElementQuery.CONSTRUCTORS)) {
+            if (constructor.isPublic() && (selected == null || constructor.getParameters().length > selected.getParameters().length)) {
+                selected = constructor;
+            }
+        }
+        if (selected == null) {
+            return null;
+        }
+        for (ParameterElement parameter : selected.getParameters()) {
+            if (isRequestParameter(parameter)) {
+                return selected;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * @param parameter A parameter of a resource constructor
+     * @return Whether its value is read from the request: annotated with a JAX-RS parameter
+     * annotation or {@code @Context}
+     */
+    public static boolean isRequestParameter(ParameterElement parameter) {
+        return parameter.hasAnnotation(PathParam.class) || parameter.hasAnnotation(QueryParam.class)
+            || parameter.hasAnnotation(HeaderParam.class) || parameter.hasAnnotation(CookieParam.class)
+            || parameter.hasAnnotation(FormParam.class) || parameter.hasAnnotation(MatrixParam.class)
+            || parameter.hasAnnotation(BeanParam.class) || parameter.hasAnnotation(Context.class);
+    }
+
+    private static @Nullable Param constructorParam(ParameterElement parameter) {
+        String defaultValue = parameter.stringValue(DefaultValue.class).orElse(null);
+        if (parameter.hasAnnotation(PathParam.class)) {
+            return new Param(ParamKind.PATH, parameter.stringValue(PathParam.class).orElse(parameter.getName()), parameter, defaultValue);
+        } else if (parameter.hasAnnotation(QueryParam.class)) {
+            return new Param(ParamKind.QUERY, parameter.stringValue(QueryParam.class).orElse(parameter.getName()), parameter, defaultValue);
+        } else if (parameter.hasAnnotation(HeaderParam.class)) {
+            return new Param(ParamKind.HEADER, parameter.stringValue(HeaderParam.class).orElse(parameter.getName()), parameter, defaultValue);
+        } else if (parameter.hasAnnotation(CookieParam.class)) {
+            return new Param(ParamKind.COOKIE, parameter.stringValue(CookieParam.class).orElse(parameter.getName()), parameter, defaultValue);
+        } else if (parameter.hasAnnotation(FormParam.class)) {
+            return new Param(ParamKind.FORM, parameter.stringValue(FormParam.class).orElse(parameter.getName()), parameter, defaultValue);
+        } else if (parameter.hasAnnotation(Context.class)) {
+            return new Param(ParamKind.CONTEXT, parameter.stringValue(NAMED).orElse(null), parameter, null);
+        }
+        // not from the request: injected like for any bean
+        return null;
     }
 
     private static @Nullable ResourceMethod resourceMethod(ClassElement resource, String classPath, MethodElement method, VisitorContext context) {
@@ -281,10 +353,19 @@ public final class JaxRsRoutesGenerator {
         return result.toString();
     }
 
-    private static String routerSource(ClassElement resource, String routerName, List<ResourceMethod> methods) {
+    private static String routerSource(ClassElement resource, String routerName, List<ResourceMethod> methods, @Nullable List<Param> constructorParams) {
         String resourceType = resource.getCanonicalName();
         StringBuilder fields = new StringBuilder();
         StringBuilder routes = new StringBuilder();
+        boolean constructorForm = false;
+        if (constructorParams != null) {
+            for (int j = 0; j < constructorParams.size(); j++) {
+                Param param = constructorParams.get(j);
+                fields.append("    private static final io.micronaut.core.type.Argument C").append(j).append(" = ")
+                    .append(argument(param.parameter.getGenericType())).append(";\n");
+                constructorForm |= param.kind == ParamKind.FORM;
+            }
+        }
         for (int i = 0; i < methods.size(); i++) {
             ResourceMethod method = methods.get(i);
             List<String> arguments = new ArrayList<>();
@@ -306,7 +387,23 @@ public final class JaxRsRoutesGenerator {
                 .append(parameterTypes(method.method)).append(", ")
                 .append(stringArray(method.produces)).append(", ").append(stringArray(method.consumes)).append(");\n");
 
-            String call = "resource.get()." + method.method.getName() + "(" + String.join(", ", arguments) + ")";
+            // a form is read for the constructor when the method can have one and reads no entity
+            boolean form = method.form || constructorForm && !NO_BODY_METHODS.contains(method.httpMethod) && method.entity == null;
+            String instance = "resource.get()";
+            if (constructorParams != null) {
+                // created per request, with the values of the request as its @Parameters
+                List<String> names = new ArrayList<>();
+                List<String> values = new ArrayList<>();
+                for (int j = 0; j < constructorParams.size(); j++) {
+                    Param param = constructorParams.get(j);
+                    Param source = param.kind == ParamKind.FORM && !form ? new Param(ParamKind.QUERY, param.name, param.parameter, param.defaultValue) : param;
+                    names.add(literal(param.parameter.getName()));
+                    values.add(argumentExpression(source, "C" + j));
+                }
+                instance = "((" + resourceType + ") support.create(" + resourceType + ".class, new String[]{" + String.join(", ", names)
+                    + "}, new Object[]{" + String.join(", ", values) + "}))";
+            }
+            String call = instance + "." + method.method.getName() + "(" + String.join(", ", arguments) + ")";
             String declaration = "io.micronaut.http.HttpMethod." + method.httpMethod + ", support.uri(" + literal(method.template) + ")";
             String result;
             if (method.returnType.isVoid()) {
@@ -321,7 +418,7 @@ public final class JaxRsRoutesGenerator {
                 result = "try {\n                    " + result + "\n                } catch (java.lang.Throwable t) {\n                    throw " + SUPPORT + ".rethrow(t);\n                }";
             }
             String handler;
-            if (method.form) {
+            if (form) {
                 handler = "routes.handleForm(" + declaration + ", support.handler(" + routeField + ", (request, pathVariables, form) -> {\n                " + syncResult(method, result) + "\n            }))";
             } else if (method.entity != null && method.httpMethod.equals("GET")) {
                 handler = "routes.handle(" + declaration + ", support.handler(" + routeField + ", (request, pathVariables) -> {\n                Object body = null;\n                " + syncResult(method, result) + "\n            }))";
@@ -334,7 +431,7 @@ public final class JaxRsRoutesGenerator {
                 handler = "routes.handle(" + declaration + ", support.handler(" + routeField + ", (request, pathVariables) -> {\n                " + result + "\n            }))";
             }
             routes.append("        support.configure(").append(handler).append(", ").append(routeField)
-                .append(method.async && (method.form || method.entity != null) ? ", true" : ", false").append(");\n");
+                .append(method.async && (form || method.entity != null) ? ", true" : ", false").append(");\n");
         }
         return """
             package %s;
