@@ -1,5 +1,7 @@
 # Why multivaluedmap of headers should accept nulls???
 ee.jakarta.tck.ws.rs.api.rs.core.multivaluedmap.JAXRSClientIT
+# TCK BUG Test assumes header `allow` with upper case
+# Content type in HEAD response, our behavior is fine
 
 # Package-private and protected resource methods are routed, like the controllers did
 ee.jakarta.tck.ws.rs.spec.resourceconstructor.JAXRSClientIT#packageVisibilityTest
@@ -159,6 +161,7 @@ ee.jakarta.tck.ws.rs.jaxrs31.ee.multipart.MultipartSupportIT
 # TDK missing
 ee.jakarta.tck.ws.rs.signaturetest.jaxrs.JAXRSSigTestIT
 
+# Sub-resources, request fields and bean parameters: still failing
 # The JAX-RS client cannot write a byte[] form body (the core form writing issue above)
 ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT#allParamsInParamTest
 ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT#allParamsOnFieldTest
