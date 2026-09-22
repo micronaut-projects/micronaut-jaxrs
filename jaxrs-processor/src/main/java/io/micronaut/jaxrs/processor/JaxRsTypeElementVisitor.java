@@ -197,7 +197,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     @Override
     public void visitMethod(MethodElement element, VisitorContext context) {
         if (generateRoutes && element.hasAnnotation(Context.class) && !element.hasStereotype(HttpMethod.class)
-            && JaxRsRoutesGenerator.isPerRequest(element.getOwningType())) {
+            && JaxRsRoutesGenerator.isCreatedPerRequest(element.getOwningType())) {
             // a setter injected by the generated routes
             element.removeAnnotation(Inject.class);
         }
@@ -243,7 +243,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         visitParamOrField(element);
         if (generateRoutes) {
             // the generated routes inject the fields of a type created per request
-            if (element.hasAnnotation(Context.class) && JaxRsRoutesGenerator.isPerRequest(element.getOwningType())) {
+            if (element.hasAnnotation(Context.class) && JaxRsRoutesGenerator.isCreatedPerRequest(element.getOwningType())) {
                 element.removeAnnotation(Inject.class);
             }
             return;

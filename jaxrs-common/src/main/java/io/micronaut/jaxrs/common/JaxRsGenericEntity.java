@@ -36,6 +36,7 @@ public final class JaxRsGenericEntity<T> extends GenericEntity<T> {
     private final Argument<T> argument;
     private final ByteArrayOutputStream delegateEntityStream;
     private final OutputStream customEntityStream;
+    private final Annotation[] annotations;
 
     public JaxRsGenericEntity(T entity,
                               Argument<T> argument,
@@ -45,6 +46,7 @@ public final class JaxRsGenericEntity<T> extends GenericEntity<T> {
         this.argument = argument;
         this.delegateEntityStream = delegateEntityStream;
         this.customEntityStream = customEntityStream;
+        this.annotations = null;
     }
 
     JaxRsGenericEntity(T entity, Annotation[] annotations) {
@@ -52,6 +54,15 @@ public final class JaxRsGenericEntity<T> extends GenericEntity<T> {
         this.argument = JaxRsArgumentUtil.from(this, annotations);
         this.delegateEntityStream = null;
         this.customEntityStream = null;
+        this.annotations = annotations;
+    }
+
+    /**
+     * @return The annotations given with the entity, {@code Response.ok().entity(entity, annotations)},
+     * or {@code null}
+     */
+    public Annotation[] getAnnotations() {
+        return annotations;
     }
 
     public Argument<T> asArgument() {

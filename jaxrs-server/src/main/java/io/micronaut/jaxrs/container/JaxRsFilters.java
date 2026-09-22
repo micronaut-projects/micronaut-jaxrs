@@ -36,6 +36,7 @@ import io.micronaut.jaxrs.common.JaxRsUtils;
 import io.micronaut.jaxrs.common.NameBindingPredicate;
 import io.micronaut.jaxrs.runtime.ext.bind.HttpHeadersBinder;
 import io.micronaut.web.router.RouteAttributes;
+import io.micronaut.web.router.MethodBasedRouteInfo;
 import io.micronaut.web.router.RouteInfo;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.container.ContainerRequestFilter;
@@ -46,6 +47,8 @@ import jakarta.ws.rs.core.Response;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.lang.annotation.Annotation;
+import java.util.Arrays;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -100,6 +103,11 @@ final class JaxRsFilters {
             // Intercept only JaxRs routes
             return mutableHttpResponse;
         }
+        String vary = request.getAttribute(JaxRsContextRequest.VARY, String.class).orElse(null);
+        if (vary != null && !mutableHttpResponse.getHeaders().contains(io.micronaut.http.HttpHeaders.VARY)) {
+            // the headers Request#selectVariant negotiated with
+            mutableHttpResponse.header(io.micronaut.http.HttpHeaders.VARY, vary);
+        }
         Object body;
         if (request.getMethod() == HttpMethod.HEAD) {
             body = RouteAttributes.getHeadBody(mutableHttpResponse).orElse(null);
@@ -118,8 +126,11 @@ final class JaxRsFilters {
             body = mutableHttpResponse.getBody().orElse(null);
         }
         Argument<?> bodyArgument;
+        // the annotations given with the entity
+        Annotation[] entityAnnotations = null;
         if (body instanceof JaxRsGenericEntity<?> genericEntity) {
             bodyArgument = genericEntity.asArgument();
+            entityAnnotations = genericEntity.getAnnotations();
             mutableHttpResponse.body(genericEntity.getEntity());
             body = genericEntity.getEntity();
         } else if (body instanceof GenericEntity<?> genericEntity) {
@@ -136,7 +147,20 @@ final class JaxRsFilters {
         }
 
         Argument<?> returnType = routeInfo == null ? Argument.VOID : routeInfo.getReturnType().asArgument();
-        if (bodyArgument == null) {
+        if (routeInfo instanceof MethodBasedRouteInfo<?, ?> methodRoute) {
+            // the writers see the annotations given with the entity, then the Java annotations of
+            // the resource method, like JAX-RS passes them
+            Annotation[] methodAnnotations = methodRoute.getTargetMethod().getTargetMethod().getAnnotations();
+            if (entityAnnotations == null) {
+                entityAnnotations = methodAnnotations;
+            } else {
+                Annotation[] all = Arrays.copyOf(entityAnnotations, entityAnnotations.length + methodAnnotations.length);
+                System.arraycopy(methodAnnotations, 0, all, entityAnnotations.length, methodAnnotations.length);
+                entityAnnotations = all;
+            }
+            Argument<?> type = bodyArgument == null ? returnType : bodyArgument;
+            bodyArgument = Argument.of(type.getType(), JaxRsArgumentUtil.createAnnotationMetadata(entityAnnotations), type.getTypeParameters());
+        } else if (bodyArgument == null) {
             bodyArgument = returnType;
         } else {
             MutableAnnotationMetadata mutableAnnotationMetadata = new MutableAnnotationMetadata();
@@ -150,7 +174,7 @@ final class JaxRsFilters {
             JaxRsContainerRequestContext requestContext = request.getAttribute(REQUEST_CONTEXT_KEY, JaxRsContainerRequestContext.class)
                 .orElseGet(() -> new JaxRsContainerRequestContext(request.mutate(), applicationProvider));
             requestContext.finished();
-            JaxRsContainerResponseContext responseContext = new JaxRsContainerResponseContext(mutableHttpResponse, bodyArgument);
+            JaxRsContainerResponseContext responseContext = new JaxRsContainerResponseContext(mutableHttpResponse, bodyArgument, entityAnnotations);
             List<ContainerResponseFilter> filters = containerResponseFilters.stream()
                 .filter(br -> nameBindingPredicate.test(br.getBeanDefinition()))
                 .map(BeanRegistration::getBean)

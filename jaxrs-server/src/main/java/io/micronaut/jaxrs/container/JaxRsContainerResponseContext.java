@@ -30,6 +30,8 @@ import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.NewCookie;
 import jakarta.ws.rs.core.Response;
 
+import org.jspecify.annotations.Nullable;
+
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
 import java.lang.annotation.Annotation;
@@ -53,13 +55,27 @@ final class JaxRsContainerResponseContext implements ContainerResponseContext {
     private final MutableHttpResponse<?> mutableHttpResponse;
     private final JaxRsMutableResponse jaxRsMutableResponse;
     private Argument<?> bodyArgument;
+    private Annotation @Nullable [] entityAnnotations;
     private ByteArrayOutputStream delegateEntityStream;
     private OutputStream customEntityStream;
 
     public JaxRsContainerResponseContext(MutableHttpResponse<?> mutableHttpResponse, Argument<?> bodyArgument) {
+        this(mutableHttpResponse, bodyArgument, null);
+    }
+
+    /**
+     * @param mutableHttpResponse The response
+     * @param bodyArgument        The argument of the entity
+     * @param entityAnnotations   The annotations of the entity: the ones given with it, or else the
+     *                            annotations of the resource method; {@code null} for the
+     *                            annotations of the argument
+     */
+    public JaxRsContainerResponseContext(MutableHttpResponse<?> mutableHttpResponse, Argument<?> bodyArgument,
+                                         Annotation @Nullable [] entityAnnotations) {
         this.mutableHttpResponse = mutableHttpResponse;
         this.jaxRsMutableResponse = new JaxRsMutableResponse(mutableHttpResponse);
         this.bodyArgument = bodyArgument;
+        this.entityAnnotations = entityAnnotations;
     }
 
     @Override
@@ -204,11 +220,12 @@ final class JaxRsContainerResponseContext implements ContainerResponseContext {
             mutableHttpResponse.contentType(JaxRsUtils.convert(mediaType));
         }
         bodyArgument = Argument.of(entity == null ? (Class) Object.class : entity.getClass(), JaxRsArgumentUtil.createAnnotationMetadata(annotations));
+        entityAnnotations = annotations;
     }
 
     @Override
     public Annotation[] getEntityAnnotations() {
-        return bodyArgument.getAnnotationMetadata().synthesizeAll();
+        return entityAnnotations != null ? entityAnnotations : bodyArgument.getAnnotationMetadata().synthesizeAll();
     }
 
     @Override

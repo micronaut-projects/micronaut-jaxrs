@@ -38,6 +38,7 @@ import jakarta.ws.rs.ConstrainedTo;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.RuntimeType;
+import jakarta.ws.rs.core.Application;
 import jakarta.ws.rs.ext.MessageBodyReader;
 import jakarta.ws.rs.ext.MessageBodyWriter;
 
@@ -49,6 +50,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -63,8 +66,8 @@ import java.util.concurrent.ConcurrentHashMap;
 @Singleton
 @Internal
 public final class JaxRsContainerMessageBodyHandlerRegistry {
-    private static final io.micronaut.http.body.MessageBodyReader<Object> NO_READER = new NoReader();
     private final BeanContext beanLocator;
+    private volatile @Nullable Set<Class<?>> registeredClasses;
     private final Map<HandlerKey<?>, io.micronaut.http.body.MessageBodyReader<?>> readers = new ConcurrentHashMap<>(10);
     private final Map<HandlerKey<?>, io.micronaut.http.body.MessageBodyWriter<?>> writers = new ConcurrentHashMap<>(10);
 
@@ -77,13 +80,13 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
         this.beanLocator = beanLocators;
     }
 
-    @SuppressWarnings({"unchecked"})
-    private <T> MessageBodyReader<T> findJaxRsReader(Argument<T> type, List<MediaType> mediaTypes) {
-        Class<T> theType = type.getType();
-        Type genericType = type.asType();
-        List<jakarta.ws.rs.core.MediaType> types = mediaTypes.stream().map(JaxRsUtils::convert).toList();
-        Annotation[] annotations = type.getAnnotationMetadata().synthesizeAll();
-        return beanLocator.getBeansOfType(
+    /**
+     * The readers of a type and media types: whether each one reads is asked when a value is
+     * read, with the argument of that value and its annotations, see {@link SelectingReader}.
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private <T> List<MessageBodyReader<T>> findJaxRsReaders(Argument<T> type, List<MediaType> mediaTypes) {
+        return (List) beanLocator.getBeansOfType(
                 Argument.of(MessageBodyReader.class), // Select all readers and eliminate by the type later
                 Qualifiers.byQualifiers(
                     // Filter by media types first before filtering by the type hierarchy
@@ -91,9 +94,8 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
                     MatchArgumentQualifier.covariant(MessageBodyReader.class, type)
                 )
             ).stream()
-            .filter(reader -> types.stream().anyMatch(mediaType -> reader.isReadable(theType, genericType, annotations, mediaType)))
-            .findFirst()
-            .orElse(null);
+            .filter(reader -> isRegistered(reader.getClass()))
+            .toList();
     }
 
     /**
@@ -112,6 +114,7 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
                 )
             ).stream()
             .map((BeanRegistration br) -> (BeanRegistration<MessageBodyWriter<T>>) br)
+            .filter(br -> isRegistered(br.getBeanDefinition().getBeanType()))
             // the writers of the type or a supertype, including Object: MessageBodyWriter<Object>
             .filter(br -> typeDistance(br, theType) != Integer.MAX_VALUE)
             // JAX-RS 4.2.2: the nearest type first, then the most specific media type
@@ -168,30 +171,69 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
 
     @SuppressWarnings({"unchecked"})
     public <T> Optional<io.micronaut.http.body.MessageBodyReader<T>> findReader(Argument<T> type, List<MediaType> mediaTypes) {
+        Argument<T> lookup = type;
         if (Number.class.isAssignableFrom(type.getType())) {
-            type = (Argument<T>) Argument.of(Number.class, type.getAnnotationMetadata());
+            lookup = (Argument<T>) Argument.of(Number.class, type.getAnnotationMetadata());
         }
         if (InputStream.class.isAssignableFrom(type.getType())) {
-            type = (Argument<T>) Argument.of(InputStream.class, type.getAnnotationMetadata());
+            lookup = (Argument<T>) Argument.of(InputStream.class, type.getAnnotationMetadata());
         }
-        HandlerKey<T> key = new HandlerKey<>(type, mediaTypes);
-        io.micronaut.http.body.MessageBodyReader<?> messageBodyReader = readers.get(key);
-        if (messageBodyReader == null) {
-            MessageBodyReader<T> delegate = findJaxRsReader(type, mediaTypes);
-            if (delegate != null) {
-                io.micronaut.http.body.MessageBodyReader<T> reader = new JaxRsMessageBodyReader<>(delegate);
-                readers.put(key, reader);
-                return Optional.of(reader);
-            } else {
-                readers.put(key, NO_READER);
-                return Optional.empty();
-            }
-        } else if (messageBodyReader == NO_READER) {
+        Argument<T> candidatesType = lookup;
+        HandlerKey<T> key = new HandlerKey<>(lookup, mediaTypes);
+        SelectingReader<T> reader = (SelectingReader<T>) readers.computeIfAbsent(key,
+            k -> new SelectingReader<>(findJaxRsReaders(candidatesType, mediaTypes)));
+        // whether a JAX-RS reader reads is asked every time: it can depend on the annotations
+        return reader.find(type, mediaTypes) != null ? Optional.of(reader) : Optional.empty();
+    }
+
+    /**
+     * Whether an application JAX-RS reader may read a type as one of the media types: it has
+     * readers of the type for the media types. Which one reads is decided when a value is read,
+     * with its argument and annotations, so the answer does not depend on the annotations: callers
+     * that cache it per type, like the router per route, stay correct.
+     *
+     * @param type       The type
+     * @param mediaTypes The media types
+     * @param <T>        The type
+     * @return Whether it has candidate readers
+     */
+    @SuppressWarnings("unchecked")
+    public <T> boolean hasReaders(Argument<T> type, List<MediaType> mediaTypes) {
+        Argument<T> lookup = type;
+        if (Number.class.isAssignableFrom(type.getType())) {
+            lookup = (Argument<T>) Argument.of(Number.class, type.getAnnotationMetadata());
+        }
+        if (InputStream.class.isAssignableFrom(type.getType())) {
+            lookup = (Argument<T>) Argument.of(InputStream.class, type.getAnnotationMetadata());
+        }
+        Argument<T> candidatesType = lookup;
+        SelectingReader<T> reader = (SelectingReader<T>) readers.computeIfAbsent(new HandlerKey<>(lookup, mediaTypes),
+            k -> new SelectingReader<>(findJaxRsReaders(candidatesType, mediaTypes)));
+        return !reader.candidates.isEmpty();
+    }
+
+    /**
+     * The reader of a type and media types that selects the JAX-RS reader when a value is read,
+     * see {@link #hasReaders(Argument, List)}.
+     *
+     * @param type       The type
+     * @param mediaTypes The media types
+     * @param <T>        The type
+     * @return The reader, empty if no JAX-RS reader of the application reads the type
+     */
+    @SuppressWarnings("unchecked")
+    public <T> Optional<io.micronaut.http.body.MessageBodyReader<T>> findSelectingReader(Argument<T> type, List<MediaType> mediaTypes) {
+        if (!hasReaders(type, mediaTypes)) {
             return Optional.empty();
-        } else {
-            //noinspection unchecked
-            return Optional.of((io.micronaut.http.body.MessageBodyReader<T>) messageBodyReader);
         }
+        Argument<T> lookup = type;
+        if (Number.class.isAssignableFrom(type.getType())) {
+            lookup = (Argument<T>) Argument.of(Number.class, type.getAnnotationMetadata());
+        }
+        if (InputStream.class.isAssignableFrom(type.getType())) {
+            lookup = (Argument<T>) Argument.of(InputStream.class, type.getAnnotationMetadata());
+        }
+        return Optional.of((io.micronaut.http.body.MessageBodyReader<T>) readers.get(new HandlerKey<>(lookup, mediaTypes)));
     }
 
     @SuppressWarnings({"unchecked"})
@@ -220,19 +262,58 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
         }
         Class<T> theType = type.getType();
         Type genericType = type.asType();
-        Annotation[] annotations = type.getAnnotationMetadata().synthesizeAll();
         List<MediaType> producible = new ArrayList<>();
+        if (isStandardType(theType)) {
+            // the standard providers of JAX-RS write it as any type (section 4.2.4)
+            return List.of(MediaType.ALL_TYPE);
+        }
         for (BeanRegistration<MessageBodyWriter<T>> candidate : findJaxRsBodyWriters(type, List.of(MediaType.ALL_TYPE))) {
             String[] produces = candidate.getBeanDefinition().getAnnotationMetadata().stringValues(Produces.class);
             for (String value : produces.length == 0 ? new String[]{MediaType.ALL} : produces) {
                 MediaType mediaType = new MediaType(value);
                 if (!producible.contains(mediaType)
-                    && candidate.getBean().isWriteable(theType, genericType, annotations, JaxRsUtils.convert(mediaType))) {
+                    && candidate.getBean().isWriteable(theType, genericType, JaxRsArgumentUtil.annotations(type.getAnnotationMetadata(), candidate.getBean()),
+                        JaxRsUtils.convert(mediaType))) {
                     producible.add(mediaType);
                 }
             }
         }
         return producible;
+    }
+
+    /**
+     * Whether a provider is registered with the application: the {@code Application} that lists
+     * its classes or singletons registers only those (JAX-RS 2.3), and one that lists none, all.
+     * The providers of this module are always registered.
+     *
+     * @param providerClass The class of the provider
+     * @return Whether it is registered
+     */
+    private boolean isRegistered(Class<?> providerClass) {
+        Set<Class<?>> registered = registeredClasses;
+        if (registered == null) {
+            Set<Class<?>> classes = new HashSet<>();
+            beanLocator.findBean(Application.class).ifPresent(application -> {
+                classes.addAll(application.getClasses());
+                for (Object singleton : application.getSingletons()) {
+                    classes.add(singleton.getClass());
+                }
+            });
+            registered = classes;
+            registeredClasses = registered;
+        }
+        return registered.isEmpty() || registered.contains(providerClass) || providerClass.getName().startsWith("io.micronaut.");
+    }
+
+    /**
+     * @param type A type
+     * @return Whether a standard provider of JAX-RS writes it as any media type (section 4.2.4)
+     */
+    private static boolean isStandardType(Class<?> type) {
+        return type == String.class || type == byte[].class || InputStream.class.isAssignableFrom(type)
+            || java.io.Reader.class.isAssignableFrom(type) || java.io.File.class.isAssignableFrom(type)
+            || type.getName().equals("jakarta.activation.DataSource")
+            || jakarta.ws.rs.core.StreamingOutput.class.isAssignableFrom(type);
     }
 
     private static final class MediaTypeQualifier<T> extends FilteringQualifier<T> {
@@ -356,10 +437,45 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
         }
     }
 
-    private static final class NoReader implements io.micronaut.http.body.MessageBodyReader<Object> {
-        @Override
-        public @Nullable Object read(@NonNull Argument<Object> type, @Nullable MediaType mediaType, @NonNull Headers httpHeaders, @NonNull InputStream inputStream) throws CodecException {
+    /**
+     * Reads with the first of the JAX-RS readers that reads the value, asked when it is read
+     * (JAX-RS 4.2.1): with the argument of the value, whose annotations a reader may depend on.
+     *
+     * @param <T> The type
+     */
+    private static final class SelectingReader<T> implements io.micronaut.http.body.MessageBodyReader<T> {
+        private final List<MessageBodyReader<T>> candidates;
+
+        SelectingReader(List<MessageBodyReader<T>> candidates) {
+            this.candidates = candidates;
+        }
+
+        @Nullable MessageBodyReader<T> find(Argument<T> type, List<MediaType> mediaTypes) {
+            if (candidates.isEmpty()) {
+                return null;
+            }
+            Class<T> theType = type.getType();
+            Type genericType = type.asType();
+            for (MediaType mediaType : mediaTypes) {
+                jakarta.ws.rs.core.MediaType jaxRsType = JaxRsUtils.convert(mediaType);
+                for (MessageBodyReader<T> candidate : candidates) {
+                    Annotation[] annotations = JaxRsArgumentUtil.annotations(type.getAnnotationMetadata(), candidate);
+                    if (candidate.isReadable(theType, genericType, annotations, jaxRsType)) {
+                        return candidate;
+                    }
+                }
+            }
             return null;
+        }
+
+        @Override
+        public @Nullable T read(@NonNull Argument<T> type, @Nullable MediaType mediaType, @NonNull Headers httpHeaders,
+                                @NonNull InputStream inputStream) throws CodecException {
+            MessageBodyReader<T> reader = find(type, List.of(mediaType == null ? MediaType.ALL_TYPE : mediaType));
+            if (reader == null) {
+                throw new CodecException("No JAX-RS reader reads " + type + " as " + mediaType);
+            }
+            return new JaxRsMessageBodyReader<>(reader).read(type, mediaType, httpHeaders, inputStream);
         }
     }
 
@@ -382,10 +498,10 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
             }
             Class<T> theType = type.getType();
             Type genericType = type.asType();
-            Annotation[] annotations = type.getAnnotationMetadata().synthesizeAll();
             for (MediaType mediaType : mediaTypes) {
                 jakarta.ws.rs.core.MediaType jaxRsType = JaxRsUtils.convert(mediaType);
                 for (BeanRegistration<MessageBodyWriter<T>> candidate : candidates) {
+                    Annotation[] annotations = JaxRsArgumentUtil.annotations(type.getAnnotationMetadata(), candidate.getBean());
                     if (candidate.getBean().isWriteable(theType, genericType, annotations, jaxRsType)) {
                         return true;
                     }
@@ -399,9 +515,9 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
                             @NonNull MutableHeaders outgoingHeaders, @NonNull OutputStream outputStream) throws CodecException {
             Class<T> theType = type.getType();
             Type genericType = type.asType();
-            Annotation[] annotations = type.getAnnotationMetadata().synthesizeAll();
             jakarta.ws.rs.core.MediaType jaxRsType = JaxRsUtils.convert(mediaType);
             for (BeanRegistration<MessageBodyWriter<T>> candidate : candidates) {
+                Annotation[] annotations = JaxRsArgumentUtil.annotations(type.getAnnotationMetadata(), candidate.getBean());
                 if (candidate.getBean().isWriteable(theType, genericType, annotations, jaxRsType)) {
                     new JaxRsMessageBodyWriter<>(candidate.getBeanDefinition().getAnnotationMetadata(), candidate.getBean())
                         .writeTo(type, mediaType, object, outgoingHeaders, outputStream);

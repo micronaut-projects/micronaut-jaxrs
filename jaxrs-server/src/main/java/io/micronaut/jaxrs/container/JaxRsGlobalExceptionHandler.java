@@ -28,6 +28,7 @@ import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Providers;
+import io.micronaut.jaxrs.common.JaxRsIOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -62,6 +63,10 @@ final class JaxRsGlobalExceptionHandler implements ExceptionHandler<Throwable, H
     public HttpResponse<?> handle(HttpRequest request, Throwable exception) {
         if (LOG.isDebugEnabled()) {
             LOG.debug(exception.getMessage(), exception);
+        }
+        if (exception instanceof JaxRsIOException && exception.getCause() != null) {
+            // the IOException a provider threw, wrapped to cross Micronaut's reader and writer API
+            exception = exception.getCause();
         }
         ExceptionMapper exceptionMapper = providers.getExceptionMapper(exception.getClass());
         if (exceptionMapper != null) {

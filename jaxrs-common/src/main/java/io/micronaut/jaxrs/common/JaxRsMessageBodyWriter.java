@@ -67,7 +67,7 @@ public final class JaxRsMessageBodyWriter<T> implements MessageBodyWriter<T> {
 
     @Override
     public boolean isWriteable(@NonNull Argument<T> type, @Nullable MediaType mediaType) {
-        return delegate.isWriteable(type.getType(), type.asType(), type.getAnnotationMetadata().synthesizeAll(), JaxRsUtils.convert(mediaType));
+        return delegate.isWriteable(type.getType(), type.asType(), JaxRsArgumentUtil.annotations(type.getAnnotationMetadata(), delegate), JaxRsUtils.convert(mediaType));
     }
 
     @Override
@@ -81,7 +81,7 @@ public final class JaxRsMessageBodyWriter<T> implements MessageBodyWriter<T> {
             delegate.writeTo(object,
                 type.getType(),
                 type.asType(),
-                type.getAnnotationMetadata().synthesizeAll(),
+                JaxRsArgumentUtil.annotations(type.getAnnotationMetadata(), delegate),
                 JaxRsUtils.convert(mediaType),
                 httpHeaders,
                 outputStream

@@ -16,10 +16,12 @@
 package io.micronaut.jaxrs.container;
 
 import io.micronaut.context.BeanContext;
+import io.micronaut.context.BeanRegistration;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.type.Argument;
 import io.micronaut.inject.qualifiers.MatchArgumentQualifier;
 import jakarta.inject.Singleton;
+import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
@@ -35,6 +37,9 @@ import java.io.OutputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.util.Collection;
+import java.util.List;
+import java.util.Comparator;
+import java.util.ArrayList;
 
 /**
  * The JAX-RS {@link Providers}.
@@ -107,8 +112,55 @@ final class JaxRsProviders implements Providers {
     }
 
     @Override
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public <T> ContextResolver<T> getContextResolver(Class<T> contextType, MediaType mediaType) {
-        // "null if no matching context providers are found"
-        return null;
+        // the resolvers of the type whose produced types are compatible with the media type,
+        // the most specific first (JAX-RS 4.3)
+        List<BeanRegistration<ContextResolver>> candidates = new ArrayList<>();
+        for (BeanRegistration<ContextResolver> registration : beanContext.getBeanRegistrations(ContextResolver.class,
+                MatchArgumentQualifier.covariant(ContextResolver.class, Argument.of(contextType)))) {
+            if (specificity(registration, mediaType) >= 0) {
+                candidates.add(registration);
+            }
+        }
+        if (candidates.isEmpty()) {
+            // "null if no matching context providers are found"
+            return null;
+        }
+        candidates.sort(Comparator.comparingInt((BeanRegistration<ContextResolver> r) -> specificity(r, mediaType)).reversed());
+        List<ContextResolver<T>> resolvers = candidates.stream().map(r -> (ContextResolver<T>) r.getBean()).toList();
+        if (resolvers.size() == 1) {
+            return resolvers.get(0);
+        }
+        return type -> {
+            // the first context that is not null
+            for (ContextResolver<T> resolver : resolvers) {
+                T context = resolver.getContext(type);
+                if (context != null) {
+                    return context;
+                }
+            }
+            return null;
+        };
+    }
+
+    /**
+     * How specifically a context resolver produces a media type: 2 for the type, 1 for a type with a
+     * wildcard subtype, 0 for any type, and -1 if it does not produce it.
+     */
+    private static int specificity(BeanRegistration<?> registration, MediaType mediaType) {
+        String[] produces = registration.getBeanDefinition().getAnnotationMetadata().stringValues(Produces.class);
+        if (produces.length == 0) {
+            return 0;
+        }
+        int best = -1;
+        for (String value : produces) {
+            MediaType produced = MediaType.valueOf(value);
+            if (produced.isCompatible(mediaType)) {
+                int specificity = produced.isWildcardType() ? 0 : produced.isWildcardSubtype() ? 1 : 2;
+                best = Math.max(best, specificity);
+            }
+        }
+        return best;
     }
 }

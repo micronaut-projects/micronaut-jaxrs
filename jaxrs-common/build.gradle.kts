@@ -5,6 +5,7 @@ dependencies {
     annotationProcessor(mn.micronaut.graal)
 
     api(mn.micronaut.http)
+    implementation(mn.micronaut.reflection)
     api(libs.managed.jaxrs.api)
 
     // for Java
