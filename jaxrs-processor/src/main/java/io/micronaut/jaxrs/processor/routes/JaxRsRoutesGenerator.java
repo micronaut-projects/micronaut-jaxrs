@@ -64,11 +64,6 @@ import java.util.Set;
 public final class JaxRsRoutesGenerator {
 
     private static final Set<String> NO_BODY_METHODS = Set.of("GET", "HEAD", "OPTIONS", "TRACE");
-    private static final String MN_QUERY_VALUE = "io.micronaut.http.annotation.QueryValue";
-    private static final String MN_HEADER = "io.micronaut.http.annotation.Header";
-    private static final String MN_PATH_VARIABLE = "io.micronaut.http.annotation.PathVariable";
-    private static final String MN_COOKIE_VALUE = "io.micronaut.http.annotation.CookieValue";
-    private static final String MN_BODY = "io.micronaut.http.annotation.Body";
     private static final String NAMED = "jakarta.inject.Named";
     private static final Set<String> CONTEXT_TYPES = Set.of(
         "jakarta.ws.rs.core.HttpHeaders",
@@ -179,18 +174,6 @@ public final class JaxRsRoutesGenerator {
                 }
             } else if (parameter.hasAnnotation(Context.class) || CONTEXT_TYPES.contains(parameter.getType().getName())) {
                 param = new Param(ParamKind.CONTEXT, parameter.stringValue(NAMED).orElse(null), parameter, null);
-            } else if (parameter.hasDeclaredAnnotation(MN_QUERY_VALUE)) {
-                param = new Param(ParamKind.QUERY, micronautName(parameter, MN_QUERY_VALUE), parameter, micronautDefault(parameter, MN_QUERY_VALUE, defaultValue));
-            } else if (parameter.hasDeclaredAnnotation(MN_HEADER)) {
-                param = new Param(ParamKind.HEADER, micronautName(parameter, MN_HEADER), parameter, micronautDefault(parameter, MN_HEADER, defaultValue));
-            } else if (parameter.hasDeclaredAnnotation(MN_PATH_VARIABLE)) {
-                param = new Param(ParamKind.PATH, micronautName(parameter, MN_PATH_VARIABLE), parameter, micronautDefault(parameter, MN_PATH_VARIABLE, defaultValue));
-            } else if (parameter.hasDeclaredAnnotation(MN_COOKIE_VALUE)) {
-                param = new Param(ParamKind.COOKIE, micronautName(parameter, MN_COOKIE_VALUE), parameter, micronautDefault(parameter, MN_COOKIE_VALUE, defaultValue));
-            } else if (parameter.hasDeclaredAnnotation(MN_BODY) && parameter.stringValue(MN_BODY).isPresent()) {
-                // a named @Body is a field of the form
-                param = new Param(ParamKind.FORM, parameter.stringValue(MN_BODY).get(), parameter, defaultValue);
-                form = true;
             } else {
                 if (entity != null) {
                     context.fail("A JAX-RS resource method can have one entity parameter", parameter);
@@ -214,16 +197,6 @@ public final class JaxRsRoutesGenerator {
         List<String> produces = mediaTypes(method, resource, Produces.class);
         List<String> consumes = mediaTypes(method, resource, Consumes.class);
         return new ResourceMethod(method, httpMethod, template, params, form, entity, returnType, async, produces, consumes);
-    }
-
-    private static String micronautName(ParameterElement parameter, String annotation) {
-        return parameter.stringValue(annotation).filter(name -> !name.isEmpty())
-            .or(() -> parameter.stringValue(annotation, "name").filter(name -> !name.isEmpty()))
-            .orElse(parameter.getName());
-    }
-
-    private static @Nullable String micronautDefault(ParameterElement parameter, String annotation, @Nullable String defaultValue) {
-        return defaultValue != null ? defaultValue : parameter.stringValue(annotation, "defaultValue").orElse(null);
     }
 
     private static List<String> mediaTypes(MethodElement method, ClassElement resource, Class<? extends java.lang.annotation.Annotation> annotation) {
