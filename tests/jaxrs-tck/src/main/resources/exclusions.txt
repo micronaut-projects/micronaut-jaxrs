@@ -5,22 +5,6 @@ ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#slashAppNameTes
 ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#wrongAppNameTest
 ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#descendantResourcePathValueTest
 
-# Sub resources
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesOverridesDescendantSubResourcePathValuePostTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#consumesOverridesDescendantSubResourcePathValueTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#consumesCorrectContentTypeOnResourceLocatorTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesCorrectContentTypeOnResourceLocatorTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#l2SubResourceLocatorTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesOnResourceLocatorTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesCorrectContentTypeOnSubResourceLocatorTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesOnSubResourceLocatorTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#consumesCorrectContentTypeOnSubResourceLocatorTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#foundAnotherResourceLocatorByPathTest
-
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#qualityOfSourceOnDifferentMediaTypesTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#concreteOverStarWhenAcceptStarTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesOverridesDescendantSubResourcePathValueWeightTest
-
 # Why multivaluedmap of headers should accept nulls???
 ee.jakarta.tck.ws.rs.api.rs.core.multivaluedmap.JAXRSClientIT
 
@@ -109,13 +93,6 @@ ee.jakarta.tck.ws.rs.api.rs.ext.runtimedelegate.create.JAXRSClientIT#createEndpo
 
 # TCK BUG Test assumes header `allow` with upper case
 ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#optionsOnSubResourceTest
-
-# Sub resources
-ee.jakarta.tck.ws.rs.ee.rs.headerparam.sub.JAXRSSubClientIT
-ee.jakarta.tck.ws.rs.ee.rs.formparam.locator.JAXRSLocatorClientIT
-ee.jakarta.tck.ws.rs.ee.rs.formparam.sub.JAXRSSubClientIT
-ee.jakarta.tck.ws.rs.ee.rs.get.JAXRSClientIT#dynamicGetTest
-ee.jakarta.tck.ws.rs.ee.rs.get.JAXRSClientIT#recursiveResourceLocatorTest
 
 # Receive MultivaluedMap as a form body - FIX writing byte[] form data in Core
 ee.jakarta.tck.ws.rs.spec.provider.standardwithjaxrsclient.JAXRSClientIT#mapElementProviderTest
@@ -262,40 +239,50 @@ ee.jakarta.tck.ws.rs.spec.provider.standardwithxmlbinding.JAXRSClientIT
 ee.jakarta.tck.ws.rs.spec.provider.jaxbcontext.JAXRSClientIT
 ee.jakarta.tck.ws.rs.spec.client.typedentitieswithxmlbinding.JAXRSClientIT
 
-# request-scoped bean fields
-ee.jakarta.tck.ws.rs.ee.rs.headerparam.JAXRSClientIT
-ee.jakarta.tck.ws.rs.spec.resource.locator.JAXRSClientIT
-ee.jakarta.tck.ws.rs.ee.rs.pathparam.JAXRSClientIT
-ee.jakarta.tck.ws.rs.ee.rs.cookieparam.sub.JAXRSSubClientIT
-ee.jakarta.tck.ws.rs.ee.rs.queryparam.sub.JAXRSSubClientIT
-ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT
-ee.jakarta.tck.ws.rs.ee.rs.pathparam.sub.JAXRSSubClientIT
-ee.jakarta.tck.ws.rs.ee.rs.cookieparam.locator.JAXRSLocatorClientIT
-ee.jakarta.tck.ws.rs.ee.rs.pathparam.locator.JAXRSLocatorClientIT
-ee.jakarta.tck.ws.rs.ee.rs.headerparam.locator.JAXRSLocatorClientIT
-ee.jakarta.tck.ws.rs.ee.rs.queryparam.JAXRSClientIT
-ee.jakarta.tck.ws.rs.ee.rs.cookieparam.JAXRSClientIT
-ee.jakarta.tck.ws.rs.spec.provider.reader.JAXRSClientIT
-
-# MatrixParam
-ee.jakarta.tck.ws.rs.spec.resource.annotationprecedence.subclass.JAXRSClientIT
-ee.jakarta.tck.ws.rs.ee.rs.matrixparam.locator.JAXRSLocatorClientIT
-ee.jakarta.tck.ws.rs.spec.resource.valueofandfromstring.JAXRSClientIT
-ee.jakarta.tck.ws.rs.ee.rs.matrixparam.JAXRSClientIT
-ee.jakarta.tck.ws.rs.ee.rs.matrixparam.sub.JAXRSSubClientIT
-ee.jakarta.tck.ws.rs.ee.rs.ext.paramconverter.JAXRSClientIT
-
-# BeanParam
-ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT
-ee.jakarta.tck.ws.rs.ee.rs.beanparam.cookie.plain.JAXRSClientIT
-ee.jakarta.tck.ws.rs.ee.rs.beanparam.path.plain.JAXRSClientIT
-ee.jakarta.tck.ws.rs.ee.rs.beanparam.header.plain.JAXRSClientIT
-ee.jakarta.tck.ws.rs.ee.rs.beanparam.query.plain.JAXRSClientIT
-ee.jakarta.tck.ws.rs.ee.rs.beanparam.matrix.plain.JAXRSClientIT
-ee.jakarta.tck.ws.rs.ee.rs.beanparam.form.plain.JAXRSClientIT
-
 # API.Status.STABLE compilation issue
 ee.jakarta.tck.ws.rs.jaxrs31.ee.multipart.MultipartSupportIT
 
 # TDK missing
 ee.jakarta.tck.ws.rs.signaturetest.jaxrs.JAXRSSigTestIT
+
+# Sub-resources, request fields and bean parameters: still failing
+# The JAX-RS client cannot write a byte[] form body (the core form writing issue above)
+ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT#allParamsInParamTest
+ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT#allParamsOnFieldTest
+ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT#cookieParamInParamTest
+ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT#cookieParamOnFieldTest
+ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT#formParamInParamTest
+ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT#formParamOnFieldTest
+ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT#headerParamInParamTest
+ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT#headerParamOnFieldTest
+ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT#matrixParamInParamTest
+ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT#matrixParamOnFieldTest
+ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT#pathParamInParamTest
+ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT#pathParamOnFieldTest
+ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT#queryParamInParamTest
+ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT#queryParamOnFieldTest
+ee.jakarta.tck.ws.rs.ee.rs.ext.paramconverter.JAXRSClientIT#formParamInLocatorTest
+ee.jakarta.tck.ws.rs.ee.rs.ext.paramconverter.JAXRSClientIT#formParamUsesParamConvertorTest
+# Recursive sub-resource locators are routed to a depth of two
+ee.jakarta.tck.ws.rs.ee.rs.get.JAXRSClientIT#recursiveResourceLocatorTest
+ee.jakarta.tck.ws.rs.ee.rs.pathparam.JAXRSClientIT#test6
+ee.jakarta.tck.ws.rs.ee.rs.pathparam.sub.JAXRSSubClientIT#test6
+# Readers selected for the declared media types
+ee.jakarta.tck.ws.rs.spec.provider.reader.JAXRSClientIT#iterateAllAppJavaReadersTest
+ee.jakarta.tck.ws.rs.spec.provider.reader.JAXRSClientIT#iterateFirstAppJavaReaderTest
+ee.jakarta.tck.ws.rs.spec.provider.reader.JAXRSClientIT#meadiaTypeContentTypeTest
+ee.jakarta.tck.ws.rs.spec.provider.reader.JAXRSClientIT#meadiaTypeDefaultTest
+ee.jakarta.tck.ws.rs.spec.provider.reader.JAXRSClientIT#noEntityProviderTest
+# Standard providers: XML sources and the response Content-Type
+ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT#byteArrayProviderTest
+ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT#dataSourceProviderTest
+ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT#fileProviderTest
+ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT#inputStreamProviderTest
+ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT#readerProviderTest
+ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT#sourceProviderTest
+ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT#streamingOutputProviderTest
+ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT#stringProviderTest
+ee.jakarta.tck.ws.rs.spec.resource.annotationprecedence.subclass.JAXRSClientIT#incorrectPathOnClassAndRequestTest
+ee.jakarta.tck.ws.rs.spec.resource.annotationprecedence.subclass.JAXRSClientIT#matrixParamPqrTest
+ee.jakarta.tck.ws.rs.spec.resource.annotationprecedence.subclass.JAXRSClientIT#queryParamPqrTest
+ee.jakarta.tck.ws.rs.spec.resource.locator.JAXRSClientIT#checkEntityIsNotSetTest

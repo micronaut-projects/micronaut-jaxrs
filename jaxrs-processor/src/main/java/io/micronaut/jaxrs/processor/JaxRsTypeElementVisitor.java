@@ -19,6 +19,7 @@ import io.micronaut.core.annotation.AnnotationUtil;
 import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.AnnotationValueBuilder;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.annotation.Introspected;
 import io.micronaut.core.annotation.NextMajorVersion;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -149,29 +150,40 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             }
             return;
         }
+        boolean resource = element.hasAnnotation(Path.class) || !element.getEnclosedElements(ElementQuery.ALL_METHODS.onlyInstance()
+            .annotated(metadata -> metadata.hasStereotype(HttpMethod.class))).isEmpty();
+        if (!resource && !element.isAbstract() && !element.isInterface() && !JaxRsRoutesGenerator.requestMembers(element).isEmpty()) {
+            // a @BeanParam type: initialized at runtime from its introspection, with the values of the request
+            element.annotate(Introspected.class, builder -> builder
+                .member("accessKind", new Introspected.AccessKind[]{Introspected.AccessKind.FIELD, Introspected.AccessKind.METHOD})
+                .member("visibility", new Introspected.Visibility[]{Introspected.Visibility.ANY}));
+            return;
+        }
         if (!element.isAbstract() && !element.isInterface() && !element.hasStereotype(Controller.class)
             && (element.hasAnnotation(Path.class) || !element.getEnclosedElements(ElementQuery.ALL_METHODS.onlyInstance()
                 .annotated(metadata -> metadata.hasStereotype(HttpMethod.class))).isEmpty())) {
             // a resource: a bean whose methods are routed by generated handler functions. A class
             // without @Path is routed from the root, like the controllers did
             ConstructorElement requestConstructor = JaxRsRoutesGenerator.requestConstructor(element);
-            if (requestConstructor != null) {
-                // a constructor with values of the request: created for every request, with
-                // those values passed as @Parameters by the generated route
+            if (JaxRsRoutesGenerator.isPerRequest(element)) {
+                // values of the request in the constructor, fields or setters: created for every
+                // request, with those values passed as @Parameters by the generated route
                 if (!element.hasStereotype(AnnotationUtil.SCOPE)) {
                     element.annotate(Prototype.class);
                 }
+            } else if (!element.hasStereotype(AnnotationUtil.SCOPE)) {
+                element.annotate(Singleton.class);
+            }
+            if (requestConstructor != null) {
                 requestConstructor.annotate(Inject.class);
                 for (ParameterElement parameter : requestConstructor.getParameters()) {
-                    if (JaxRsRoutesGenerator.isRequestParameter(parameter)) {
+                    if (JaxRsRoutesGenerator.isRequestAnnotated(parameter)) {
                         parameter.annotate(Parameter.class);
                         if (!parameter.isPrimitive()) {
                             parameter.annotate(Nullable.class);
                         }
                     }
                 }
-            } else if (!element.hasStereotype(AnnotationUtil.SCOPE)) {
-                element.annotate(Singleton.class);
             }
             JaxRsRoutesGenerator.generate(element, context);
         }
@@ -179,6 +191,11 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
 
     @Override
     public void visitMethod(MethodElement element, VisitorContext context) {
+        if (generateRoutes && element.hasAnnotation(Context.class) && !element.hasStereotype(HttpMethod.class)
+            && JaxRsRoutesGenerator.isPerRequest(element.getOwningType())) {
+            // a setter injected by the generated routes
+            element.removeAnnotation(Inject.class);
+        }
         if (element.hasStereotype(HttpMethod.class) && element.isPrivate() && generateRoutes) {
             // not a resource method: only public methods are, and a private method cannot be executable
             element.removeAnnotationIf(annotation -> annotation.getAnnotationName().startsWith("io.micronaut.http.annotation."));
@@ -219,6 +236,13 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     @Override
     public void visitField(FieldElement element, VisitorContext context) {
         visitParamOrField(element);
+        if (generateRoutes) {
+            // the generated routes inject the fields of a type created per request
+            if (element.hasAnnotation(Context.class) && JaxRsRoutesGenerator.isPerRequest(element.getOwningType())) {
+                element.removeAnnotation(Inject.class);
+            }
+            return;
+        }
         if (element.hasAnnotation(HeaderParam.class) ||
             element.hasAnnotation(QueryParam.class) ||
             element.hasAnnotation(FormParam.class) ||
@@ -276,7 +300,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
 
     private List<Class<? extends Annotation>> getUnsupportedParameterAnnotations() {
         return generateRoutes
-            ? Arrays.asList(BeanParam.class, Encoded.class)
+            ? List.of()
             : Arrays.asList(MatrixParam.class, BeanParam.class, Encoded.class);
     }
 
