@@ -115,7 +115,7 @@ public final class JaxRsRoutesGenerator {
         ConstructorElement constructor = requestConstructor(resource);
         if (constructor != null) {
             for (ParameterElement parameter : constructor.getParameters()) {
-                if (parameter.hasAnnotation(MatrixParam.class) || parameter.hasAnnotation(BeanParam.class) || parameter.hasAnnotation(Encoded.class)) {
+                if (parameter.hasAnnotation(BeanParam.class) || parameter.hasAnnotation(Encoded.class)) {
                     context.info("JAX-RS resource with unsupported constructor parameters is not routed", parameter);
                     return;
                 }
@@ -187,6 +187,8 @@ public final class JaxRsRoutesGenerator {
             return new Param(ParamKind.PATH, parameter.stringValue(PathParam.class).orElse(parameter.getName()), parameter, defaultValue);
         } else if (parameter.hasAnnotation(QueryParam.class)) {
             return new Param(ParamKind.QUERY, parameter.stringValue(QueryParam.class).orElse(parameter.getName()), parameter, defaultValue);
+        } else if (parameter.hasAnnotation(MatrixParam.class)) {
+            return new Param(ParamKind.MATRIX, parameter.stringValue(MatrixParam.class).orElse(parameter.getName()), parameter, defaultValue);
         } else if (parameter.hasAnnotation(HeaderParam.class)) {
             return new Param(ParamKind.HEADER, parameter.stringValue(HeaderParam.class).orElse(parameter.getName()), parameter, defaultValue);
         } else if (parameter.hasAnnotation(CookieParam.class)) {
@@ -216,9 +218,8 @@ public final class JaxRsRoutesGenerator {
         boolean form = false;
         Param entity = null;
         for (ParameterElement parameter : method.getParameters()) {
-            if (parameter.hasAnnotation(MatrixParam.class) || parameter.hasAnnotation(BeanParam.class)) {
-                context.fail("Unsupported JAX-RS annotation used on method: "
-                    + (parameter.hasAnnotation(MatrixParam.class) ? MatrixParam.class.getName() : BeanParam.class.getName()), parameter);
+            if (parameter.hasAnnotation(BeanParam.class)) {
+                context.fail("Unsupported JAX-RS annotation used on method: " + BeanParam.class.getName(), parameter);
                 return null;
             }
             if (parameter.hasAnnotation(Suspended.class)) {
@@ -231,6 +232,8 @@ public final class JaxRsRoutesGenerator {
                 param = new Param(ParamKind.PATH, parameter.stringValue(PathParam.class).orElse(parameter.getName()), parameter, defaultValue);
             } else if (parameter.hasAnnotation(QueryParam.class)) {
                 param = new Param(ParamKind.QUERY, parameter.stringValue(QueryParam.class).orElse(parameter.getName()), parameter, defaultValue);
+            } else if (parameter.hasAnnotation(MatrixParam.class)) {
+                param = new Param(ParamKind.MATRIX, parameter.stringValue(MatrixParam.class).orElse(parameter.getName()), parameter, defaultValue);
             } else if (parameter.hasAnnotation(HeaderParam.class)) {
                 param = new Param(ParamKind.HEADER, parameter.stringValue(HeaderParam.class).orElse(parameter.getName()), parameter, defaultValue);
             } else if (parameter.hasAnnotation(CookieParam.class)) {
@@ -482,6 +485,7 @@ public final class JaxRsRoutesGenerator {
         return switch (param.kind) {
             case PATH -> cast + "support.pathParam(request, pathVariables, " + name + ", " + argumentField + ", " + defaultValue + ")";
             case QUERY -> cast + "support.queryParam(request, " + name + ", " + argumentField + ", " + defaultValue + ")";
+            case MATRIX -> cast + "support.matrixParam(request, " + name + ", " + argumentField + ", " + defaultValue + ")";
             case HEADER -> cast + "support.headerParam(request, " + name + ", " + argumentField + ", " + defaultValue + ")";
             case COOKIE -> cast + "support.cookieParam(request, " + name + ", " + argumentField + ", " + defaultValue + ")";
             case FORM -> cast + "support.formParam(form, " + name + ", " + argumentField + ", " + defaultValue + ")";
@@ -589,7 +593,7 @@ public final class JaxRsRoutesGenerator {
     }
 
     private enum ParamKind {
-        PATH, QUERY, HEADER, COOKIE, FORM, FORM_ENTITY, CONTEXT, ENTITY
+        PATH, QUERY, MATRIX, HEADER, COOKIE, FORM, FORM_ENTITY, CONTEXT, ENTITY
     }
 
     private static final class Param {
