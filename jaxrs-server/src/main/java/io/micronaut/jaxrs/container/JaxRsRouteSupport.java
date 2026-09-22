@@ -18,6 +18,9 @@ package io.micronaut.jaxrs.container;
 import io.micronaut.context.BeanContext;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.http.body.MessageBodyHandlerRegistry;
+import io.micronaut.http.body.MessageBodyReader;
+import io.micronaut.jaxrs.common.JaxRsMessageBodyReader;
 import io.micronaut.core.beans.BeanIntrospection;
 import io.micronaut.core.beans.BeanIntrospector;
 import io.micronaut.core.beans.BeanProperty;
@@ -64,6 +67,7 @@ import jakarta.ws.rs.ext.ParamConverter;
 import jakarta.ws.rs.ext.ParamConverterProvider;
 import org.jspecify.annotations.Nullable;
 
+import java.io.InputStream;
 import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -293,12 +297,27 @@ public final class JaxRsRouteSupport {
     }
 
     /**
-     * @param body     The entity read by the route
+     * @param request  The request
+     * @param body     The entity read by the route, {@code null} for an empty body
      * @param argument The type of the entity
      * @return The entity
      */
-    public @Nullable Object entity(@Nullable Object body, Argument<?> argument) {
-        return body;
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public @Nullable Object entity(HttpRequest<?> request, @Nullable Object body, Argument<?> argument) {
+        if (body != null) {
+            return body;
+        }
+        if (argument.getType() == String.class) {
+            return "";
+        }
+        // a JAX-RS reader reads an empty entity too
+        MediaType contentType = request.getContentType().orElse(null);
+        Optional<MessageBodyReader<Object>> reader = beanContext.getBean(MessageBodyHandlerRegistry.class)
+            .findReader((Argument) argument, contentType);
+        if (reader.isPresent() && reader.get() instanceof JaxRsMessageBodyReader<?>) {
+            return reader.get().read((Argument) argument, contentType, request.getHeaders(), InputStream.nullInputStream());
+        }
+        return null;
     }
 
     /**
@@ -393,6 +412,21 @@ public final class JaxRsRouteSupport {
             return response;
         }
         return entityResponse(result);
+    }
+
+    /**
+     * A resource the request is matched to, for {@link jakarta.ws.rs.core.UriInfo#getMatchedResources()}
+     * and {@link jakarta.ws.rs.core.UriInfo#getMatchedURIs()}.
+     *
+     * @param request  The request
+     * @param resource The resource
+     * @param segments The number of path segments matched up to the resource
+     * @param <T>      The type
+     * @return The resource
+     */
+    public <T> T matched(HttpRequest<?> request, T resource, int segments) {
+        JaxRsMatched.add(request, resource, segments);
+        return resource;
     }
 
     /**

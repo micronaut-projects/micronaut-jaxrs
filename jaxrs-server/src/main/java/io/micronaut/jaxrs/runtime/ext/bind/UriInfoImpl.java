@@ -19,7 +19,9 @@ import io.micronaut.core.annotation.Internal;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import io.micronaut.core.util.StringUtils;
+import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpRequest;
+import io.micronaut.jaxrs.container.JaxRsMatched;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.RouteMatch;
 import jakarta.ws.rs.core.MultivaluedHashMap;
@@ -28,6 +30,7 @@ import jakarta.ws.rs.core.PathSegment;
 import jakarta.ws.rs.core.UriBuilder;
 import jakarta.ws.rs.core.UriInfo;
 
+import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLDecoder;
@@ -132,55 +135,39 @@ public final class UriInfoImpl implements UriInfo {
 
     @Override
     public URI getRequestUri() {
-        return request.getUri();
+        URI uri = request.getUri();
+        if (uri.isAbsolute() && uri.getRawAuthority() != null) {
+            return uri;
+        }
+        String rawPath = uri.getRawPath();
+        return uriWithRawPath(rawPath == null || rawPath.isEmpty() ? "/" : rawPath, uri.getRawQuery());
     }
 
-    /**
-     * This operation is not supported currently,
-     * so {@link UnsupportedOperationException} is thrown for all invocations.
-     *
-     * @throws UnsupportedOperationException this operation is not supported currently.
-     */
     @Override
     public UriBuilder getRequestUriBuilder() {
-        throw new UnsupportedOperationException();
+        return UriBuilder.fromUri(getRequestUri());
     }
 
     @Override
     public URI getAbsolutePath() {
-        return getBaseUri().resolve(getPath(false));
+        String rawPath = request.getUri().getRawPath();
+        return uriWithRawPath(rawPath == null || rawPath.isEmpty() ? "/" : rawPath, null);
     }
 
-    /**
-     * This operation is not supported currently,
-     * so {@link UnsupportedOperationException} is thrown for all invocations.
-     *
-     * @throws UnsupportedOperationException this operation is not supported currently.
-     */
     @Override
     public UriBuilder getAbsolutePathBuilder() {
-        throw new UnsupportedOperationException();
+        return UriBuilder.fromUri(getAbsolutePath());
     }
 
     @Override
     public URI getBaseUri() {
-        URI uri = request.getUri();
-        try {
-            return new URI(uri.getScheme(), uri.getUserInfo(), uri.getHost(), uri.getPort(), "", uri.getQuery(), uri.getFragment());
-        } catch (URISyntaxException e) {
-            throw new IllegalArgumentException("Unexpected URI format: " + uri.toASCIIString(), e);
-        }
+        String path = basePath == null ? "/" : basePath.startsWith("/") ? basePath : '/' + basePath;
+        return uriWithRawPath(path.endsWith("/") ? path : path + '/', null);
     }
 
-    /**
-     * This operation is not supported currently,
-     * so {@link UnsupportedOperationException} is thrown for all invocations.
-     *
-     * @throws UnsupportedOperationException this operation is not supported currently.
-     */
     @Override
     public UriBuilder getBaseUriBuilder() {
-        throw new UnsupportedOperationException();
+        return UriBuilder.fromUri(getBaseUri());
     }
 
     @Override
@@ -239,15 +226,9 @@ public final class UriInfoImpl implements UriInfo {
     }
 
 
-    /**
-     * This operation is not supported currently,
-     * so {@link UnsupportedOperationException} is thrown for all invocations.
-     *
-     * @throws UnsupportedOperationException this operation is not supported currently.
-     */
     @Override
     public List<String> getMatchedURIs() {
-        throw new UnsupportedOperationException();
+        return getMatchedURIs(true);
     }
 
     //    @Override v4
@@ -260,26 +241,27 @@ public final class UriInfoImpl implements UriInfo {
             .orElse("");
     }
 
-    /**
-     * This operation is not supported currently,
-     * so {@link UnsupportedOperationException} is thrown for all invocations.
-     *
-     * @throws UnsupportedOperationException this operation is not supported currently.
-     */
     @Override
     public List<String> getMatchedURIs(boolean decode) {
-        throw new UnsupportedOperationException();
+        String path = trimSlashes(getPath(decode));
+        List<String> uris = new ArrayList<>();
+        uris.add(path);
+        JaxRsMatched matched = JaxRsMatched.get(request);
+        if (matched != null) {
+            for (int segments : matched.segments()) {
+                String uri = firstSegments(path, segments);
+                if (!uri.equals(uris.get(uris.size() - 1))) {
+                    uris.add(uri);
+                }
+            }
+        }
+        return uris;
     }
 
-    /**
-     * This operation is not supported currently,
-     * so {@link UnsupportedOperationException} is thrown for all invocations.
-     *
-     * @throws UnsupportedOperationException this operation is not supported currently.
-     */
     @Override
     public List<Object> getMatchedResources() {
-        throw new UnsupportedOperationException();
+        JaxRsMatched matched = JaxRsMatched.get(request);
+        return matched == null ? List.of() : matched.resources();
     }
 
     @Override
@@ -290,6 +272,77 @@ public final class UriInfoImpl implements UriInfo {
     @Override
     public URI relativize(URI uri) {
         return request.getUri().relativize(uri);
+    }
+
+    /**
+     * An absolute URI of this request with another path and query.
+     */
+    private URI uriWithRawPath(String rawPath, @Nullable String rawQuery) {
+        URI uri = request.getUri();
+        StringBuilder builder = new StringBuilder();
+        String scheme = uri.getScheme();
+        String rawAuthority = uri.getRawAuthority();
+        if (scheme != null && rawAuthority != null) {
+            builder.append(scheme).append("://").append(rawAuthority);
+        } else {
+            scheme = request.isSecure() ? HttpRequest.SCHEME_HTTPS : HttpRequest.SCHEME_HTTP;
+            String authority = request.getHeaders().get(HttpHeaders.HOST);
+            if (StringUtils.isEmpty(authority)) {
+                InetSocketAddress serverAddress = request.getServerAddress();
+                String host = request.getServerName();
+                if ((host == null || host.isBlank()) && serverAddress != null) {
+                    host = serverAddress.getHostString();
+                }
+                int port = uri.getPort() < 0 && serverAddress != null ? serverAddress.getPort() : uri.getPort();
+                if (host != null && !host.isBlank()) {
+                    String authorityHost = host.indexOf(':') > -1 && !host.startsWith("[") ? '[' + host + ']' : host;
+                    authority = port < 0 ? authorityHost : authorityHost + ':' + port;
+                }
+            }
+            if (StringUtils.isNotEmpty(authority)) {
+                for (int i = 0; i < authority.length(); i++) {
+                    char c = authority.charAt(i);
+                    if (c <= 0x20 || c == 0x7f) {
+                        throw new IllegalArgumentException("Invalid URI authority");
+                    }
+                }
+                builder.append(scheme).append("://").append(authority);
+            }
+        }
+        if (!rawPath.startsWith("/")) {
+            builder.append('/');
+        }
+        builder.append(rawPath);
+        if (rawQuery != null) {
+            builder.append('?').append(rawQuery);
+        }
+        try {
+            return new URI(builder.toString());
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException("Unexpected URI format: " + uri.toASCIIString(), e);
+        }
+    }
+
+    private static String trimSlashes(String path) {
+        int start = path.startsWith("/") ? 1 : 0;
+        int end = path.length() > start && path.endsWith("/") ? path.length() - 1 : path.length();
+        return path.substring(start, end);
+    }
+
+    /**
+     * The first path segments of a matched URI.
+     */
+    private static String firstSegments(String path, int segments) {
+        if (segments <= 0) {
+            return "";
+        }
+        int count = 0;
+        for (int i = 0; i < path.length(); i++) {
+            if (path.charAt(i) == '/' && ++count == segments) {
+                return path.substring(0, i);
+            }
+        }
+        return path;
     }
 
     private record UriPathSegment(String path,
