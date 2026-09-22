@@ -16,6 +16,10 @@
 package io.micronaut.jaxrs.container;
 
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.http.HttpRequest;
+import io.micronaut.http.MediaType;
+import io.micronaut.web.router.UriRouteMatch;
+import io.micronaut.web.router.spi.RouteMatchSelector;
 import io.micronaut.http.uri.ParsedRouteTemplate;
 import io.micronaut.http.uri.RouteCaptures;
 import io.micronaut.http.uri.RoutePattern;
@@ -28,7 +32,11 @@ import org.jspecify.annotations.Nullable;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -42,7 +50,7 @@ import java.util.regex.Pattern;
  * @since 5.2.0
  */
 @Internal
-public final class JaxRsRouteTemplateEngine implements RouteTemplateEngine {
+public final class JaxRsRouteTemplateEngine implements RouteTemplateEngine, RouteMatchSelector {
 
     /**
      * The identifier of the language.
@@ -50,6 +58,18 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateEngine {
     public static final String ID = "jakarta.ws.rs";
     private static final String VERSION = "1";
     private static final String DEFAULT_REGEX = "[^/]+";
+    private static final String QS = "qs";
+    private static final String WILDCARD = "*";
+    /**
+     * The order of specificity of JAX-RS (section 3.7.2): more literal characters, then more
+     * template variables, then more variables with a regular expression.
+     */
+    private static final Comparator<ParsedRouteTemplate> ORDER = Comparator
+        .comparingInt(ParsedRouteTemplate::rawLength).reversed()
+        .thenComparing(Comparator.comparingInt(ParsedRouteTemplate::pathVariableCount).reversed())
+        .thenComparing(Comparator.comparingInt(ParsedRouteTemplate::patternVariableCount).reversed());
+
+    private final Map<RouteTemplate, ParsedRouteTemplate> parsedTemplates = new ConcurrentHashMap<>();
 
     /**
      * A template in the language of JAX-RS.
@@ -69,6 +89,133 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateEngine {
     @Override
     public String version() {
         return VERSION;
+    }
+
+    @Override
+    public Optional<Comparator<ParsedRouteTemplate>> comparator() {
+        return Optional.of(ORDER);
+    }
+
+    /**
+     * Select the resource method of JAX-RS (section 3.7.2): the most specific templates, then the
+     * content type of the request against the consumed types, then the accepted types, with their
+     * quality, against the produced types, with their {@code qs}. The response type is the
+     * combined type of the selected method, when the method declares the types it produces.
+     */
+    @Override
+    public List<Selection> select(HttpRequest<?> request, List<UriRouteMatch<?, ?>> matches) {
+        ParsedRouteTemplate best = null;
+        List<UriRouteMatch<?, ?>> candidates = new ArrayList<>(matches.size());
+        for (UriRouteMatch<?, ?> match : matches) {
+            ParsedRouteTemplate parsed = parsedTemplates.computeIfAbsent(match.getRouteInfo().getRouteTemplate(), this::parse);
+            int compare = best == null ? -1 : ORDER.compare(parsed, best);
+            if (compare < 0) {
+                best = parsed;
+                candidates.clear();
+                candidates.add(match);
+            } else if (compare == 0) {
+                candidates.add(match);
+            }
+        }
+        MediaType contentType = request.getContentType().orElse(null);
+        List<MediaType> accepted = request.getHeaders().accept();
+        if (accepted.isEmpty()) {
+            accepted = List.of(MediaType.ALL_TYPE);
+        }
+        UriRouteMatch<?, ?> selected = null;
+        Negotiated selectedType = null;
+        int selectedConsumes = -1;
+        for (UriRouteMatch<?, ?> candidate : candidates) {
+            int consumes = contentType == null ? 0 : consumes(contentType, candidate.getRouteInfo().getConsumes());
+            Negotiated negotiated = negotiate(accepted, candidate.getRouteInfo().getProduces());
+            if (negotiated == null) {
+                continue;
+            }
+            if (selected == null || consumes > selectedConsumes
+                || consumes == selectedConsumes && negotiated.compareTo(selectedType) > 0) {
+                selected = candidate;
+                selectedType = negotiated;
+                selectedConsumes = consumes;
+            }
+        }
+        if (selected == null) {
+            return List.of();
+        }
+        List<MediaType> produces = selected.getRouteInfo().getProduces();
+        boolean declared = !(produces.size() == 1 && produces.get(0).equals(MediaType.ALL_TYPE));
+        MediaType type = selectedType.type;
+        if (declared && (specificity(type) == 0 || specificity(type) == 1 && "application".equals(type.getType()))) {
+            // not concrete: JAX-RS answers with application/octet-stream
+            type = MediaType.APPLICATION_OCTET_STREAM_TYPE;
+        }
+        return List.of(Selection.of(selected, declared ? type : null));
+    }
+
+    /**
+     * How closely a content type matches the consumed types: 2 for a type, 1 for a type with a
+     * wildcard subtype, 0 for any type.
+     */
+    private static int consumes(MediaType contentType, List<MediaType> consumes) {
+        int best = 0;
+        for (MediaType consumed : consumes) {
+            if (consumed.matches(contentType)) {
+                best = Math.max(best, specificity(consumed));
+            }
+        }
+        return best;
+    }
+
+    private static @Nullable Negotiated negotiate(List<MediaType> accepted, List<MediaType> produces) {
+        Negotiated best = null;
+        for (MediaType accept : accepted) {
+            for (MediaType produce : produces) {
+                if (!accept.matches(produce) && !produce.matches(accept)) {
+                    continue;
+                }
+                // the more specific of the two, without the q and qs parameters
+                MediaType type = specificity(produce) >= specificity(accept) ? produce : accept;
+                int distance = (specificity(produce) == specificity(accept) ? 0 : 1);
+                Negotiated negotiated = new Negotiated(new MediaType(type.getType() + "/" + type.getSubtype()),
+                    accept.getQualityAsNumber().doubleValue(), qs(produce), distance);
+                if (best == null || negotiated.compareTo(best) > 0) {
+                    best = negotiated;
+                }
+            }
+        }
+        return best;
+    }
+
+    private static int specificity(MediaType type) {
+        if (WILDCARD.equals(type.getType())) {
+            return 0;
+        }
+        return WILDCARD.equals(type.getSubtype()) ? 1 : 2;
+    }
+
+    private static double qs(MediaType type) {
+        String qs = type.getParameters().get(QS).orElse(null);
+        return qs == null ? 1 : Double.parseDouble(qs);
+    }
+
+    /**
+     * A combined media type of JAX-RS: compared by specificity, then the quality of the accepted
+     * type, then the {@code qs} of the produced type, then the distance, the smaller the better.
+     */
+    private record Negotiated(MediaType type, double q, double qs, int distance) implements Comparable<Negotiated> {
+        @Override
+        public int compareTo(Negotiated other) {
+            int result = Integer.compare(specificity(type), specificity(other.type));
+            if (result == 0) {
+                result = Double.compare(q, other.q);
+            }
+            if (result == 0) {
+                result = Double.compare(qs, other.qs);
+            }
+            if (result == 0) {
+                result = Integer.compare(other.distance, distance);
+            }
+            return result;
+        }
     }
 
     @Override
@@ -297,17 +444,12 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateEngine {
             return count;
         }
 
-        /**
-         * The router prefers fewer variables with a regular expression; JAX-RS prefers more (spec
-         * 3.7.2, the tertiary key, descending): the count is negated until an engine can order
-         * this key itself.
-         */
         @Override
         public int patternVariableCount() {
             int count = 0;
             for (Part part : parts) {
                 if (part.regex != null) {
-                    count--;
+                    count++;
                 }
             }
             return count;

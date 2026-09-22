@@ -588,44 +588,6 @@ public final class JaxRsRoutesGenerator {
         return segments;
     }
 
-    /**
-     * {@code { name : regex }} to {@code {name:regex}}; braces of the regex are kept.
-     */
-    static String normalizeVariables(String path) {
-        StringBuilder result = new StringBuilder(path.length());
-        int i = 0;
-        while (i < path.length()) {
-            char c = path.charAt(i);
-            if (c != '{') {
-                result.append(c);
-                i++;
-                continue;
-            }
-            int depth = 1;
-            int j = i + 1;
-            while (j < path.length() && depth > 0) {
-                char d = path.charAt(j);
-                if (d == '{') {
-                    depth++;
-                } else if (d == '}') {
-                    depth--;
-                }
-                j++;
-            }
-            String variable = path.substring(i + 1, depth == 0 ? j - 1 : j);
-            int colon = variable.indexOf(':');
-            result.append('{');
-            if (colon < 0) {
-                result.append(variable.trim());
-            } else {
-                result.append(variable.substring(0, colon).trim()).append(':').append(variable.substring(colon + 1).trim());
-            }
-            result.append('}');
-            i = j;
-        }
-        return result.toString();
-    }
-
     private static String strip(String path) {
         int start = 0;
         int end = path.length();
@@ -714,9 +676,8 @@ public final class JaxRsRoutesGenerator {
                     ResourceMethod method = route.route.method;
                     List<ExpressionDef> handle = new ArrayList<>();
                     // declared by the name of the HTTP method, custom or not, with the template in the language of JAX-RS
-                    // a located table composes Micronaut templates only: the template of a located route is in that language
                     handle.add(support.invoke(model.located ? "locatedDeclaration" : "declaration", types.routeDeclaration,
-                        ExpressionDef.constant(method.httpMethod), ExpressionDef.constant(model.located ? normalizeVariables(method.template) : method.template)));
+                        ExpressionDef.constant(method.httpMethod), ExpressionDef.constant(method.template)));
                     String builderMethod;
                     if (route.form) {
                         builderMethod = method.async ? "handleFormAsync" : "handleForm";
@@ -734,10 +695,9 @@ public final class JaxRsRoutesGenerator {
                 for (int i = 0; i < model.runtimeLocators.size(); i++) {
                     RuntimeLocator locator = model.runtimeLocators.get(i);
                     String locateMethod = "locate" + i;
-                    // the prefix in the Micronaut language: the router locates the target, then
-                    // matches the rest of the path with the routes of its class
+                    // the router locates the target, then matches the rest of the path with the routes of its class
                     statements.add(params.get(0).invoke("locate", TypeDef.VOID,
-                        support.invoke(model.located ? "locatedPrefix" : "prefix", TypeDef.STRING, ExpressionDef.constant(normalizeVariables(locator.prefix))),
+                        support.invoke(model.located ? "locatedPrefix" : "prefix", types.routeTemplate, ExpressionDef.constant(locator.prefix)),
                         types.type(ROUTER + "LocatorHandler").getLambda(Map.of()).implement((lambdaThis, lambdaParams) ->
                             aThis.invoke(locateMethod, TypeDef.OBJECT, new ArrayList<ExpressionDef>(lambdaParams)).returning()),
                         support.invoke("locatedTables", TypeDef.OBJECT)));
@@ -761,6 +721,7 @@ public final class JaxRsRoutesGenerator {
         final ClassTypeDef routeBuilder;
         final ClassTypeDef routeSpec;
         final ClassTypeDef routeDeclaration;
+        final ClassTypeDef routeTemplate;
         final TypeDef request = TypeDef.parameterized(ClassTypeDef.of("io.micronaut.http.HttpRequest"), TypeDef.wildcard());
         final TypeDef response = TypeDef.parameterized(ClassTypeDef.of(HTTP_RESPONSE), TypeDef.wildcard());
         final ClassTypeDef pathVariables;
@@ -773,6 +734,7 @@ public final class JaxRsRoutesGenerator {
             routeBuilder = type(ROUTER + "HttpRouteBuilder");
             routeSpec = type(ROUTER + "HttpRouteSpec");
             routeDeclaration = type(ROUTER + "RouteDeclaration");
+            routeTemplate = type("io.micronaut.http.uri.RouteTemplate");
             pathVariables = type(ROUTER + "PathVariables");
             form = type("io.micronaut.http.form.FormData");
         }
@@ -1098,6 +1060,10 @@ public final class JaxRsRoutesGenerator {
                     ).returning();
                 } else {
                     result = response(route, call, scope).returning();
+                }
+                if (!method.produces.isEmpty()) {
+                    // a negotiated type that is not concrete is not acceptable
+                    result = StatementDef.multi(scope.support.invoke("acceptable", TypeDef.VOID, pathVariables), result);
                 }
                 if (throwsThrowable(method.method) || route.route.locators.stream().anyMatch(l -> throwsThrowable(l.method))) {
                     // a route handler can only throw exceptions

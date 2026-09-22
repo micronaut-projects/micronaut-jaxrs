@@ -149,7 +149,6 @@ ee.jakarta.tck.ws.rs.spec.contextprovider.JsonbContextProviderIT
 ee.jakarta.tck.ws.rs.ee.rs.formparam.JAXRSClientIT
 
 # Content type in HEAD response, our behavior is fine
-ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#classProducesTest
 
 # JAXB
 ee.jakarta.tck.ws.rs.spec.provider.standardwithxmlbinding.JAXRSClientIT
@@ -239,38 +238,13 @@ ee.jakarta.tck.ws.rs.spec.provider.writer.JAXRSClientIT#supportAllTest
 ee.jakarta.tck.ws.rs.spec.provider.writer.JAXRSClientIT#supportXmlByDefaultWriterTest
 ee.jakarta.tck.ws.rs.spec.provider.writer.JAXRSClientIT#supportXmlByXmlWriterTest
 
-# Response media type chosen from the writers and the qs of the produced types
-ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#clientAnyPreferenceTest
-ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#clientImagePreferenceTest
-ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#defaultErrorTest
-ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#defaultResponseErrorTest
-ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#imagePreferenceTest
-ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#mesageBodyWriterProducesTest
-ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#noPreferenceTest
-ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#textPreferenceTest
 
 # An entity Response without a writer
 ee.jakarta.tck.ws.rs.spec.returntype.JAXRSClientIT#entityResponseTest
 
-# Request matching: a resource method chosen by the Accept header and the qs of its produced types
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#qualityOfSourceOnDifferentMediaTypesTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#concreteOverStarWhenAcceptStarTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesOverridesDescendantSubResourcePathValueWeightTest
 
-# Request matching: the router answers 400 for routes JAX-RS tells apart (resource method over locator, the media types of sub-resource methods)
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#resourceLocatorTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#descendantResourcePathValueTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#consumesOverridesDescendantSubResourcePathValueTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesOverridesDescendantSubResourcePathValuePostTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#slashUriTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#locatorNameTooLongAgainTest
 
-# Request matching: the harness serves the deployment at the root, so a wrong application name is still routed
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#slashAppNameTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#wrongAppNameTest
 
-# Request matching: OPTIONS on a sub-resource
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#optionsOnSubResourceTest
 
 # Sub-resources: still failing with locators known at runtime
 ee.jakarta.tck.ws.rs.ee.rs.ext.paramconverter.JAXRSClientIT#formParamInLocatorTest
@@ -280,3 +254,29 @@ ee.jakarta.tck.ws.rs.spec.resource.annotationprecedence.subclass.JAXRSClientIT#i
 ee.jakarta.tck.ws.rs.spec.resource.annotationprecedence.subclass.JAXRSClientIT#matrixParamPqrTest
 ee.jakarta.tck.ws.rs.spec.resource.annotationprecedence.subclass.JAXRSClientIT#queryParamPqrTest
 ee.jakarta.tck.ws.rs.spec.resource.locator.JAXRSClientIT#checkEntityIsNotSetTest
+
+# Media type selection: core pre-filters routes with exact accepted types, so a wildcard Accept drops concrete routes before the JAX-RS selector
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#concreteOverStarWhenAcceptStarTest
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesOverridesDescendantSubResourcePathValueWeightTest
+ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#clientImagePreferenceTest
+ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#imagePreferenceTest
+ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#textPreferenceTest
+
+# Response type from the writers when the resource method declares none
+ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#classProducesTest
+ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#mesageBodyWriterProducesTest
+
+# Request matching: a resource method and a locator, or sub-resource methods, that JAX-RS tells apart
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#resourceLocatorTest
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#descendantResourcePathValueTest
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#descendantSubResourcePathValueTest
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#consumesOverridesDescendantSubResourcePathValueTest
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesOverridesDescendantSubResourcePathValuePostTest
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#locatorNameTooLongAgainTest
+
+# Request matching: the harness serves the deployment at the root, so a wrong application name is still routed
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#slashAppNameTest
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#wrongAppNameTest
+
+# Request matching: OPTIONS on a sub-resource
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#optionsOnSubResourceTest
