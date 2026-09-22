@@ -46,7 +46,7 @@ public final class JaxRsMatched {
      *
      * @param request  The request
      * @param resource The resource
-     * @param segments The number of path segments matched up to the resource
+     * @param segments The number of path segments matched up to the resource, negative if unknown
      */
     static void add(HttpRequest<?> request, Object resource, int segments) {
         JaxRsMatched matched = get(request);

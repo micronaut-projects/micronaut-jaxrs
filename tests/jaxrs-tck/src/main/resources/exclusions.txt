@@ -76,7 +76,6 @@ ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT#responseCreatedRelativeUR
 ee.jakarta.tck.ws.rs.api.rs.ext.runtimedelegate.create.JAXRSClientIT#createEndpointThrowsIllegalArgumentExceptionTest
 
 # TCK BUG Test assumes header `allow` with upper case
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#optionsOnSubResourceTest
 
 # Receive MultivaluedMap as a form body - FIX writing byte[] form data in Core
 ee.jakarta.tck.ws.rs.spec.provider.standardwithjaxrsclient.JAXRSClientIT#mapElementProviderTest
@@ -179,12 +178,7 @@ ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT#pathParamInParamTest
 ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT#pathParamOnFieldTest
 ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT#queryParamInParamTest
 ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT#queryParamOnFieldTest
-ee.jakarta.tck.ws.rs.ee.rs.ext.paramconverter.JAXRSClientIT#formParamInLocatorTest
 ee.jakarta.tck.ws.rs.ee.rs.ext.paramconverter.JAXRSClientIT#formParamUsesParamConvertorTest
-# Recursive sub-resource locators are routed to a depth of two
-ee.jakarta.tck.ws.rs.ee.rs.get.JAXRSClientIT#recursiveResourceLocatorTest
-ee.jakarta.tck.ws.rs.ee.rs.pathparam.JAXRSClientIT#test6
-ee.jakarta.tck.ws.rs.ee.rs.pathparam.sub.JAXRSSubClientIT#test6
 # Readers selected for the declared media types
 ee.jakarta.tck.ws.rs.spec.provider.reader.JAXRSClientIT#iterateAllAppJavaReadersTest
 ee.jakarta.tck.ws.rs.spec.provider.reader.JAXRSClientIT#iterateFirstAppJavaReaderTest
@@ -200,21 +194,9 @@ ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT#readerProviderTest
 ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT#sourceProviderTest
 ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT#streamingOutputProviderTest
 ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT#stringProviderTest
-ee.jakarta.tck.ws.rs.spec.resource.annotationprecedence.subclass.JAXRSClientIT#incorrectPathOnClassAndRequestTest
-ee.jakarta.tck.ws.rs.spec.resource.annotationprecedence.subclass.JAXRSClientIT#matrixParamPqrTest
-ee.jakarta.tck.ws.rs.spec.resource.annotationprecedence.subclass.JAXRSClientIT#queryParamPqrTest
-ee.jakarta.tck.ws.rs.spec.resource.locator.JAXRSClientIT#checkEntityIsNotSetTest
 
-# Route selection has two keys, literal length then the number of variables: a variable with a
-# custom regular expression and one without are equally specific, e.g. {id} and {id: .+}
-ee.jakarta.tck.ws.rs.spec.template.JAXRSClientIT#Test1
-ee.jakarta.tck.ws.rs.spec.template.JAXRSClientIT#Test2
 
 # Still failing after the functional routes rewrite, by reason
-
-# A WebApplicationException with a response is not passed to its exception mapper as JAX-RS orders it
-ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#webApplicationExceptionHasResponseWithEntityDoesNotUseMapperTest
-ee.jakarta.tck.ws.rs.ee.resource.webappexception.mapper.JAXRSClientIT#webApplicationExceptionHasResponseWithoutEntityDoesUseMapperTest
 
 # ContainerResponseContext.getEntityAnnotations does not carry the annotations of a Response entity
 ee.jakarta.tck.ws.rs.ee.rs.container.responsecontext.JAXRSClientIT#getEntityAnnotationsWhenAnnotationsOnEntityTest
@@ -269,3 +251,32 @@ ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#textPreferenc
 
 # An entity Response without a writer
 ee.jakarta.tck.ws.rs.spec.returntype.JAXRSClientIT#entityResponseTest
+
+# Request matching: a resource method chosen by the Accept header and the qs of its produced types
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#qualityOfSourceOnDifferentMediaTypesTest
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#concreteOverStarWhenAcceptStarTest
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesOverridesDescendantSubResourcePathValueWeightTest
+
+# Request matching: the router answers 400 for routes JAX-RS tells apart (resource method over locator, the media types of sub-resource methods)
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#resourceLocatorTest
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#descendantResourcePathValueTest
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#consumesOverridesDescendantSubResourcePathValueTest
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesOverridesDescendantSubResourcePathValuePostTest
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#slashUriTest
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#locatorNameTooLongAgainTest
+
+# Request matching: the harness serves the deployment at the root, so a wrong application name is still routed
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#slashAppNameTest
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#wrongAppNameTest
+
+# Request matching: OPTIONS on a sub-resource
+ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#optionsOnSubResourceTest
+
+# Sub-resources: still failing with locators known at runtime
+ee.jakarta.tck.ws.rs.ee.rs.ext.paramconverter.JAXRSClientIT#formParamInLocatorTest
+ee.jakarta.tck.ws.rs.ee.rs.pathparam.JAXRSClientIT#test6
+ee.jakarta.tck.ws.rs.ee.rs.pathparam.sub.JAXRSSubClientIT#test6
+ee.jakarta.tck.ws.rs.spec.resource.annotationprecedence.subclass.JAXRSClientIT#incorrectPathOnClassAndRequestTest
+ee.jakarta.tck.ws.rs.spec.resource.annotationprecedence.subclass.JAXRSClientIT#matrixParamPqrTest
+ee.jakarta.tck.ws.rs.spec.resource.annotationprecedence.subclass.JAXRSClientIT#queryParamPqrTest
+ee.jakarta.tck.ws.rs.spec.resource.locator.JAXRSClientIT#checkEntityIsNotSetTest

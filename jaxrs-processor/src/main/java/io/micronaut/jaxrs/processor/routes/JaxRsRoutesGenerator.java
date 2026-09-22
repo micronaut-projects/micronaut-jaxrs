@@ -122,6 +122,7 @@ public final class JaxRsRoutesGenerator {
      * its own type is routed to this depth.
      */
     private static final int MAX_LOCATOR_REPEAT = 2;
+    private static final String LOCATED_ROUTES = "io.micronaut.jaxrs.container.JaxRsLocatedRoutes";
     private static final Map<String, String> BUILT_IN_ARGUMENTS = Map.ofEntries(
         Map.entry("java.lang.String", "STRING"),
         Map.entry("int", "INT"),
@@ -174,13 +175,34 @@ public final class JaxRsRoutesGenerator {
         visited.put(resource.getName(), 1);
         model.rootSegments = segments(resource.stringValue(Path.class).orElse(""));
         model.collect(resource, resource.stringValue(Path.class).orElse(""), List.of(), visited, true);
-        if (model.routes.isEmpty()) {
+        if (model.routes.isEmpty() && model.runtimeLocators.isEmpty()) {
             return;
         }
         ClassDef router = router(model, root);
         SourceGenerators.findByLanguage(VisitorContext.Language.JAVA)
             .orElseThrow(() -> new IllegalStateException("No Java source generator"))
             .write(router, context, resource);
+    }
+
+    /**
+     * Generate the routes of a class as the target of a sub-resource locator that is only known
+     * at runtime: the routes relative to the prefix of the locator, on the instance it located.
+     *
+     * @param type    The class
+     * @param context The visitor context
+     */
+    public static void generateLocated(ClassElement type, VisitorContext context) {
+        Model model = new Model(type, context);
+        model.located = true;
+        Map<String, Integer> visited = new LinkedHashMap<>();
+        visited.put(type.getName(), 1);
+        model.collect(type, "", List.of(), visited, false);
+        if (model.routes.isEmpty() && model.runtimeLocators.isEmpty()) {
+            return;
+        }
+        SourceGenerators.findByLanguage(VisitorContext.Language.JAVA)
+            .orElseThrow(() -> new IllegalStateException("No Java source generator"))
+            .write(router(model, null), context, type);
     }
 
     /**
@@ -262,7 +284,9 @@ public final class JaxRsRoutesGenerator {
         final VisitorContext context;
         final List<Route> routes = new ArrayList<>();
         final Map<String, RequestType> requestTypes = new LinkedHashMap<>();
+        final List<RuntimeLocator> runtimeLocators = new ArrayList<>();
         int rootSegments;
+        boolean located;
 
         Model(ClassElement resource, VisitorContext context) {
             this.resource = resource;
@@ -285,11 +309,6 @@ public final class JaxRsRoutesGenerator {
                 if (method.hasStereotype(HttpMethod.class)) {
                     String template = template(path, methodMetadata.stringValue(Path.class).orElse(""));
                     ResourceMethod resourceMethod = resourceMethod(type, template, method);
-                    if (resourceMethod != null && resourceMethod.custom && hasDuplicateVariables(template)) {
-                        // routed with a Micronaut template, which cannot repeat a variable
-                        context.info("JAX-RS resource method with the template " + template + " is not routed: a variable repeats", method);
-                        continue;
-                    }
                     if (resourceMethod != null) {
                         routes.add(new Route(resourceMethod, locators, type));
                     }
@@ -303,6 +322,17 @@ public final class JaxRsRoutesGenerator {
          * Follow a sub-resource locator to the type it returns.
          */
         private void locator(MethodElement method, String path, List<Locator> locators, Map<String, Integer> visited) {
+            List<Param> params = new ArrayList<>();
+            for (ParameterElement parameter : method.getParameters()) {
+                Param param = isRequestAnnotated(parameter)
+                    ? requestParam(parameter, parameter, parameter.getName(), encoded(parameter, method))
+                    : null;
+                if (param == null) {
+                    context.info("JAX-RS sub-resource locator with a parameter that is not read from the request is not routed", parameter);
+                    return;
+                }
+                params.add(param);
+            }
             ClassElement returned = method.getGenericReturnType();
             boolean classReturn = returned.getName().equals(Class.class.getName());
             if (classReturn) {
@@ -310,30 +340,19 @@ public final class JaxRsRoutesGenerator {
                 returned = typeArguments.isEmpty() ? null : typeArguments.values().iterator().next();
             }
             if (returned == null || returned.isPrimitive() || returned.getName().equals(Object.class.getName())
-                || returned.isGenericPlaceholder() || returned.isWildcard()) {
-                // known only at runtime
-                context.info("JAX-RS sub-resource locator returning " + (returned == null ? "a class" : returned.getName()) + " is not routed", method);
+                || returned.isGenericPlaceholder() || returned.isWildcard() || returned.isAssignable(JAX_RS_RESPONSE)) {
+                // known only at runtime: the router locates the target, then routes the rest of the path
+                runtimeLocator(method, path, locators, params, classReturn);
                 return;
             }
             int occurrences = visited.getOrDefault(returned.getName(), 0);
             if (occurrences >= MAX_LOCATOR_REPEAT) {
-                // recursive: the paths cannot be enumerated, only the first levels are routed
-                context.info("Recursive JAX-RS sub-resource locator is routed to a depth of " + MAX_LOCATOR_REPEAT, method);
+                // recursive: the paths cannot be enumerated, the deeper levels are located at runtime
+                runtimeLocator(method, path, locators, params, classReturn);
                 return;
             }
             visited.put(returned.getName(), occurrences + 1);
             try {
-                List<Param> params = new ArrayList<>();
-                for (ParameterElement parameter : method.getParameters()) {
-                    Param param = isRequestAnnotated(parameter)
-                        ? requestParam(parameter, parameter, parameter.getName(), encoded(parameter, method))
-                        : null;
-                    if (param == null) {
-                        context.info("JAX-RS sub-resource locator with a parameter that is not read from the request is not routed", parameter);
-                        return;
-                    }
-                    params.add(param);
-                }
                 RequestType created = null;
                 if (classReturn) {
                     created = requestType(returned);
@@ -348,6 +367,19 @@ public final class JaxRsRoutesGenerator {
                 visited.put(returned.getName(), occurrences);
             }
         }
+
+        private void runtimeLocator(MethodElement method, String path, List<Locator> locators, List<Param> params, boolean classReturn) {
+            if (classReturn) {
+                context.info("JAX-RS sub-resource locator returning a class known only at runtime is not routed", method);
+                return;
+            }
+            if (params.stream().anyMatch(p -> p.kind == ParamKind.FORM)) {
+                context.info("JAX-RS sub-resource locator known only at runtime with a form parameter is not routed", method);
+                return;
+            }
+            runtimeLocators.add(new RuntimeLocator(method, params, locators, path));
+        }
+
 
         /**
          * How to create and inject an instance of a type per request.
@@ -425,7 +457,6 @@ public final class JaxRsRoutesGenerator {
 
         private @Nullable ResourceMethod resourceMethod(ClassElement owner, String template, MethodElement method) {
             String httpMethod = method.stringValue(HttpMethod.class).orElse("").toUpperCase(Locale.ENGLISH);
-            boolean custom = io.micronaut.http.HttpMethod.parse(httpMethod) == io.micronaut.http.HttpMethod.CUSTOM;
             List<Param> params = new ArrayList<>();
             boolean form = false;
             Param entity = null;
@@ -457,10 +488,6 @@ public final class JaxRsRoutesGenerator {
                 }
                 params.add(param);
             }
-            if (form && custom) {
-                context.warn("JAX-RS resource method with a form and the HTTP method " + httpMethod + " is not routed yet", method);
-                return null;
-            }
             if (form && entity != null) {
                 String entityType = entity.element.getType().getName();
                 if (!entityType.equals(FORM_TYPES_MAP) && !entityType.equals(FORM_TYPE)) {
@@ -471,7 +498,7 @@ public final class JaxRsRoutesGenerator {
             }
             ClassElement returnType = method.getGenericReturnType();
             boolean async = returnType.getName().equals(COMPLETION_STAGE) || returnType.isAssignable(COMPLETION_STAGE) && returnType.getName().startsWith("java.util.concurrent.");
-            return new ResourceMethod(method, httpMethod, template, params, form, entity, returnType, async, custom,
+            return new ResourceMethod(method, httpMethod, template, params, form, entity, returnType, async,
                 mediaTypes(method, owner, Produces.class), mediaTypes(method, owner, Consumes.class));
         }
 
@@ -499,20 +526,6 @@ public final class JaxRsRoutesGenerator {
         }
         ConstructorElement constructor = requestConstructor(type);
         return constructor != null && Arrays.stream(constructor.getParameters()).anyMatch(p -> p.hasAnnotation(FormParam.class));
-    }
-
-    /**
-     * @return Whether a template has a variable more than once, which a route cannot match
-     */
-    static boolean hasDuplicateVariables(String template) {
-        Set<String> names = new java.util.HashSet<>();
-        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("\\{([^:}]+)").matcher(template);
-        while (matcher.find()) {
-            if (!names.add(matcher.group(1).trim())) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private static boolean encoded(Element element, Element enclosing) {
@@ -575,18 +588,6 @@ public final class JaxRsRoutesGenerator {
         return segments;
     }
 
-    private static String strip(String path) {
-        int start = 0;
-        int end = path.length();
-        while (start < end && path.charAt(start) == '/') {
-            start++;
-        }
-        while (end > start && path.charAt(end - 1) == '/') {
-            end--;
-        }
-        return path.substring(start, end);
-    }
-
     /**
      * {@code { name : regex }} to {@code {name:regex}}; braces of the regex are kept.
      */
@@ -625,21 +626,36 @@ public final class JaxRsRoutesGenerator {
         return result.toString();
     }
 
+    private static String strip(String path) {
+        int start = 0;
+        int end = path.length();
+        while (start < end && path.charAt(start) == '/') {
+            start++;
+        }
+        while (end > start && path.charAt(end - 1) == '/') {
+            end--;
+        }
+        return path.substring(start, end);
+    }
+
     /**
      * The model of the router of a resource: an {@code HttpRoutes} bean with a route per resource
      * method, and a method per type created per request.
      */
     private static ClassDef router(Model model, @Nullable RequestType root) {
         ClassElement resource = model.resource;
-        ClassTypeDef routerType = ClassTypeDef.of(resource.getPackageName() + "." + resource.getSimpleName() + "$JaxRsRouter");
+        ClassTypeDef routerType = ClassTypeDef.of(resource.getPackageName() + "." + resource.getSimpleName()
+            + (model.located ? "$JaxRsLocatedRouter" : "$JaxRsRouter"));
         ClassTypeDef resourceType = ClassTypeDef.erasure(resource);
         Types types = new Types(model.context);
 
         ClassDef.ClassDefBuilder router = ClassDef.builder(routerType.getName())
             .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
             .addAnnotation(ClassTypeDef.of("jakarta.inject.Singleton"))
-            .addSuperinterface(types.type(ROUTER + "HttpRoutes"))
-            .addJavadoc("Implements the routes of the JAX-RS resource {@link " + resource.getCanonicalName() + "} with handler functions.");
+            .addSuperinterface(model.located ? types.type(LOCATED_ROUTES) : types.type(ROUTER + "HttpRoutes"))
+            .addJavadoc(model.located
+                ? "Implements the routes of {@link " + resource.getCanonicalName() + "} as the target of a sub-resource locator, relative to its prefix."
+                : "Implements the routes of the JAX-RS resource {@link " + resource.getCanonicalName() + "} with handler functions.");
         Constants constants = new Constants(router, routerType);
 
         FieldDef resourceField = FieldDef.builder("resource", TypeDef.parameterized(ClassTypeDef.of(BeanProvider.class), resourceType))
@@ -655,21 +671,36 @@ public final class JaxRsRoutesGenerator {
             routes.add(generator.routeModel(model.routes.get(i), i, root));
         }
 
-        router.addField(resourceField);
         router.addField(supportField);
-        router.addMethod(MethodDef.constructor()
-            .addModifiers(Modifier.PUBLIC)
-            .addParameter("resource", resourceField.getType())
-            .addParameter("support", types.support)
-            .build((aThis, params) -> StatementDef.multi(
-                aThis.field(resourceField).assign(params.get(0)),
-                aThis.field(supportField).assign(params.get(1))
-            )));
+        if (model.located) {
+            router.addMethod(MethodDef.constructor()
+                .addModifiers(Modifier.PUBLIC)
+                .addParameter("support", types.support)
+                .build((aThis, params) -> aThis.field(supportField).assign(params.get(0))));
+            router.addMethod(MethodDef.builder("type")
+                .addModifiers(Modifier.PUBLIC)
+                .addAnnotation(Override.class)
+                .returns(TypeDef.parameterized(ClassTypeDef.of(Class.class), TypeDef.wildcard()))
+                .build((aThis, params) -> ExpressionDef.constant(resourceType).returning()));
+        } else {
+            router.addField(resourceField);
+            router.addMethod(MethodDef.constructor()
+                .addModifiers(Modifier.PUBLIC)
+                .addParameter("resource", resourceField.getType())
+                .addParameter("support", types.support)
+                .build((aThis, params) -> StatementDef.multi(
+                    aThis.field(resourceField).assign(params.get(0)),
+                    aThis.field(supportField).assign(params.get(1))
+                )));
+        }
         for (RequestType requestType : model.requestTypes.values()) {
             router.addMethod(generator.createMethod(requestType));
         }
         for (RouteModel route : routes) {
             router.addMethod(generator.routeMethod(route, root));
+        }
+        for (int i = 0; i < model.runtimeLocators.size(); i++) {
+            router.addMethod(generator.locateMethod(model.runtimeLocators.get(i), "locate" + i, root));
         }
         router.addMethod(MethodDef.builder("routes")
             .addModifiers(Modifier.PUBLIC)
@@ -682,15 +713,10 @@ public final class JaxRsRoutesGenerator {
                 for (RouteModel route : routes) {
                     ResourceMethod method = route.route.method;
                     List<ExpressionDef> handle = new ArrayList<>();
-                    if (method.custom) {
-                        // a custom HTTP method is routed by its name, with the template in the Micronaut language
-                        handle.add(ExpressionDef.constant(method.httpMethod));
-                        handle.add(support.invoke("uri", TypeDef.STRING, ExpressionDef.constant(normalizeVariables(method.template))));
-                    } else {
-                        // declared with the template in the language of JAX-RS
-                        handle.add(support.invoke("declaration", types.routeDeclaration,
-                            HTTP_METHOD.getStaticField(method.httpMethod, HTTP_METHOD), ExpressionDef.constant(method.template)));
-                    }
+                    // declared by the name of the HTTP method, custom or not, with the template in the language of JAX-RS
+                    // a located table composes Micronaut templates only: the template of a located route is in that language
+                    handle.add(support.invoke(model.located ? "locatedDeclaration" : "declaration", types.routeDeclaration,
+                        ExpressionDef.constant(method.httpMethod), ExpressionDef.constant(model.located ? normalizeVariables(method.template) : method.template)));
                     String builderMethod;
                     if (route.form) {
                         builderMethod = method.async ? "handleFormAsync" : "handleForm";
@@ -704,6 +730,20 @@ public final class JaxRsRoutesGenerator {
                     statements.add(support.invoke("configure", TypeDef.VOID,
                         params.get(0).invoke(builderMethod, types.routeSpec, handle),
                         route.metadata));
+                }
+                for (int i = 0; i < model.runtimeLocators.size(); i++) {
+                    RuntimeLocator locator = model.runtimeLocators.get(i);
+                    String locateMethod = "locate" + i;
+                    // the prefix in the Micronaut language: the router locates the target, then
+                    // matches the rest of the path with the routes of its class
+                    statements.add(params.get(0).invoke("locate", TypeDef.VOID,
+                        support.invoke(model.located ? "locatedPrefix" : "prefix", TypeDef.STRING, ExpressionDef.constant(normalizeVariables(locator.prefix))),
+                        types.type(ROUTER + "LocatorHandler").getLambda(Map.of()).implement((lambdaThis, lambdaParams) ->
+                            aThis.invoke(locateMethod, TypeDef.OBJECT, new ArrayList<ExpressionDef>(lambdaParams)).returning()),
+                        support.invoke("locatedTables", TypeDef.OBJECT)));
+                }
+                if (model.located) {
+                    return StatementDef.multi(statements);
                 }
                 // the resource is not a bean in this context, e.g. disabled by @Requires
                 return aThis.field(resourceField).invoke("isPresent", TypeDef.Primitive.BOOLEAN).ifTrue(StatementDef.multi(statements));
@@ -838,7 +878,7 @@ public final class JaxRsRoutesGenerator {
             ));
             boolean body = method.entity != null && method.entity.kind == ParamKind.ENTITY && !method.httpMethod.equals("GET");
             // a form is read for a type created per request when the method can have one and reads no entity
-            boolean form = method.form || usesForm(route, root) && !NO_BODY_METHODS.contains(method.httpMethod) && method.entity == null && !method.custom;
+            boolean form = method.form || usesForm(route, root) && !NO_BODY_METHODS.contains(method.httpMethod) && method.entity == null;
             return new RouteModel("route" + index, route, entityArgument, valueType, returnType, metadata, form, body && !form);
         }
 
@@ -948,6 +988,74 @@ public final class JaxRsRoutesGenerator {
          * The method of a route: creates or gets the resource, calls the locators, reads the
          * parameters, calls the resource method and returns the response.
          */
+        /**
+         * The instance a route calls: the resource, or the target a locator located at runtime,
+         * followed through the locators known at compile time.
+         */
+        private ExpressionDef instance(VariableDef.This aThis, Scope scope, @Nullable RequestType root, List<Locator> locators) {
+            VariableDef request = scope.request;
+            VariableDef pathVariables = scope.pathVariables;
+            ClassTypeDef resourceType = ClassTypeDef.erasure(model.resource);
+            ExpressionDef instance;
+            if (model.located) {
+                // located at runtime, and already matched by its locator
+                instance = pathVariables.invoke("locatedTarget", TypeDef.OBJECT, ExpressionDef.constant(resourceType)).cast(resourceType);
+            } else {
+                instance = root == null
+                    ? aThis.field(resourceField).invoke("get", TypeDef.OBJECT).cast(resourceType)
+                    : aThis.invoke(root.method, resourceType, ExpressionDef.constant(resourceType), request, pathVariables, formOrNull(scope));
+                // the matched resources and URIs of UriInfo
+                instance = scope.support.invoke("matched", TypeDef.OBJECT, request, instance, ExpressionDef.constant(model.rootSegments)).cast(resourceType);
+            }
+            for (Locator locator : locators) {
+                List<ExpressionDef> arguments = new ArrayList<>();
+                for (Param param : locator.params) {
+                    arguments.add(value(param, scope));
+                }
+                // a locator returning null is a 404
+                ExpressionDef located = scope.support.invoke("located", TypeDef.OBJECT, instance.invoke(locator.method, arguments));
+                ClassTypeDef locatedType = ClassTypeDef.erasure(locator.type);
+                if (locator.created != null) {
+                    // the locator returned the class: an instance is created for the request
+                    instance = aThis.invoke(locator.created.method, locatedType, located.cast(TypeDef.CLASS), request, pathVariables, formOrNull(scope));
+                } else {
+                    instance = located.cast(locatedType);
+                }
+                instance = scope.support.invoke("matched", TypeDef.OBJECT, request, instance, ExpressionDef.constant(locator.segments)).cast(locatedType);
+            }
+            return instance;
+        }
+
+        /**
+         * The method of a locator whose target is known only at runtime: the target, for the
+         * router to route the rest of the path with the routes of its class.
+         */
+        MethodDef locateMethod(RuntimeLocator locator, String name, @Nullable RequestType root) {
+            return MethodDef.builder(name)
+                .addModifiers(Modifier.PRIVATE)
+                .addParameter("request", types.request)
+                .addParameter("pathVariables", types.pathVariables)
+                .returns(TypeDef.OBJECT)
+                .addThrows(ClassTypeDef.of(Exception.class))
+                .build((aThis, params) -> {
+                    Scope scope = new Scope(aThis, aThis.field(supportField), params.get(0), params.get(1), null, null);
+                    ExpressionDef instance = instance(aThis, scope, root, locator.locators);
+                    List<ExpressionDef> arguments = new ArrayList<>();
+                    for (Param param : locator.params) {
+                        arguments.add(value(param, scope));
+                    }
+                    // a locator returning null is a 404
+                    ExpressionDef located = scope.support.invoke("located", TypeDef.OBJECT, instance.invoke(locator.method, arguments));
+                    StatementDef result = scope.support.invoke("matched", TypeDef.OBJECT, params.get(0), located,
+                        ExpressionDef.constant(model.located ? -1 : segments(locator.prefix))).returning();
+                    if (throwsThrowable(locator.method) || locator.locators.stream().anyMatch(l -> throwsThrowable(l.method))) {
+                        result = StatementDef.doTry(result).doCatch(Throwable.class, throwable ->
+                            types.support.invokeStatic("rethrow", ClassTypeDef.of(RuntimeException.class), throwable).doThrow());
+                    }
+                    return result;
+                });
+        }
+
         MethodDef routeMethod(RouteModel route, @Nullable RequestType root) {
             ResourceMethod method = route.route.method;
             String handlerType = handlerType(route);
@@ -971,28 +1079,7 @@ public final class JaxRsRoutesGenerator {
                 Scope scope = new Scope(aThis, aThis.field(supportField), request, pathVariables,
                     route.form ? third : null, route.body ? third : null);
 
-                ClassTypeDef resourceType = ClassTypeDef.erasure(model.resource);
-                ExpressionDef instance = root == null
-                    ? aThis.field(resourceField).invoke("get", TypeDef.OBJECT).cast(resourceType)
-                    : aThis.invoke(root.method, resourceType, ExpressionDef.constant(resourceType), request, pathVariables, formOrNull(scope));
-                // the matched resources and URIs of UriInfo
-                instance = scope.support.invoke("matched", TypeDef.OBJECT, request, instance, ExpressionDef.constant(model.rootSegments)).cast(resourceType);
-                for (Locator locator : route.route.locators) {
-                    List<ExpressionDef> arguments = new ArrayList<>();
-                    for (Param param : locator.params) {
-                        arguments.add(value(param, scope));
-                    }
-                    // a locator returning null is a 404
-                    ExpressionDef located = scope.support.invoke("located", TypeDef.OBJECT, instance.invoke(locator.method, arguments));
-                    ClassTypeDef locatedType = ClassTypeDef.erasure(locator.type);
-                    if (locator.created != null) {
-                        // the locator returned the class: an instance is created for the request
-                        instance = aThis.invoke(locator.created.method, locatedType, located.cast(TypeDef.CLASS), request, pathVariables, formOrNull(scope));
-                    } else {
-                        instance = located.cast(locatedType);
-                    }
-                    instance = scope.support.invoke("matched", TypeDef.OBJECT, request, instance, ExpressionDef.constant(locator.segments)).cast(locatedType);
-                }
+                ExpressionDef instance = instance(aThis, scope, root, route.route.locators);
                 List<ExpressionDef> arguments = new ArrayList<>();
                 for (Param param : method.params) {
                     arguments.add(value(param, scope));
@@ -1202,6 +1289,17 @@ public final class JaxRsRoutesGenerator {
     }
 
     /**
+     * A sub-resource locator whose target is located at runtime.
+     *
+     * @param method   The locator
+     * @param params   Its parameters
+     * @param locators The locators leading to its type, from the resource
+     * @param prefix   The template of the prefix it matches
+     */
+    private record RuntimeLocator(MethodElement method, List<Param> params, List<Locator> locators, String prefix) {
+    }
+
+    /**
      * A route: the locators leading to a resource method.
      *
      * @param method   The resource method
@@ -1219,7 +1317,6 @@ public final class JaxRsRoutesGenerator {
                                   @Nullable Param entity,
                                   ClassElement returnType,
                                   boolean async,
-                                  boolean custom,
                                   List<String> produces,
                                   List<String> consumes) {
     }
