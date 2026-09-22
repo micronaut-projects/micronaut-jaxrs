@@ -17,8 +17,6 @@ package io.micronaut.jaxrs.processor.routes;
 
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
-import io.micronaut.http.uri.UriMatchTemplate;
-import io.micronaut.http.uri.UriTemplateMatcher;
 import io.micronaut.inject.ast.ClassElement;
 import io.micronaut.inject.ast.ElementQuery;
 import io.micronaut.inject.ast.MethodElement;
@@ -51,16 +49,11 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Declares the routes of a JAX-RS root resource at compile time and implements them with handler
- * functions, instead of turning the resource into a controller. For a resource {@code Foo} it
- * generates:
- * <ul>
- *     <li>{@code Foo$JaxRsRoutes}, an enum of {@code RouteDeclaration}s, one per resource method,
- *     with the index keys computed here and a generated URL parser;</li>
- *     <li>{@code Foo$JaxRsRouter}, an {@code HttpRoutes} bean that binds a handler function to
- *     each constant. The handler reads the parameters of the resource method in generated code,
- *     calls the method directly, and converts its result to a response.</li>
- * </ul>
+ * Routes a JAX-RS resource with handler functions, instead of turning it into a controller. For a
+ * resource {@code Foo} it generates {@code Foo$JaxRsRouter}, an {@code HttpRoutes} bean that adds
+ * a route per resource method with the route builder. Its handler function reads the parameters
+ * of the resource method in generated code, calls the method directly, and converts its result to
+ * a response.
  * The runtime part, the conversion of parameters, the context objects, the response and the
  * container filters, is {@code io.micronaut.jaxrs.container.JaxRsRouteSupport}.
  *
@@ -111,7 +104,7 @@ public final class JaxRsRoutesGenerator {
      */
     public static boolean isSupported(VisitorContext context) {
         return context.getClassElement(SUPPORT).isPresent()
-            && context.getClassElement("io.micronaut.web.router.RouteDeclaration").isPresent();
+            && context.getClassElement("io.micronaut.web.router.RequestHandler").isPresent();
     }
 
     /**
@@ -136,15 +129,8 @@ public final class JaxRsRoutesGenerator {
             return;
         }
         String simpleName = resource.getSimpleName();
-        String routesName = simpleName + "$JaxRsRoutes";
         String routerName = simpleName + "$JaxRsRouter";
-        CompiledRouteMatcherGenerator matcher = new CompiledRouteMatcherGenerator();
-        for (int i = 0; i < methods.size(); i++) {
-            ResourceMethod method = methods.get(i);
-            matcher.add(i, method.httpMethod, method.template);
-        }
-        write(context, resource, routesName, routesSource(resource, routesName, methods, matcher));
-        write(context, resource, routerName, routerSource(resource, routesName, routerName, methods));
+        write(context, resource, routerName, routerSource(resource, routerName, methods));
     }
 
     private static @Nullable ResourceMethod resourceMethod(ClassElement resource, String classPath, MethodElement method, VisitorContext context) {
@@ -322,73 +308,7 @@ public final class JaxRsRoutesGenerator {
         return result.toString();
     }
 
-    private static String routesSource(ClassElement resource, String routesName, List<ResourceMethod> methods, CompiledRouteMatcherGenerator matcher) {
-        List<String> constants = new ArrayList<>();
-        for (int i = 0; i < methods.size(); i++) {
-            ResourceMethod method = methods.get(i);
-            UriTemplateMatcher keys = new UriTemplateMatcher(new UriMatchTemplate(method.template).getTemplateString());
-            constants.add("    " + constantName(method, i)
-                + "(io.micronaut.http.HttpMethod." + method.httpMethod + ", " + literal(method.template) + ", " + literal(keys.getRequiredPrefix()) + ", "
-                + keys.getRawLength() + ", " + keys.getPathVariableCount() + ")");
-        }
-        return """
-            package %s;
-
-            /**
-             * The routes of the JAX-RS resource {@link %s}, declared at compile time.
-             */
-            public enum %s implements io.micronaut.web.router.RouteDeclaration {
-            %s;
-
-                private final io.micronaut.http.HttpMethod httpMethod;
-                private final String uriTemplate;
-                private final String requiredPathPrefix;
-                private final int rawLength;
-                private final int pathVariableCount;
-
-                %s(io.micronaut.http.HttpMethod httpMethod, String uriTemplate, String requiredPathPrefix, int rawLength, int pathVariableCount) {
-                    this.httpMethod = httpMethod;
-                    this.uriTemplate = uriTemplate;
-                    this.requiredPathPrefix = requiredPathPrefix;
-                    this.rawLength = rawLength;
-                    this.pathVariableCount = pathVariableCount;
-                }
-
-                @Override
-                public io.micronaut.http.HttpMethod httpMethod() {
-                    return httpMethod;
-                }
-
-                @Override
-                public String uriTemplate() {
-                    return uriTemplate;
-                }
-
-                @Override
-                public String requiredPathPrefix() {
-                    return requiredPathPrefix;
-                }
-
-                @Override
-                public int rawLength() {
-                    return rawLength;
-                }
-
-                @Override
-                public int pathVariableCount() {
-                    return pathVariableCount;
-                }
-
-                @Override
-                public io.micronaut.web.router.CompiledRouteMatcher matcher() {
-                    return Matcher.INSTANCE;
-                }
-
-            %s}
-            """.formatted(resource.getPackageName(), resource.getCanonicalName(), routesName, String.join(",\n", constants), routesName, matcher.generate("Matcher"));
-    }
-
-    private static String routerSource(ClassElement resource, String routesName, String routerName, List<ResourceMethod> methods) {
+    private static String routerSource(ClassElement resource, String routerName, List<ResourceMethod> methods) {
         String resourceType = resource.getCanonicalName();
         StringBuilder fields = new StringBuilder();
         StringBuilder routes = new StringBuilder();
@@ -414,7 +334,7 @@ public final class JaxRsRoutesGenerator {
                 .append(stringArray(method.produces)).append(", ").append(stringArray(method.consumes)).append(");\n");
 
             String call = "resource.get()." + method.method.getName() + "(" + String.join(", ", arguments) + ")";
-            String declaration = "support.declaration(" + routesName + "." + constantName(method, i) + ")";
+            String declaration = "io.micronaut.http.HttpMethod." + method.httpMethod + ", support.uri(" + literal(method.template) + ")";
             String result;
             if (method.returnType.isVoid()) {
                 result = call + ";\n                return support.response(request, null, " + returnField + ", " + routeField + ");";
@@ -553,17 +473,6 @@ public final class JaxRsRoutesGenerator {
     private static @Nullable ClassElement firstTypeArgument(ClassElement type) {
         Map<String, ClassElement> typeArguments = type.getTypeArguments();
         return typeArguments.isEmpty() ? null : typeArguments.values().iterator().next();
-    }
-
-    private static String constantName(ResourceMethod method, int index) {
-        StringBuilder name = new StringBuilder();
-        for (char c : method.method.getName().toCharArray()) {
-            if (Character.isUpperCase(c) && !name.isEmpty()) {
-                name.append('_');
-            }
-            name.append(Character.toUpperCase(c));
-        }
-        return name.append('_').append(index).toString();
     }
 
     private static String stringArray(List<String> values) {
