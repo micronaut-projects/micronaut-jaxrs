@@ -122,6 +122,7 @@ public final class JaxRsRoutesGenerator {
      * its own type is routed to this depth.
      */
     private static final int MAX_LOCATOR_REPEAT = 2;
+    private static final String GENERIC_ENTITY = "jakarta.ws.rs.core.GenericEntity";
     private static final String LOCATED_ROUTES = "io.micronaut.jaxrs.container.JaxRsLocatedRoutes";
     private static final Map<String, String> BUILT_IN_ARGUMENTS = Map.ofEntries(
         Map.entry("java.lang.String", "STRING"),
@@ -1058,6 +1059,9 @@ public final class JaxRsRoutesGenerator {
                         types.type(Function.class.getName()).getLambda(Map.of("T", TypeDef.OBJECT, "R", TypeDef.OBJECT)).implement((lambdaThis, lambdaParams) ->
                             response(route, lambdaParams.get(0), scope).returning())
                     ).returning();
+                } else if (method.produces.isEmpty()) {
+                    // the type of the response from the JAX-RS writers of its entity
+                    result = scope.support.invoke("negotiate", types.response, request, response(route, call, scope), route.returnType).returning();
                 } else {
                     result = response(route, call, scope).returning();
                 }
@@ -1090,9 +1094,13 @@ public final class JaxRsRoutesGenerator {
             if (type.isAssignable(HTTP_RESPONSE)) {
                 return support.invoke("httpResponse", TypeDef.OBJECT, result.cast(ClassTypeDef.of(HTTP_RESPONSE)));
             }
+            if (type.isAssignable(GENERIC_ENTITY)) {
+                // the type of the generic entity selects the message body writer
+                return support.invoke("genericEntityResponse", TypeDef.OBJECT, scope.request, result.cast(ClassTypeDef.of(GENERIC_ENTITY)));
+            }
             if (!type.isArray() && !type.getTypeArguments().isEmpty()) {
                 // the declared type, with its type arguments, selects the message body writer
-                return support.invoke("genericEntityResponse", TypeDef.OBJECT, result, route.returnType);
+                return support.invoke("genericEntityResponse", TypeDef.OBJECT, scope.request, result, route.returnType);
             }
             return support.invoke("entityResponse", TypeDef.OBJECT, result);
         }

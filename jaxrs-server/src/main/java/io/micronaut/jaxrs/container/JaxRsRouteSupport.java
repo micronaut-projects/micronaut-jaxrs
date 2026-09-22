@@ -18,6 +18,8 @@ package io.micronaut.jaxrs.container;
 import io.micronaut.context.BeanContext;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.web.router.RouteAttributes;
+import io.micronaut.core.annotation.AnnotationMetadataProvider;
 import io.micronaut.http.body.MessageBodyHandlerRegistry;
 import io.micronaut.http.body.MessageBodyReader;
 import io.micronaut.jaxrs.common.JaxRsMessageBodyReader;
@@ -38,6 +40,9 @@ import io.micronaut.http.MediaType;
 import io.micronaut.http.bind.RequestBinderRegistry;
 import io.micronaut.inject.qualifiers.Qualifiers;
 import io.micronaut.jaxrs.common.JaxRsGenericEntity;
+import jakarta.ws.rs.core.GenericEntity;
+import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
+import io.micronaut.jaxrs.common.JaxRsContainerMessageBodyHandlerRegistry;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import io.micronaut.http.form.FormData;
 import io.micronaut.web.router.builder.HttpRouteSpec;
@@ -471,16 +476,44 @@ public final class JaxRsRouteSupport {
     }
 
     /**
+     * @param request    The request
      * @param entity     The entity returned by a resource method
      * @param returnType The declared type, with its type arguments, which selects the message body
      *                   writer
      * @return The response
      */
     @SuppressWarnings("unchecked")
-    public HttpResponse<?> genericEntityResponse(@Nullable Object entity, Argument<?> returnType) {
-        return entity == null
-            ? HttpResponse.noContent()
-            : HttpResponse.ok(new JaxRsGenericEntity<>(entity, (Argument<Object>) returnType, null, null));
+    public HttpResponse<?> genericEntityResponse(HttpRequest<?> request, @Nullable Object entity, Argument<?> returnType) {
+        if (entity == null) {
+            return HttpResponse.noContent();
+        }
+        Argument<Object> argument = (Argument<Object>) Argument.of(returnType.getType(), routeAnnotations(request), returnType.getTypeParameters());
+        return HttpResponse.ok(new JaxRsGenericEntity<>(entity, argument, null, null));
+    }
+
+    /**
+     * @param request The request
+     * @param entity  The {@link GenericEntity} returned by a resource method: its type selects the
+     *                message body writer
+     * @return The response
+     */
+    @SuppressWarnings("unchecked")
+    public HttpResponse<?> genericEntityResponse(HttpRequest<?> request, @Nullable GenericEntity<?> entity) {
+        if (entity == null) {
+            return HttpResponse.noContent();
+        }
+        Argument<?> type = Argument.of(entity.getType());
+        Argument<Object> argument = (Argument<Object>) Argument.of(type.getType(), routeAnnotations(request), type.getTypeParameters());
+        return HttpResponse.ok(new JaxRsGenericEntity<>(entity.getEntity(), argument, null, null));
+    }
+
+    /**
+     * The annotations of the resource method of the route of a request: the writers see them.
+     */
+    private static AnnotationMetadata routeAnnotations(HttpRequest<?> request) {
+        return RouteAttributes.getRouteInfo(request)
+            .map(AnnotationMetadataProvider::getAnnotationMetadata)
+            .orElse(AnnotationMetadata.EMPTY_METADATA);
     }
 
     /**
@@ -515,6 +548,47 @@ public final class JaxRsRouteSupport {
     public <T> T matched(HttpRequest<?> request, T resource, int segments) {
         JaxRsMatched.add(request, resource, segments);
         return resource;
+    }
+
+    /**
+     * The type of the response of a resource method that does not declare the types it produces,
+     * when the response has none: negotiated from the types the JAX-RS writers of the application
+     * write its entity as (JAX-RS 3.8). Without such writers, the response is left to Micronaut.
+     *
+     * @param request    The request
+     * @param response   The response
+     * @param returnType The declared return type of the resource method
+     * @return The response
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public HttpResponse<?> negotiate(HttpRequest<?> request, HttpResponse<?> response, Argument<?> returnType) {
+        if (response.getContentType().isPresent() || !(response instanceof MutableHttpResponse<?> mutable)) {
+            return response;
+        }
+        Object body = response.getBody().orElse(null);
+        if (body == null) {
+            return response;
+        }
+        // the writers see the annotations of the resource method, like when they write
+        AnnotationMetadata annotations = routeAnnotations(request);
+        Argument<?> type;
+        if (body instanceof GenericEntity<?> entity) {
+            Argument<?> generic = JaxRsArgumentUtil.from(entity);
+            type = Argument.of(generic.getType(), annotations, generic.getTypeParameters());
+        } else if (returnType.getType().isInstance(body)) {
+            type = Argument.of(returnType.getType(), annotations, returnType.getTypeParameters());
+        } else {
+            type = Argument.of(body.getClass(), annotations);
+        }
+        List<MediaType> producible = beanContext.getBean(JaxRsContainerMessageBodyHandlerRegistry.class).producibleTypes((Argument) type);
+        if (producible.isEmpty()) {
+            return response;
+        }
+        MediaType mediaType = JaxRsRouteTemplateEngine.responseType(request.getHeaders().accept(), producible);
+        if (mediaType == null) {
+            throw new NotAcceptableException();
+        }
+        return mutable.contentType(mediaType);
     }
 
     /**

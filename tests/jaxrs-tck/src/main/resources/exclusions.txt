@@ -75,7 +75,6 @@ ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT#responseCreatedRelativeUR
 # createEndpoint() unsupported
 ee.jakarta.tck.ws.rs.api.rs.ext.runtimedelegate.create.JAXRSClientIT#createEndpointThrowsIllegalArgumentExceptionTest
 
-# TCK BUG Test assumes header `allow` with upper case
 
 # Receive MultivaluedMap as a form body - FIX writing byte[] form data in Core
 ee.jakarta.tck.ws.rs.spec.provider.standardwithjaxrsclient.JAXRSClientIT#mapElementProviderTest
@@ -148,7 +147,6 @@ ee.jakarta.tck.ws.rs.spec.contextprovider.JsonbContextProviderIT
 # @Encoded
 ee.jakarta.tck.ws.rs.ee.rs.formparam.JAXRSClientIT
 
-# Content type in HEAD response, our behavior is fine
 
 # JAXB
 ee.jakarta.tck.ws.rs.spec.provider.standardwithxmlbinding.JAXRSClientIT
@@ -161,7 +159,6 @@ ee.jakarta.tck.ws.rs.jaxrs31.ee.multipart.MultipartSupportIT
 # TDK missing
 ee.jakarta.tck.ws.rs.signaturetest.jaxrs.JAXRSSigTestIT
 
-# Sub-resources, request fields and bean parameters: still failing
 # The JAX-RS client cannot write a byte[] form body (the core form writing issue above)
 ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT#allParamsInParamTest
 ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT#allParamsOnFieldTest
@@ -178,24 +175,8 @@ ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT#pathParamOnFieldTest
 ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT#queryParamInParamTest
 ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT#queryParamOnFieldTest
 ee.jakarta.tck.ws.rs.ee.rs.ext.paramconverter.JAXRSClientIT#formParamUsesParamConvertorTest
-# Readers selected for the declared media types
-ee.jakarta.tck.ws.rs.spec.provider.reader.JAXRSClientIT#iterateAllAppJavaReadersTest
-ee.jakarta.tck.ws.rs.spec.provider.reader.JAXRSClientIT#iterateFirstAppJavaReaderTest
-ee.jakarta.tck.ws.rs.spec.provider.reader.JAXRSClientIT#meadiaTypeContentTypeTest
-ee.jakarta.tck.ws.rs.spec.provider.reader.JAXRSClientIT#meadiaTypeDefaultTest
-ee.jakarta.tck.ws.rs.spec.provider.reader.JAXRSClientIT#noEntityProviderTest
-# Standard providers: XML sources and the response Content-Type
-ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT#byteArrayProviderTest
-ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT#dataSourceProviderTest
-ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT#fileProviderTest
-ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT#inputStreamProviderTest
-ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT#readerProviderTest
-ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT#sourceProviderTest
-ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT#streamingOutputProviderTest
-ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT#stringProviderTest
 
 
-# Still failing after the functional routes rewrite, by reason
 
 # ContainerResponseContext.getEntityAnnotations does not carry the annotations of a Response entity
 ee.jakarta.tck.ws.rs.ee.rs.container.responsecontext.JAXRSClientIT#getEntityAnnotationsWhenAnnotationsOnEntityTest
@@ -232,15 +213,8 @@ ee.jakarta.tck.ws.rs.spec.filter.dynamicfeature.JAXRSClientIT#dynamicBindingTest
 # Package-private context resolvers are not found
 ee.jakarta.tck.ws.rs.spec.provider.visibility.JAXRSClientIT#contextResolverTest
 
-# Writers selected by the declared media types and by the Response subclass
-ee.jakarta.tck.ws.rs.spec.provider.writer.JAXRSClientIT#responseSubClassTest
-ee.jakarta.tck.ws.rs.spec.provider.writer.JAXRSClientIT#supportAllTest
-ee.jakarta.tck.ws.rs.spec.provider.writer.JAXRSClientIT#supportXmlByDefaultWriterTest
-ee.jakarta.tck.ws.rs.spec.provider.writer.JAXRSClientIT#supportXmlByXmlWriterTest
 
 
-# An entity Response without a writer
-ee.jakarta.tck.ws.rs.spec.returntype.JAXRSClientIT#entityResponseTest
 
 
 
@@ -255,9 +229,6 @@ ee.jakarta.tck.ws.rs.spec.resource.annotationprecedence.subclass.JAXRSClientIT#m
 ee.jakarta.tck.ws.rs.spec.resource.annotationprecedence.subclass.JAXRSClientIT#queryParamPqrTest
 ee.jakarta.tck.ws.rs.spec.resource.locator.JAXRSClientIT#checkEntityIsNotSetTest
 
-# Response type from the writers when the resource method declares none
-ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#classProducesTest
-ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#mesageBodyWriterProducesTest
 
 # Request matching: a resource method and a locator, or sub-resource methods, that JAX-RS tells apart
 ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#resourceLocatorTest
@@ -273,3 +244,19 @@ ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#wrongAppNameTes
 
 # Request matching: OPTIONS on a sub-resource
 ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#optionsOnSubResourceTest
+
+# Readers selected for the declared media types
+ee.jakarta.tck.ws.rs.spec.provider.reader.JAXRSClientIT#iterateFirstAppJavaReaderTest
+ee.jakarta.tck.ws.rs.spec.provider.reader.JAXRSClientIT#meadiaTypeDefaultTest
+ee.jakarta.tck.ws.rs.spec.provider.reader.JAXRSClientIT#noEntityProviderTest
+
+# Standard providers: DataSource, File and Source
+ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT#dataSourceProviderTest
+ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT#fileProviderTest
+ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT#sourceProviderTest
+
+# Response type from the writers: the class-level @Produces of a resource
+ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#classProducesTest
+
+# An entity Response whose type is chosen from an application writer for the accepted type
+ee.jakarta.tck.ws.rs.spec.returntype.JAXRSClientIT#entityResponseTest

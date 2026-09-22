@@ -152,6 +152,27 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateEngine, Rout
     }
 
     /**
+     * The response type of JAX-RS (section 3.8) for accepted and produced types: the most
+     * acceptable combined type, {@code application/octet-stream} for a wildcard one.
+     *
+     * @param accepted The accepted types, empty for any
+     * @param produces The produced types
+     * @return The type, or {@code null} if none is acceptable, or the combined type has a wildcard
+     * subtype other than {@code application/*}
+     */
+    static @Nullable MediaType responseType(List<MediaType> accepted, List<MediaType> produces) {
+        Negotiated negotiated = negotiate(accepted.isEmpty() ? List.of(MediaType.ALL_TYPE) : accepted, produces);
+        if (negotiated == null) {
+            return null;
+        }
+        MediaType type = negotiated.type;
+        if (specificity(type) == 0 || specificity(type) == 1 && "application".equals(type.getType())) {
+            return MediaType.APPLICATION_OCTET_STREAM_TYPE;
+        }
+        return specificity(type) == 2 ? type : null;
+    }
+
+    /**
      * How closely a content type matches the consumed types: 2 for a type, 1 for a type with a
      * wildcard subtype, 0 for any type.
      */
