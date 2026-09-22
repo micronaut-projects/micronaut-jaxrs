@@ -24,8 +24,6 @@ ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#producesOverrid
 # Why multivaluedmap of headers should accept nulls???
 ee.jakarta.tck.ws.rs.api.rs.core.multivaluedmap.JAXRSClientIT
 
-# @MatrixParam is not supported, also in constructors
-ee.jakarta.tck.ws.rs.spec.resourceconstructor.JAXRSClientIT#constructorWithMatrixParamUsedTest
 # Package-private and protected resource methods are routed, like the controllers did
 ee.jakarta.tck.ws.rs.spec.resourceconstructor.JAXRSClientIT#packageVisibilityTest
 ee.jakarta.tck.ws.rs.spec.resourceconstructor.JAXRSClientIT#protectedVisibilityTest

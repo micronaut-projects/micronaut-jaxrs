@@ -170,6 +170,17 @@ public final class JaxRsRouteSupport {
 
     /**
      * @param request      The request
+     * @param name         The name of the matrix parameter, of the last segment of the path
+     * @param argument     The type of the parameter
+     * @param defaultValue The {@code @DefaultValue}
+     * @return The value, converted
+     */
+    public @Nullable Object matrixParam(HttpRequest<?> request, String name, Argument<?> argument, @Nullable String defaultValue) {
+        return convert(JaxRsMatrixParams.values(request, name), argument, defaultValue, true);
+    }
+
+    /**
+     * @param request      The request
      * @param name         The name of the header
      * @param argument     The type of the parameter
      * @param defaultValue The {@code @DefaultValue}
