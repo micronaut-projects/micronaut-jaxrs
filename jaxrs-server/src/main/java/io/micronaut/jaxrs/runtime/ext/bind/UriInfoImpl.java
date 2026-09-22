@@ -236,7 +236,7 @@ public final class UriInfoImpl implements UriInfo {
         // the template of the matched route, relative to the context path of the server
         return io.micronaut.web.router.RouteAttributes.getRouteInfo(request)
             .filter(io.micronaut.web.router.UriRouteInfo.class::isInstance)
-            .map(route -> ((io.micronaut.web.router.UriRouteInfo<?, ?>) route).getRouteTemplate().expression())
+            .map(route -> io.micronaut.jaxrs.container.JaxRsRouteTemplateEngine.withoutMarks(((io.micronaut.web.router.UriRouteInfo<?, ?>) route).getRouteTemplate().expression()))
             .map(template -> !contextPath.isEmpty() && template.startsWith(contextPath) ? template.substring(contextPath.length()) : template)
             .orElse("");
     }
