@@ -38,6 +38,18 @@ public class JaxRsRuntime {
      * @param application The application
      */
     protected JaxRsRuntime(ApplicationContext applicationContext, Application application) {
+        this(applicationContext, application, applicationContext.getBean(JaxRsFeatures.class));
+    }
+
+    /**
+     * @param applicationContext The application context
+     * @param application        The application
+     * @param features           The features, configured at startup
+     */
+    @jakarta.inject.Inject
+    protected JaxRsRuntime(ApplicationContext applicationContext, Application application, JaxRsFeatures features) {
+        // before the container filters are created: the components of the features are beans
+        features.configure();
         applicationContext.getEnvironment().addPropertySource(
             PropertySource.of(
                 application.getClass().getName(),

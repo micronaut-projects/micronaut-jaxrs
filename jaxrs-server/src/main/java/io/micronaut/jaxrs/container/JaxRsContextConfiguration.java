@@ -42,8 +42,10 @@ import java.util.function.Supplier;
 final class JaxRsContextConfiguration implements Configuration {
 
     private final Supplier<@Nullable Application> application;
+    private final BeanProvider<JaxRsFeatures> features;
 
-    JaxRsContextConfiguration(BeanProvider<Application> application) {
+    JaxRsContextConfiguration(BeanProvider<Application> application, BeanProvider<JaxRsFeatures> features) {
+        this.features = features;
         // the Application may itself be injected with this configuration
         this.application = SupplierUtil.memoized(() -> application.isPresent() ? application.get() : null);
     }
@@ -81,7 +83,7 @@ final class JaxRsContextConfiguration implements Configuration {
 
     @Override
     public boolean isRegistered(Object instance) {
-        return getInstances().contains(instance);
+        return getInstances().contains(instance) || features.get().isRegistered(instance);
     }
 
     @Override
@@ -94,7 +96,8 @@ final class JaxRsContextConfiguration implements Configuration {
                 return true;
             }
         }
-        return false;
+        // registered by a feature
+        return features.get().isRegistered(componentClass);
     }
 
     @Override

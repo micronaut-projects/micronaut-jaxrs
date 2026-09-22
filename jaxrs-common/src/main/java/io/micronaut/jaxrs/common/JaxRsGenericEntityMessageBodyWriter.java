@@ -15,6 +15,7 @@
  */
 package io.micronaut.jaxrs.common;
 
+import io.micronaut.context.BeanProvider;
 import io.micronaut.context.BeanRegistration;
 import io.micronaut.core.annotation.Internal;
 import org.jspecify.annotations.NonNull;
@@ -59,11 +60,14 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
     private final MessageBodyHandlerRegistry registry;
     private final List<BeanRegistration<WriterInterceptor>> writerInterceptorsRegistrations;
     private final NameBindingPredicate nameBindingPredicate;
+    private final BeanProvider<JaxRsRouteInterceptors> routeInterceptors;
 
     JaxRsGenericEntityMessageBodyWriter(JaxRsContainerMessageBodyHandlerRegistry jaxRsMessageBodyHandlerRegistry,
                                         MessageBodyHandlerRegistry registry,
                                         List<BeanRegistration<WriterInterceptor>> writerInterceptorsRegistrations,
-                                        NameBindingPredicate nameBindingPredicate) {
+                                        NameBindingPredicate nameBindingPredicate,
+                                        BeanProvider<JaxRsRouteInterceptors> routeInterceptors) {
+        this.routeInterceptors = routeInterceptors;
         this.jaxRsMessageBodyHandlerRegistry = jaxRsMessageBodyHandlerRegistry;
         this.registry = registry;
         this.writerInterceptorsRegistrations = writerInterceptorsRegistrations;
@@ -96,10 +100,11 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
         }
         T entity = genericEntity.getEntity();
 
-        if (writerInterceptorsRegistrations.isEmpty()) {
+        List<BeanRegistration<WriterInterceptor>> interceptors = writerInterceptors();
+        if (interceptors.isEmpty()) {
             write(argument, mediaType, entity, outgoingHeaders, outputStream);
         } else {
-            new JaxRsInterceptedWrite<T, JaxRsWriterInterceptorContextState.ClassicState>(writerInterceptorsRegistrations, nameBindingPredicate) {
+            new JaxRsInterceptedWrite<T, JaxRsWriterInterceptorContextState.ClassicState>(interceptors, JaxRsRouteInterceptors.predicate(nameBindingPredicate)) {
 
                 @Override
                 protected void writeToAfterInterception(Argument<Object> argument,
@@ -118,6 +123,15 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
                 throw new JaxRsIOException(e);
             }
         }
+    }
+
+    /**
+     * The writer interceptor beans, and the ones of the resource method of the current request.
+     */
+    private List<BeanRegistration<WriterInterceptor>> writerInterceptors() {
+        return routeInterceptors.isPresent()
+            ? JaxRsRouteInterceptors.merge(writerInterceptorsRegistrations, routeInterceptors.get().writerInterceptors())
+            : writerInterceptorsRegistrations;
     }
 
     private <K> void write(Argument<K> argument, MediaType mediaType, K entity, MutableHeaders outgoingHeaders, OutputStream outputStream) {
@@ -289,11 +303,12 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
         }
 
         final void run() {
-            if (writerInterceptorsRegistrations.isEmpty()) {
+            List<BeanRegistration<WriterInterceptor>> interceptors = writerInterceptors();
+            if (interceptors.isEmpty()) {
                 writeInner();
             } else {
                 try {
-                    new JaxRsInterceptedWrite<T, ByteBodyState>(writerInterceptorsRegistrations, nameBindingPredicate) {
+                    new JaxRsInterceptedWrite<T, ByteBodyState>(interceptors, JaxRsRouteInterceptors.predicate(nameBindingPredicate)) {
 
                         @Override
                         protected void writeToAfterInterception(Argument<Object> argument,

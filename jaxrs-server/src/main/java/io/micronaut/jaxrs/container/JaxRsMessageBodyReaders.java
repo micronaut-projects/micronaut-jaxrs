@@ -28,6 +28,7 @@ import io.micronaut.http.body.MessageBodyReader;
 import io.micronaut.http.codec.CodecException;
 import io.micronaut.jaxrs.common.JaxRsInterceptedRead;
 import io.micronaut.jaxrs.common.JaxRsContainerMessageBodyHandlerRegistry;
+import io.micronaut.jaxrs.common.JaxRsRouteInterceptors;
 import io.micronaut.jaxrs.common.NameBindingPredicate;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.ext.ReaderInterceptor;
@@ -50,10 +51,13 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
     private final JaxRsContainerMessageBodyHandlerRegistry registry;
     private final List<BeanRegistration<ReaderInterceptor>> readerInterceptorsRegsRegistrations;
     private final NameBindingPredicate nameBindingPredicate;
+    private final JaxRsFeatures features;
 
     public JaxRsMessageBodyReaders(JaxRsContainerMessageBodyHandlerRegistry registry,
                                    List<BeanRegistration<ReaderInterceptor>> readerInterceptorsRegsRegistrations,
-                                   NameBindingPredicate nameBindingPredicate) {
+                                   NameBindingPredicate nameBindingPredicate,
+                                   JaxRsFeatures features) {
+        this.features = features;
         this.registry = registry;
         this.readerInterceptorsRegsRegistrations = readerInterceptorsRegsRegistrations;
         this.nameBindingPredicate = nameBindingPredicate;
@@ -72,7 +76,8 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
 
     @Override
     public @Nullable T read(@NonNull Argument<T> type, @Nullable MediaType mediaType, @NonNull Headers httpHeaders, @NonNull ByteBuffer<?> byteBuffer) throws CodecException {
-        if (readerInterceptorsRegsRegistrations.isEmpty()) {
+        List<BeanRegistration<ReaderInterceptor>> interceptors = JaxRsRouteInterceptors.merge(readerInterceptorsRegsRegistrations, features.readerInterceptors());
+        if (interceptors.isEmpty()) {
             Optional<MessageBodyReader<T>> reader = registry.findSelectingReader(type, getMediaTypes(mediaType));
             if (reader.isPresent()) {
                 return reader
@@ -80,7 +85,7 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
             }
             throw new CodecException("No reader registered for " + type + " with media type " + mediaType);
         }
-        return new JaxRsInterceptedRead<T>(readerInterceptorsRegsRegistrations, nameBindingPredicate) {
+        return new JaxRsInterceptedRead<T>(interceptors, JaxRsRouteInterceptors.predicate(nameBindingPredicate)) {
 
             @Override
             protected T readFromAfterInterception(Argument<Object> type, MediaType mediaType, Headers httpHeaders, InputStream inputStream) {
@@ -96,14 +101,15 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
 
     @Override
     public @Nullable T read(@NonNull Argument<T> type, @Nullable MediaType mediaType, @NonNull Headers httpHeaders, @NonNull InputStream inputStream) throws CodecException {
-        if (readerInterceptorsRegsRegistrations.isEmpty()) {
+        List<BeanRegistration<ReaderInterceptor>> interceptors = JaxRsRouteInterceptors.merge(readerInterceptorsRegsRegistrations, features.readerInterceptors());
+        if (interceptors.isEmpty()) {
             Optional<MessageBodyReader<T>> reader = registry.findSelectingReader(type, getMediaTypes(mediaType));
             if (reader.isPresent()) {
                 return reader.get().read(type, mediaType, httpHeaders, inputStream);
             }
             throw new CodecException("No reader found for " + mediaType + " and type " + type);
         }
-        return new JaxRsInterceptedRead<T>(readerInterceptorsRegsRegistrations, nameBindingPredicate) {
+        return new JaxRsInterceptedRead<T>(interceptors, JaxRsRouteInterceptors.predicate(nameBindingPredicate)) {
 
             @Override
             protected T readFromAfterInterception(Argument<Object> type, MediaType mediaType, Headers httpHeaders, InputStream inputStream) {

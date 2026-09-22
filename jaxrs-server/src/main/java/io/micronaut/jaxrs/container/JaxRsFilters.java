@@ -15,6 +15,7 @@
  */
 package io.micronaut.jaxrs.container;
 
+import io.micronaut.context.BeanContext;
 import io.micronaut.context.BeanRegistration;
 import io.micronaut.core.annotation.Internal;
 import org.jspecify.annotations.Nullable;
@@ -72,12 +73,18 @@ final class JaxRsFilters {
     private final List<BeanRegistration<ContainerRequestFilter>> requestFilters;
     private final List<BeanRegistration<ContainerResponseFilter>> containerResponseFilters;
     private final NameBindingPredicate nameBindingPredicate;
+    private final JaxRsFeatures features;
 
     JaxRsFilters(ApplicationProvider applicationProvider,
-                 List<BeanRegistration<ContainerRequestFilter>> requestFilters,
-                 List<BeanRegistration<ContainerResponseFilter>> containerResponseFilters,
-                 NameBindingPredicate nameBindingPredicate) {
+                 BeanContext beanContext,
+                 NameBindingPredicate nameBindingPredicate,
+                 JaxRsFeatures features) {
         this.applicationProvider = applicationProvider;
+        this.features = features;
+        // the filters the features register are beans too
+        features.configure();
+        List<BeanRegistration<ContainerRequestFilter>> requestFilters = new ArrayList<>(beanContext.getBeanRegistrations(ContainerRequestFilter.class));
+        List<BeanRegistration<ContainerResponseFilter>> containerResponseFilters = new ArrayList<>(beanContext.getBeanRegistrations(ContainerResponseFilter.class));
         this.nameBindingPredicate = nameBindingPredicate;
         Map<Boolean, List<BeanRegistration<ContainerRequestFilter>>> matching = requestFilters.stream().collect(Collectors.groupingBy(br -> br.getBeanDefinition().hasAnnotation(PreMatching.class)));
         this.preMatchingRequestFilters = new ArrayList<>(matching.getOrDefault(true, List.of()).stream().map(BeanRegistration::getBean).toList());
@@ -170,15 +177,18 @@ final class JaxRsFilters {
         }
         ByteArrayOutputStream delegateEntityStream = null;
         OutputStream customEntityStream = null;
-        if (!containerResponseFilters.isEmpty()) {
+        JaxRsFeatures.Components dynamic = dynamicComponents(routeInfo);
+        if (!containerResponseFilters.isEmpty() || !dynamic.responseFilters().isEmpty()) {
             JaxRsContainerRequestContext requestContext = request.getAttribute(REQUEST_CONTEXT_KEY, JaxRsContainerRequestContext.class)
                 .orElseGet(() -> new JaxRsContainerRequestContext(request.mutate(), applicationProvider));
             requestContext.finished();
             JaxRsContainerResponseContext responseContext = new JaxRsContainerResponseContext(mutableHttpResponse, bodyArgument, entityAnnotations);
-            List<ContainerResponseFilter> filters = containerResponseFilters.stream()
+            List<ContainerResponseFilter> filters = new ArrayList<>(containerResponseFilters.stream()
                 .filter(br -> nameBindingPredicate.test(br.getBeanDefinition()))
                 .map(BeanRegistration::getBean)
-                .toList();
+                .toList());
+            // the ones the dynamic features registered for the resource method
+            filters.addAll(dynamic.responseFilters());
             for (ContainerResponseFilter responseFilter : filters) {
                 responseFilter.filter(requestContext, responseContext);
             }
@@ -196,6 +206,14 @@ final class JaxRsFilters {
             );
         }
         return mutableHttpResponse;
+    }
+
+    /**
+     * The filters and interceptors the dynamic features registered for the resource method of a
+     * route.
+     */
+    private JaxRsFeatures.Components dynamicComponents(@Nullable RouteInfo<?> routeInfo) {
+        return features.components(routeInfo);
     }
 
     @Nullable
@@ -223,19 +241,25 @@ final class JaxRsFilters {
     @Nullable
     @RequestFilter
     HttpResponse<?> filterRequest(RouteInfo<?> routeInfo, MutableHttpRequest<?> request) throws IOException {
-        if (requestFilters.isEmpty() || !routeInfo.getAnnotationMetadata().hasAnnotation(Path.class)) {
+        if (!routeInfo.getAnnotationMetadata().hasAnnotation(Path.class)) {
             // Intercept only JaxRs routes
             return null;
         }
+        JaxRsFeatures.Components dynamic = dynamicComponents(routeInfo);
+        if (requestFilters.isEmpty() && dynamic.requestFilters().isEmpty()) {
+            return null;
+        }
         JaxRsContainerRequestContext requestContext = new JaxRsContainerRequestContext(request, applicationProvider);
-        if (!containerResponseFilters.isEmpty()) {
+        if (!containerResponseFilters.isEmpty() || !dynamic.responseFilters().isEmpty()) {
             request.setAttribute(REQUEST_CONTEXT_KEY, requestContext);
         }
         request.setAttribute(HttpHeadersBinder.HEADERS_KEY, request.getHeaders());
-        List<ContainerRequestFilter> filters = requestFilters.stream()
+        List<ContainerRequestFilter> filters = new ArrayList<>(requestFilters.stream()
             .filter(br -> nameBindingPredicate.test(br.getBeanDefinition()))
             .map(BeanRegistration::getBean)
-            .toList();
+            .toList());
+        // the ones the dynamic features registered for the resource method
+        filters.addAll(dynamic.requestFilters());
         for (ContainerRequestFilter requestFilter : filters) {
             requestFilter.filter(requestContext);
             Response response = requestContext.getResponse();

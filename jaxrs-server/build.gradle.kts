@@ -9,6 +9,7 @@ dependencies {
 	api(libs.managed.jaxrs.api)
 
 	implementation(mn.micronaut.router)
+	implementation(mn.micronaut.reflection)
 	implementation(mn.micronaut.http.server)
     implementation(projects.micronautJaxrsCommon)
 

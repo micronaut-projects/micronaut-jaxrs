@@ -181,13 +181,8 @@ ee.jakarta.tck.ws.rs.ee.rs.ext.paramconverter.JAXRSClientIT#formParamUsesParamCo
 ee.jakarta.tck.ws.rs.ee.rs.core.securitycontext.basic.JAXRSBasicClientIT
 
 
-# Features and dynamic features registered through the Application are not reported as registered
-ee.jakarta.tck.ws.rs.jaxrs31.spec.extensions.JAXRSClientIT#dynamicFeatureIsRegisteredTest
-ee.jakarta.tck.ws.rs.jaxrs31.spec.extensions.JAXRSClientIT#featureIsRegisteredTest
 
 
-# Dynamic features not supported
-ee.jakarta.tck.ws.rs.spec.filter.dynamicfeature.JAXRSClientIT#dynamicBindingTest
 
 
 
