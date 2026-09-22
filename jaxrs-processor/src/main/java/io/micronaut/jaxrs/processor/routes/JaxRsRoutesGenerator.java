@@ -16,6 +16,17 @@
 package io.micronaut.jaxrs.processor.routes;
 
 import io.micronaut.core.annotation.AnnotationMetadata;
+import io.micronaut.context.BeanProvider;
+import io.micronaut.core.type.Argument;
+import io.micronaut.sourcegen.generator.SourceGenerators;
+import io.micronaut.sourcegen.model.ClassDef;
+import io.micronaut.sourcegen.model.ClassTypeDef;
+import io.micronaut.sourcegen.model.ExpressionDef;
+import io.micronaut.sourcegen.model.FieldDef;
+import io.micronaut.sourcegen.model.MethodDef;
+import io.micronaut.sourcegen.model.StatementDef;
+import io.micronaut.sourcegen.model.TypeDef;
+import io.micronaut.sourcegen.model.VariableDef;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.inject.ast.ClassElement;
 import io.micronaut.inject.ast.ConstructorElement;
@@ -23,7 +34,6 @@ import io.micronaut.inject.ast.ElementQuery;
 import io.micronaut.inject.ast.MethodElement;
 import io.micronaut.inject.ast.ParameterElement;
 import io.micronaut.inject.visitor.VisitorContext;
-import io.micronaut.inject.writer.GeneratedFile;
 import jakarta.ws.rs.BeanParam;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.CookieParam;
@@ -41,13 +51,13 @@ import jakarta.ws.rs.container.Suspended;
 import jakarta.ws.rs.core.Context;
 import org.jspecify.annotations.Nullable;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.io.Writer;
+import javax.lang.model.element.Modifier;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -90,6 +100,9 @@ public final class JaxRsRoutesGenerator {
     private static final String FORM_TYPE = "jakarta.ws.rs.core.Form";
     private static final String COMPLETION_STAGE = "java.util.concurrent.CompletionStage";
     private static final String SUPPORT = "io.micronaut.jaxrs.container.JaxRsRouteSupport";
+    private static final String ROUTER = "io.micronaut.web.router.";
+    private static final ClassTypeDef ARGUMENT = ClassTypeDef.of(Argument.class);
+    private static final ClassTypeDef HTTP_METHOD = ClassTypeDef.of(io.micronaut.http.HttpMethod.class);
 
     private JaxRsRoutesGenerator() {
     }
@@ -141,7 +154,10 @@ public final class JaxRsRoutesGenerator {
         }
         String simpleName = resource.getSimpleName();
         String routerName = simpleName + "$JaxRsRouter";
-        write(context, resource, routerName, routerSource(resource, routerName, methods, constructor == null ? null : constructorParams));
+        ClassDef router = router(resource, routerName, methods, constructor == null ? null : constructorParams, context);
+        SourceGenerators.findByLanguage(VisitorContext.Language.JAVA)
+            .orElseThrow(() -> new IllegalStateException("No Java source generator"))
+            .write(router, context, resource);
     }
 
     /**
@@ -356,143 +372,285 @@ public final class JaxRsRoutesGenerator {
         return result.toString();
     }
 
-    private static String routerSource(ClassElement resource, String routerName, List<ResourceMethod> methods, @Nullable List<Param> constructorParams) {
-        String resourceType = resource.getCanonicalName();
-        StringBuilder fields = new StringBuilder();
-        StringBuilder routes = new StringBuilder();
+    /**
+     * The model of the router of a resource: an {@code HttpRoutes} bean with a route per resource
+     * method.
+     */
+    private static ClassDef router(ClassElement resource, String routerName, List<ResourceMethod> methods,
+                                   @Nullable List<Param> constructorParams, VisitorContext context) {
+        ClassTypeDef routerType = ClassTypeDef.of(resource.getPackageName() + "." + routerName);
+        ClassTypeDef resourceType = ClassTypeDef.erasure(resource);
+        ClassTypeDef supportType = type(context, SUPPORT);
+        ClassTypeDef metadataType = type(context, SUPPORT + ".RouteMetadata");
+        ClassTypeDef routeBuilderType = type(context, ROUTER + "RouteBuilder");
+        ClassTypeDef uriRouteType = type(context, ROUTER + "UriRoute");
+
+        ClassDef.ClassDefBuilder router = ClassDef.builder(routerType.getName())
+            .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+            .addAnnotation(ClassTypeDef.of("jakarta.inject.Singleton"))
+            .addSuperinterface(type(context, ROUTER + "HttpRoutes"))
+            .addJavadoc("Implements the routes of the JAX-RS resource {@link " + resource.getCanonicalName() + "} with handler functions.");
+
+        FieldDef resourceField = FieldDef.builder("resource", TypeDef.parameterized(ClassTypeDef.of(BeanProvider.class), resourceType))
+            .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
+            .build();
+        FieldDef supportField = FieldDef.builder("support", supportType)
+            .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
+            .build();
+
+        // the constants of the constructor parameters read from the request
+        List<VariableDef.StaticField> constructorArguments = new ArrayList<>();
         boolean constructorForm = false;
         if (constructorParams != null) {
             for (int j = 0; j < constructorParams.size(); j++) {
                 Param param = constructorParams.get(j);
-                fields.append("    private static final io.micronaut.core.type.Argument C").append(j).append(" = ")
-                    .append(argument(param.parameter.getGenericType())).append(";\n");
+                constructorArguments.add(constant(router, routerType, "C" + j, ARGUMENT, argument(param.parameter.getGenericType())));
                 constructorForm |= param.kind == ParamKind.FORM;
             }
         }
+
+        List<RouteModel> routes = new ArrayList<>();
         for (int i = 0; i < methods.size(); i++) {
             ResourceMethod method = methods.get(i);
-            List<String> arguments = new ArrayList<>();
+            List<VariableDef.StaticField> arguments = new ArrayList<>();
             for (int j = 0; j < method.params.size(); j++) {
                 Param param = method.params.get(j);
-                String argumentField = "A" + i + "_" + j;
-                String argument = argument(param.parameter.getGenericType());
-                fields.append("    private static final io.micronaut.core.type.Argument ").append(argumentField).append(" = ")
-                    .append(param.kind == ParamKind.ENTITY ? SUPPORT + ".nullable(" + argument + ")" : argument).append(";\n");
-                arguments.add(argumentExpression(param, argumentField));
+                ExpressionDef argument = argument(param.parameter.getGenericType());
+                if (param.kind == ParamKind.ENTITY) {
+                    argument = supportType.invokeStatic("nullable", ARGUMENT, argument);
+                }
+                arguments.add(constant(router, routerType, "A" + i + "_" + j, ARGUMENT, argument));
             }
             ClassElement valueType = method.async ? firstTypeArgument(method.returnType) : method.returnType;
-            String returnField = "R" + i;
-            fields.append("    private static final io.micronaut.core.type.Argument ").append(returnField).append(" = ")
-                .append(valueType == null || valueType.isVoid() ? "io.micronaut.core.type.Argument.VOID" : argument(valueType)).append(";\n");
-            String routeField = "ROUTE" + i;
-            fields.append("    private static final ").append(SUPPORT).append(".RouteMetadata ").append(routeField).append(" = new ")
-                .append(SUPPORT).append(".RouteMetadata(").append(resourceType).append(".class, ").append(literal(method.method.getName())).append(", ")
-                .append(parameterTypes(method.method)).append(", ")
-                .append(stringArray(method.produces)).append(", ").append(stringArray(method.consumes)).append(");\n");
-
+            VariableDef.StaticField returnType = constant(router, routerType, "R" + i, ARGUMENT,
+                valueType == null || valueType.isVoid() ? ARGUMENT.getStaticField("VOID", ARGUMENT) : argument(valueType));
+            VariableDef.StaticField metadata = constant(router, routerType, "ROUTE" + i, metadataType, metadataType.instantiate(
+                ExpressionDef.constant(resourceType),
+                ExpressionDef.constant(method.method.getName()),
+                TypeDef.CLASS.array().instantiate(Arrays.stream(method.method.getParameters())
+                    .map(p -> (ExpressionDef) ExpressionDef.constant(TypeDef.erasure(p.getType()))).toList()),
+                strings(method.produces),
+                strings(method.consumes)
+            ));
             // a form is read for the constructor when the method can have one and reads no entity
             boolean form = method.form || constructorForm && !NO_BODY_METHODS.contains(method.httpMethod) && method.entity == null;
-            String instance = "resource.get()";
-            if (constructorParams != null) {
-                // created per request, with the values of the request as its @Parameters
-                List<String> names = new ArrayList<>();
-                List<String> values = new ArrayList<>();
-                for (int j = 0; j < constructorParams.size(); j++) {
-                    Param param = constructorParams.get(j);
-                    Param source = param.kind == ParamKind.FORM && !form ? new Param(ParamKind.QUERY, param.name, param.parameter, param.defaultValue) : param;
-                    names.add(literal(param.parameter.getName()));
-                    values.add(argumentExpression(source, "C" + j));
-                }
-                instance = "((" + resourceType + ") support.create(" + resourceType + ".class, new String[]{" + String.join(", ", names)
-                    + "}, new Object[]{" + String.join(", ", values) + "}))";
-            }
-            String call = instance + "." + method.method.getName() + "(" + String.join(", ", arguments) + ")";
-            String declaration = "io.micronaut.http.HttpMethod." + method.httpMethod + ", support.uri(" + literal(method.template) + ")";
-            String result;
-            if (method.returnType.isVoid()) {
-                result = call + ";\n                return support.response(request, null, " + returnField + ", " + routeField + ");";
-            } else if (method.async) {
-                result = "return support.responseAsync(request, " + call + ", " + returnField + ", " + routeField + ");";
-            } else {
-                result = "return support.response(request, " + call + ", " + returnField + ", " + routeField + ");";
-            }
-            if (throwsThrowable(method.method)) {
-                // a lambda of a route handler can only throw exceptions
-                result = "try {\n                    " + result + "\n                } catch (java.lang.Throwable t) {\n                    throw " + SUPPORT + ".rethrow(t);\n                }";
-            }
-            String handler;
-            if (form) {
-                handler = "routes.handleForm(" + declaration + ", support.handler(" + routeField + ", (request, pathVariables, form) -> {\n                " + syncResult(method, result) + "\n            }))";
-            } else if (method.entity != null && method.httpMethod.equals("GET")) {
-                handler = "routes.handle(" + declaration + ", support.handler(" + routeField + ", (request, pathVariables) -> {\n                Object body = null;\n                " + syncResult(method, result) + "\n            }))";
-            } else if (method.entity != null) {
-                String entityField = "A" + i + "_" + method.params.indexOf(method.entity);
-                handler = "routes.handle(" + declaration + ", " + entityField + ", support.handler(" + routeField + ", (request, pathVariables, body) -> {\n                " + syncResult(method, result) + "\n            }))";
-            } else if (method.async) {
-                handler = "routes.handleAsync(" + declaration + ", support.handler(" + routeField + ", (request, pathVariables) -> {\n                " + result + "\n            }))";
-            } else {
-                handler = "routes.handle(" + declaration + ", support.handler(" + routeField + ", (request, pathVariables) -> {\n                " + result + "\n            }))";
-            }
-            routes.append("        support.configure(").append(handler).append(", ").append(routeField)
-                .append(method.async && (form || method.entity != null) ? ", true" : ", false").append(");\n");
+            routes.add(new RouteModel("route" + i, method, arguments, returnType, metadata, form));
         }
-        return """
-            package %s;
 
-            /**
-             * Implements the routes of the JAX-RS resource {@link %s} with handler functions.
-             */
-            @jakarta.inject.Singleton
-            @SuppressWarnings({"unchecked", "rawtypes"})
-            public final class %s implements io.micronaut.web.router.HttpRoutes {
-
-            %s
-                private final io.micronaut.context.BeanProvider<%s> resource;
-                private final %s support;
-
-                public %s(io.micronaut.context.BeanProvider<%s> resource, %s support) {
-                    this.resource = resource;
-                    this.support = support;
-                }
-
-                @Override
-                public void routes(io.micronaut.web.router.RouteBuilder routes) {
-                    if (!resource.isPresent()) {
-                        // the resource is not a bean in this context, e.g. disabled by @Requires
-                        return;
+        router.addField(resourceField);
+        router.addField(supportField);
+        router.addMethod(MethodDef.constructor()
+            .addModifiers(Modifier.PUBLIC)
+            .addParameter("resource", resourceField.getType())
+            .addParameter("support", supportType)
+            .build((aThis, params) -> StatementDef.multi(
+                aThis.field(resourceField).assign(params.get(0)),
+                aThis.field(supportField).assign(params.get(1))
+            )));
+        for (RouteModel route : routes) {
+            router.addMethod(routeMethod(resourceType, supportType, resourceField, supportField, route, constructorParams, constructorArguments, context));
+        }
+        router.addMethod(MethodDef.builder("routes")
+            .addModifiers(Modifier.PUBLIC)
+            .addAnnotation(Override.class)
+            .addParameter("routes", routeBuilderType)
+            .returns(TypeDef.VOID)
+            .build((aThis, params) -> {
+                VariableDef support = aThis.field(supportField);
+                List<StatementDef> statements = new ArrayList<>();
+                for (RouteModel route : routes) {
+                    ExpressionDef handler = support.invoke("handler", TypeDef.OBJECT, route.metadata, handlerLambda(aThis, route, context));
+                    List<ExpressionDef> handle = new ArrayList<>();
+                    handle.add(HTTP_METHOD.getStaticField(route.method.httpMethod, HTTP_METHOD));
+                    handle.add(support.invoke("uri", TypeDef.STRING, ExpressionDef.constant(route.method.template)));
+                    String builderMethod;
+                    if (route.form) {
+                        builderMethod = "handleForm";
+                    } else if (route.method.entity != null && !route.method.httpMethod.equals("GET")) {
+                        builderMethod = "handle";
+                        handle.add(route.arguments.get(route.method.params.indexOf(route.method.entity)));
+                    } else if (route.method.async && route.method.entity == null) {
+                        builderMethod = "handleAsync";
+                    } else {
+                        builderMethod = "handle";
                     }
-            %s    }
-            }
-            """.formatted(resource.getPackageName(), resourceType, routerName, fields, resourceType, SUPPORT,
-            routerName, resourceType, SUPPORT, routes);
+                    handle.add(handler);
+                    boolean blocking = route.method.async && (route.form || route.method.entity != null);
+                    statements.add(support.invoke("configure", TypeDef.VOID,
+                        params.get(0).invoke(builderMethod, uriRouteType, handle),
+                        route.metadata,
+                        ExpressionDef.constant(blocking)));
+                }
+                // the resource is not a bean in this context, e.g. disabled by @Requires
+                return aThis.field(resourceField).invoke("isPresent", TypeDef.Primitive.BOOLEAN).ifTrue(StatementDef.multi(statements));
+            }));
+        return router.build();
     }
 
     /**
-     * A resource method returning a {@code CompletionStage} with an entity or a form is routed by
-     * a synchronous handler that waits for the stage on a blocking executor.
+     * The interface of the handler function of a route, and its type variables.
      */
-    private static String syncResult(ResourceMethod method, String result) {
-        if (!method.async) {
-            return result;
+    private static String handlerType(RouteModel route) {
+        ResourceMethod method = route.method;
+        if (route.form) {
+            return "FormRequestHandler";
+        } else if (method.entity != null && !method.httpMethod.equals("GET")) {
+            return "BodyRequestHandler";
+        } else if (method.async && method.entity == null) {
+            return "AsyncRequestHandler";
         }
-        return result.replace("support.responseAsync(", "support.responseAwait(");
+        return "RequestHandler";
     }
 
-    private static String argumentExpression(Param param, String argumentField) {
-        String cast = "(" + castType(param.parameter.getType()) + ") ";
-        String defaultValue = param.defaultValue == null ? "null" : literal(param.defaultValue);
-        String name = param.name == null ? "null" : literal(param.name);
-        return switch (param.kind) {
-            case PATH -> cast + "support.pathParam(request, pathVariables, " + name + ", " + argumentField + ", " + defaultValue + ")";
-            case QUERY -> cast + "support.queryParam(request, " + name + ", " + argumentField + ", " + defaultValue + ")";
-            case MATRIX -> cast + "support.matrixParam(request, " + name + ", " + argumentField + ", " + defaultValue + ")";
-            case HEADER -> cast + "support.headerParam(request, " + name + ", " + argumentField + ", " + defaultValue + ")";
-            case COOKIE -> cast + "support.cookieParam(request, " + name + ", " + argumentField + ", " + defaultValue + ")";
-            case FORM -> cast + "support.formParam(form, " + name + ", " + argumentField + ", " + defaultValue + ")";
-            case FORM_ENTITY -> cast + "support.formEntity(form, " + argumentField + ")";
-            case CONTEXT -> cast + "support.context(request, " + argumentField + ", " + (param.name == null ? "null" : name) + ")";
-            case ENTITY -> cast + "support.entity(body, " + argumentField + ")";
+    /**
+     * The handler function of a route: calls the method of the route.
+     */
+    private static ExpressionDef handlerLambda(VariableDef.This aThis, RouteModel route, VisitorContext context) {
+        String handlerType = handlerType(route);
+        Map<String, TypeDef> typeVariables = handlerType.equals("BodyRequestHandler") ? Map.of("B", TypeDef.OBJECT) : Map.of();
+        return type(context, ROUTER + handlerType).getLambda(typeVariables).implement((lambdaThis, lambdaParams) ->
+            aThis.invoke(route.name, TypeDef.OBJECT, new ArrayList<ExpressionDef>(lambdaParams)).returning());
+    }
+
+    /**
+     * The method of a route: reads the parameters, calls the resource method and returns the
+     * response.
+     */
+    private static MethodDef routeMethod(ClassTypeDef resourceType, ClassTypeDef supportType,
+                                         FieldDef resourceField, FieldDef supportField, RouteModel route,
+                                         @Nullable List<Param> constructorParams, List<VariableDef.StaticField> constructorArguments,
+                                         VisitorContext context) {
+        ResourceMethod method = route.method;
+        String handlerType = handlerType(route);
+        boolean async = handlerType.equals("AsyncRequestHandler");
+        MethodDef.MethodDefBuilder builder = MethodDef.builder(route.name)
+            .addModifiers(Modifier.PRIVATE)
+            .addParameter("request", TypeDef.parameterized(ClassTypeDef.of("io.micronaut.http.HttpRequest"), TypeDef.wildcard()))
+            .addParameter("pathVariables", type(context, ROUTER + "PathVariables"));
+        if (handlerType.equals("FormRequestHandler")) {
+            builder.addParameter("form", type(context, ROUTER + "FormData"));
+        } else if (handlerType.equals("BodyRequestHandler")) {
+            builder.addParameter("body", TypeDef.OBJECT);
+        }
+        TypeDef response = TypeDef.parameterized(ClassTypeDef.of("io.micronaut.http.HttpResponse"), TypeDef.wildcard());
+        builder.returns(async ? TypeDef.parameterized(ClassTypeDef.of(java.util.concurrent.CompletionStage.class), TypeDef.wildcardSubtypeOf(response)) : response);
+        if (!async) {
+            // like the handler interface; the asynchronous one throws no checked exception
+            builder.addThrows(ClassTypeDef.of(Exception.class));
+        }
+        return builder.build((aThis, params) -> {
+            VariableDef request = params.get(0);
+            VariableDef pathVariables = params.get(1);
+            @Nullable VariableDef third = params.size() > 2 ? params.get(2) : null;
+            VariableDef support = aThis.field(supportField);
+            HandlerScope scope = new HandlerScope(support, request, pathVariables,
+                handlerType.equals("FormRequestHandler") ? third : null,
+                handlerType.equals("BodyRequestHandler") ? third : null);
+
+            ExpressionDef instance;
+            if (constructorParams == null) {
+                instance = aThis.field(resourceField).invoke("get", TypeDef.OBJECT).cast(resourceType);
+            } else {
+                // created per request, with the values of the request as its @Parameters
+                List<ExpressionDef> names = new ArrayList<>();
+                List<ExpressionDef> values = new ArrayList<>();
+                for (int j = 0; j < constructorParams.size(); j++) {
+                    Param param = constructorParams.get(j);
+                    Param source = param.kind == ParamKind.FORM && !route.form
+                        ? new Param(ParamKind.QUERY, param.name, param.parameter, param.defaultValue)
+                        : param;
+                    names.add(ExpressionDef.constant(param.parameter.getName()));
+                    values.add(value(source, constructorArguments.get(j), scope));
+                }
+                instance = support.invoke("create", TypeDef.OBJECT,
+                    ExpressionDef.constant(resourceType),
+                    TypeDef.STRING.array().instantiate(names),
+                    TypeDef.OBJECT.array().instantiate(values)
+                ).cast(resourceType);
+            }
+            List<ExpressionDef> arguments = new ArrayList<>();
+            for (int j = 0; j < method.params.size(); j++) {
+                arguments.add(value(method.params.get(j), route.arguments.get(j), scope));
+            }
+            ExpressionDef call = instance.invoke(method.method, arguments);
+            StatementDef result;
+            if (method.returnType.isVoid()) {
+                result = StatementDef.multi(
+                    (StatementDef) call,
+                    support.invoke("response", TypeDef.OBJECT, request, ExpressionDef.nullValue(), route.returnType, route.metadata).returning()
+                );
+            } else if (method.async) {
+                // with an entity or a form, the route is synchronous and waits for the stage on a blocking executor
+                result = support.invoke(async ? "responseAsync" : "responseAwait", TypeDef.OBJECT, request, call, route.returnType, route.metadata).returning();
+            } else {
+                result = support.invoke("response", TypeDef.OBJECT, request, call, route.returnType, route.metadata).returning();
+            }
+            if (throwsThrowable(method.method) || async && method.method.getThrownTypes().length > 0) {
+                // what the resource method throws is rethrown unchanged
+                result = StatementDef.doTry(result).doCatch(Throwable.class, throwable ->
+                    supportType.invokeStatic("rethrow", ClassTypeDef.of(RuntimeException.class), throwable).doThrow());
+            }
+            return result;
+        });
+    }
+
+    /**
+     * The value of a parameter, read from the request and converted.
+     */
+    private static ExpressionDef value(Param param, VariableDef.StaticField argument, HandlerScope scope) {
+        ExpressionDef defaultValue = param.defaultValue == null ? ExpressionDef.nullValue() : ExpressionDef.constant(param.defaultValue);
+        ExpressionDef name = param.name == null ? ExpressionDef.nullValue() : ExpressionDef.constant(param.name);
+        VariableDef support = scope.support;
+        ExpressionDef value = switch (param.kind) {
+            case PATH -> support.invoke("pathParam", TypeDef.OBJECT, scope.request, scope.pathVariables, name, argument, defaultValue);
+            case QUERY -> support.invoke("queryParam", TypeDef.OBJECT, scope.request, name, argument, defaultValue);
+            case MATRIX -> support.invoke("matrixParam", TypeDef.OBJECT, scope.request, name, argument, defaultValue);
+            case HEADER -> support.invoke("headerParam", TypeDef.OBJECT, scope.request, name, argument, defaultValue);
+            case COOKIE -> support.invoke("cookieParam", TypeDef.OBJECT, scope.request, name, argument, defaultValue);
+            case FORM -> support.invoke("formParam", TypeDef.OBJECT, Objects.requireNonNull(scope.form, "form"), name, argument, defaultValue);
+            case FORM_ENTITY -> support.invoke("formEntity", TypeDef.OBJECT, Objects.requireNonNull(scope.form, "form"), argument);
+            case CONTEXT -> support.invoke("context", TypeDef.OBJECT, scope.request, argument, name);
+            case ENTITY -> support.invoke("entity", TypeDef.OBJECT, scope.body == null ? ExpressionDef.nullValue() : scope.body, argument);
         };
+        return value.cast(TypeDef.erasure(param.parameter.getType()));
+    }
+
+    /**
+     * A {@code private static final} constant of the router.
+     */
+    private static VariableDef.StaticField constant(ClassDef.ClassDefBuilder router, ClassTypeDef routerType, String name, ClassTypeDef type, ExpressionDef value) {
+        FieldDef field = FieldDef.builder(name, type)
+            .addModifiers(Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL)
+            .initializer(value)
+            .build();
+        router.addField(field);
+        return routerType.getStaticField(field);
+    }
+
+    /**
+     * An expression creating the {@code Argument} of a type, with its type arguments.
+     */
+    private static ExpressionDef argument(ClassElement type) {
+        if (type.isGenericPlaceholder() || type.isWildcard()) {
+            return ARGUMENT.getStaticField("OBJECT_ARGUMENT", ARGUMENT);
+        }
+        List<ExpressionDef> values = new ArrayList<>();
+        values.add(ExpressionDef.constant(TypeDef.erasure(type)));
+        if (!type.isArray() && !type.isPrimitive()) {
+            for (ClassElement typeArgument : type.getTypeArguments().values()) {
+                values.add(argument(typeArgument));
+            }
+        }
+        return ARGUMENT.invokeStatic("of", ARGUMENT, values);
+    }
+
+    private static ExpressionDef strings(List<String> values) {
+        return TypeDef.STRING.array().instantiate(values.stream().map(v -> (ExpressionDef) ExpressionDef.constant(v)).toList());
+    }
+
+    private static ClassTypeDef type(VisitorContext context, String name) {
+        return ClassTypeDef.erasure(context.getClassElement(name)
+            .orElseThrow(() -> new IllegalStateException("The type " + name + " is not on the classpath of the compilation")));
     }
 
     private static boolean throwsThrowable(MethodElement method) {
@@ -504,92 +662,36 @@ public final class JaxRsRoutesGenerator {
         return false;
     }
 
-    private static String parameterTypes(MethodElement method) {
-        List<String> types = new ArrayList<>();
-        for (ParameterElement parameter : method.getParameters()) {
-            types.add(castType(parameter.getType()) + ".class");
-        }
-        return types.isEmpty() ? "new Class<?>[0]" : "new Class<?>[]{" + String.join(", ", types) + "}";
-    }
-
-    private static String castType(ClassElement type) {
-        if (type.isArray()) {
-            return castType(type.fromArray()) + "[]".repeat(Math.max(1, type.getArrayDimensions()));
-        }
-        if (type.isPrimitive()) {
-            return type.getName();
-        }
-        if (type.isGenericPlaceholder() || type.isWildcard()) {
-            return "java.lang.Object";
-        }
-        return type.getCanonicalName();
-    }
-
-    /**
-     * An expression creating the {@code Argument} of a type, with its type arguments.
-     */
-    private static String argument(ClassElement type) {
-        if (type.isGenericPlaceholder() || type.isWildcard()) {
-            return "io.micronaut.core.type.Argument.OBJECT_ARGUMENT";
-        }
-        String raw = castType(type) + ".class";
-        Map<String, ClassElement> typeArguments = type.isArray() || type.isPrimitive() ? Map.of() : type.getTypeArguments();
-        if (typeArguments.isEmpty()) {
-            return "io.micronaut.core.type.Argument.of(" + raw + ")";
-        }
-        List<String> arguments = new ArrayList<>();
-        for (ClassElement typeArgument : typeArguments.values()) {
-            arguments.add(argument(typeArgument));
-        }
-        return "io.micronaut.core.type.Argument.of(" + raw + ", " + String.join(", ", arguments) + ")";
-    }
-
     private static @Nullable ClassElement firstTypeArgument(ClassElement type) {
         Map<String, ClassElement> typeArguments = type.getTypeArguments();
         return typeArguments.isEmpty() ? null : typeArguments.values().iterator().next();
     }
 
-    private static String stringArray(List<String> values) {
-        if (values.isEmpty()) {
-            return "new String[0]";
-        }
-        List<String> literals = new ArrayList<>();
-        for (String value : values) {
-            literals.add(literal(value));
-        }
-        return "new String[]{" + String.join(", ", literals) + "}";
+    /**
+     * What a route method needs to read a value.
+     *
+     * @param support       The route support field
+     * @param request       The request parameter
+     * @param pathVariables The path variables parameter
+     * @param form          The form parameter of a form route
+     * @param body          The body parameter of a route with an entity
+     */
+    private record HandlerScope(VariableDef support, VariableDef request, VariableDef pathVariables,
+                                @Nullable VariableDef form, @Nullable VariableDef body) {
     }
 
-    private static String literal(String value) {
-        StringBuilder literal = new StringBuilder("\"");
-        for (char c : value.toCharArray()) {
-            switch (c) {
-                case '"' -> literal.append("\\\"");
-                case '$' -> literal.append("\\u0024");
-                case '\\' -> literal.append("\\\\");
-                case '\n' -> literal.append("\\n");
-                case '\r' -> literal.append("\\r");
-                case '\t' -> literal.append("\\t");
-                default -> {
-                    if (c < 0x20 || c > 0x7e) {
-                        literal.append(String.format("\\u%04x", (int) c));
-                    } else {
-                        literal.append(c);
-                    }
-                }
-            }
-        }
-        return literal.append('"').toString();
-    }
-
-    private static void write(VisitorContext context, ClassElement resource, String name, String source) {
-        GeneratedFile file = context.visitGeneratedSourceFile(resource.getPackageName(), name, resource)
-            .orElseThrow(() -> new IllegalStateException("Cannot write the routes of " + resource.getName()));
-        try (Writer writer = file.openWriter()) {
-            writer.write(source);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+    /**
+     * A route of the router, with its constants.
+     *
+     * @param name       The name of the route method
+     * @param method     The resource method
+     * @param arguments  The argument constants of its parameters
+     * @param returnType The argument constant of its result
+     * @param metadata   The route metadata constant
+     * @param form       Whether the route reads a form
+     */
+    private record RouteModel(String name, ResourceMethod method, List<VariableDef.StaticField> arguments,
+                              VariableDef.StaticField returnType, VariableDef.StaticField metadata, boolean form) {
     }
 
     private enum ParamKind {
