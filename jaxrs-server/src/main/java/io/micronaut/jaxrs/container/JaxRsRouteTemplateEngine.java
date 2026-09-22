@@ -307,6 +307,52 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateEngine, Rout
     }
 
     /**
+     * The path a route of this engine is matched with: without the matrix parameters of its
+     * segments, {@code /cars;color=red/details}, which are not part of the path of a template.
+     *
+     * @param rawPath The raw path of the request
+     * @return The path, the same instance if it has no matrix parameters
+     */
+    @Override
+    public String matchingPath(String rawPath) {
+        return withoutMatrixParameters(rawPath);
+    }
+
+    /**
+     * A path without the matrix parameters of its segments.
+     *
+     * @param path The raw path
+     * @return The path, the same instance if it has no matrix parameters
+     */
+    private static String withoutMatrixParameters(String path) {
+        int semicolon = path.indexOf(';');
+        if (semicolon < 0) {
+            return path;
+        }
+        StringBuilder stripped = new StringBuilder(path.length());
+        int i = 0;
+        while (i < path.length()) {
+            char c = path.charAt(i);
+            if (c == ';') {
+                // skip to the end of the segment
+                int slash = path.indexOf('/', i);
+                if (slash < 0) {
+                    break;
+                }
+                i = slash;
+                continue;
+            }
+            if (c == '?') {
+                stripped.append(path, i, path.length());
+                break;
+            }
+            stripped.append(c);
+            i++;
+        }
+        return stripped.toString();
+    }
+
+    /**
      * The literal and variable parts of an expression.
      */
     private static List<Part> parts(String expression) {
