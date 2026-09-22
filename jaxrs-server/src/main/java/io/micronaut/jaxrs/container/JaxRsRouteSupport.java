@@ -16,6 +16,7 @@
 package io.micronaut.jaxrs.container;
 
 import io.micronaut.context.BeanContext;
+import io.micronaut.core.annotation.AnnotationUtil;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.bind.ArgumentBinder;
 import io.micronaut.core.convert.ArgumentConversionContext;
@@ -28,6 +29,7 @@ import io.micronaut.http.HttpResponse;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.bind.RequestBinderRegistry;
 import io.micronaut.http.uri.UriTemplate;
+import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.inject.qualifiers.Qualifiers;
 import io.micronaut.jaxrs.common.JaxRsGenericEntity;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
@@ -317,6 +319,20 @@ public final class JaxRsRouteSupport {
         } catch (CompletionException e) {
             return ExceptionUtils.sneakyThrow(e.getCause() == null ? e : e.getCause());
         }
+    }
+
+    /**
+     * The type of an entity parameter: an entity is optional, a request without one is handled
+     * with {@code null}.
+     *
+     * @param argument The type of the parameter
+     * @param <T>      The type
+     * @return The nullable type
+     */
+    public static <T> Argument<T> nullable(Argument<T> argument) {
+        MutableAnnotationMetadata metadata = new MutableAnnotationMetadata();
+        metadata.addDeclaredAnnotation(AnnotationUtil.NULLABLE, Map.of());
+        return Argument.of(argument.getType(), argument.getName(), metadata, argument.getTypeParameters());
     }
 
     /**

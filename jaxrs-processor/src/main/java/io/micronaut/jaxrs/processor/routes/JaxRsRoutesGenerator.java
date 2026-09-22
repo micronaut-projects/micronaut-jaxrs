@@ -398,8 +398,9 @@ public final class JaxRsRoutesGenerator {
             for (int j = 0; j < method.params.size(); j++) {
                 Param param = method.params.get(j);
                 String argumentField = "A" + i + "_" + j;
+                String argument = argument(param.parameter.getGenericType());
                 fields.append("    private static final io.micronaut.core.type.Argument ").append(argumentField).append(" = ")
-                    .append(argument(param.parameter.getGenericType())).append(";\n");
+                    .append(param.kind == ParamKind.ENTITY ? SUPPORT + ".nullable(" + argument + ")" : argument).append(";\n");
                 arguments.add(argumentExpression(param, argumentField));
             }
             ClassElement valueType = method.async ? firstTypeArgument(method.returnType) : method.returnType;
