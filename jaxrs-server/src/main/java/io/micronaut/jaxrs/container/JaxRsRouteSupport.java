@@ -272,11 +272,11 @@ public final class JaxRsRouteSupport {
         Optional<String> value = pathVariables.findString(name);
         Class<?> type = argument.getType();
         if (type == PathSegment.class) {
-            return value.map(v -> JaxRsMatrixParams.pathSegment(request, v, encoded)).orElse(null);
+            return value.map(v -> JaxRsPathSegments.pathSegment(request, v, encoded)).orElse(null);
         }
         if (type == List.class && argument.getFirstTypeVariable().map(Argument::getType).orElse(null) == PathSegment.class) {
             // a variable over several segments
-            return value.map(v -> Arrays.stream(v.split("/")).map(segment -> JaxRsMatrixParams.pathSegment(request, segment, encoded)).toList())
+            return value.map(v -> Arrays.stream(v.split("/")).map(segment -> JaxRsPathSegments.pathSegment(request, segment, encoded)).toList())
                 .orElse(List.of());
         }
         if (encoded) {
@@ -307,7 +307,7 @@ public final class JaxRsRouteSupport {
      */
     public @Nullable Object matrixParam(HttpRequest<?> request, String name, Argument<?> argument,
                                         @Nullable String defaultValue, boolean encoded) {
-        return convert(JaxRsMatrixParams.values(request, name, encoded), argument, defaultValue, true);
+        return convert(JaxRsPathSegments.values(request, name, encoded), argument, defaultValue, true);
     }
 
     /**

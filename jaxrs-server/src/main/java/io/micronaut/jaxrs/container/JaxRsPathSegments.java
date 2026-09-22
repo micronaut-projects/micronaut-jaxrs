@@ -16,59 +16,28 @@
 package io.micronaut.jaxrs.container;
 
 import io.micronaut.core.annotation.Internal;
-import io.micronaut.core.order.Ordered;
 import io.micronaut.http.HttpRequest;
-import io.micronaut.http.annotation.RequestFilter;
-import io.micronaut.http.annotation.ServerFilter;
-import io.micronaut.http.server.annotation.PreMatching;
 import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.PathSegment;
-import org.jspecify.annotations.Nullable;
 
-import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Matrix parameters, {@code /cars;color=red/details}, are not part of the path a route matches:
- * before routing, they are removed from the request path, and the original path is kept for
- * {@code @MatrixParam}. Requests without matrix parameters are not changed.
+ * Matrix parameters, {@code /cars;color=red/details}: the JAX-RS route template engine matches the
+ * path without them, and they are read from the path of the request for {@code @MatrixParam} and
+ * {@link PathSegment}.
  *
  * @author Denis Stepanov
  * @since 5.2.0
  */
 @Internal
-@ServerFilter(ServerFilter.MATCH_ALL_PATTERN)
-final class JaxRsMatrixParams implements Ordered {
+final class JaxRsPathSegments {
 
-    /**
-     * The request attribute with the path of a request that had matrix parameters.
-     */
-    static final String MATRIX_PATH = JaxRsMatrixParams.class.getName() + ".path";
-
-    @PreMatching
-    @RequestFilter
-    @Nullable HttpRequest<?> removeMatrixParams(HttpRequest<?> request) {
-        URI uri = request.getUri();
-        String path = uri.getRawPath();
-        if (path == null || path.indexOf(';') < 0) {
-            return null;
-        }
-        String[] segments = path.split("/", -1);
-        for (int i = 0; i < segments.length; i++) {
-            int semicolon = segments[i].indexOf(';');
-            if (semicolon >= 0) {
-                segments[i] = segments[i].substring(0, semicolon);
-            }
-        }
-        String stripped = String.join("/", segments);
-        request.setAttribute(MATRIX_PATH, path);
-        String query = uri.getRawQuery();
-        // the request the route is matched with
-        return request.mutate().uri(URI.create(stripped + (query == null ? "" : "?" + query)));
+    private JaxRsPathSegments() {
     }
 
     /**
@@ -80,8 +49,8 @@ final class JaxRsMatrixParams implements Ordered {
      * @return The decoded values, empty if the parameter is not present
      */
     static List<String> values(HttpRequest<?> request, String name, boolean encoded) {
-        @Nullable String path = request.getAttribute(MATRIX_PATH, String.class).orElse(null);
-        if (path == null) {
+        String path = request.getUri().getRawPath();
+        if (path == null || path.indexOf(';') < 0) {
             return List.of();
         }
         int lastSlash = path.lastIndexOf('/');
@@ -109,7 +78,7 @@ final class JaxRsMatrixParams implements Ordered {
      * @return The segment
      */
     static PathSegment pathSegment(HttpRequest<?> request, String value, boolean encoded) {
-        String path = request.getAttribute(MATRIX_PATH, String.class).orElseGet(() -> request.getUri().getRawPath());
+        String path = request.getUri().getRawPath();
         for (String segment : path.split("/")) {
             String[] parts = segment.split(";");
             String decoded = URLDecoder.decode(parts[0], StandardCharsets.UTF_8);
@@ -135,11 +104,5 @@ final class JaxRsMatrixParams implements Ordered {
      * @param getMatrixParameters Its matrix parameters
      */
     private record Segment(String getPath, MultivaluedMap<String, String> getMatrixParameters) implements PathSegment {
-    }
-
-    @Override
-    public int getOrder() {
-        // before the pre-matching container request filters, which see the path without them
-        return HIGHEST_PRECEDENCE;
     }
 }

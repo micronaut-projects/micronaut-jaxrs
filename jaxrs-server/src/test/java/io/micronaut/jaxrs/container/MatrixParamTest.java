@@ -11,6 +11,7 @@ import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.MatrixParam;
 import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import org.junit.jupiter.api.Test;
 
@@ -41,6 +42,11 @@ class MatrixParamTest {
         assertEquals("none [] 0 owner=nobody", client.toBlocking().retrieve(HttpRequest.GET("/cars")));
     }
 
+    @Test
+    void matrixParamsOnAMiddleSegmentDoNotChangeTheRoute() {
+        assertEquals("details of 7", client.toBlocking().retrieve(HttpRequest.GET("/cars;color=red/7;trim=gt/details")));
+    }
+
     @Requires(property = "spec.name", value = "MatrixParamTest")
     @Path("/matrix-param/cars")
     public static class CarsResource {
@@ -56,6 +62,13 @@ class MatrixParamTest {
                            @MatrixParam("tags") List<String> tags,
                            @MatrixParam("size") int size) {
             return color + " " + tags + " " + size + " owner=" + owner;
+        }
+
+        @GET
+        @Path("{id}/details")
+        @Produces("text/plain")
+        public String details(@PathParam("id") int id) {
+            return "details of " + id;
         }
     }
 }
