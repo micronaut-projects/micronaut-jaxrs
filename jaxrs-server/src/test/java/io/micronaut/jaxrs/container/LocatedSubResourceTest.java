@@ -53,6 +53,11 @@ class LocatedSubResourceTest {
         assertEquals("depth 6", client.toBlocking().retrieve(HttpRequest.GET("/node/node/node/node/node/node/depth")));
     }
 
+    @Test
+    void locatorPrefixWithAVariableSpanningSegments() {
+        assertEquals("file a/b/c", client.toBlocking().retrieve(HttpRequest.GET("/files/a/b/c")));
+    }
+
     @Requires(property = "spec.name", value = "LocatedSubResourceTest")
     @Path("/located")
     public static class Root {
@@ -70,6 +75,24 @@ class LocatedSubResourceTest {
         @Path("node")
         public Node node() {
             return new Node(1);
+        }
+
+        @Path("files/{path: .+}")
+        public Object file(@PathParam("path") String path) {
+            return new File(path);
+        }
+    }
+
+    public static class File {
+        private final String path;
+
+        public File(String path) {
+            this.path = path;
+        }
+
+        @GET
+        public String get() {
+            return "file " + path;
         }
     }
 

@@ -41,7 +41,7 @@ import io.micronaut.jaxrs.common.JaxRsGenericEntity;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import io.micronaut.http.form.FormData;
 import io.micronaut.web.router.builder.HttpRouteSpec;
-import io.micronaut.http.uri.UriTemplate;
+import io.micronaut.http.uri.RouteTemplate;
 import io.micronaut.web.router.RouteTable;
 import io.micronaut.web.router.RouteTableFactory;
 import io.micronaut.web.router.builder.RouteDeclaration;
@@ -57,6 +57,7 @@ import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.MatrixParam;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.NotAcceptableException;
 import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Cookie;
@@ -128,41 +129,36 @@ public final class JaxRsRouteSupport {
     }
 
     /**
-     * The prefix of a sub-resource locator known only at runtime, under the
-     * {@code @ApplicationPath} of the application.
+     * The prefix of a sub-resource locator known only at runtime, in the language of JAX-RS,
+     * under the {@code @ApplicationPath} of the application.
      *
-     * @param template The prefix, in the Micronaut language
+     * @param template The joined {@code @Path} values up to the locator
      * @return The prefix
      */
-    public String prefix(String template) {
-        if (applicationPath.isEmpty() || "/".equals(applicationPath)) {
-            return template;
-        }
-        String prefix = applicationPath.charAt(0) == '/' ? applicationPath : '/' + applicationPath;
-        return UriTemplate.of(prefix).nest(template).toString();
+    public RouteTemplate prefix(String template) {
+        return JaxRsRouteTemplateEngine.template(underApplicationPath(template));
     }
 
     /**
      * The prefix of a sub-resource locator of a located target: relative to the prefix that
      * located it.
      *
-     * @param template The prefix, in the Micronaut language
+     * @param template The {@code @Path} of the locator
      * @return The prefix
      */
-    public String locatedPrefix(String template) {
-        return template;
+    public RouteTemplate locatedPrefix(String template) {
+        return JaxRsRouteTemplateEngine.template(template);
     }
 
     /**
      * The declaration of a route of a located target, relative to the prefix of its locator.
      *
      * @param method   The name of the HTTP method
-     * @param template The {@code @Path} of the resource method, in the Micronaut language: the
-     *                 route table of a located target composes Micronaut templates only
+     * @param template The {@code @Path} of the resource method
      * @return The declaration
      */
     public RouteDeclaration locatedDeclaration(String method, String template) {
-        return RouteDeclaration.of(method, template);
+        return RouteDeclaration.of(method, JaxRsRouteTemplateEngine.template(template));
     }
 
     /**
@@ -221,13 +217,16 @@ public final class JaxRsRouteSupport {
      * @return The declaration
      */
     public RouteDeclaration declaration(String method, String template) {
-        String expression = template;
-        if (!applicationPath.isEmpty() && !"/".equals(applicationPath)) {
-            String prefix = applicationPath.charAt(0) == '/' ? applicationPath : '/' + applicationPath;
-            prefix = prefix.endsWith("/") ? prefix.substring(0, prefix.length() - 1) : prefix;
-            expression = "/".equals(template) ? prefix : prefix + template;
+        return RouteDeclaration.of(method, JaxRsRouteTemplateEngine.template(underApplicationPath(template)));
+    }
+
+    private String underApplicationPath(String template) {
+        if (applicationPath.isEmpty() || "/".equals(applicationPath)) {
+            return template;
         }
-        return RouteDeclaration.of(method, JaxRsRouteTemplateEngine.template(expression));
+        String prefix = applicationPath.charAt(0) == '/' ? applicationPath : '/' + applicationPath;
+        prefix = prefix.endsWith("/") ? prefix.substring(0, prefix.length() - 1) : prefix;
+        return "/".equals(template) ? prefix : prefix + template;
     }
 
     /**
@@ -516,6 +515,19 @@ public final class JaxRsRouteSupport {
     public <T> T matched(HttpRequest<?> request, T resource, int segments) {
         JaxRsMatched.add(request, resource, segments);
         return resource;
+    }
+
+    /**
+     * Reject a request whose negotiated response type is not concrete, e.g. {@code text/*}: a
+     * resource method that declares the types it produces answers {@code 406} (JAX-RS 3.8).
+     *
+     * @param pathVariables The path variables, with the selected media type
+     */
+    public void acceptable(PathVariables pathVariables) {
+        MediaType selected = pathVariables.selectedMediaType();
+        if (selected != null && "*".equals(selected.getSubtype())) {
+            throw new NotAcceptableException();
+        }
     }
 
     /**
