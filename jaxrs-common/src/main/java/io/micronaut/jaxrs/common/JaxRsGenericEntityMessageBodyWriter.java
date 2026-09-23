@@ -246,7 +246,10 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
             this.bodyFactory = bodyFactory;
             this.request = request;
             this.response = response;
-            this.headers = new JaxRsObjectHeadersMultivaluedMap(response.getHeaders());
+            // the interceptors can change the headers until the entity is written (JAX-RS 6.3)
+            this.headers = response.getHeaders() instanceof MutableHeaders mutableHeaders
+                ? new JaxRsMutableObjectHeadersMultivaluedMap(mutableHeaders)
+                : new JaxRsObjectHeadersMultivaluedMap(response.getHeaders());
             this.mediaType = mediaType;
             if (genericEntity instanceof JaxRsGenericEntity<T> jaxRsGenericEntity) {
                 argument = jaxRsGenericEntity.asArgument();
@@ -319,10 +322,13 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
                             writeInner();
                         }
                     }.intercept(argument, mediaType, this);
-                } catch (CodecException e) {
+                } catch (RuntimeException e) {
+                    // e.g. a WebApplicationException, which the exception mappers map
                     throw e;
                 } catch (Exception e) {
-                    throw new CodecException("Failed to run JAX-RS WriterInterceptor", e);
+                    throw e instanceof IOException ioException
+                        ? new JaxRsIOException(ioException)
+                        : new CodecException("Failed to run JAX-RS WriterInterceptor", e);
                 }
             }
             if (outputIntercepted) {

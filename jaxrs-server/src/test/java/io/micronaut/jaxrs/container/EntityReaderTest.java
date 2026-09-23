@@ -49,9 +49,6 @@ class EntityReaderTest {
         }
     }
 
-    @Inject
-    io.micronaut.web.router.Router router;
-
     @Test
     void noContentTypeIsReadAsOctetStream() throws Exception {
         HttpResponse<String> response = post(null);
@@ -84,6 +81,33 @@ class EntityReaderTest {
         }
     }
 
+    @Test
+    void applicationReaderOfAStandardTypeIsUsed() throws Exception {
+        HttpRequest request = HttpRequest.newBuilder(URI.create(server.getURL() + "/api/entity-reader/bytes"))
+            .header("Content-Type", "text/plain")
+            .POST(HttpRequest.BodyPublishers.ofString("content"))
+            .build();
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            assertEquals("read by BytesReader", client.send(request, HttpResponse.BodyHandlers.ofString()).body());
+        }
+    }
+
+    @Requires(property = "spec.name", value = "EntityReaderTest")
+    @Provider
+    public static class BytesReader implements MessageBodyReader<byte[]> {
+        @Override
+        public boolean isReadable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+            return type == byte[].class;
+        }
+
+        @Override
+        public byte[] readFrom(Class<byte[]> type, Type genericType, Annotation[] annotations, MediaType mediaType,
+                               MultivaluedMap<String, String> httpHeaders, InputStream entityStream) throws IOException {
+            entityStream.readAllBytes();
+            return "read by BytesReader".getBytes(StandardCharsets.UTF_8);
+        }
+    }
+
     public record Entity(String value) {
     }
 
@@ -109,6 +133,12 @@ class EntityReaderTest {
         @POST
         public String read(Entity entity) {
             return entity.value();
+        }
+
+        @POST
+        @Path("bytes")
+        public String bytes(byte[] bytes) {
+            return new String(bytes, StandardCharsets.UTF_8);
         }
 
         @POST

@@ -31,7 +31,6 @@ import io.micronaut.http.MediaType;
 import io.micronaut.http.codec.CodecException;
 import io.micronaut.inject.BeanType;
 import io.micronaut.inject.qualifiers.FilteringQualifier;
-import io.micronaut.inject.qualifiers.MatchArgumentQualifier;
 import io.micronaut.inject.qualifiers.Qualifiers;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.ConstrainedTo;
@@ -86,15 +85,22 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
     private <T> List<MessageBodyReader<T>> findJaxRsReaders(Argument<T> type, List<MediaType> mediaTypes) {
-        return (List) beanLocator.getBeansOfType(
+        Class<T> theType = type.getType();
+        return (List) beanLocator.getBeanRegistrations(
                 Argument.of(MessageBodyReader.class), // Select all readers and eliminate by the type later
-                Qualifiers.byQualifiers(
-                    // Filter by media types first before filtering by the type hierarchy
-                    new MediaTypeQualifier<>(Argument.of(MessageBodyReader.class, type), mediaTypes, Consumes.class),
-                    MatchArgumentQualifier.covariant(MessageBodyReader.class, type)
-                )
+                // the type is matched below: isReadable decides, e.g. for a reader of a subtype
+                new MediaTypeQualifier<>(Argument.of(MessageBodyReader.class, type), mediaTypes, Consumes.class)
             ).stream()
-            .filter(reader -> isRegistered(reader.getClass()))
+            .map((BeanRegistration br) -> (BeanRegistration<MessageBodyReader<T>>) br)
+            .filter(br -> isRegistered(br.getBeanDefinition().getBeanType()))
+            // the readers of the type, a supertype, including Object, or a subtype
+            .filter(br -> typeDistance(br, MessageBodyReader.class, theType) != Integer.MAX_VALUE || readsSubtype(br, theType))
+            // JAX-RS 4.2.1: the most specific media type first, then the nearest type, then the
+            // providers of the application before the standard ones (4.1.3)
+            .sorted(Comparator.<BeanRegistration<MessageBodyReader<T>>>comparingInt(br -> mediaTypeSpecificity(br, Consumes.class, mediaTypes)).reversed()
+                .thenComparingInt(br -> typeDistance(br, MessageBodyReader.class, theType))
+                .thenComparing(br -> br.getBeanDefinition().getBeanType().getName().startsWith("io.micronaut.")))
+            .map(BeanRegistration::getBean)
             .toList();
     }
 
@@ -116,19 +122,30 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
             .map((BeanRegistration br) -> (BeanRegistration<MessageBodyWriter<T>>) br)
             .filter(br -> isRegistered(br.getBeanDefinition().getBeanType()))
             // the writers of the type or a supertype, including Object: MessageBodyWriter<Object>
-            .filter(br -> typeDistance(br, theType) != Integer.MAX_VALUE)
-            // JAX-RS 4.2.2: the nearest type first, then the most specific media type
-            .sorted(Comparator.<BeanRegistration<MessageBodyWriter<T>>>comparingInt(br -> typeDistance(br, theType))
-                .thenComparing(Comparator.<BeanRegistration<MessageBodyWriter<T>>>comparingInt(br -> producesSpecificity(br, mediaTypes)).reversed()))
+            .filter(br -> typeDistance(br, MessageBodyWriter.class, theType) != Integer.MAX_VALUE)
+            // JAX-RS 4.2.2: the most specific media type first, then the nearest type, then the
+            // providers of the application before the standard ones (4.1.3)
+            .sorted(Comparator.<BeanRegistration<MessageBodyWriter<T>>>comparingInt(br -> mediaTypeSpecificity(br, Produces.class, mediaTypes)).reversed()
+                .thenComparingInt(br -> typeDistance(br, MessageBodyWriter.class, theType))
+                .thenComparing(br -> br.getBeanDefinition().getBeanType().getName().startsWith("io.micronaut.")))
             .toList();
     }
 
     /**
-     * The number of steps from a type to the type a writer writes, through the superclasses and
-     * interfaces: 0 for the type itself.
+     * Whether a reader reads a subtype of a type, e.g. a reader of {@code ArrayList} for
+     * {@code List}: its {@code isReadable} decides whether it reads the type.
      */
-    private static int typeDistance(BeanRegistration<?> registration, Class<?> type) {
-        List<Argument<?>> arguments = registration.getBeanDefinition().getTypeArguments(MessageBodyWriter.class);
+    private static boolean readsSubtype(BeanRegistration<?> registration, Class<?> type) {
+        List<Argument<?>> arguments = registration.getBeanDefinition().getTypeArguments(MessageBodyReader.class);
+        return !arguments.isEmpty() && type.isAssignableFrom(arguments.get(0).getType());
+    }
+
+    /**
+     * The number of steps from a type to the type a reader reads or a writer writes, through the
+     * superclasses and interfaces: 0 for the type itself.
+     */
+    private static int typeDistance(BeanRegistration<?> registration, Class<?> provider, Class<?> type) {
+        List<Argument<?>> arguments = registration.getBeanDefinition().getTypeArguments(provider);
         Class<?> written = arguments.isEmpty() ? Object.class : arguments.get(0).getType();
         if (!written.isAssignableFrom(type)) {
             // not a writer of the type
@@ -148,11 +165,11 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
     }
 
     /**
-     * How specific the produced type of a writer that matches the media types is: 2 for a type, 1
-     * for a type with a wildcard subtype, 0 for any type.
+     * How specific the consumed type of a reader, or the produced type of a writer, that matches
+     * the media types is: 2 for a type, 1 for a type with a wildcard subtype, 0 for any type.
      */
-    private static int producesSpecificity(BeanRegistration<?> registration, List<MediaType> mediaTypes) {
-        String[] produces = registration.getBeanDefinition().getAnnotationMetadata().stringValues(Produces.class);
+    private static int mediaTypeSpecificity(BeanRegistration<?> registration, Class<? extends Annotation> annotation, List<MediaType> mediaTypes) {
+        String[] produces = registration.getBeanDefinition().getAnnotationMetadata().stringValues(annotation);
         if (produces.length == 0) {
             return 0;
         }
@@ -516,15 +533,20 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
             Class<T> theType = type.getType();
             Type genericType = type.asType();
             jakarta.ws.rs.core.MediaType jaxRsType = JaxRsUtils.convert(mediaType);
+            BeanRegistration<MessageBodyWriter<T>> selected = null;
             for (BeanRegistration<MessageBodyWriter<T>> candidate : candidates) {
                 Annotation[] annotations = JaxRsArgumentUtil.annotations(type.getAnnotationMetadata(), candidate.getBean());
-                if (candidate.getBean().isWriteable(theType, genericType, annotations, jaxRsType)) {
-                    new JaxRsMessageBodyWriter<>(candidate.getBeanDefinition().getAnnotationMetadata(), candidate.getBean())
-                        .writeTo(type, mediaType, object, outgoingHeaders, outputStream);
-                    return;
+                // every writer of the type is asked, like the reference implementation does when it
+                // determines the types it can produce; the first one that writes is selected
+                if (candidate.getBean().isWriteable(theType, genericType, annotations, jaxRsType) && selected == null) {
+                    selected = candidate;
                 }
             }
-            throw new CodecException("No JAX-RS writer writes " + type + " as " + mediaType);
+            if (selected == null) {
+                throw new CodecException("No JAX-RS writer writes " + type + " as " + mediaType);
+            }
+            new JaxRsMessageBodyWriter<>(selected.getBeanDefinition().getAnnotationMetadata(), selected.getBean())
+                .writeTo(type, mediaType, object, outgoingHeaders, outputStream);
         }
     }
 }

@@ -15,6 +15,7 @@
  */
 package io.micronaut.jaxrs.container;
 
+import io.micronaut.context.BeanProvider;
 import io.micronaut.context.BeanRegistration;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -24,6 +25,7 @@ import io.micronaut.core.order.Ordered;
 import io.micronaut.core.type.Argument;
 import io.micronaut.core.type.Headers;
 import io.micronaut.http.MediaType;
+import io.micronaut.http.body.MessageBodyHandlerRegistry;
 import io.micronaut.http.body.MessageBodyReader;
 import io.micronaut.http.codec.CodecException;
 import io.micronaut.jaxrs.common.JaxRsInterceptedRead;
@@ -31,6 +33,7 @@ import io.micronaut.jaxrs.common.JaxRsContainerMessageBodyHandlerRegistry;
 import io.micronaut.jaxrs.common.JaxRsRouteInterceptors;
 import io.micronaut.jaxrs.common.NameBindingPredicate;
 import jakarta.inject.Singleton;
+import jakarta.ws.rs.NotSupportedException;
 import jakarta.ws.rs.ext.ReaderInterceptor;
 
 import java.io.InputStream;
@@ -52,12 +55,15 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
     private final List<BeanRegistration<ReaderInterceptor>> readerInterceptorsRegsRegistrations;
     private final NameBindingPredicate nameBindingPredicate;
     private final JaxRsFeatures features;
+    private final BeanProvider<MessageBodyHandlerRegistry> micronautReaders;
 
     public JaxRsMessageBodyReaders(JaxRsContainerMessageBodyHandlerRegistry registry,
                                    List<BeanRegistration<ReaderInterceptor>> readerInterceptorsRegsRegistrations,
                                    NameBindingPredicate nameBindingPredicate,
-                                   JaxRsFeatures features) {
+                                   JaxRsFeatures features,
+                                   BeanProvider<MessageBodyHandlerRegistry> micronautReaders) {
         this.features = features;
+        this.micronautReaders = micronautReaders;
         this.registry = registry;
         this.readerInterceptorsRegsRegistrations = readerInterceptorsRegsRegistrations;
         this.nameBindingPredicate = nameBindingPredicate;
@@ -79,6 +85,46 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
      */
     private static MediaType mediaType(@Nullable MediaType mediaType) {
         return mediaType == null ? MediaType.APPLICATION_OCTET_STREAM_TYPE : mediaType;
+    }
+
+    /**
+     * Read the entity of a resource method (JAX-RS 4.2.1): with the JAX-RS reader of the
+     * application that reads it, else with a Micronaut reader, through the reader interceptors.
+     *
+     * @param type        The type of the entity, with the annotations of its parameter
+     * @param contentType The content type of the request, {@code null} for none
+     * @param httpHeaders The headers of the request
+     * @param entity      The entity
+     * @return The value
+     * @throws jakarta.ws.rs.NotSupportedException If no reader reads the entity as its type
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public @Nullable Object readEntity(Argument<?> type, @Nullable MediaType contentType, Headers httpHeaders, InputStream entity) {
+        MediaType mediaType = mediaType(contentType);
+        List<BeanRegistration<ReaderInterceptor>> interceptors = JaxRsRouteInterceptors.merge(readerInterceptorsRegsRegistrations, features.readerInterceptors());
+        if (interceptors.isEmpty()) {
+            return entityReader((Argument) type, mediaType).read((Argument) type, mediaType, httpHeaders, entity);
+        }
+        return new JaxRsInterceptedRead<Object>(interceptors, JaxRsRouteInterceptors.predicate(nameBindingPredicate)) {
+
+            @Override
+            protected Object readFromAfterInterception(Argument<Object> type, MediaType mediaType, Headers httpHeaders, InputStream inputStream) {
+                // the interceptors can change the type and the media type
+                return entityReader(type, mediaType).read(type, mediaType, httpHeaders, inputStream);
+            }
+
+        }.intercept((Argument) type, mediaType, httpHeaders, entity);
+    }
+
+    private MessageBodyReader<Object> entityReader(Argument<Object> type, MediaType mediaType) {
+        List<MediaType> mediaTypes = List.of(mediaType);
+        // a JAX-RS reader of the application that reads the value
+        Optional<MessageBodyReader<Object>> reader = registry.findReader(type, mediaTypes);
+        if (reader.isEmpty()) {
+            // the standard types and the types of the Micronaut readers, like JSON
+            reader = micronautReaders.get().findReader(type, mediaTypes);
+        }
+        return reader.orElseThrow(NotSupportedException::new);
     }
 
     @Override
