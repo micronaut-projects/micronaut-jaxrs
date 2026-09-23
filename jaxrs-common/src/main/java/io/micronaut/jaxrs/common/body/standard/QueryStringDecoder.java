@@ -17,6 +17,7 @@ package io.micronaut.jaxrs.common.body.standard;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.util.ArgumentUtils;
+import org.jspecify.annotations.Nullable;
 
 import java.net.URI;
 import java.nio.ByteBuffer;
@@ -77,7 +78,9 @@ final class QueryStringDecoder {
     private final int maxParams;
     private final boolean semicolonIsNormalChar;
     private int pathEndIdx;
+    @Nullable
     private String path;
+    @Nullable
     private Map<String, List<String>> params;
 
     /**

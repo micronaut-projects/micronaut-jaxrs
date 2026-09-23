@@ -123,7 +123,7 @@ final class JaxRsContextUriInfo implements UriInfo {
         return getUriInfo().getMatchedURIs();
     }
 
-    //    @Override v4
+    @Override
     public String getMatchedResourceTemplate() {
         return getUriInfo().getMatchedResourceTemplate();
     }

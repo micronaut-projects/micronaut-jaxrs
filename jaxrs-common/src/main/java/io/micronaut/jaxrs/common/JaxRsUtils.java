@@ -19,6 +19,7 @@ import io.micronaut.context.BeanRegistration;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.MediaType;
 import jakarta.annotation.Priority;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Arrays;
 import java.util.Comparator;
@@ -73,18 +74,18 @@ public final class JaxRsUtils {
             .orElse(0);
     }
 
-    public static <T> T requireNonNull(String name, T value) {
+    public static <T> T requireNonNull(String name, @Nullable T value) {
         if (value == null) {
             throw new IllegalArgumentException("Argument [" + name + "] cannot be null");
         }
         return value;
     }
 
-    public static jakarta.ws.rs.core.MediaType convert(MediaType mediaType) {
+    public static jakarta.ws.rs.core.@Nullable MediaType convert(@Nullable MediaType mediaType) {
         return mediaType == null ? null : jakarta.ws.rs.core.MediaType.valueOf(mediaType.toString());
     }
 
-    public static MediaType convert(jakarta.ws.rs.core.MediaType mediaType) {
+    public static @Nullable MediaType convert(jakarta.ws.rs.core.@Nullable MediaType mediaType) {
         return mediaType == null ? null : MediaType.of(mediaType.toString());
     }
 

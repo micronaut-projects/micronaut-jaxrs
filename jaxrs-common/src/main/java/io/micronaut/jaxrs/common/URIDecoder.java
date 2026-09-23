@@ -16,6 +16,7 @@
 package io.micronaut.jaxrs.common;
 
 import io.micronaut.core.annotation.Internal;
+import org.jspecify.annotations.Nullable;
 
 import java.nio.charset.StandardCharsets;
 
@@ -46,7 +47,7 @@ final class URIDecoder {
      * @param s string to decode
      * @return decoded string
      */
-    public static String decodeURIComponent(String s) {
+    public static @Nullable String decodeURIComponent(@Nullable String s) {
         return decodeURIComponent(s, true);
     }
 
@@ -61,7 +62,7 @@ final class URIDecoder {
      * @param plus weather or not to transform plus signs into spaces
      * @return decoded string
      */
-    public static String decodeURIComponent(String s, boolean plus) {
+    public static @Nullable String decodeURIComponent(@Nullable String s, boolean plus) {
         if (s == null) {
             return null;
         }

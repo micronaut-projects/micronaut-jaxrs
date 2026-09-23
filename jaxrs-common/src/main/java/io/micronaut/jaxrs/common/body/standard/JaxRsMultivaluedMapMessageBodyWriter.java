@@ -54,7 +54,7 @@ public final class JaxRsMultivaluedMapMessageBodyWriter implements MessageBodyWr
 
     @Override
     public boolean isWriteable(@NonNull Argument<MultivaluedMap<String, String>> type, @Nullable MediaType mediaType) {
-        return MessageBodyWriter.super.isWriteable(type, mediaType) && MediaType.APPLICATION_FORM_URLENCODED_TYPE.equals(mediaType);
+        return MessageBodyWriter.super.isWriteable(type, mediaType) && mediaType != null && MediaType.APPLICATION_FORM_URLENCODED_TYPE.equals(mediaType);
     }
 
     @Override

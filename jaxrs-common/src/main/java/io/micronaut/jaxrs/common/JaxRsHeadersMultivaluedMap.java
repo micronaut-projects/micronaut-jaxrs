@@ -18,12 +18,14 @@ package io.micronaut.jaxrs.common;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.type.Headers;
 import jakarta.ws.rs.core.MultivaluedMap;
+import org.jspecify.annotations.Nullable;
 
 import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -66,7 +68,7 @@ public class JaxRsHeadersMultivaluedMap extends AbstractMap<String, List<String>
     }
 
     @Override
-    public String getFirst(String key) {
+    public @Nullable String getFirst(String key) {
         List<String> l = get(key);
         return l == null || l.isEmpty() ? null : l.get(0);
     }
@@ -88,7 +90,7 @@ public class JaxRsHeadersMultivaluedMap extends AbstractMap<String, List<String>
     @Override
     public void addFirst(String key, String value) {
         List<String> old = get(key);
-        put(key, Stream.concat(Stream.of(value), old.stream()).toList());
+        put(key, old == null ? List.of(value) : Stream.concat(Stream.of(value), old.stream()).toList());
     }
 
     @Override
@@ -114,7 +116,7 @@ public class JaxRsHeadersMultivaluedMap extends AbstractMap<String, List<String>
             return false;
         }
         for (String key : otherMap.keySet()) {
-            List<String> l = get(key);
+            List<String> l = Objects.requireNonNull(get(key));
             List<String> r = otherMap.get(key);
             if (l.size() != r.size()) {
                 return false;

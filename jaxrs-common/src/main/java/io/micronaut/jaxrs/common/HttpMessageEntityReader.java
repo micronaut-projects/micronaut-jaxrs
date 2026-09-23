@@ -21,6 +21,7 @@ import io.micronaut.core.io.buffer.ByteBuffer;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpMessage;
 import jakarta.ws.rs.ProcessingException;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Optional;
 
@@ -43,7 +44,7 @@ public class HttpMessageEntityReader {
      * @param <T>        The entity type
      * @return The entity value
      */
-    public <T> T readEntity(HttpMessage<?> message, Argument<T> entityType) {
+    public <T> @Nullable T readEntity(HttpMessage<?> message, Argument<T> entityType) {
         T result = message.getBody(entityType).orElse(null);
         if (result == null) {
             Optional<String> body = message.getBody(String.class);
@@ -65,7 +66,7 @@ public class HttpMessageEntityReader {
      * @param <T>        The entity type
      * @return The entity value
      */
-    public <T> T readEntity(ByteBuffer<?> byteBuffer, Argument<T> entityType) {
+    public <T> @Nullable T readEntity(ByteBuffer<?> byteBuffer, Argument<T> entityType) {
         return ConversionService.SHARED.convert(byteBuffer.toByteArray(), entityType).orElse(null);
     }
 

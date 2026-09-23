@@ -23,3 +23,13 @@ dependencies {
     testRuntimeOnly(mnLogging.logback.classic)
     testRuntimeOnly(mnTest.junit.jupiter.engine)
 }
+
+noReflection {
+    // UriBuilder.path(Class) and path(Class, String) read @Path of the resource class and of its methods
+    allowIn("io.micronaut.jaxrs.common.JaxRsUriBuilder", "ANNOTATIONS", "CLASS_MEMBERS")
+    // JAX-RS orders the providers of the application by the @Priority of their class
+    allowIn("io.micronaut.jaxrs.common.JaxRsUtils", "ANNOTATIONS")
+    // the JAX-RS providers are handed the annotations as Annotation[]
+    allowIn("io.micronaut.jaxrs.common.JaxRsArgumentUtil", "ANNOTATION_SYNTHESIS")
+    allowIn("io.micronaut.jaxrs.common.AbstractJaxRsInterceptorContext", "ANNOTATION_SYNTHESIS")
+}

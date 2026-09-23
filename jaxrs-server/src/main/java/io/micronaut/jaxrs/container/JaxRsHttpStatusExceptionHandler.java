@@ -37,6 +37,8 @@ import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Providers;
 
+import java.util.Objects;
+
 /**
  * Handles JAX-RS exceptions that occur during the execution of an HTTP request.
  *
@@ -77,7 +79,7 @@ final class JaxRsHttpStatusExceptionHandler implements ExceptionHandler<HttpStat
             return ((JaxRsMutableResponse) response).getResponse();
         }
         return responseProcessor.processResponse(ErrorContext.builder(request)
-            .errorMessage(exception.getMessage())
+            .errorMessage(Objects.requireNonNullElse(exception.getMessage(), "Unknown error"))
             .cause(exception)
             .build(), HttpResponse.badRequest());
     }

@@ -82,6 +82,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
 
     public static final int POSITION = 200;
     private static final Class<?>[] BINDABLE_TYPES = new Class<?>[] {Context.class, SecurityContext.class, UriInfo.class};
+    @Nullable
     private ClassElement currentClassElement;
     private boolean generateRoutes;
 

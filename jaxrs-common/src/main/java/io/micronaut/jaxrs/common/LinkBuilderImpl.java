@@ -19,10 +19,12 @@ import io.micronaut.core.annotation.Internal;
 import jakarta.ws.rs.core.Link;
 import jakarta.ws.rs.core.UriBuilder;
 import jakarta.ws.rs.core.UriBuilderException;
+import org.jspecify.annotations.Nullable;
 
 import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Forked from RESTEasy.
@@ -36,7 +38,9 @@ final class LinkBuilderImpl implements Link.Builder {
      * A map for all the link parameters such as "rel", "type", etc.
      */
     private final Map<String, String> map = new HashMap<>();
+    @Nullable
     private UriBuilder uriBuilder;
+    @Nullable
     private URI baseUri;
 
     @Override
@@ -109,7 +113,7 @@ final class LinkBuilderImpl implements Link.Builder {
         JaxRsUtils.requireNonNull("values", values);
         URI built;
         if (uriBuilder == null) {
-            built = baseUri;
+            built = Objects.requireNonNull(baseUri, "No URI or base URI");
         } else {
             built = this.uriBuilder.build(values);
         }
@@ -123,7 +127,7 @@ final class LinkBuilderImpl implements Link.Builder {
     public Link buildRelativized(URI uri, Object... values) {
         JaxRsUtils.requireNonNull("uri", uri);
         JaxRsUtils.requireNonNull("values", values);
-        URI built = uriBuilder.build(values);
+        URI built = Objects.requireNonNull(uriBuilder, "No URI").build(values);
         URI with = built;
         if (baseUri != null) {
             with = baseUri.resolve(built);

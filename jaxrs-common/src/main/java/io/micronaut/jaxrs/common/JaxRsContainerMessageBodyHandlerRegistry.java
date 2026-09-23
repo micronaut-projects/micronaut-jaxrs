@@ -250,7 +250,7 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
         if (InputStream.class.isAssignableFrom(type.getType())) {
             lookup = (Argument<T>) Argument.of(InputStream.class, type.getAnnotationMetadata());
         }
-        return Optional.of((io.micronaut.http.body.MessageBodyReader<T>) readers.get(new HandlerKey<>(lookup, mediaTypes)));
+        return Optional.of((io.micronaut.http.body.MessageBodyReader<T>) Objects.requireNonNull(readers.get(new HandlerKey<>(lookup, mediaTypes))));
     }
 
     @SuppressWarnings({"unchecked"})

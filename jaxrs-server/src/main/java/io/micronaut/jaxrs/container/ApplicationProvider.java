@@ -102,6 +102,7 @@ public final class ApplicationProvider implements AnnotationMetadataProvider {
         return contextPath;
     }
 
+    @Override
     @NonNull
     public AnnotationMetadata getAnnotationMetadata() {
         return annotationMetadata;

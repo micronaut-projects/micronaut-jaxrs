@@ -18,6 +18,7 @@ package io.micronaut.jaxrs.common;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.type.Argument;
 import jakarta.ws.rs.core.GenericEntity;
+import org.jspecify.annotations.Nullable;
 
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
@@ -34,14 +35,16 @@ import java.lang.annotation.Annotation;
 public final class JaxRsGenericEntity<T> extends GenericEntity<T> {
 
     private final Argument<T> argument;
+    @Nullable
     private final ByteArrayOutputStream delegateEntityStream;
+    @Nullable
     private final OutputStream customEntityStream;
-    private final Annotation[] annotations;
+    private final Annotation @Nullable [] annotations;
 
     public JaxRsGenericEntity(T entity,
                               Argument<T> argument,
-                              ByteArrayOutputStream delegateEntityStream,
-                              OutputStream customEntityStream) {
+                              @Nullable ByteArrayOutputStream delegateEntityStream,
+                              @Nullable OutputStream customEntityStream) {
         super(entity, argument.getType());
         this.argument = argument;
         this.delegateEntityStream = delegateEntityStream;
@@ -61,7 +64,7 @@ public final class JaxRsGenericEntity<T> extends GenericEntity<T> {
      * @return The annotations given with the entity, {@code Response.ok().entity(entity, annotations)},
      * or {@code null}
      */
-    public Annotation[] getAnnotations() {
+    public Annotation @Nullable [] getAnnotations() {
         return annotations;
     }
 
@@ -69,11 +72,11 @@ public final class JaxRsGenericEntity<T> extends GenericEntity<T> {
         return argument;
     }
 
-    public ByteArrayOutputStream getDelegateEntityStream() {
+    public @Nullable ByteArrayOutputStream getDelegateEntityStream() {
         return delegateEntityStream;
     }
 
-    public OutputStream getCustomEntityStream() {
+    public @Nullable OutputStream getCustomEntityStream() {
         return customEntityStream;
     }
 }

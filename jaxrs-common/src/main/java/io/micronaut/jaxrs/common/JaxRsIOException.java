@@ -33,6 +33,7 @@ public final class JaxRsIOException extends CodecException {
         super(message, cause);
     }
 
+    @SuppressWarnings("NullAway") // the message of the cause can be null, which RuntimeException accepts
     public JaxRsIOException(IOException cause) {
         this(cause.getMessage(), cause);
     }

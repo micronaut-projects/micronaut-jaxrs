@@ -19,6 +19,7 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.type.Headers;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.core.MultivaluedMap;
+import org.jspecify.annotations.Nullable;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -64,17 +65,17 @@ public class JaxRsObjectHeadersMultivaluedMap extends AbstractMap<String, List<O
     }
 
     @Override
-    public List<Object> remove(Object key) {
+    public @Nullable List<Object> remove(Object key) {
         throw new IllegalStateException("Not supported");
     }
 
     @Override
-    public List<Object> put(String key, List<Object> value) {
+    public @Nullable List<Object> put(String key, List<Object> value) {
         throw new IllegalStateException("Not supported");
     }
 
     @Override
-    public Object getFirst(String key) {
+    public @Nullable Object getFirst(String key) {
         List<Object> l = get(key);
         return l == null || l.isEmpty() ? null : l.get(0);
     }

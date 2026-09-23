@@ -29,3 +29,28 @@ dependencies {
     testRuntimeOnly(mnLogging.logback.classic)
 	testRuntimeOnly(mnTest.junit.jupiter.engine)
 }
+
+noReflection {
+    // the generated routes: JAX-RS converts a parameter with the static fromString or valueOf method or the
+    // String constructor of its type, and hands the annotations of the resource method to the providers; a
+    // sub-resource or bean parameter that is not a bean is instantiated, and its members the generated router
+    // cannot access are set reflectively; the resource method of ResourceInfo is a java.lang.reflect.Method
+    allowIn("io.micronaut.jaxrs.container.JaxRsRouteSupport", "ANNOTATIONS", "ANNOTATION_SYNTHESIS", "INTERFACES", "REFLECTION_UTILS", "REFLECTIVE_ACCESS", "TARGET_MEMBERS")
+    // Application.getClasses() and the Feature services are classes to instantiate; a DynamicFeature gets the
+    // resource method as a java.lang.reflect.Method
+    allowIn("io.micronaut.jaxrs.container.JaxRsFeatures", "INTERFACES", "REFLECTIVE_ACCESS", "SERVICE_LOADING", "TARGET_MEMBERS")
+    // the Application class named in the configuration is loaded and instantiated
+    allowIn("io.micronaut.jaxrs.container.JaxRsApplicationFactory", "CLASS_LOADING", "REFLECTIVE_ACCESS")
+    // the annotations of an Application class that is not a bean
+    allowIn("io.micronaut.jaxrs.container.ApplicationProvider", "ANNOTATIONS")
+    // ResourceInfo.getResourceMethod() returns a java.lang.reflect.Method
+    allowIn("io.micronaut.jaxrs.container.JaxRsResourceInfo", "TARGET_MEMBERS")
+    // ResourceContext.getResource(Class) instantiates a class
+    allowIn("io.micronaut.jaxrs.container.JaxRsContextResourceContext", "REFLECTIVE_ACCESS")
+    // the writers get the annotations of the resource method as Annotation[]
+    allowIn("io.micronaut.jaxrs.container.JaxRsFilters", "ANNOTATIONS", "TARGET_MEMBERS")
+    // ContainerResponseContext.getEntityAnnotations() returns Annotation[]
+    allowIn("io.micronaut.jaxrs.container.JaxRsContainerResponseContext", "ANNOTATION_SYNTHESIS")
+    // a ParamConverterProvider gets the annotations of the parameter as Annotation[]
+    allowIn("io.micronaut.jaxrs.container.QueryParamArgumentBinder", "ANNOTATION_SYNTHESIS")
+}

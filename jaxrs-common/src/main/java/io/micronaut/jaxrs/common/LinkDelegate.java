@@ -21,6 +21,7 @@ import jakarta.ws.rs.core.Link;
 import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.ext.RuntimeDelegate;
+import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 import java.util.Map;
@@ -95,7 +96,7 @@ final class LinkDelegate implements RuntimeDelegate.HeaderDelegate<Link> {
 
         }
 
-        void populateLink(String href, MultivaluedMap<String, String> attributes) {
+        void populateLink(@Nullable String href, MultivaluedMap<String, String> attributes) {
             builder.uri(href);
             for (Entry<String, List<String>> entry : attributes.entrySet()) {
                 List<String> values = entry.getValue();

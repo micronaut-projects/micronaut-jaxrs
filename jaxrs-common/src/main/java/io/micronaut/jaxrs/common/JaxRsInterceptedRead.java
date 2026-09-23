@@ -43,7 +43,6 @@ import java.util.List;
 @Internal
 public abstract class JaxRsInterceptedRead<T> {
 
-    @Nullable
     private final List<BeanRegistration<ReaderInterceptor>> readerInterceptorsRegistrations;
     private final NameBindingPredicate nameBindingPredicate;
 
@@ -59,11 +58,11 @@ public abstract class JaxRsInterceptedRead<T> {
 
     public JaxRsInterceptedRead(List<ReaderInterceptor> readerInterceptor) {
         this(readerInterceptor.stream()
-            .map(r -> new BeanRegistration<>(null, null, r))
+            .map(JaxRsRouteInterceptors::registration)
             .toList(), annotationMetadata -> true);
     }
 
-    public final T intercept(@NonNull Argument<T> type,
+    public final @Nullable T intercept(@NonNull Argument<T> type,
                              @Nullable MediaType mediaType,
                              @NonNull Headers httpHeaders,
                              @NonNull InputStream inputStream) throws CodecException {
@@ -109,7 +108,7 @@ public abstract class JaxRsInterceptedRead<T> {
      * @param inputStream The input stream
      * @return The entity
      */
-    protected abstract T readFromAfterInterception(@NonNull Argument<Object> type,
+    protected abstract @Nullable T readFromAfterInterception(@NonNull Argument<Object> type,
                                                    @Nullable MediaType mediaType,
                                                    @NonNull Headers httpHeaders,
                                                    @NonNull InputStream inputStream);

@@ -19,6 +19,7 @@ import io.micronaut.core.annotation.Internal;
 import jakarta.ws.rs.core.Link;
 import jakarta.ws.rs.core.UriBuilder;
 import jakarta.ws.rs.ext.RuntimeDelegate;
+import org.jspecify.annotations.Nullable;
 
 import java.net.URI;
 import java.util.Arrays;
@@ -76,7 +77,7 @@ class LinkImpl extends Link {
     }
 
     @Override
-    public String getRel() {
+    public @Nullable String getRel() {
         return map.get(REL);
     }
 
@@ -87,12 +88,12 @@ class LinkImpl extends Link {
     }
 
     @Override
-    public String getTitle() {
+    public @Nullable String getTitle() {
         return map.get(TITLE);
     }
 
     @Override
-    public String getType() {
+    public @Nullable String getType() {
         return map.get(TYPE);
     }
 

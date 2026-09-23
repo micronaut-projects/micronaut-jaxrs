@@ -36,6 +36,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
@@ -166,14 +167,14 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateEngine, Rout
             if (negotiated == null) {
                 continue;
             }
-            if (selected == null || consumes > selectedConsumes
+            if (selectedType == null || consumes > selectedConsumes
                 || consumes == selectedConsumes && negotiated.compareTo(selectedType) > 0) {
                 selected = candidate;
                 selectedType = negotiated;
                 selectedConsumes = consumes;
             }
         }
-        if (selected == null) {
+        if (selected == null || selectedType == null) {
             return List.of();
         }
         List<MediaType> produces = selected.getRouteInfo().getProduces();
@@ -444,7 +445,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateEngine, Rout
         StringBuilder regex = new StringBuilder();
         int group = 1;
         for (Part part : parts) {
-            if (part.variable == null) {
+            if (part.text != null) {
                 regex.append(Pattern.quote(encode(part.text)));
             } else {
                 String variableRegex = part.regex == null ? DEFAULT_REGEX : part.regex;
@@ -581,7 +582,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateEngine, Rout
             return parts;
         }
         Part last = parts.get(parts.size() - 1);
-        if (last.variable != null || !last.text.endsWith("/") || parts.size() == 1 && last.text.equals("/")) {
+        if (last.text == null || !last.text.endsWith("/") || parts.size() == 1 && last.text.equals("/")) {
             return parts;
         }
         List<Part> trimmed = new ArrayList<>(parts.subList(0, parts.size() - 1));
@@ -649,7 +650,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateEngine, Rout
             for (Part part : parts) {
                 if (part.variable != null) {
                     int occurrence = seen.merge(part.variable, 1, Integer::sum);
-                    int fromLast = occurrences.get(part.variable) - occurrence;
+                    int fromLast = Objects.requireNonNull(occurrences.get(part.variable)) - occurrence;
                     variables.add(RouteTemplateVariable.path(fromLast == 0 ? part.variable : repeated(part.variable, fromLast)));
                 }
             }
@@ -660,7 +661,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateEngine, Rout
         public String requiredPrefix() {
             StringBuilder prefix = new StringBuilder();
             for (Part part : withoutTrailingSlash(parts)) {
-                if (part.variable != null) {
+                if (part.text == null) {
                     break;
                 }
                 prefix.append(encode(part.text));
@@ -672,7 +673,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateEngine, Rout
         public int rawLength() {
             int length = 0;
             for (Part part : parts) {
-                length += part.variable == null ? part.text.length() : 0;
+                length += part.text != null ? part.text.length() : 0;
             }
             return length;
         }
@@ -705,7 +706,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateEngine, Rout
             List<RouteTemplateSegment> segments = new ArrayList<>();
             List<Part> current = new ArrayList<>();
             for (Part part : parts) {
-                if (part.variable != null) {
+                if (part.text == null) {
                     if (part.regex != null) {
                         // a regular expression may match any number of segments
                         return null;
@@ -736,7 +737,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateEngine, Rout
                 segments.add(RouteTemplateSegment.VARIABLE);
             } else if (parts.stream().allMatch(p -> p.variable == null)) {
                 StringBuilder literal = new StringBuilder();
-                parts.forEach(p -> literal.append(encode(p.text)));
+                parts.forEach(p -> literal.append(encode(Objects.requireNonNull(p.text))));
                 segments.add(RouteTemplateSegment.literal(literal.toString()));
             } else {
                 // literal text and a variable in one segment

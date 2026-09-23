@@ -60,6 +60,7 @@ final class QueryStringEncoder {
 
     }
 
+    @Override
     public String toString() {
         return this.uriBuilder.toString();
     }

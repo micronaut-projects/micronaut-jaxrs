@@ -47,6 +47,7 @@ import java.util.Optional;
 final class QueryParamArgumentBinder<T> extends AbstractArgumentBinder<T> implements AnnotatedRequestArgumentBinder<QueryParam, T> {
 
     private final List<ParamConverterProvider> paramConverterProviders;
+    @Nullable
     private final ParamConverter<T> paramConverter;
 
     /**

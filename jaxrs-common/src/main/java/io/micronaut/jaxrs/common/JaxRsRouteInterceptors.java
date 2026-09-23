@@ -57,9 +57,22 @@ public interface JaxRsRouteInterceptors {
         }
         List<BeanRegistration<I>> all = new ArrayList<>(beans);
         for (I interceptor : forRoute) {
-            all.add(new BeanRegistration<>(null, null, interceptor));
+            all.add(registration(interceptor));
         }
         return all;
+    }
+
+    /**
+     * The registration of an interceptor that is not a bean: it has no identifier and no bean
+     * definition.
+     *
+     * @param interceptor The interceptor
+     * @param <I>         The type of interceptor
+     * @return The registration
+     */
+    @SuppressWarnings("NullAway") // BeanRegistration has no way to register an instance without a bean definition
+    static <I> BeanRegistration<I> registration(I interceptor) {
+        return new BeanRegistration<>(null, null, interceptor);
     }
 
     /**

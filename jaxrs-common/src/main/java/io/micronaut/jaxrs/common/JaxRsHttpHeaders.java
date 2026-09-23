@@ -21,6 +21,7 @@ import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
+import org.jspecify.annotations.Nullable;
 
 import java.time.ZonedDateTime;
 import java.util.Arrays;
@@ -81,7 +82,7 @@ public sealed class JaxRsHttpHeaders implements HttpHeaders permits JaxRsMutable
     }
 
     @Override
-    public String getHeaderString(String name) {
+    public @Nullable String getHeaderString(String name) {
         List<String> all = httpHeaders.getAll(name);
         if (all.isEmpty()) {
             return null;
@@ -89,7 +90,7 @@ public sealed class JaxRsHttpHeaders implements HttpHeaders permits JaxRsMutable
         return String.join(",", all);
     }
 
-    // @Override v4
+    @Override
     public final boolean containsHeaderString(String name, String valueSeparatorRegex, Predicate<String> valuePredicate) {
         return httpHeaders.getAll(name)
             .stream()
@@ -98,7 +99,7 @@ public sealed class JaxRsHttpHeaders implements HttpHeaders permits JaxRsMutable
             .anyMatch(valuePredicate);
     }
 
-    // @Override v4
+    @Override
     public final boolean containsHeaderString(String name, Predicate<String> valuePredicate) {
         return containsHeaderString(name, ",", valuePredicate);
     }
@@ -170,12 +171,12 @@ public sealed class JaxRsHttpHeaders implements HttpHeaders permits JaxRsMutable
     }
 
     @Override
-    public MediaType getMediaType() {
+    public @Nullable MediaType getMediaType() {
         return httpHeaders.getContentType().map(MediaType::valueOf).orElse(null);
     }
 
     @Override
-    public Locale getLanguage() {
+    public @Nullable Locale getLanguage() {
         return httpHeaders.getFirst(io.micronaut.http.HttpHeaders.CONTENT_LANGUAGE)
             .map(Locale::forLanguageTag)
             .orElse(null);
@@ -197,7 +198,7 @@ public sealed class JaxRsHttpHeaders implements HttpHeaders permits JaxRsMutable
     }
 
     @Override
-    public Date getDate() {
+    public @Nullable Date getDate() {
         ZonedDateTime date = httpHeaders.getDate(io.micronaut.http.HttpHeaders.DATE);
         if (date != null) {
             return Date.from(date.toInstant());
@@ -207,8 +208,9 @@ public sealed class JaxRsHttpHeaders implements HttpHeaders permits JaxRsMutable
 
     @Override
     public int getLength() {
-        if (httpHeaders.contains(io.micronaut.http.HttpHeaders.CONTENT_LENGTH)) {
-            return httpHeaders.getInt(io.micronaut.http.HttpHeaders.CONTENT_LENGTH);
+        Integer length = httpHeaders.getInt(io.micronaut.http.HttpHeaders.CONTENT_LENGTH);
+        if (length != null) {
+            return length;
         }
         return -1;
     }

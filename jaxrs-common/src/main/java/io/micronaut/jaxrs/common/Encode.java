@@ -16,6 +16,7 @@
 package io.micronaut.jaxrs.common;
 
 import io.micronaut.core.annotation.Internal;
+import org.jspecify.annotations.Nullable;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
@@ -468,11 +469,11 @@ final class Encode {
     public static CharSequence replaceEnclosedCurlyBracesCS(String str) {
         int open = 0;
         CharSequence cs = str;
-        char[] chars = null;
+        char @Nullable [] chars = null;
         for (int i = 0; i < str.length(); i++) {
             if (cs.charAt(i) == '{') {
                 if (open != 0) {
-                    if (cs == str) {
+                    if (chars == null) {
                         chars = str.toCharArray();
                         cs = new ArrayCharSequence(chars);
                     }
@@ -482,7 +483,7 @@ final class Encode {
             } else if (cs.charAt(i) == '}') {
                 open--;
                 if (open != 0) {
-                    if (cs == str) {
+                    if (chars == null) {
                         chars = str.toCharArray();
                         cs = new ArrayCharSequence(chars);
                     }

@@ -17,6 +17,7 @@ package io.micronaut.jaxrs.common;
 
 import io.micronaut.core.annotation.Internal;
 import jakarta.ws.rs.core.MultivaluedMap;
+import org.jspecify.annotations.Nullable;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -25,6 +26,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -63,12 +65,12 @@ final class JaxRsMetadataMultivaluedMap extends AbstractMap<String, List<Object>
     }
 
     @Override
-    public List<Object> remove(Object key) {
+    public @Nullable List<Object> remove(Object key) {
         return map.remove(key);
     }
 
     @Override
-    public Object getFirst(String key) {
+    public @Nullable Object getFirst(String key) {
         List<Object> l = get(key);
         return l == null || l.isEmpty() ? null : l.get(0);
     }
@@ -109,7 +111,7 @@ final class JaxRsMetadataMultivaluedMap extends AbstractMap<String, List<Object>
             return false;
         }
         for (String key : otherMap.keySet()) {
-            List<Object> l = get(key);
+            List<Object> l = Objects.requireNonNull(get(key));
             List<Object> r = otherMap.get(key);
             if (l.size() != r.size()) {
                 return false;

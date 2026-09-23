@@ -56,7 +56,7 @@ public final class JaxRsMultivaluedStringObjectMapMessageBodyReader implements M
 
     @Override
     public boolean isReadable(@NonNull Argument<MultivaluedMap<String, Object>> type, @Nullable MediaType mediaType) {
-        return MessageBodyReader.super.isReadable(type, mediaType) && MediaType.APPLICATION_FORM_URLENCODED_TYPE.equals(mediaType);
+        return MessageBodyReader.super.isReadable(type, mediaType) && mediaType != null && MediaType.APPLICATION_FORM_URLENCODED_TYPE.equals(mediaType);
     }
 
     @Override
@@ -67,7 +67,7 @@ public final class JaxRsMultivaluedStringObjectMapMessageBodyReader implements M
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
             Map<String, Object> decoded = formUrlEncodedDecoder.decode(
                 IOUtils.readText(reader),
-                mediaType.getCharset().orElse(StandardCharsets.UTF_8)
+                mediaType == null ? StandardCharsets.UTF_8 : mediaType.getCharset().orElse(StandardCharsets.UTF_8)
             );
             MultivaluedHashMap<String, Object> map = new MultivaluedHashMap<>();
             decoded.forEach(map::add);

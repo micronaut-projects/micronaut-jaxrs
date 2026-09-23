@@ -28,6 +28,9 @@ import jakarta.inject.Singleton;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Providers;
+import org.jspecify.annotations.Nullable;
+
+import java.util.Objects;
 
 /**
  * Handles JAX-RS exceptions that occur during the execution of an HTTP request.
@@ -39,6 +42,7 @@ import jakarta.ws.rs.ext.Providers;
 @Internal
 final class JaxRsExceptionHandler implements ExceptionHandler<WebApplicationException, HttpResponse<?>> {
     private final ErrorResponseProcessor<?> responseProcessor;
+    @Nullable
     private final Providers providers;
 
     /**
@@ -66,7 +70,7 @@ final class JaxRsExceptionHandler implements ExceptionHandler<WebApplicationExce
 
     @Override
     public HttpResponse<?> handle(HttpRequest request, WebApplicationException exception) {
-        ExceptionMapper exceptionMapper = providers.getExceptionMapper(exception.getClass());
+        ExceptionMapper exceptionMapper = providers == null ? null : providers.getExceptionMapper(exception.getClass());
         JaxRsMutableResponse response = (JaxRsMutableResponse) exception.getResponse();
         if (response.hasEntity()) {
             return response.getResponse();
@@ -75,7 +79,7 @@ final class JaxRsExceptionHandler implements ExceptionHandler<WebApplicationExce
             return ((JaxRsMutableResponse) exceptionMapper.toResponse(exception)).getResponse();
         }
         return responseProcessor.processResponse(ErrorContext.builder(request)
-            .errorMessage(exception.getMessage())
+            .errorMessage(Objects.requireNonNullElse(exception.getMessage(), "Unknown error"))
             .cause(exception)
             .build(), response.getResponse());
     }
