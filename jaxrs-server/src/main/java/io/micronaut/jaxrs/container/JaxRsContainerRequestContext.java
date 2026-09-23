@@ -16,7 +16,10 @@
 package io.micronaut.jaxrs.container;
 
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.http.HttpHeaders;
+import io.micronaut.http.HttpRequest;
 import io.micronaut.http.MutableHttpRequest;
+import io.micronaut.http.ServerHttpRequest;
 import io.micronaut.jaxrs.common.JaxRsHttpHeaders;
 import io.micronaut.jaxrs.common.JaxRsMutableHeadersMultivaluedMap;
 import io.micronaut.jaxrs.common.JaxRsMutableHttpHeaders;
@@ -31,6 +34,7 @@ import jakarta.ws.rs.core.SecurityContext;
 import jakarta.ws.rs.core.UriInfo;
 import org.jspecify.annotations.Nullable;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.net.URI;
 import java.util.Collection;
@@ -51,22 +55,58 @@ import java.util.function.Predicate;
 @Internal
 final class JaxRsContainerRequestContext implements ContainerRequestContext {
 
-    private final Map<String, Object> properties = new LinkedHashMap<>();
-    private final MutableHttpRequest<?> mutableHttpRequest;
+    /**
+     * The request attribute with the entity stream a request filter set, which the resource method
+     * reads its entity from.
+     */
+    static final String ENTITY_STREAM = JaxRsContainerRequestContext.class.getName() + ".entityStream";
+
+    // the properties of the request, which all its contexts share, and the attributes of the stub
+    // servlet request
+    private static final String PROPERTIES = JaxRsContainerRequestContext.class.getName() + ".properties";
+
+    private final Map<String, Object> properties;
+    // the request the filters continue with: a pre-matching filter may change its method
+    private MutableHttpRequest<?> mutableHttpRequest;
+    // the request as received, which has the body
+    private final MutableHttpRequest<?> bodyRequest;
     private final JaxRsHttpHeaders jaxRsHttpHeaders;
     @Nullable
     private Response response;
     private final ApplicationProvider applicationProvider;
     private boolean finished;
-    private final boolean preMatching = false; // TODO: Support pre matching in Micronaut
+    private final boolean preMatching;
+    private boolean methodChanged;
 
     // the security context of the request, unless a filter replaced it
     private @Nullable Supplier<SecurityContext> securityContext;
 
-    JaxRsContainerRequestContext(MutableHttpRequest<?> mutableHttpRequest, ApplicationProvider applicationProvider) {
+    private @Nullable Supplier<Request> request;
+
+    JaxRsContainerRequestContext(MutableHttpRequest<?> mutableHttpRequest, ApplicationProvider applicationProvider, boolean preMatching) {
         this.mutableHttpRequest = mutableHttpRequest;
+        this.bodyRequest = mutableHttpRequest;
+        this.preMatching = preMatching;
         this.applicationProvider = applicationProvider;
         this.jaxRsHttpHeaders = JaxRsMutableHttpHeaders.forRequest(mutableHttpRequest.getHeaders());
+        this.properties = properties(mutableHttpRequest);
+    }
+
+    /**
+     * The properties of a request: the ones of the filter and interceptor contexts, and the
+     * attributes of its stub servlet request.
+     *
+     * @param request The request
+     * @return The properties, created on first use
+     */
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> properties(HttpRequest<?> request) {
+        Map<String, Object> properties = request.getAttribute(PROPERTIES, Map.class).orElse(null);
+        if (properties == null) {
+            properties = new LinkedHashMap<>();
+            request.setAttribute(PROPERTIES, properties);
+        }
+        return properties;
     }
 
     /**
@@ -76,6 +116,23 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
     JaxRsContainerRequestContext withSecurityContext(Supplier<SecurityContext> securityContext) {
         this.securityContext = securityContext;
         return this;
+    }
+
+    /**
+     * @param request The request of the context
+     * @return This
+     */
+    JaxRsContainerRequestContext withRequest(Supplier<Request> request) {
+        this.request = request;
+        return this;
+    }
+
+    /**
+     * @return The request with the method a pre-matching filter changed, {@code null} if no filter
+     * changed it
+     */
+    @Nullable MutableHttpRequest<?> getMethodChangedRequest() {
+        return methodChanged ? mutableHttpRequest : null;
     }
 
     @Override
@@ -117,12 +174,15 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
     @Override
     public void setRequestUri(URI baseUri, URI requestUri) {
         checkIsRequestPreMatchingInProgress();
-        throw new UnsupportedOperationException("Not supported yet.");
+        mutableHttpRequest.uri(baseUri.resolve(requestUri));
     }
 
     @Override
     public Request getRequest() {
-        throw new UnsupportedOperationException("Not supported yet.");
+        if (request == null) {
+            throw new IllegalStateException("No request");
+        }
+        return request.get();
     }
 
     @Override
@@ -133,7 +193,8 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
     @Override
     public void setMethod(String method) {
         checkIsRequestPreMatchingInProgress();
-        throw new IllegalArgumentException("Not supported");
+        mutableHttpRequest = new JaxRsMethodHttpRequest<>(mutableHttpRequest, method);
+        methodChanged = true;
     }
 
     @Override
@@ -193,17 +254,32 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
 
     @Override
     public boolean hasEntity() {
-        return mutableHttpRequest.getBody().isPresent();
+        if (mutableHttpRequest.getAttribute(ENTITY_STREAM).isPresent()) {
+            return true;
+        }
+        HttpHeaders headers = bodyRequest.getHeaders();
+        return bodyRequest.getContentLength() > 0 || headers.contains(HttpHeaders.TRANSFER_ENCODING) || bodyRequest.getBody().isPresent();
     }
 
     @Override
-    public @Nullable InputStream getEntityStream() {
-        return null;
+    public InputStream getEntityStream() {
+        InputStream replaced = mutableHttpRequest.getAttribute(ENTITY_STREAM, InputStream.class).orElse(null);
+        if (replaced != null) {
+            return replaced;
+        }
+        if (bodyRequest instanceof ServerHttpRequest<?> serverHttpRequest) {
+            // a copy: the resource method still reads the entity
+            return serverHttpRequest.byteBody().split().toInputStream();
+        }
+        return bodyRequest.getBody(byte[].class)
+            .<InputStream>map(ByteArrayInputStream::new)
+            .orElseGet(InputStream::nullInputStream);
     }
 
     @Override
     public void setEntityStream(InputStream input) {
         checkRequestFilteringInProgress();
+        mutableHttpRequest.setAttribute(ENTITY_STREAM, input);
     }
 
     @Override
@@ -238,7 +314,7 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
     }
 
     private void checkIsRequestPreMatchingInProgress() {
-        if (!preMatching) {
+        if (!preMatching || finished) {
             throw new IllegalStateException("Request is already commited");
         }
     }

@@ -12,6 +12,8 @@ dependencies {
 	implementation(mn.micronaut.reflection)
 	implementation(mn.micronaut.http.server)
     implementation(projects.micronautJaxrsCommon)
+    // a @Context servlet request is a stub when the server is not a servlet container
+    compileOnly(mnServlet.servlet.api)
 
 	// for Java
 	testAnnotationProcessor(mn.micronaut.inject.java)
@@ -21,6 +23,7 @@ dependencies {
 	testImplementation(projects.micronautJaxrsProcessor)
     testImplementation(mnSerde.micronaut.serde.jackson)
 	testImplementation(mn.micronaut.http.server.netty)
+    testImplementation(mnServlet.servlet.api)
 	testImplementation(mn.micronaut.http.client)
 	testImplementation(mnValidation.micronaut.validation)
 	testImplementation(mnTest.micronaut.test.junit5)

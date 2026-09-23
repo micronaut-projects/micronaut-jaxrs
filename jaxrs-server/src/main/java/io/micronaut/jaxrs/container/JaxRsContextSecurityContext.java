@@ -25,6 +25,7 @@ import io.micronaut.core.util.SupplierUtil;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.bind.RequestBinderRegistry;
 import io.micronaut.http.context.ServerRequestContext;
+import io.micronaut.jaxrs.runtime.ext.bind.SimpleSecurityContextImpl;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.core.SecurityContext;
 
@@ -56,8 +57,9 @@ final class JaxRsContextSecurityContext implements SecurityContext {
         HttpRequest<?> request = ServerRequestContext.currentRequest()
             .orElseThrow(() -> new IllegalStateException("The SecurityContext is only available while a request is handled"));
         ArgumentConversionContext<SecurityContext> context = ConversionContext.of(ARGUMENT);
+        // e.g. before the security filter authenticated the request, for a pre-matching filter
         return binder.get().bind(context, request).getValue()
-            .orElseThrow(() -> new IllegalStateException("No SecurityContext for the request"));
+            .orElseGet(() -> new SimpleSecurityContextImpl(request) { });
     }
 
     @Override
