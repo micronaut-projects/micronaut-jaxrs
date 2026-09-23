@@ -171,7 +171,9 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateEngine, Rout
         Negotiated selectedType = null;
         int selectedConsumes = -1;
         for (UriRouteMatch<?, ?> candidate : candidates) {
-            int consumes = contentType == null ? 0 : consumes(contentType, candidate.getRouteInfo().getConsumes());
+            // a request without a content type is */*: the most specific consumed type is the
+            // best match (JAX-RS 3.7.2, step 3b)
+            int consumes = consumes(contentType == null ? MediaType.ALL_TYPE : contentType, candidate.getRouteInfo().getConsumes());
             Negotiated negotiated = negotiate(accepted, candidate.getRouteInfo().getProduces());
             if (negotiated == null) {
                 continue;
@@ -264,7 +266,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateEngine, Rout
     private static int consumes(MediaType contentType, List<MediaType> consumes) {
         int best = 0;
         for (MediaType consumed : consumes) {
-            if (consumed.matches(contentType)) {
+            if (consumed.matches(contentType) || contentType.matches(consumed)) {
                 best = Math.max(best, specificity(consumed));
             }
         }

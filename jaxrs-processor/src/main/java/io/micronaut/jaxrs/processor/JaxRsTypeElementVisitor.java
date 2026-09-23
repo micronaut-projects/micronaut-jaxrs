@@ -153,11 +153,6 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         }
         boolean resource = element.hasAnnotation(Path.class) || !element.getEnclosedElements(ElementQuery.ALL_METHODS.onlyInstance()
             .annotated(metadata -> metadata.hasStereotype(HttpMethod.class))).isEmpty();
-        if (!element.getEnclosedElements(ElementQuery.ALL_METHODS.onlyInstance()
-            .annotated(metadata -> metadata.hasStereotype(HttpMethod.class) || metadata.hasDeclaredAnnotation(Path.class))).isEmpty()) {
-            // the routes of the class as the target of a sub-resource locator known only at runtime
-            JaxRsRoutesGenerator.generateLocated(element, context);
-        }
         if (!resource && !element.isAbstract() && !element.isInterface() && !JaxRsRoutesGenerator.requestMembers(element).isEmpty()) {
             // a @BeanParam type: initialized at runtime from its introspection, with the values of the request
             element.annotate(Introspected.class, builder -> builder
@@ -191,7 +186,10 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
                     }
                 }
             }
-            JaxRsRoutesGenerator.generate(element, context);
+            if (!element.hasAnnotation(Path.class)) {
+                // a resource without @Path, which the runtime routes find by this marker
+                element.annotate("io.micronaut.jaxrs.container.JaxRsResource");
+            }
         }
     }
 

@@ -256,6 +256,9 @@ public final class JaxRsRouteSupport {
             table = factory.buildLocatedHttpRoutes(builder -> {
                 if (routes != null) {
                     routes.routes(builder);
+                } else {
+                    // the routes of the class collected at runtime
+                    beanContext.getBean(JaxRsRuntimeRoutes.class).located(type, builder);
                 }
             });
             locatedTables.putIfAbsent(type, table);
@@ -1006,7 +1009,7 @@ public final class JaxRsRouteSupport {
     /**
      * How to read the value of an annotated constructor argument or property of a bean parameter.
      */
-    private @Nullable ValueReader reader(AnnotationMetadata metadata, Argument<?> argument, boolean encodedType) {
+    @Nullable ValueReader reader(AnnotationMetadata metadata, Argument<?> argument, boolean encodedType) {
         String defaultValue = metadata.stringValue(DefaultValue.class).orElse(null);
         boolean encoded = encodedType || metadata.hasAnnotation(Encoded.class);
         String pathParam = metadata.stringValue(PathParam.class).orElse(null);
@@ -1247,7 +1250,7 @@ public final class JaxRsRouteSupport {
      * Reads a value of the request.
      */
     @FunctionalInterface
-    private interface ValueReader {
+    interface ValueReader {
         @Nullable Object read(HttpRequest<?> request, PathVariables pathVariables, @Nullable FormData form);
     }
 
