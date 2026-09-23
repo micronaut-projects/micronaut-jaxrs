@@ -289,7 +289,7 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
      * @param providerClass The class of the provider
      * @return Whether it is registered
      */
-    private boolean isRegistered(Class<?> providerClass) {
+    public boolean isRegistered(Class<?> providerClass) {
         Set<Class<?>> registered = registeredClasses;
         if (registered == null) {
             Set<Class<?>> classes = new HashSet<>();

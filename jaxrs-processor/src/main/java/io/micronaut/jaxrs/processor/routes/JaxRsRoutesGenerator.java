@@ -1115,7 +1115,8 @@ public final class JaxRsRoutesGenerator {
                     // the type of the response from the JAX-RS writers of its entity
                     result = scope.support.invoke("negotiate", types.response, request, response(route, call, scope), route.returnType).returning();
                 } else {
-                    result = response(route, call, scope).returning();
+                    // the entity has the negotiated type, also when a HEAD request drops it (JAX-RS 3.8)
+                    result = scope.support.invoke("produced", types.response, pathVariables, response(route, call, scope)).returning();
                 }
                 if (!method.produces.isEmpty()) {
                     // a negotiated type that is not concrete is not acceptable

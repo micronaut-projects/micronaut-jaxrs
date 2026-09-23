@@ -5,8 +5,16 @@ ee.jakarta.tck.ws.rs.api.rs.core.multivaluedmap.JAXRSClientIT
 ee.jakarta.tck.ws.rs.spec.resourceconstructor.JAXRSClientIT#packageVisibilityTest
 ee.jakarta.tck.ws.rs.spec.resourceconstructor.JAXRSClientIT#protectedVisibilityTest
 
-# Multiple entity types we don't support
-ee.jakarta.tck.ws.rs.spec.provider.standardnotnull.JAXRSClientIT
+# The client reads an empty entity of these types as null instead of failing
+ee.jakarta.tck.ws.rs.spec.provider.standardnotnull.JAXRSClientIT#clientBigDecimalProviderTest
+ee.jakarta.tck.ws.rs.spec.provider.standardnotnull.JAXRSClientIT#clientBooleanProviderTest
+ee.jakarta.tck.ws.rs.spec.provider.standardnotnull.JAXRSClientIT#clientCharProviderTest
+ee.jakarta.tck.ws.rs.spec.provider.standardnotnull.JAXRSClientIT#clientIntegerProviderTest
+# Standard providers: DataSource, File, Source and JAXBElement
+ee.jakarta.tck.ws.rs.spec.provider.standardnotnull.JAXRSClientIT#serverDataSourceProviderTest
+ee.jakarta.tck.ws.rs.spec.provider.standardnotnull.JAXRSClientIT#serverFileProviderTest
+ee.jakarta.tck.ws.rs.spec.provider.standardnotnull.JAXRSClientIT#serverJaxbProviderTest
+ee.jakarta.tck.ws.rs.spec.provider.standardnotnull.JAXRSClientIT#serverSourceProviderTest
 
 # Interceptors
 ee.jakarta.tck.ws.rs.spec.filter.interceptor.JAXRSClientIT
@@ -197,27 +205,16 @@ ee.jakarta.tck.ws.rs.ee.rs.ext.paramconverter.JAXRSClientIT#formParamInLocatorTe
 ee.jakarta.tck.ws.rs.spec.resource.locator.JAXRSClientIT#checkEntityIsNotSetTest
 
 
-# Request matching: JAX-RS commits to the most specific root resource class, and answers 404 when none of its methods match
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#locatorNameTooLongAgainTest
 
 # Request matching: the harness serves the deployment at the root, so a wrong application name is still routed
 ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#slashAppNameTest
 ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#wrongAppNameTest
 
-# Request matching: OPTIONS on a sub-resource
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#optionsOnSubResourceTest
 
-# Readers selected for the declared media types
-ee.jakarta.tck.ws.rs.spec.provider.reader.JAXRSClientIT#meadiaTypeDefaultTest
-ee.jakarta.tck.ws.rs.spec.provider.reader.JAXRSClientIT#noEntityProviderTest
 
 # Standard providers: DataSource, File and Source
 ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT#dataSourceProviderTest
 ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT#fileProviderTest
 ee.jakarta.tck.ws.rs.spec.provider.standard.JAXRSClientIT#sourceProviderTest
 
-# Response type from the writers: the class-level @Produces of a resource
-ee.jakarta.tck.ws.rs.spec.resource.responsemediatype.JAXRSClientIT#classProducesTest
 
-# The Application of this deployment is not a bean in the harness, so the resources it lists cannot be told from the others
-ee.jakarta.tck.ws.rs.spec.resource.annotationprecedence.subclass.JAXRSClientIT#incorrectPathOnClassAndRequestTest

@@ -20,6 +20,7 @@ import io.micronaut.context.BeanRegistration;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.type.Argument;
 import io.micronaut.inject.qualifiers.MatchArgumentQualifier;
+import io.micronaut.jaxrs.common.JaxRsContainerMessageBodyHandlerRegistry;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.WebApplicationException;
@@ -104,11 +105,27 @@ final class JaxRsProviders implements Providers {
     @SuppressWarnings({"unchecked"})
     @Override
     public <T extends Throwable> ExceptionMapper<T> getExceptionMapper(Class<T> type) {
-        return beanContext.getBeansOfType(ExceptionMapper.class,
-                MatchArgumentQualifier.contravariant(ExceptionMapper.class, Argument.of(type)))
-            .stream()
-            .findFirst()
-            .orElse(null);
+        // the mapper of the nearest superclass of the exception, among the registered ones (JAX-RS 4.4)
+        JaxRsContainerMessageBodyHandlerRegistry registry = beanContext.getBean(JaxRsContainerMessageBodyHandlerRegistry.class);
+        ExceptionMapper<T> nearest = null;
+        int nearestDistance = Integer.MAX_VALUE;
+        for (BeanRegistration<ExceptionMapper> registration : beanContext.getBeanRegistrations(ExceptionMapper.class,
+                MatchArgumentQualifier.contravariant(ExceptionMapper.class, Argument.of(type)))) {
+            if (!registry.isRegistered(registration.getBeanDefinition().getBeanType())) {
+                continue;
+            }
+            List<Argument<?>> arguments = registration.getBeanDefinition().getTypeArguments(ExceptionMapper.class);
+            Class<?> mapped = arguments.isEmpty() ? Throwable.class : arguments.get(0).getType();
+            int distance = 0;
+            for (Class<?> t = type; t != null && t != mapped; t = t.getSuperclass()) {
+                distance++;
+            }
+            if (distance < nearestDistance) {
+                nearest = registration.getBean();
+                nearestDistance = distance;
+            }
+        }
+        return nearest;
     }
 
     @Override
