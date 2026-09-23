@@ -22,6 +22,7 @@ import org.jspecify.annotations.Nullable;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpMethod;
 import io.micronaut.http.HttpRequest;
+import io.micronaut.http.HttpMessage;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.MutableHttpRequest;
 import io.micronaut.http.MutableHttpResponse;
@@ -98,11 +99,13 @@ final class JaxRsContainerFilters {
     }
 
     /**
-     * The context of the filters of a request, with the security context of the request.
+     * The context of the filters of a request, with the security context and the JAX-RS request of
+     * the request.
      */
-    private JaxRsContainerRequestContext newContext(MutableHttpRequest<?> request) {
-        return new JaxRsContainerRequestContext(request, applicationProvider)
-            .withSecurityContext(() -> beanContext.getBean(JaxRsContextSecurityContext.class));
+    private JaxRsContainerRequestContext newContext(MutableHttpRequest<?> request, boolean preMatching) {
+        return new JaxRsContainerRequestContext(request, applicationProvider, preMatching)
+            .withSecurityContext(() -> beanContext.getBean(JaxRsContextSecurityContext.class))
+            .withRequest(() -> beanContext.getBean(JaxRsContextRequest.class));
     }
 
     /**
@@ -190,7 +193,7 @@ final class JaxRsContainerFilters {
         JaxRsFeatures.Components dynamic = dynamicComponents(routeInfo);
         if (!containerResponseFilters.isEmpty() || !dynamic.responseFilters().isEmpty()) {
             JaxRsContainerRequestContext requestContext = request.getAttribute(REQUEST_CONTEXT_KEY, JaxRsContainerRequestContext.class)
-                .orElseGet(() -> newContext(request.mutate()));
+                .orElseGet(() -> newContext(request.mutate(), false));
             requestContext.finished();
             JaxRsContainerResponseContext responseContext = new JaxRsContainerResponseContext(mutableHttpResponse, bodyArgument, entityAnnotations);
             List<ContainerResponseFilter> filters = new ArrayList<>(containerResponseFilters.stream()
@@ -230,16 +233,17 @@ final class JaxRsContainerFilters {
      * Run the pre-matching request filters.
      *
      * @param request The request
-     * @return The response a filter aborted with, or {@code null}
+     * @return The response a filter aborted with, the request with the method a filter changed, or
+     * {@code null}
      * @throws IOException If a filter fails
      */
     @Nullable
-    HttpResponse<?> filterPreMatchingRequest(MutableHttpRequest<?> request) throws IOException {
+    HttpMessage<?> filterPreMatchingRequest(MutableHttpRequest<?> request) throws IOException {
         if (preMatchingRequestFilters.isEmpty()) {
             // Intercept only JaxRs routes
             return null;
         }
-        JaxRsContainerRequestContext requestContext = newContext(request);
+        JaxRsContainerRequestContext requestContext = newContext(request, true);
         for (ContainerRequestFilter preMatchingRequestFilter : preMatchingRequestFilters) {
             preMatchingRequestFilter.filter(requestContext);
             Response response = requestContext.getResponse();
@@ -250,7 +254,8 @@ final class JaxRsContainerFilters {
             }
         }
         requestContext.finished();
-        return null;
+        // the request whose method a filter changed: the route is matched with it
+        return requestContext.getMethodChangedRequest();
     }
 
     /**
@@ -267,7 +272,7 @@ final class JaxRsContainerFilters {
         if (requestFilters.isEmpty() && dynamic.requestFilters().isEmpty()) {
             return null;
         }
-        JaxRsContainerRequestContext requestContext = newContext(request);
+        JaxRsContainerRequestContext requestContext = newContext(request, false);
         if (!containerResponseFilters.isEmpty() || !dynamic.responseFilters().isEmpty()) {
             request.setAttribute(REQUEST_CONTEXT_KEY, requestContext);
         }

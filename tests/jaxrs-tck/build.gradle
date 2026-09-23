@@ -24,6 +24,8 @@ dependencies {
     implementation projects.micronautJaxrsProcessor
     implementation libs.jakarta.jaxrs.tck.tests
     implementation mnLogging.slf4j.jul.to.slf4j
+    // the deployments that inject a servlet request get the stub of the server
+    implementation mnServlet.servlet.api
 
     // the JSON-B implementation of the standard providers
     runtimeOnly libs.yasson

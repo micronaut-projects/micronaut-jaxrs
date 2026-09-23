@@ -1,6 +1,3 @@
 # Netty Client strips custom Content-Encoding header
 ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT#getHeaderStringTest
 ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT#getHeadersTest
-
-# HttpServletRequest
-ee.jakarta.tck.ws.rs.ee.rs.container.requestcontext.JAXRSClientIT
