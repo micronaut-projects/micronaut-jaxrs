@@ -178,9 +178,6 @@ ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#wrongAppNameTes
 
 
 # Standard providers: DataSource, File and Source
-# Core: an exception a message body writer or writer interceptor throws is not handled by the exception handlers, so no exception mapper maps it
-ee.jakarta.tck.ws.rs.ee.rs.ext.interceptor.containerwriter.writerinterceptorcontext.JAXRSClientIT#proceedThrowsWebApplicationExceptionTest
-ee.jakarta.tck.ws.rs.servlet3.rs.core.streamingoutput.JAXRSClientIT#writeWebApplicationExceptionTest
 # The client does not use the standard providers of micronaut-jaxrs-standard-providers: DataSource, File, Source and JAXB
 ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT#clientDataSourceReaderTest
 ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT#clientDataSourceWriterTest
