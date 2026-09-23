@@ -202,8 +202,13 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             // a setter injected by the generated routes
             element.removeAnnotation(Inject.class);
         }
+        if (generateRoutes && !element.isPublic() && (element.hasStereotype(HttpMethod.class) || element.hasDeclaredAnnotation(Path.class))) {
+            // not a resource method nor a sub-resource locator: only public methods are (JAX-RS 3.3.1),
+            // the generated routes leave it out
+            context.warn("The method is not public, so it is not a JAX-RS resource method or sub-resource locator, and it is not routed", element);
+        }
         if (element.hasStereotype(HttpMethod.class) && element.isPrivate() && generateRoutes) {
-            // not a resource method: only public methods are, and a private method cannot be executable
+            // a private method cannot be executable
             element.removeAnnotationIf(annotation -> annotation.getAnnotationName().startsWith("io.micronaut.http.annotation."));
             return;
         }

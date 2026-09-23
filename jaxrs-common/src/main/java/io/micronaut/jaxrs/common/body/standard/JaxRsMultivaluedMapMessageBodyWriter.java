@@ -70,7 +70,9 @@ public final class JaxRsMultivaluedMapMessageBodyWriter implements MessageBodyWr
             for (Map.Entry<String, List<String>> e : object.entrySet()) {
                 e.getValue().forEach(value -> encoder.addParam(e.getKey(), value));
             }
-            outputStream.write(encoder.toString().getBytes(StandardCharsets.UTF_8));
+            // the encoder builds a query: the form is without its leading '?'
+            String form = encoder.toString();
+            outputStream.write((form.startsWith("?") ? form.substring(1) : form).getBytes(StandardCharsets.UTF_8));
         } catch (IOException e) {
             throw new JaxRsIOException(e);
         }

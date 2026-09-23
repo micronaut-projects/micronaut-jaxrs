@@ -84,7 +84,7 @@ class ServletResource {
 
     @POST
     @Path("/post-test")
-    void processResponse(
+    public void processResponse(
 //      Foo body, TODO: JAX-RS doesn't need @Body
         @Context HttpHeaders headers,
         @Context HttpServletRequest request,

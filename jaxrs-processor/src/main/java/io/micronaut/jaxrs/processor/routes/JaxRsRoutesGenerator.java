@@ -331,7 +331,8 @@ public final class JaxRsRoutesGenerator {
                 query = query.onlyConcrete();
             }
             for (MethodElement method : type.getEnclosedElements(query)) {
-                if (!accessible(method)) {
+                if (!method.isPublic()) {
+                    // only public methods are resource methods and sub-resource locators (JAX-RS 3.3.1)
                     continue;
                 }
                 AnnotationMetadata methodMetadata = method.getMethodAnnotationMetadata();
@@ -893,7 +894,9 @@ public final class JaxRsRoutesGenerator {
             boolean body = method.entity != null && method.entity.kind == ParamKind.ENTITY && !method.httpMethod.equals("GET");
             // a form is read for a type created per request when the method can have one and reads no entity
             boolean form = method.form || usesForm(route, root) && !NO_BODY_METHODS.contains(method.httpMethod) && method.entity == null;
-            return new RouteModel("route" + index, route, entityArgument, annotatedEntity, valueType, returnType, metadata, form, body && !form);
+            // a route that reads the entity and form parameters: the form is parsed from the entity
+            boolean entityForm = body && !form && (method.form || usesForm(route, root));
+            return new RouteModel("route" + index, route, entityArgument, annotatedEntity, valueType, returnType, metadata, form, body && !form, entityForm);
         }
 
         private boolean usesForm(Route route, @Nullable RequestType root) {
@@ -1103,7 +1106,10 @@ public final class JaxRsRoutesGenerator {
                 VariableDef pathVariables = params.get(1);
                 VariableDef third = params.size() > 2 ? params.get(2) : null;
                 Scope scope = new Scope(aThis, aThis.field(supportField), request, pathVariables,
-                    route.form ? third : null, route.body ? third : null, route);
+                    route.form ? third
+                        : route.entityForm() && third != null ? aThis.field(supportField).invoke("entityForm", types.form, request, third.cast(TypeDef.of(byte[].class)))
+                        : null,
+                    route.body ? third : null, route);
 
                 ExpressionDef instance = instance(aThis, scope, root, route.route.locators);
                 List<ExpressionDef> arguments = new ArrayList<>();
@@ -1381,7 +1387,7 @@ public final class JaxRsRoutesGenerator {
      * @param body          The body parameter of a route with an entity
      */
     private record Scope(VariableDef.This router, VariableDef support, VariableDef request, VariableDef pathVariables,
-                         @Nullable VariableDef form, @Nullable VariableDef body, @Nullable RouteModel route) {
+                         @Nullable ExpressionDef form, @Nullable VariableDef body, @Nullable RouteModel route) {
     }
 
     /**
@@ -1397,6 +1403,7 @@ public final class JaxRsRoutesGenerator {
      * @param body           Whether the route reads an entity
      */
     private record RouteModel(String name, Route route, @Nullable ExpressionDef entityArgument, int annotatedEntity, @Nullable ClassElement valueType,
-                              ExpressionDef returnType, VariableDef.StaticField metadata, boolean form, boolean body) {
+                              ExpressionDef returnType, VariableDef.StaticField metadata, boolean form, boolean body,
+                              boolean entityForm) {
     }
 }
