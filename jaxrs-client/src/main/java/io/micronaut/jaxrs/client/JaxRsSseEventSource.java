@@ -28,9 +28,8 @@ import io.micronaut.http.sse.Event;
 import jakarta.ws.rs.sse.InboundSseEvent;
 import jakarta.ws.rs.sse.SseEventSource;
 import org.jspecify.annotations.Nullable;
+import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
-import reactor.core.CoreSubscriber;
-import reactor.core.publisher.Flux;
 
 import java.net.URI;
 import java.time.Duration;
@@ -138,7 +137,7 @@ final class JaxRsSseEventSource implements SseEventSource {
             client = new DefaultHttpClient((URI) null, new DefaultHttpClientConfiguration());
             httpClient = client;
         }
-        Flux.from(client.eventStream(request, Argument.STRING)).subscribe(new CoreSubscriber<Event<String>>() {
+        client.eventStream(request, Argument.STRING).subscribe(new Subscriber<Event<String>>() {
             @Override
             public void onSubscribe(Subscription s) {
                 subscription = s;
