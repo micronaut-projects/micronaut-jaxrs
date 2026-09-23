@@ -119,8 +119,6 @@ ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT#getCookiesTest
 # Arquillian issue but test is likely broken anyway because we don't use jsonb
 ee.jakarta.tck.ws.rs.spec.contextprovider.JsonbContextProviderIT
 
-# @Encoded
-ee.jakarta.tck.ws.rs.ee.rs.formparam.JAXRSClientIT
 
 
 # JAXB
