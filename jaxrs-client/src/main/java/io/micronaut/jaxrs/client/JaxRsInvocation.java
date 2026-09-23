@@ -57,7 +57,9 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 /**
  * The implementation of {@link Invocation}, {@link CompletionStageRxInvoker} and {@link AsyncInvoker}.
@@ -103,12 +105,12 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
 
     @Override
     public Response invoke() {
-        return asyncBlock(async(Argument.of(Response.class)));
+        return asyncBlock(exchange(null, Argument.of(Response.class), null));
     }
 
     @Override
     public <T> T invoke(Class<T> aClass) {
-        return asyncBlock(async(Argument.of(aClass)));
+        return asyncBlock(exchange(null, Argument.of(aClass), null));
     }
 
     @Override
@@ -137,7 +139,7 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
     }
 
     private <T> T invoke(Argument<T> type) {
-        return asyncBlock(async(type));
+        return asyncBlock(exchange(null, type, null));
     }
 
     private <T> T asyncBlock(CompletableFuture<T> future) {
@@ -154,7 +156,7 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
     }
 
     <T> T invokeExchange(Argument<T> type, @Nullable Entity<?> entity) {
-        return asyncBlock(async(method, type, entity));
+        return asyncBlock(exchange(method, type, entity));
     }
 
     private <T> CompletableFuture<T> async(Argument<T> type) {
@@ -173,7 +175,20 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
         return async(method.name(), type, entity);
     }
 
+    /**
+     * An asynchronous invocation: it runs, from its request filters on, on the executor service of
+     * the client (JAX-RS, {@code ClientBuilder#executorService}).
+     */
     private <T> CompletableFuture<T> async(@Nullable String method, Argument<T> type, @Nullable Entity<?> entity) {
+        try {
+            return CompletableFuture.supplyAsync(() -> exchange(method, type, entity), client.getExecutorService())
+                .thenCompose(Function.identity());
+        } catch (RejectedExecutionException e) {
+            return CompletableFuture.failedFuture(new ProcessingException(e));
+        }
+    }
+
+    private <T> CompletableFuture<T> exchange(@Nullable String method, Argument<T> type, @Nullable Entity<?> entity) {
         var future = new CompletableFuture<T>();
         try {
             var requestBodyType = Argument.of(Object.class);

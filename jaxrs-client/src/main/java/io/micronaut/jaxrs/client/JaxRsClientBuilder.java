@@ -93,7 +93,8 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
         configuration.setReadTimeout(readTimeout);
         DefaultHttpClient httpClient = new DefaultHttpClient((URI) null, configuration);
         ContextlessMessageBodyHandlerRegistry handlerRegistry = (ContextlessMessageBodyHandlerRegistry) httpClient.getHandlerRegistry();
-        JaxRsConfiguration jaxRsConfiguration = new JaxRsConfiguration();
+        // the properties and components registered on this builder, then the standard ones
+        JaxRsConfiguration jaxRsConfiguration = config.copy();
         httpClient.setHandlerRegistry(new MessageBodyHandlerRegistry() {
 
             @Override
@@ -137,7 +138,7 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
                 }
             }
         }
-        return new JaxRsClient(httpClient, jaxRsConfiguration);
+        return new JaxRsClient(httpClient, jaxRsConfiguration, executorService);
     }
 
     @Override
@@ -152,7 +153,8 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
 
     @Override
     public ClientBuilder withConfig(Configuration config) {
-        throw new IllegalStateException("Not supported");
+        this.config.replaceWith(config);
+        return this;
     }
 
     @Override

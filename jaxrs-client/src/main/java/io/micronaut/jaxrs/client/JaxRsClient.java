@@ -19,6 +19,7 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.client.HttpClient;
 import io.micronaut.http.client.netty.DefaultHttpClient;
 import jakarta.ws.rs.client.Client;
+import org.jspecify.annotations.Nullable;
 import jakarta.ws.rs.client.Invocation;
 import jakarta.ws.rs.core.Link;
 import jakarta.ws.rs.core.UriBuilder;
@@ -27,6 +28,8 @@ import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 import java.net.URI;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ForkJoinPool;
 
 /**
  * The implementation of {@link Client}.
@@ -39,11 +42,21 @@ public final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
 
     private final DefaultHttpClient httpClient;
     private final JaxRsConfiguration config;
+    private final @Nullable ExecutorService executorService;
     private volatile boolean closed;
 
-    JaxRsClient(DefaultHttpClient httpClient, JaxRsConfiguration config) {
+    JaxRsClient(DefaultHttpClient httpClient, JaxRsConfiguration config, @Nullable ExecutorService executorService) {
         this.httpClient = httpClient;
         this.config = config;
+        this.executorService = executorService;
+    }
+
+    /**
+     * @return The executor service of the asynchronous and reactive invocations, the one of the
+     * client builder, else a default one
+     */
+    ExecutorService getExecutorService() {
+        return executorService != null ? executorService : ForkJoinPool.commonPool();
     }
 
     public HttpClient getHttpClient() {

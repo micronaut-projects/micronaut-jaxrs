@@ -125,6 +125,41 @@ final class JaxRsConfiguration implements Configuration {
         return new JaxRsConfiguration(new LinkedHashMap<>(properties), new ArrayList<>(components));
     }
 
+    /**
+     * Forget the providers found among the components, when the components change.
+     */
+    private void clearCaches() {
+        readerInterceptors = null;
+        writerInterceptors = null;
+        readers = null;
+        writers = null;
+        requestFilters = null;
+        responseFilters = null;
+    }
+
+    /**
+     * Replace the properties and components with the ones of another configuration.
+     *
+     * @param configuration The configuration
+     */
+    void replaceWith(Configuration configuration) {
+        properties.clear();
+        components.clear();
+        clearCaches();
+        if (configuration instanceof JaxRsConfiguration jaxRsConfiguration) {
+            properties.putAll(jaxRsConfiguration.properties);
+            components.addAll(jaxRsConfiguration.components);
+            return;
+        }
+        properties.putAll(configuration.getProperties());
+        for (Class<?> componentClass : configuration.getClasses()) {
+            register(componentClass, configuration.getContracts(componentClass));
+        }
+        for (Object instance : configuration.getInstances()) {
+            register(instance, configuration.getContracts(instance.getClass()));
+        }
+    }
+
     public void addProperty(String name, Object value) {
         properties.put(name, value);
     }
@@ -149,11 +184,37 @@ final class JaxRsConfiguration implements Configuration {
     }
 
     void register(Class<?> componentClass, int priority, Class<?>... contracts) {
-        components.add(new ClassComponent(componentClass, priority, toContracts(contracts)));
+        List<ComponentContract> assignable = assignable(componentClass, toContracts(contracts));
+        if (assignable != null) {
+            components.add(new ClassComponent(componentClass, priority, assignable));
+        }
     }
 
     void register(Class<?> componentClass, Map<Class<?>, Integer> contracts) {
-        components.add(new ClassComponent(componentClass, 0, toContracts(contracts)));
+        List<ComponentContract> assignable = assignable(componentClass, toContracts(contracts));
+        if (assignable != null) {
+            components.add(new ClassComponent(componentClass, 0, assignable));
+        }
+    }
+
+    /**
+     * The contracts a component implements: the others are ignored, and a component that
+     * implements none of the given contracts is not registered (JAX-RS, {@code Configurable}).
+     *
+     * @return The contracts, or {@code null} if the component is not registered
+     */
+    private static @Nullable List<ComponentContract> assignable(Class<?> componentClass, List<ComponentContract> contracts) {
+        if (contracts.isEmpty()) {
+            return contracts;
+        }
+        List<ComponentContract> assignable = contracts.stream()
+            .filter(contract -> contract.contract().isAssignableFrom(componentClass))
+            .toList();
+        if (assignable.size() != contracts.size()) {
+            LOG.warn("The component {} does not implement the contracts {}: they are ignored", componentClass.getName(),
+                contracts.stream().filter(c -> !assignable.contains(c)).map(c -> c.contract().getName()).toList());
+        }
+        return assignable.isEmpty() ? null : assignable;
     }
 
     private List<ComponentContract> toContracts(Map<Class<?>, Integer> contracts) {
@@ -176,11 +237,17 @@ final class JaxRsConfiguration implements Configuration {
     }
 
     void register(Object component, int priority, Class<?>... contracts) {
-        components.add(new InstanceComponent(component, priority, toContracts(contracts)));
+        List<ComponentContract> assignable = assignable(component.getClass(), toContracts(contracts));
+        if (assignable != null) {
+            components.add(new InstanceComponent(component, priority, assignable));
+        }
     }
 
     void register(Object component, Map<Class<?>, Integer> contracts) {
-        components.add(new InstanceComponent(component, 0, toContracts(contracts)));
+        List<ComponentContract> assignable = assignable(component.getClass(), toContracts(contracts));
+        if (assignable != null) {
+            components.add(new InstanceComponent(component, 0, assignable));
+        }
     }
 
     @Override
@@ -236,6 +303,7 @@ final class JaxRsConfiguration implements Configuration {
     @Override
     public Map<Class<?>, Integer> getContracts(Class<?> componentClass) {
         return components.stream()
+            .filter(c -> c.is(componentClass))
             .flatMap(c -> c.components().stream())
             .collect(Collectors.toMap(component -> component.contract, component -> component.priority, (p1, p2) -> p1));
     }
@@ -529,12 +597,31 @@ final class JaxRsConfiguration implements Configuration {
         return responseFilters;
     }
 
+    /**
+     * @param type The type of the providers
+     * @param <T>  The type
+     * @return The registered providers of a type, in the order of their priorities
+     */
+    <T> List<T> getProviders(Class<T> type) {
+        return getComponentOfType(type);
+    }
+
     private <T> List<T> getComponentOfType(Class<T> type) {
         var valuesWithPriority = new ArrayList<Map.Entry<T, Integer>>();
         for (JaxRsConfiguration.Component component : components) {
+            List<ComponentContract> contracts = component.components();
+            ComponentContract contract = contracts.stream().filter(c -> c.contract().equals(type)).findFirst().orElse(null);
+            if (!contracts.isEmpty() && contract == null) {
+                // registered for other contracts only
+                continue;
+            }
             T instance = injected(component.tryGet(type));
             if (instance != null) {
-                valuesWithPriority.add(Map.entry(instance, component.priority() == 0 ? JaxRsUtils.getPriorityOrder(instance) : component.priority()));
+                // the priority of the registration, else of the contract, else of @Priority
+                int priority = component.priority() != 0 ? component.priority()
+                    : contract != null && contract.priority() != 0 ? contract.priority()
+                    : JaxRsUtils.getPriorityOrder(instance);
+                valuesWithPriority.add(Map.entry(instance, priority));
             }
         }
         valuesWithPriority.sort(Comparator.comparingInt(Map.Entry::getValue));
