@@ -95,6 +95,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.io.ByteArrayOutputStream;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import java.util.List;
@@ -505,6 +506,29 @@ public final class JaxRsRouteSupport {
             values = values.stream().map(value -> java.net.URLEncoder.encode(value, java.nio.charset.StandardCharsets.UTF_8)).toList();
         }
         return convert(values, argument, defaultValue, false);
+    }
+
+    /**
+     * The form of the entity of a resource method that reads its entity and {@code @FormParam}s:
+     * parsed once per request, {@code null} if the entity is not an url-encoded form.
+     *
+     * @param request The request
+     * @param body    The entity, {@code null} for an empty body
+     * @return The form
+     */
+    public @Nullable FormData entityForm(HttpRequest<?> request, byte @Nullable [] body) {
+        MediaType contentType = request.getContentType().orElse(null);
+        if (body == null || contentType == null || !MediaType.APPLICATION_FORM_URLENCODED_TYPE.matches(contentType)) {
+            return null;
+        }
+        Optional<JaxRsEntityForm> parsed = request.getAttribute(JaxRsEntityForm.class.getName(), JaxRsEntityForm.class);
+        if (parsed.isPresent()) {
+            return parsed.get();
+        }
+        Charset charset = contentType.getCharset().orElse(StandardCharsets.UTF_8);
+        JaxRsEntityForm form = new JaxRsEntityForm(new String(body, charset), charset);
+        request.setAttribute(JaxRsEntityForm.class.getName(), form);
+        return form;
     }
 
     /**
