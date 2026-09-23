@@ -333,10 +333,10 @@ public final class JaxRsRouteSupport {
         Optional<? extends ExecutableMethod<?, ?>> method = beanContext.findBeanDefinition(metadata.resourceClass)
             .flatMap(definition -> definition.findMethod(metadata.methodName, metadata.parameterTypes));
         if (method.isPresent()) {
-            route.implementing(method.get());
+            route.annotationMetadata(method.get());
         } else {
             // a sub-resource that is not a bean: the route has the annotations of the root resource
-            beanContext.findBeanDefinition(metadata.rootClass).ifPresent(root -> route.annotationMetadata(root.getAnnotationMetadata()));
+            beanContext.findBeanDefinition(metadata.rootClass).ifPresent(root -> route.annotationMetadata(root));
         }
         // the post-matching request filters of the resource method (JAX-RS 6.7.2)
         route.before(request -> containerFilters().filterRequest(RouteAttributes.getRouteInfo(request).orElseThrow(), request));
