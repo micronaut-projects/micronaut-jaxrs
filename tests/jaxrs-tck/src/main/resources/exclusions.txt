@@ -1,6 +1,3 @@
-# Run by the seBootstrapTest task, compiled with the annotation processors
-ee.jakarta.tck.ws.rs.sebootstrap.SeBootstrapIT
-
 # Netty Client strips custom Content-Encoding header
 ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT#getHeaderStringTest
 ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT#getHeadersTest
