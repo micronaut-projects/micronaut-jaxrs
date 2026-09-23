@@ -26,6 +26,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.NewCookie;
 import jakarta.ws.rs.core.Response;
+import org.jspecify.annotations.Nullable;
 
 import java.io.InputStream;
 import java.net.URI;
@@ -78,16 +79,16 @@ public final class JaxRsClientResponseContext implements ClientResponseContext {
     }
 
     @Override
-    public String getHeaderString(String name) {
+    public @Nullable String getHeaderString(String name) {
         return jaxRsMutableResponse.getHeaderString(name);
     }
 
-    // @Override
+    @Override
     public boolean containsHeaderString(String name, String valueSeparatorRegex, Predicate<String> valuePredicate) {
         return JaxRsHttpHeaders.forResponse(mutableHttpResponse.getHeaders()).containsHeaderString(name, valueSeparatorRegex, valuePredicate);
     }
 
-    // @Override
+    @Override
     public boolean containsHeaderString(String name, Predicate<String> valuePredicate) {
         return JaxRsHttpHeaders.forResponse(mutableHttpResponse.getHeaders()).containsHeaderString(name, valuePredicate);
     }
@@ -98,12 +99,12 @@ public final class JaxRsClientResponseContext implements ClientResponseContext {
     }
 
     @Override
-    public Date getDate() {
+    public @Nullable Date getDate() {
         return jaxRsMutableResponse.getDate();
     }
 
     @Override
-    public Locale getLanguage() {
+    public @Nullable Locale getLanguage() {
         return jaxRsMutableResponse.getLanguage();
     }
 
@@ -113,7 +114,7 @@ public final class JaxRsClientResponseContext implements ClientResponseContext {
     }
 
     @Override
-    public MediaType getMediaType() {
+    public @Nullable MediaType getMediaType() {
         return jaxRsMutableResponse.getMediaType();
     }
 
@@ -123,17 +124,17 @@ public final class JaxRsClientResponseContext implements ClientResponseContext {
     }
 
     @Override
-    public EntityTag getEntityTag() {
+    public @Nullable EntityTag getEntityTag() {
         return jaxRsMutableResponse.getEntityTag();
     }
 
     @Override
-    public Date getLastModified() {
+    public @Nullable Date getLastModified() {
         return jaxRsMutableResponse.getLastModified();
     }
 
     @Override
-    public URI getLocation() {
+    public @Nullable URI getLocation() {
         return jaxRsMutableResponse.getLocation();
     }
 
@@ -148,12 +149,12 @@ public final class JaxRsClientResponseContext implements ClientResponseContext {
     }
 
     @Override
-    public Link getLink(String relation) {
+    public @Nullable Link getLink(String relation) {
         return jaxRsMutableResponse.getLink(relation);
     }
 
     @Override
-    public Link.Builder getLinkBuilder(String relation) {
+    public Link.@Nullable Builder getLinkBuilder(String relation) {
         return jaxRsMutableResponse.getLinkBuilder(relation);
     }
 

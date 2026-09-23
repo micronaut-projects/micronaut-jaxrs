@@ -19,6 +19,7 @@ import io.micronaut.context.BeanProvider;
 import io.micronaut.context.BeanRegistration;
 import io.micronaut.core.annotation.Internal;
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import io.micronaut.core.type.Argument;
 import io.micronaut.core.type.MutableHeaders;
 import io.micronaut.http.ByteBodyHttpResponse;
@@ -43,6 +44,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -160,6 +162,7 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
             // this implementation, instead of using the body field, tries to keep the whole
             // ByteBodyHttpResponse for as long as possible.
 
+            @Nullable
             ByteBodyHttpResponse<?> innerResponse;
 
             @Override
@@ -181,9 +184,9 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
         };
         s.run();
         if (s.outputIntercepted) {
-            return ByteBodyHttpResponseWrapper.wrap(httpResponse, s.body);
+            return ByteBodyHttpResponseWrapper.wrap(httpResponse, Objects.requireNonNull(s.body));
         } else {
-            return s.innerResponse;
+            return Objects.requireNonNull(s.innerResponse);
         }
     }
 
@@ -191,7 +194,7 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
     public @NonNull CloseableByteBody writePiece(@NonNull ByteBodyFactory bodyFactory, @NonNull HttpRequest<?> request, @NonNull HttpResponse<?> response, @NonNull Argument<GenericEntity<T>> type, @NonNull MediaType mediaType, GenericEntity<T> genericEntity) throws CodecException {
         var s = new ByteBodyState(bodyFactory, request, response, mediaType, genericEntity);
         s.run();
-        return s.body;
+        return Objects.requireNonNull(s.body);
     }
 
     /**
@@ -229,17 +232,20 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
          * Destination buffer that will be turned into the final
          * {@link io.micronaut.http.body.ByteBody}.
          */
+        @Nullable
         ByteArrayOutputStream bufferStream;
         /**
          * Current stream for {@link #getOutputStream()}. Sometimes it's {@link #bufferStream},
          * sometimes it's a wrapper around it, etc.
          */
+        @Nullable
         OutputStream outputStream;
 
         /**
          * {@link CloseableByteBody} from the downstream {@link ResponseBodyWriter}. At the end of
          * {@link #run()}, this is replaced by the data from {@link #bufferStream} if applicable.
          */
+        @Nullable
         CloseableByteBody body;
 
         ByteBodyState(ByteBodyFactory bodyFactory, HttpRequest<?> request, HttpResponse<?> response, MediaType mediaType, GenericEntity<T> genericEntity) {
@@ -286,7 +292,7 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
                 outputStream = bufferStream;
                 outputIntercepted = true;
             }
-            return outputStream;
+            return Objects.requireNonNull(outputStream);
         }
 
         @Override
@@ -333,12 +339,12 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
             }
             if (outputIntercepted) {
                 finishIntercepted();
-                try (InputStream is = body.toInputStream()) {
-                    is.transferTo(outputStream);
+                try (InputStream is = Objects.requireNonNull(body).toInputStream()) {
+                    is.transferTo(Objects.requireNonNull(outputStream));
                 } catch (IOException e) {
                     throw new CodecException("Failed to buffer wrapped body", e);
                 }
-                body = bodyFactory.adapt(bufferStream.toByteArray());
+                body = bodyFactory.adapt(Objects.requireNonNull(bufferStream).toByteArray());
             }
         }
 

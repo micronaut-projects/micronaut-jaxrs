@@ -70,6 +70,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -90,11 +91,17 @@ final class JaxRsConfiguration implements Configuration {
     private final Map<String, Object> properties;
     private final List<Component> components;
 
+    @Nullable
     private List<ReaderInterceptor> readerInterceptors;
+    @Nullable
     private List<WriterInterceptor> writerInterceptors;
+    @Nullable
     private List<JaxRsMessageBodyReaderDefinition> readers;
+    @Nullable
     private List<JaxRsMessageBodyWriterDefinition> writers;
+    @Nullable
     private List<ClientRequestFilter> requestFilters;
+    @Nullable
     private List<ClientResponseFilter> responseFilters;
 
     public JaxRsConfiguration() {
@@ -179,7 +186,7 @@ final class JaxRsConfiguration implements Configuration {
     }
 
     @Override
-    public Object getProperty(String name) {
+    public @Nullable Object getProperty(String name) {
         return properties.get(name);
     }
 
@@ -263,7 +270,7 @@ final class JaxRsConfiguration implements Configuration {
                         continue;
                     }
                     readers.add(new JaxRsMessageBodyReaderDefinition(
-                        AnnotationReflectionUtils.resolveGenericToArgument(reader.getClass(), MessageBodyReader.class).getTypeParameters()[0],
+                        Objects.requireNonNull(AnnotationReflectionUtils.resolveGenericToArgument(reader.getClass(), MessageBodyReader.class)).getTypeParameters()[0],
                         new JaxRsMessageBodyReader<>(reader),
                         component.priority() == 0 ? JaxRsUtils.getPriorityOrder(reader) : component.priority()
                     ));
@@ -285,7 +292,7 @@ final class JaxRsConfiguration implements Configuration {
                         ));
                     } else {
                         readers.add(new JaxRsMessageBodyReaderDefinition(
-                            AnnotationReflectionUtils.resolveGenericToArgument(micronautReader.getClass(), io.micronaut.http.body.MessageBodyReader.class).getTypeParameters()[0],
+                            Objects.requireNonNull(AnnotationReflectionUtils.resolveGenericToArgument(micronautReader.getClass(), io.micronaut.http.body.MessageBodyReader.class)).getTypeParameters()[0],
                             micronautReader,
                             component.priority() == 0 ? JaxRsUtils.getPriorityOrder(micronautReader) : component.priority()
                         ));
@@ -321,7 +328,7 @@ final class JaxRsConfiguration implements Configuration {
                     if (isNotConstrainedToClient(annotationMetadata)) {
                         continue;
                     }
-                    Argument<MessageBodyWriter> messageBodyWriterArgument = AnnotationReflectionUtils.resolveGenericToArgument(writer.getClass(), MessageBodyWriter.class);
+                    Argument<MessageBodyWriter> messageBodyWriterArgument = Objects.requireNonNull(AnnotationReflectionUtils.resolveGenericToArgument(writer.getClass(), MessageBodyWriter.class));
                     writers.add(new JaxRsMessageBodyWriterDefinition(
                         messageBodyWriterArgument.getTypeParameters()[0],
                         new JaxRsMessageBodyWriter<>(annotationMetadata, (MessageBodyWriter<Object>) writer),
@@ -339,7 +346,7 @@ final class JaxRsConfiguration implements Configuration {
                         ));
                     } else {
                         writers.add(new JaxRsMessageBodyWriterDefinition(
-                            AnnotationReflectionUtils.resolveGenericToArgument(micronautWriter.getClass(), io.micronaut.http.body.MessageBodyWriter.class).getTypeParameters()[0],
+                            Objects.requireNonNull(AnnotationReflectionUtils.resolveGenericToArgument(micronautWriter.getClass(), io.micronaut.http.body.MessageBodyWriter.class)).getTypeParameters()[0],
                             micronautWriter,
                             component.priority() == 0 ? JaxRsUtils.getPriorityOrder(micronautWriter) : component.priority()
                         ));
@@ -380,7 +387,7 @@ final class JaxRsConfiguration implements Configuration {
         return new HttpMessageEntityReader() {
 
             @Override
-            public <T> T readEntity(HttpMessage<?> message, Argument<T> entityType) {
+            public <T> @Nullable T readEntity(HttpMessage<?> message, Argument<T> entityType) {
                 ByteBuffer<?> byteBuffer = message.getBody(ByteBuffer.class)
                     .or(() -> message.getBody(byte[].class).map(ByteArrayByteBuffer::new))
                     .orElse(null);
@@ -397,7 +404,7 @@ final class JaxRsConfiguration implements Configuration {
                         return new JaxRsInterceptedRead<T>(readerInterceptors) {
 
                             @Override
-                            protected T readFromAfterInterception(Argument<Object> type, MediaType mediaType, Headers httpHeaders, InputStream inputStream) {
+                            protected @Nullable T readFromAfterInterception(Argument<Object> type, @Nullable MediaType mediaType, Headers httpHeaders, InputStream inputStream) {
                                 io.micronaut.http.body.MessageBodyReader<Object> reader = findReader(type, mediaType);
                                 if (reader != null) {
                                     return (T) reader.read(type, mediaType, headers, inputStream);
@@ -414,7 +421,7 @@ final class JaxRsConfiguration implements Configuration {
     }
 
     private <T> io.micronaut.http.body.@Nullable MessageBodyReader<T> findReader(Argument<T> argument,
-                                                                                MediaType mediaType) {
+                                                                                @Nullable MediaType mediaType) {
         // First, let's try to find JaxRs reader
         for (JaxRsMessageBodyReaderDefinition readerDer : getReaders()) {
             io.micronaut.http.body.MessageBodyReader<T> reader = (io.micronaut.http.body.MessageBodyReader<T>) readerDer.messageBodyReader();
@@ -435,7 +442,7 @@ final class JaxRsConfiguration implements Configuration {
     }
 
     @SuppressWarnings("unchecked")
-    <T> void writeBody(MutableHttpMessage<?> mutableHttpMessage, Argument<T> bodyArgument, T body) {
+    <T> void writeBody(MutableHttpMessage<?> mutableHttpMessage, Argument<T> bodyArgument, @Nullable T body) {
         if (body == null) {
             return;
         }
@@ -530,7 +537,7 @@ final class JaxRsConfiguration implements Configuration {
 
         boolean is(Class<?> type);
 
-        <T> T tryGet(Class<T> type);
+        <T> @Nullable T tryGet(Class<T> type);
 
         int priority();
 
@@ -541,7 +548,7 @@ final class JaxRsConfiguration implements Configuration {
     record InstanceComponent(Object component, int priority,
                              List<ComponentContract> components) implements Component {
         @Override
-        public <T> T tryGet(Class<T> type) {
+        public <T> @Nullable T tryGet(Class<T> type) {
             if (type.isInstance(component)) {
                 return (T) component;
             }
@@ -558,7 +565,7 @@ final class JaxRsConfiguration implements Configuration {
                           List<ComponentContract> components) implements Component {
 
         @Override
-        public <T> T tryGet(Class<T> type) {
+        public <T> @Nullable T tryGet(Class<T> type) {
             if (type.isAssignableFrom(componentClass)) {
                 return initialize(componentClass);
             }
@@ -570,7 +577,7 @@ final class JaxRsConfiguration implements Configuration {
             return type.equals(componentClass);
         }
 
-        private <T> T initialize(Class<?> clazz) {
+        private <T> @Nullable T initialize(Class<?> clazz) {
             try {
                 Optional<? extends Constructor<?>> optionalConstructor = ReflectionUtils.findConstructor(clazz);
                 if (optionalConstructor.isPresent()) {

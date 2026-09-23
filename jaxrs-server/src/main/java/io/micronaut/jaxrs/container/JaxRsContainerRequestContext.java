@@ -29,6 +29,7 @@ import jakarta.ws.rs.core.Request;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.SecurityContext;
 import jakarta.ws.rs.core.UriInfo;
+import org.jspecify.annotations.Nullable;
 
 import java.io.InputStream;
 import java.net.URI;
@@ -52,6 +53,7 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
     private final Map<String, Object> properties = new LinkedHashMap<>();
     private final MutableHttpRequest<?> mutableHttpRequest;
     private final JaxRsHttpHeaders jaxRsHttpHeaders;
+    @Nullable
     private Response response;
     private final ApplicationProvider applicationProvider;
     private boolean finished;
@@ -64,7 +66,7 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
     }
 
     @Override
-    public Object getProperty(String name) {
+    public @Nullable Object getProperty(String name) {
         return properties.get(name);
     }
 
@@ -127,27 +129,27 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
     }
 
     @Override
-    public String getHeaderString(String name) {
+    public @Nullable String getHeaderString(String name) {
         return jaxRsHttpHeaders.getHeaderString(name);
     }
 
-    // @Override v4
+    @Override
     public boolean containsHeaderString(String name, String valueSeparatorRegex, Predicate<String> valuePredicate) {
         return jaxRsHttpHeaders.containsHeaderString(name, valueSeparatorRegex, valuePredicate);
     }
 
-    // @Override v4
+    @Override
     public boolean containsHeaderString(String name, Predicate<String> valuePredicate) {
         return jaxRsHttpHeaders.containsHeaderString(name, valuePredicate);
     }
 
     @Override
-    public Date getDate() {
+    public @Nullable Date getDate() {
         return jaxRsHttpHeaders.getDate();
     }
 
     @Override
-    public Locale getLanguage() {
+    public @Nullable Locale getLanguage() {
         return jaxRsHttpHeaders.getLanguage();
     }
 
@@ -157,7 +159,7 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
     }
 
     @Override
-    public MediaType getMediaType() {
+    public @Nullable MediaType getMediaType() {
         return jaxRsHttpHeaders.getMediaType();
     }
 
@@ -182,7 +184,7 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
     }
 
     @Override
-    public InputStream getEntityStream() {
+    public @Nullable InputStream getEntityStream() {
         return null;
     }
 
@@ -192,7 +194,7 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
     }
 
     @Override
-    public SecurityContext getSecurityContext() {
+    public @Nullable SecurityContext getSecurityContext() {
         return null;
     }
 
@@ -207,7 +209,7 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
         this.response = response;
     }
 
-    public Response getResponse() {
+    public @Nullable Response getResponse() {
         return response;
     }
 

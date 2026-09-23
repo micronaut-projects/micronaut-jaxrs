@@ -32,6 +32,8 @@ import io.micronaut.jaxrs.common.JaxRsIOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Objects;
+
 /**
  * Handles JAX-RS exceptions that occur during the execution of an HTTP request.
  *
@@ -71,7 +73,7 @@ final class JaxRsGlobalExceptionHandler implements ExceptionHandler<Throwable, H
         ExceptionMapper exceptionMapper = providers.getExceptionMapper(exception.getClass());
         if (exceptionMapper != null) {
             String exceptionMapperName = exceptionMapper.getClass().getName();
-            Object previousMapper = request.getAttributes().get(USED_EXCEPTION_MAPPER, String.class, null);
+            Object previousMapper = request.getAttributes().get(USED_EXCEPTION_MAPPER, String.class).orElse(null);
             if (exceptionMapperName.equals(previousMapper)) {
                 return HttpResponse.status(HttpStatus.INTERNAL_SERVER_ERROR);
             }
@@ -79,7 +81,7 @@ final class JaxRsGlobalExceptionHandler implements ExceptionHandler<Throwable, H
             return ((JaxRsMutableResponse) exceptionMapper.toResponse(exception)).getResponse();
         }
         return responseProcessor.processResponse(ErrorContext.builder(request)
-            .errorMessage(exception.getMessage())
+            .errorMessage(Objects.requireNonNullElse(exception.getMessage(), "Unknown error"))
             .cause(exception)
             .build(), HttpResponse.badRequest());
     }

@@ -31,6 +31,7 @@ import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.MessageBodyReader;
 import jakarta.ws.rs.ext.MessageBodyWriter;
 import jakarta.ws.rs.ext.Providers;
+import org.jspecify.annotations.Nullable;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -58,7 +59,7 @@ final class JaxRsProviders implements Providers {
     }
 
     @Override
-    public <T> MessageBodyReader<T> getMessageBodyReader(Class<T> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+    public <T> @Nullable MessageBodyReader<T> getMessageBodyReader(Class<T> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
         Collection<MessageBodyReader> messageBodyReaders = beanContext.getBeansOfType(Argument.of(MessageBodyReader.class, Argument.of(type)));
         return messageBodyReaders.stream()
             .filter(r -> r.isReadable(type, genericType, annotations, mediaType))
@@ -78,7 +79,7 @@ final class JaxRsProviders implements Providers {
     }
 
     @Override
-    public <T> MessageBodyWriter<T> getMessageBodyWriter(Class<T> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+    public <T> @Nullable MessageBodyWriter<T> getMessageBodyWriter(Class<T> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
         Collection<MessageBodyWriter> messageBodyWriters = beanContext.getBeansOfType(Argument.of(MessageBodyWriter.class, Argument.of(type)));
         return messageBodyWriters.stream()
             .filter(w -> w.isWriteable(type, genericType, annotations, mediaType))
@@ -104,7 +105,7 @@ final class JaxRsProviders implements Providers {
 
     @SuppressWarnings({"unchecked"})
     @Override
-    public <T extends Throwable> ExceptionMapper<T> getExceptionMapper(Class<T> type) {
+    public <T extends Throwable> @Nullable ExceptionMapper<T> getExceptionMapper(Class<T> type) {
         // the mapper of the nearest superclass of the exception, among the registered ones (JAX-RS 4.4)
         JaxRsContainerMessageBodyHandlerRegistry registry = beanContext.getBean(JaxRsContainerMessageBodyHandlerRegistry.class);
         ExceptionMapper<T> nearest = null;
@@ -130,7 +131,7 @@ final class JaxRsProviders implements Providers {
 
     @Override
     @SuppressWarnings({"unchecked", "rawtypes"})
-    public <T> ContextResolver<T> getContextResolver(Class<T> contextType, MediaType mediaType) {
+    public <T> @Nullable ContextResolver<T> getContextResolver(Class<T> contextType, MediaType mediaType) {
         // the resolvers of the type whose produced types are compatible with the media type,
         // the most specific first (JAX-RS 4.3)
         List<BeanRegistration<ContextResolver>> candidates = new ArrayList<>();

@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * The JAX-RS body write interceptor.
@@ -55,7 +56,7 @@ public abstract class JaxRsInterceptedWrite<T, S extends JaxRsWriterInterceptorC
 
     public JaxRsInterceptedWrite(List<WriterInterceptor> writerInterceptors) {
         this(
-            writerInterceptors.stream().map(i -> new BeanRegistration<>(null, null, i)).toList(),
+            writerInterceptors.stream().map(JaxRsRouteInterceptors::registration).toList(),
             annotationMetadata -> true
         );
     }
@@ -80,11 +81,11 @@ public abstract class JaxRsInterceptedWrite<T, S extends JaxRsWriterInterceptorC
                         }
                         writeToAfterInterception(
                             argument,
-                            JaxRsUtils.convert(ctx.getMediaType()),
+                            Objects.requireNonNull(JaxRsUtils.convert(ctx.getMediaType())),
                             state);
                     },
                     type,
-                    JaxRsUtils.convert(mediaType),
+                    Objects.requireNonNull(JaxRsUtils.convert(mediaType)),
                     state
                 );
                 iterator.next().aroundWriteTo(context);

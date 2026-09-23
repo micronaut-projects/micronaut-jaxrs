@@ -57,8 +57,10 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
     private final JaxRsHttpHeaders jaxRsHttpHeaders;
     private boolean buffered;
     private boolean closed;
-    private byte[] buffer;
+    private byte @Nullable [] buffer;
+    @Nullable
     private Argument<?> readBodyArgument;
+    @Nullable
     private Object readBody;
 
     public JaxRsResponse(HttpResponse<?> response) {
@@ -121,7 +123,7 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
     }
 
     @Override
-    public Object getEntity() {
+    public @Nullable Object getEntity() {
         checkCanReadEntity();
         Object body = response.body();
         if (body instanceof GenericEntity<?> genericEntity) {
@@ -137,7 +139,7 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
      * @param <T>        The entity type
      * @return The entity value
      */
-    public <T> T readEntity(Argument<T> entityType) {
+    public <T> @Nullable T readEntity(Argument<T> entityType) {
         if (readBodyArgument != null && readBodyArgument.getType().equals(entityType.getType())) {
             return (T) readBody;
         }
@@ -156,22 +158,22 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
     }
 
     @Override
-    public <T> T readEntity(Class<T> entityType) {
+    public <T> @Nullable T readEntity(Class<T> entityType) {
         return readEntity(Argument.of(entityType));
     }
 
     @Override
-    public <T> T readEntity(GenericType<T> entityType) {
+    public <T> @Nullable T readEntity(GenericType<T> entityType) {
         return readEntity(JaxRsArgumentUtil.from(entityType));
     }
 
     @Override
-    public <T> T readEntity(Class<T> entityType, Annotation[] annotations) {
+    public <T> @Nullable T readEntity(Class<T> entityType, Annotation[] annotations) {
         return readEntity(JaxRsArgumentUtil.from(entityType, annotations));
     }
 
     @Override
-    public <T> T readEntity(GenericType<T> entityType, Annotation[] annotations) {
+    public <T> @Nullable T readEntity(GenericType<T> entityType, Annotation[] annotations) {
         return readEntity(JaxRsArgumentUtil.from(entityType, annotations));
     }
 
@@ -207,12 +209,12 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
     }
 
     @Override
-    public MediaType getMediaType() {
+    public @Nullable MediaType getMediaType() {
         return jaxRsHttpHeaders.getMediaType();
     }
 
     @Override
-    public Locale getLanguage() {
+    public @Nullable Locale getLanguage() {
         return jaxRsHttpHeaders.getLanguage();
     }
 
@@ -230,7 +232,6 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
     }
 
     @Override
-    @Nullable
     public Map<String, NewCookie> getCookies() {
         RuntimeDelegate.HeaderDelegate<NewCookie> newCookieHeaderDelegate = getInstance().createHeaderDelegate(NewCookie.class);
         return response.getHeaders().getAll(jakarta.ws.rs.core.HttpHeaders.SET_COOKIE)
@@ -240,7 +241,7 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
     }
 
     @Override
-    public EntityTag getEntityTag() {
+    public @Nullable EntityTag getEntityTag() {
         return response.getHeaders()
             .getFirst(HttpHeaders.ETAG)
             .map(entityTag -> getInstance().createHeaderDelegate(EntityTag.class).fromString(entityTag))
@@ -248,17 +249,17 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
     }
 
     @Override
-    public Date getDate() {
+    public @Nullable Date getDate() {
         return jaxRsHttpHeaders.getDate();
     }
 
     @Override
-    public Date getLastModified() {
+    public @Nullable Date getLastModified() {
         return response.getHeaders().getFirst(HttpHeaders.LAST_MODIFIED, Date.class).orElse(null);
     }
 
     @Override
-    public URI getLocation() {
+    public @Nullable URI getLocation() {
         return response.getHeaders()
             .getFirst(HttpHeaders.LOCATION)
             .map(URI::create).orElse(null);
@@ -279,12 +280,12 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
     }
 
     @Override
-    public Link getLink(String relation) {
+    public @Nullable Link getLink(String relation) {
         return getLinks().stream().filter(link -> link.getRel().equals(relation)).findFirst().orElse(null);
     }
 
     @Override
-    public Link.Builder getLinkBuilder(String relation) {
+    public Link.@Nullable Builder getLinkBuilder(String relation) {
         Link link = getLink(relation);
         if (link == null) {
             return null;
@@ -298,7 +299,7 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
     }
 
     @Override
-    public String getHeaderString(String name) {
+    public @Nullable String getHeaderString(String name) {
         return jaxRsHttpHeaders.getHeaderString(name);
     }
 

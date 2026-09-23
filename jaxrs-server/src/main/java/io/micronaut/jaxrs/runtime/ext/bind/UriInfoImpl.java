@@ -51,6 +51,7 @@ import java.util.stream.Stream;
 @Internal
 public final class UriInfoImpl implements UriInfo {
     private final HttpRequest<?> request;
+    @Nullable
     private final String basePath;
     private final String contextPath;
 
@@ -126,7 +127,7 @@ public final class UriInfoImpl implements UriInfo {
                     String[] keyVal = segmentTokens[i].split("=", 2);
                     String key = keyVal[0];
                     String val = keyVal.length > 1 ? keyVal[1] : null;
-                    params.add(getPath(key, decode), getPath(val, decode));
+                    params.add(getPath(key, decode), val == null ? null : getPath(val, decode));
                 }
                 return new UriPathSegment(getPath(segmentTokens[0], decode), params);
             })
@@ -231,7 +232,7 @@ public final class UriInfoImpl implements UriInfo {
         return getMatchedURIs(true);
     }
 
-    //    @Override v4
+    @Override
     public String getMatchedResourceTemplate() {
         // the template of the matched route, relative to the context path of the server
         return io.micronaut.web.router.RouteAttributes.getRouteInfo(request)

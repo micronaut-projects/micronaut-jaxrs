@@ -21,6 +21,7 @@ import io.micronaut.http.HttpResponseProvider;
 import io.micronaut.http.MutableHttpResponse;
 import jakarta.ws.rs.ProcessingException;
 import jakarta.ws.rs.core.MultivaluedMap;
+import org.jspecify.annotations.Nullable;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -37,6 +38,7 @@ import java.io.UncheckedIOException;
 public final class JaxRsMutableResponse extends JaxRsResponse implements HttpResponseProvider {
 
     private final MutableHttpResponse<?> mutableHttpResponse;
+    @Nullable
     private InputStream entityStream;
 
     public JaxRsMutableResponse(MutableHttpResponse<?> mutableHttpResponse) {
@@ -55,7 +57,7 @@ public final class JaxRsMutableResponse extends JaxRsResponse implements HttpRes
     }
 
     @Override
-    public <T> T readEntity(Argument<T> entityType) {
+    public <T> @Nullable T readEntity(Argument<T> entityType) {
         if (entityStream != null) {
             if (entityType.getType().equals(InputStream.class)) {
                 return (T) entityStream;

@@ -39,6 +39,7 @@ import java.lang.reflect.Method;
 @Internal
 public class JaxRsResourceInfo implements RequestAware, ResourceInfo {
 
+    @Nullable
     private RouteInfo<?> routeInfo;
 
     @Override

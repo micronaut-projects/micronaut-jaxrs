@@ -20,6 +20,7 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.type.Argument;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.ext.InterceptorContext;
+import org.jspecify.annotations.Nullable;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
@@ -39,12 +40,15 @@ abstract sealed class AbstractJaxRsInterceptorContext implements InterceptorCont
 
     private final Map<String, Object> properties = new LinkedHashMap<>();
     private final Argument<?> argument;
+    @Nullable
     private MediaType mediaType;
+    @Nullable
     private Class<?> type;
+    @Nullable
     private Type genericType;
-    private Annotation[] annotations;
+    private Annotation @Nullable [] annotations;
 
-    protected AbstractJaxRsInterceptorContext(Argument<?> argument, MediaType mediaType) {
+    protected AbstractJaxRsInterceptorContext(Argument<?> argument, @Nullable MediaType mediaType) {
         this.argument = argument;
         this.mediaType = mediaType;
     }
@@ -76,7 +80,7 @@ abstract sealed class AbstractJaxRsInterceptorContext implements InterceptorCont
     }
 
     @Override
-    public Object getProperty(String name) {
+    public @Nullable Object getProperty(String name) {
         return properties.get(name);
     }
 
@@ -136,12 +140,12 @@ abstract sealed class AbstractJaxRsInterceptorContext implements InterceptorCont
     }
 
     @Override
-    public MediaType getMediaType() {
+    public @Nullable MediaType getMediaType() {
         return mediaType;
     }
 
     @Override
-    public void setMediaType(MediaType mediaType) {
+    public void setMediaType(@Nullable MediaType mediaType) {
         this.mediaType = mediaType;
     }
 

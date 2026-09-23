@@ -19,6 +19,7 @@ import io.micronaut.http.HttpHeaderValues;
 import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpRequest;
 import jakarta.ws.rs.core.SecurityContext;
+import org.jspecify.annotations.Nullable;
 
 import java.security.Principal;
 import java.security.cert.Certificate;
@@ -45,7 +46,7 @@ public class SimpleSecurityContextImpl implements SecurityContext {
     }
 
     @Override
-    public Principal getUserPrincipal() {
+    public @Nullable Principal getUserPrincipal() {
         return request.getUserPrincipal().orElse(null);
     }
 
@@ -60,7 +61,7 @@ public class SimpleSecurityContextImpl implements SecurityContext {
     }
 
     @Override
-    public String getAuthenticationScheme() {
+    public @Nullable String getAuthenticationScheme() {
         Certificate cert = request.getCertificate().orElse(null);
         if (cert != null) {
             return CLIENT_CERT_AUTH;

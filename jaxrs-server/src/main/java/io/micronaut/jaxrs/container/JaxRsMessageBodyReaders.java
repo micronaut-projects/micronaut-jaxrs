@@ -38,6 +38,7 @@ import jakarta.ws.rs.ext.ReaderInterceptor;
 
 import java.io.InputStream;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -108,9 +109,9 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
         return new JaxRsInterceptedRead<Object>(interceptors, JaxRsRouteInterceptors.predicate(nameBindingPredicate)) {
 
             @Override
-            protected Object readFromAfterInterception(Argument<Object> type, MediaType mediaType, Headers httpHeaders, InputStream inputStream) {
+            protected @Nullable Object readFromAfterInterception(Argument<Object> type, @Nullable MediaType mediaType, Headers httpHeaders, InputStream inputStream) {
                 // the interceptors can change the type and the media type
-                return entityReader(type, mediaType).read(type, mediaType, httpHeaders, inputStream);
+                return entityReader(type, Objects.requireNonNull(mediaType)).read(type, mediaType, httpHeaders, inputStream);
             }
 
         }.intercept((Argument) type, mediaType, httpHeaders, entity);
@@ -142,7 +143,7 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
         return new JaxRsInterceptedRead<T>(interceptors, JaxRsRouteInterceptors.predicate(nameBindingPredicate)) {
 
             @Override
-            protected T readFromAfterInterception(Argument<Object> type, MediaType mediaType, Headers httpHeaders, InputStream inputStream) {
+            protected @Nullable T readFromAfterInterception(Argument<Object> type, @Nullable MediaType mediaType, Headers httpHeaders, InputStream inputStream) {
                 Optional<MessageBodyReader<Object>> reader = registry.findSelectingReader(type, getMediaTypes(mediaType));
                 if (reader.isPresent()) {
                     return (T) reader.get().read(type, mediaType, httpHeaders, inputStream);
@@ -167,7 +168,7 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
         return new JaxRsInterceptedRead<T>(interceptors, JaxRsRouteInterceptors.predicate(nameBindingPredicate)) {
 
             @Override
-            protected T readFromAfterInterception(Argument<Object> type, MediaType mediaType, Headers httpHeaders, InputStream inputStream) {
+            protected @Nullable T readFromAfterInterception(Argument<Object> type, @Nullable MediaType mediaType, Headers httpHeaders, InputStream inputStream) {
                 Optional<MessageBodyReader<Object>> reader = registry.findSelectingReader(type, getMediaTypes(mediaType));
                 if (reader.isPresent()) {
                     return (T) reader.get().read(type, mediaType, httpHeaders, inputStream);

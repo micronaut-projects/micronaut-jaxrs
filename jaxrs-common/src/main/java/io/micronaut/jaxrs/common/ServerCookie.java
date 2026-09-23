@@ -15,6 +15,8 @@
  */
 package io.micronaut.jaxrs.common;
 
+import org.jspecify.annotations.Nullable;
+
 import java.io.Serializable;
 import java.text.DateFormat;
 import java.text.FieldPosition;
@@ -161,9 +163,9 @@ final class ServerCookie implements Serializable {
                                   int version,
                                   String name,
                                   String value,
-                                  String path,
-                                  String domain,
-                                  String comment,
+                                  @Nullable String path,
+                                  @Nullable String domain,
+                                  @Nullable String comment,
                                   int maxAge,
                                   boolean isSecure) {
         StringBuffer buf = new StringBuffer();

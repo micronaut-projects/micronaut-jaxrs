@@ -22,6 +22,7 @@ import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.UriBuilder;
 import jakarta.ws.rs.core.UriBuilderException;
 import jakarta.ws.rs.ext.RuntimeDelegate;
+import org.jspecify.annotations.Nullable;
 
 import java.io.Serial;
 import java.lang.reflect.Method;
@@ -64,15 +65,23 @@ final class JaxRsUriBuilder extends UriBuilder {
     private static final String REPLACEMENT_URI_PARAMETER = "_jaxrs_uri_parameter";
     private static final Pattern PARAM_REPLACEMENT = Pattern.compile(REPLACEMENT_URI_PARAMETER);
 
+    @Nullable
     private String host;
+    @Nullable
     private String scheme;
     private int port = -1;
 
+    @Nullable
     private String userInfo;
+    @Nullable
     private String path;
+    @Nullable
     private String query;
+    @Nullable
     private String fragment;
+    @Nullable
     private String ssp;
+    @Nullable
     private String authority;
     private boolean encode = true;
 
@@ -96,7 +105,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         return impl;
     }
 
-    public static boolean compare(String s1, String s2) {
+    public static boolean compare(@Nullable String s1, @Nullable String s2) {
         if (s1 == s2) {
             return true;
         }
@@ -388,7 +397,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         return this;
     }
 
-    private static String paths(boolean encode, String basePath, String... segments) {
+    private static String paths(boolean encode, @Nullable String basePath, String... segments) {
         StringBuilder path = new StringBuilder();
         if (basePath != null) {
             path.append(basePath);
@@ -1105,11 +1114,11 @@ final class JaxRsUriBuilder extends UriBuilder {
         return queryParam(name, values);
     }
 
-    public String getHost() {
+    public @Nullable String getHost() {
         return host;
     }
 
-    public String getScheme() {
+    public @Nullable String getScheme() {
         return scheme;
     }
 
@@ -1117,19 +1126,19 @@ final class JaxRsUriBuilder extends UriBuilder {
         return port;
     }
 
-    public String getUserInfo() {
+    public @Nullable String getUserInfo() {
         return userInfo;
     }
 
-    public String getPath() {
+    public @Nullable String getPath() {
         return path;
     }
 
-    public String getQuery() {
+    public @Nullable String getQuery() {
         return query;
     }
 
-    public String getFragment() {
+    public @Nullable String getFragment() {
         return fragment;
     }
 
@@ -1318,8 +1327,8 @@ final class JaxRsUriBuilder extends UriBuilder {
         }
 
         @Override
-        public Object get(Object key) {
-            Object object;
+        public @Nullable Object get(Object key) {
+            @Nullable Object object;
             if (!super.containsKey(key) && this.index != this.parameterValues.length) {
                 object = this.parameterValues[this.index++];
                 super.put((String) key, object);

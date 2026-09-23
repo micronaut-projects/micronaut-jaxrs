@@ -12,6 +12,10 @@ jakarta-activation-api = "2.1.4"
 jakarta-xml-bind-api = "4.0.5"
 jaxb-runtime = "4.0.9"
 angus-activation = "2.0.3"
+errorprone-gradle-plugin = "5.1.1"
+errorprone-no-reflection = "1.0.1"
+error-prone-core = "2.50.0"
+nullaway = "0.13.8"
 # the version of the sourcegen model micronaut-core-processor is built with
 micronaut-sourcegen = "2.1.0"
 
@@ -33,6 +37,11 @@ jakarta-activation-api = { module = "jakarta.activation:jakarta.activation-api",
 jakarta-xml-bind-api = { module = "jakarta.xml.bind:jakarta.xml.bind-api", version.ref = "jakarta-xml-bind-api" }
 jaxb-runtime = { module = "org.glassfish.jaxb:jaxb-runtime", version.ref = "jaxb-runtime" }
 angus-activation = { module = "org.eclipse.angus:angus-activation", version.ref = "angus-activation" }
+
+nullaway = { module = "com.uber.nullaway:nullaway", version.ref = "nullaway" }
+error-prone-core = { module = "com.google.errorprone:error_prone_core", version.ref = "error-prone-core" }
+gradle-errorprone = { module = "net.ltgt.errorprone:net.ltgt.errorprone.gradle.plugin", version.ref = "errorprone-gradle-plugin" }
+gradle-errorprone-no-reflection = { module = "io.micronaut.errorprone:micronaut-errorprone-no-reflection-gradle-plugin", version.ref = "errorprone-no-reflection" }
 
 junit-platform-suite-engine = { module = "org.junit.platform:junit-platform-suite-engine" }
 jakarta-jaxrs-tck-tests = { module = 'jakarta.ws.rs:jakarta-restful-ws-tck', version.ref = "jakarta-jaxrs-tck" }

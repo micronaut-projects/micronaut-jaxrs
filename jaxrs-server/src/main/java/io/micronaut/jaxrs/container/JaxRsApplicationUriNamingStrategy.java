@@ -44,6 +44,7 @@ import jakarta.ws.rs.ApplicationPath;
 @Internal
 public final class JaxRsApplicationUriNamingStrategy extends HyphenatedUriNamingStrategy {
 
+    @Nullable
     private final String contextPath;
 
     @Inject

@@ -63,6 +63,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -998,7 +999,8 @@ public final class JaxRsRoutesGenerator {
                     ExpressionDef.constant(ClassTypeDef.erasure(field.getDeclaringType())),
                     ExpressionDef.constant(field.getName()), value);
             }
-            MethodElement setter = member.setter;
+            // a member that is not a field is a setter
+            MethodElement setter = Objects.requireNonNull(member.setter);
             if (model.accessible(setter)) {
                 return instance.invoke(setter, value);
             }

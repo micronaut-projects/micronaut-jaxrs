@@ -20,6 +20,7 @@ import io.micronaut.core.type.MutableHeaders;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.ext.RuntimeDelegate;
+import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 import java.util.Objects;
@@ -55,20 +56,17 @@ public final class JaxRsMutableObjectHeadersMultivaluedMap extends JaxRsObjectHe
     }
 
     @Override
-    public List<Object> remove(Object key) {
+    public @Nullable List<Object> remove(Object key) {
         if (key instanceof String s) {
             List<Object> prev = get(key);
             headers.remove(s);
             return prev;
-        } else if (key == null) {
-            return get(null);
-        } else {
-            return null;
         }
+        return null;
     }
 
     @Override
-    public List<Object> put(String key, List<Object> value) {
+    public @Nullable List<Object> put(String key, List<Object> value) {
         List<Object> prev = get(key);
         if (key != null) {
             headers.remove(key);

@@ -40,6 +40,7 @@ import java.net.URI;
 import java.util.Date;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -56,7 +57,9 @@ final class JaxRsContainerResponseContext implements ContainerResponseContext {
     private final JaxRsMutableResponse jaxRsMutableResponse;
     private Argument<?> bodyArgument;
     private Annotation @Nullable [] entityAnnotations;
+    @Nullable
     private ByteArrayOutputStream delegateEntityStream;
+    @Nullable
     private OutputStream customEntityStream;
 
     public JaxRsContainerResponseContext(MutableHttpResponse<?> mutableHttpResponse, Argument<?> bodyArgument) {
@@ -109,16 +112,16 @@ final class JaxRsContainerResponseContext implements ContainerResponseContext {
     }
 
     @Override
-    public String getHeaderString(String name) {
+    public @Nullable String getHeaderString(String name) {
         return jaxRsMutableResponse.getHeaderString(name);
     }
 
-    // @Override v4
+    @Override
     public boolean containsHeaderString(String name, String valueSeparatorRegex, Predicate<String> valuePredicate) {
         return JaxRsHttpHeaders.forResponse(mutableHttpResponse.getHeaders()).containsHeaderString(name, valueSeparatorRegex, valuePredicate);
     }
 
-    // @Override v4
+    @Override
     public boolean containsHeaderString(String name, Predicate<String> valuePredicate) {
         return JaxRsHttpHeaders.forResponse(mutableHttpResponse.getHeaders()).containsHeaderString(name, valuePredicate);
     }
@@ -129,12 +132,12 @@ final class JaxRsContainerResponseContext implements ContainerResponseContext {
     }
 
     @Override
-    public Date getDate() {
+    public @Nullable Date getDate() {
         return jaxRsMutableResponse.getDate();
     }
 
     @Override
-    public Locale getLanguage() {
+    public @Nullable Locale getLanguage() {
         return jaxRsMutableResponse.getLanguage();
     }
 
@@ -144,7 +147,7 @@ final class JaxRsContainerResponseContext implements ContainerResponseContext {
     }
 
     @Override
-    public MediaType getMediaType() {
+    public @Nullable MediaType getMediaType() {
         return jaxRsMutableResponse.getMediaType();
     }
 
@@ -154,17 +157,17 @@ final class JaxRsContainerResponseContext implements ContainerResponseContext {
     }
 
     @Override
-    public EntityTag getEntityTag() {
+    public @Nullable EntityTag getEntityTag() {
         return jaxRsMutableResponse.getEntityTag();
     }
 
     @Override
-    public Date getLastModified() {
+    public @Nullable Date getLastModified() {
         return jaxRsMutableResponse.getLastModified();
     }
 
     @Override
-    public URI getLocation() {
+    public @Nullable URI getLocation() {
         return jaxRsMutableResponse.getLocation();
     }
 
@@ -179,12 +182,12 @@ final class JaxRsContainerResponseContext implements ContainerResponseContext {
     }
 
     @Override
-    public Link getLink(String relation) {
+    public @Nullable Link getLink(String relation) {
         return jaxRsMutableResponse.getLink(relation);
     }
 
     @Override
-    public Link.Builder getLinkBuilder(String relation) {
+    public Link.@Nullable Builder getLinkBuilder(String relation) {
         return jaxRsMutableResponse.getLinkBuilder(relation);
     }
 
@@ -194,7 +197,7 @@ final class JaxRsContainerResponseContext implements ContainerResponseContext {
     }
 
     @Override
-    public Object getEntity() {
+    public @Nullable Object getEntity() {
         return jaxRsMutableResponse.getEntity();
     }
 
@@ -217,7 +220,7 @@ final class JaxRsContainerResponseContext implements ContainerResponseContext {
     public void setEntity(Object entity, Annotation[] annotations, MediaType mediaType) {
         mutableHttpResponse.body(entity);
         if (mediaType != null) {
-            mutableHttpResponse.contentType(JaxRsUtils.convert(mediaType));
+            mutableHttpResponse.contentType(Objects.requireNonNull(JaxRsUtils.convert(mediaType)));
         }
         bodyArgument = Argument.of(entity == null ? (Class) Object.class : entity.getClass(), JaxRsArgumentUtil.createAnnotationMetadata(annotations));
         entityAnnotations = annotations;
@@ -239,11 +242,11 @@ final class JaxRsContainerResponseContext implements ContainerResponseContext {
         return delegateEntityStream;
     }
 
-    public ByteArrayOutputStream getDelegateEntityStream() {
+    public @Nullable ByteArrayOutputStream getDelegateEntityStream() {
         return delegateEntityStream;
     }
 
-    public OutputStream getCustomEntityStream() {
+    public @Nullable OutputStream getCustomEntityStream() {
         return customEntityStream;
     }
 

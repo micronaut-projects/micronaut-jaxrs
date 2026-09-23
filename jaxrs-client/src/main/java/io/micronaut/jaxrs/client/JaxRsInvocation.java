@@ -53,6 +53,7 @@ import java.io.UncheckedIOException;
 import java.net.URI;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -71,7 +72,7 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
     private final JaxRsClient client;
     @NonNull
     private final URI uri;
-    @NonNull
+    @Nullable
     private final String method;
     @Nullable
     private final Entity<?> entity;
@@ -82,7 +83,7 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
 
     JaxRsInvocation(JaxRsClient client,
                     @NonNull URI uri,
-                    String method,
+                    @Nullable String method,
                     @Nullable Entity<?> entity,
                     MutableHttpHeaders mutableHttpHeaders,
                     JaxRsConfiguration configuration) {
@@ -152,7 +153,7 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
         }
     }
 
-    <T> T invokeExchange(Argument<T> type, Entity<?> entity) {
+    <T> T invokeExchange(Argument<T> type, @Nullable Entity<?> entity) {
         return asyncBlock(async(method, type, entity));
     }
 
@@ -168,11 +169,11 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
         return async(method, type, null);
     }
 
-    private <T> CompletableFuture<T> async(HttpMethod method, Argument<T> type, Entity<?> entity) {
+    private <T> CompletableFuture<T> async(HttpMethod method, Argument<T> type, @Nullable Entity<?> entity) {
         return async(method.name(), type, entity);
     }
 
-    private <T> CompletableFuture<T> async(String method, Argument<T> type, Entity<?> entity) {
+    private <T> CompletableFuture<T> async(@Nullable String method, Argument<T> type, @Nullable Entity<?> entity) {
         var future = new CompletableFuture<T>();
         try {
             var requestBodyType = Argument.of(Object.class);
@@ -313,7 +314,7 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
         if (method == null) {
             method = this.method;
         }
-        HttpMethod httpMethod = HttpMethod.valueOf(method);
+        HttpMethod httpMethod = HttpMethod.valueOf(Objects.requireNonNull(method));
         MutableHttpRequest<Object> mutableHttpRequest = httpMethod ==
             HttpMethod.CUSTOM ? HttpRequest.create(HttpMethod.CUSTOM, uri.toString(), method) : HttpRequest.create(httpMethod, uri.toString());
         if (entity != null) {
@@ -327,8 +328,8 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
         if (mutableHttpHeaders != null) {
             mutableHttpHeaders.forEachValue(mutableHttpRequest::header);
         }
-        Argument<Object> bodyArgument;
-        Object body;
+        @Nullable Argument<Object> bodyArgument;
+        @Nullable Object body;
         if (entity != null) {
             bodyArgument = (Argument<Object>) JaxRsArgumentUtil.from(entity);
             body = entity.getEntity();
@@ -340,7 +341,9 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
                 bodyArgument = null;
             }
         }
-        configuration.writeBody(mutableHttpRequest, bodyArgument, body);
+        if (bodyArgument != null) {
+            configuration.writeBody(mutableHttpRequest, bodyArgument, body);
+        }
         return mutableHttpRequest;
     }
 

@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * The reader remapped {@link MessageBodyWriter}.
@@ -87,7 +88,7 @@ public final class JaxRsMessageBodyWriter<T> implements MessageBodyWriter<T> {
                 outputStream
             );
             if (!httpHeaders.containsKey(HttpHeaders.CONTENT_TYPE)) {
-                if (mediaType == null || JaxRsUtils.convert(mediaType).isWildcardType()) {
+                if (mediaType == null || Objects.requireNonNull(JaxRsUtils.convert(mediaType)).isWildcardType()) {
                     if (produces.size() == 1) {
                         httpHeaders.add(HttpHeaders.CONTENT_TYPE, produces.get(0).toString());
                     }

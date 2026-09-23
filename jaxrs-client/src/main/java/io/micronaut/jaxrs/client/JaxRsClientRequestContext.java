@@ -30,6 +30,7 @@ import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
+import org.jspecify.annotations.Nullable;
 
 import java.io.OutputStream;
 import java.lang.annotation.Annotation;
@@ -41,6 +42,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Predicate;
 
 /**
@@ -57,9 +59,10 @@ final class JaxRsClientRequestContext implements ClientRequestContext {
     private final Map<String, Object> properties = new LinkedHashMap<>();
     private final MutableHttpRequest<?> mutableHttpRequest;
     private final JaxRsHttpHeaders jaxRsHttpHeaders;
+    @Nullable
     private Response response;
     private Argument<?> bodyType;
-    private Annotation[] annotations;
+    private Annotation @Nullable [] annotations;
 
     public JaxRsClientRequestContext(Client client,
                                      Configuration configuration,
@@ -73,7 +76,7 @@ final class JaxRsClientRequestContext implements ClientRequestContext {
     }
 
     @Override
-    public Object getProperty(String name) {
+    public @Nullable Object getProperty(String name) {
         return properties.get(name);
     }
 
@@ -128,32 +131,32 @@ final class JaxRsClientRequestContext implements ClientRequestContext {
     }
 
     @Override
-    public String getHeaderString(String name) {
+    public @Nullable String getHeaderString(String name) {
         return jaxRsHttpHeaders.getHeaderString(name);
     }
 
-    // @Override v4
+    @Override
     public boolean containsHeaderString(String name, String valueSeparatorRegex, Predicate<String> valuePredicate) {
         return JaxRsHttpHeaders.forRequest(mutableHttpRequest.getHeaders()).containsHeaderString(name, valueSeparatorRegex, valuePredicate);
     }
 
-    // @Override v4
+    @Override
     public boolean containsHeaderString(String name, Predicate<String> valuePredicate) {
         return JaxRsHttpHeaders.forRequest(mutableHttpRequest.getHeaders()).containsHeaderString(name, valuePredicate);
     }
 
     @Override
-    public Date getDate() {
+    public @Nullable Date getDate() {
         return jaxRsHttpHeaders.getDate();
     }
 
     @Override
-    public Locale getLanguage() {
+    public @Nullable Locale getLanguage() {
         return jaxRsHttpHeaders.getLanguage();
     }
 
     @Override
-    public MediaType getMediaType() {
+    public @Nullable MediaType getMediaType() {
         return jaxRsHttpHeaders.getMediaType();
     }
 
@@ -178,7 +181,7 @@ final class JaxRsClientRequestContext implements ClientRequestContext {
     }
 
     @Override
-    public Object getEntity() {
+    public @Nullable Object getEntity() {
         return mutableHttpRequest.getBody(bodyType).orElse(null);
     }
 
@@ -202,7 +205,7 @@ final class JaxRsClientRequestContext implements ClientRequestContext {
     public void setEntity(Object entity, Annotation[] annotations, MediaType mediaType) {
         mutableHttpRequest.body(entity);
         if (mediaType != null) {
-            mutableHttpRequest.contentType(JaxRsUtils.convert(mediaType));
+            mutableHttpRequest.contentType(Objects.requireNonNull(JaxRsUtils.convert(mediaType)));
         }
         bodyType = Argument.of(entity.getClass());
         if (annotations != null) {
@@ -244,7 +247,7 @@ final class JaxRsClientRequestContext implements ClientRequestContext {
         this.response = response;
     }
 
-    public Response getResponse() {
+    public @Nullable Response getResponse() {
         return response;
     }
 }

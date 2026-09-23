@@ -22,6 +22,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.ext.ReaderInterceptor;
 import jakarta.ws.rs.ext.ReaderInterceptorContext;
+import org.jspecify.annotations.Nullable;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -44,7 +45,7 @@ public final class JaxRsReaderInterceptorContext extends AbstractJaxRsIntercepto
     public JaxRsReaderInterceptorContext(Iterator<ReaderInterceptor> interceptors,
                                          IOProceedSupplier<Object> interceptedSupplier,
                                          Argument<?> argument,
-                                         MediaType mediaType,
+                                         @Nullable MediaType mediaType,
                                          MultivaluedMap<String, String> headers,
                                          InputStream inputStream) {
         super(argument, mediaType);
@@ -55,7 +56,7 @@ public final class JaxRsReaderInterceptorContext extends AbstractJaxRsIntercepto
     }
 
     @Override
-    public Object proceed() throws IOException, WebApplicationException {
+    public @Nullable Object proceed() throws IOException, WebApplicationException {
         if (interceptors.hasNext()) {
             return interceptors.next().aroundReadFrom(this);
         }
@@ -85,6 +86,7 @@ public final class JaxRsReaderInterceptorContext extends AbstractJaxRsIntercepto
     @FunctionalInterface
     public interface IOProceedSupplier<T> {
 
+        @Nullable
         T get(JaxRsReaderInterceptorContext context) throws IOException;
 
     }

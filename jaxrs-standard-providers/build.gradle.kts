@@ -24,3 +24,9 @@ dependencies {
     testRuntimeOnly(mnLogging.logback.classic)
     testRuntimeOnly(mnTest.junit.jupiter.engine)
 }
+
+noReflection {
+    // JAXB binds a class by its @XmlRootElement or @XmlType, names an element without a root element after the
+    // class, and reads the type argument of a JAXBElement from the generic type JAX-RS passes
+    allowIn("io.micronaut.jaxrs.providers.JaxRsJaxbMessageBodyReaderWriter", "ANNOTATIONS", "CLASS_NAMES", "GENERIC_SIGNATURES")
+}

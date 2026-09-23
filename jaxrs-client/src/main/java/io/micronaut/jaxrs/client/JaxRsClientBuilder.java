@@ -69,14 +69,21 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
     private static final List<WeakReference<DefaultHttpClient>> TESTING_CLIENTS = new ArrayList<>();
     private static final int TESTING_MIN_CLIENTS = Optional.ofNullable(System.getProperty("micronaut.testing.jaxrs.min.clients")).map(Integer::parseInt).orElse(-1);
 
-    private JaxRsConfiguration config;
+    private final JaxRsConfiguration config = new JaxRsConfiguration();
+    @Nullable
     private SSLContext sslContext;
     private Map<KeyStore, char[]> keyStores = new HashMap<>();
+    @Nullable
     private KeyStore trustStore;
+    @Nullable
     private HostnameVerifier hostnameVerifier;
+    @Nullable
     private ExecutorService executorService;
+    @Nullable
     private ScheduledExecutorService scheduledExecutorService;
+    @Nullable
     private Duration connectTimeout;
+    @Nullable
     private Duration readTimeout;
 
     @Override

@@ -23,6 +23,7 @@ import jakarta.inject.Singleton;
 import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Date;
 import java.util.List;
@@ -54,16 +55,16 @@ final class JaxRsContextHttpHeaders implements jakarta.ws.rs.core.HttpHeaders {
     }
 
     @Override
-    public String getHeaderString(String name) {
+    public @Nullable String getHeaderString(String name) {
         return getHeaders().getHeaderString(name);
     }
 
-    //    @Override v4
+    @Override
     public boolean containsHeaderString(String name, String valueSeparatorRegex, Predicate<String> valuePredicate) {
         return getHeaders().containsHeaderString(name, valueSeparatorRegex, valuePredicate);
     }
 
-    //    @Override v4
+    @Override
     public boolean containsHeaderString(String name, Predicate<String> valuePredicate) {
         return getHeaders().containsHeaderString(name, valuePredicate);
     }
@@ -84,12 +85,12 @@ final class JaxRsContextHttpHeaders implements jakarta.ws.rs.core.HttpHeaders {
     }
 
     @Override
-    public MediaType getMediaType() {
+    public @Nullable MediaType getMediaType() {
         return getHeaders().getMediaType();
     }
 
     @Override
-    public Locale getLanguage() {
+    public @Nullable Locale getLanguage() {
         return getHeaders().getLanguage();
     }
 
@@ -99,7 +100,7 @@ final class JaxRsContextHttpHeaders implements jakarta.ws.rs.core.HttpHeaders {
     }
 
     @Override
-    public Date getDate() {
+    public @Nullable Date getDate() {
         return getHeaders().getDate();
     }
 

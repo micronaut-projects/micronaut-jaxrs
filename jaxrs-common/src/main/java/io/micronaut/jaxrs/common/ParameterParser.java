@@ -16,6 +16,7 @@
 package io.micronaut.jaxrs.common;
 
 import io.micronaut.core.annotation.Internal;
+import org.jspecify.annotations.Nullable;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -39,7 +40,7 @@ final class ParameterParser {
     /**
      * String to be parsed.
      */
-    private char[] chars = null;
+    private char[] chars = new char[0];
 
     /**
      * Current position in the string.
@@ -92,7 +93,7 @@ final class ParameterParser {
      *               <code>false</code> otherwise.
      * @return the token
      */
-    private String getToken(boolean quoted) {
+    private @Nullable String getToken(boolean quoted) {
         // Trim leading white spaces
         while ((i1 < i2) && (Character.isWhitespace(chars[i1]))) {
             i1++;
@@ -143,7 +144,7 @@ final class ParameterParser {
      *                    characters when encountered signify the end of the token
      * @return the token
      */
-    private String parseToken(final char[] terminators) {
+    private @Nullable String parseToken(final char[] terminators) {
         char ch;
         i1 = pos;
         i2 = pos;
@@ -167,7 +168,7 @@ final class ParameterParser {
      *                    of the token
      * @return the token
      */
-    private String parseQuotedToken(final char[] terminators) {
+    private @Nullable String parseQuotedToken(final char[] terminators) {
         char ch;
         i1 = pos;
         i2 = pos;

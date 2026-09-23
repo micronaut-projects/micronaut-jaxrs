@@ -32,9 +32,7 @@ ee.jakarta.tck.ws.rs.jaxrs21.ee.client.executor.rx.JAXRSClientIT
 
 # Configuration
 ee.jakarta.tck.ws.rs.ee.rs.core.configuration.JAXRSClientIT
-ee.jakarta.tck.ws.rs.api.rs.core.configurable.JAXRSClientIT
-ee.jakarta.tck.ws.rs.api.client.clientbuilder.JAXRSClientIT
-ee.jakarta.tck.ws.rs.spec.client.instance.JAXRSClientIT
+ee.jakarta.tck.ws.rs.api.client.clientbuilder.JAXRSClientIT#newClientWithConfigurationTest
 
 # Field injection in providers
 ee.jakarta.tck.ws.rs.spec.context.client.JAXRSClientIT
