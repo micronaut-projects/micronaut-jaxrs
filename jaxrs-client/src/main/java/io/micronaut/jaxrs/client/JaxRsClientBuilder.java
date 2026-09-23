@@ -26,6 +26,7 @@ import io.micronaut.http.body.MessageBodyReader;
 import io.micronaut.http.body.MessageBodyWriter;
 import io.micronaut.http.client.DefaultHttpClientConfiguration;
 import io.micronaut.http.client.netty.DefaultHttpClient;
+import io.micronaut.jaxrs.common.JaxRsStandardProviders;
 import io.micronaut.jaxrs.common.body.standard.JaxRsInputStreamMessageBodyReader;
 import io.micronaut.jaxrs.common.body.standard.JaxRsInputStreamMessageBodyWriter;
 import io.micronaut.jaxrs.common.body.standard.JaxRsMultivaluedMapMessageBodyWriter;
@@ -50,6 +51,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.ServiceLoader;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -113,6 +115,10 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
         jaxRsConfiguration.register(new JaxRsMultivaluedMapMessageBodyWriter());
         jaxRsConfiguration.register(new JaxRsMultivaluedStringObjectMapMessageBodyReader());
         jaxRsConfiguration.register(new JaxRsMultivaluedStringStringMapMessageBodyReader());
+        // the standard providers of other modules, e.g. File, DataSource, Source and JAXB
+        for (JaxRsStandardProviders standardProviders : ServiceLoader.load(JaxRsStandardProviders.class, JaxRsClientBuilder.class.getClassLoader())) {
+            standardProviders.providers().forEach(jaxRsConfiguration::register);
+        }
 
         if (TESTING_MIN_CLIENTS > 0) {
             TESTING_CLIENTS.removeIf(w -> w.get() == null);
