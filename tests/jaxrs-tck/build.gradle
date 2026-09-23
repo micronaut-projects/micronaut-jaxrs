@@ -16,6 +16,9 @@ dependencies {
     implementation mn.micronaut.jackson.databind
 
     implementation projects.micronautJaxrsServer
+    // the security of the deployments with a login configuration
+    implementation projects.micronautJaxrsServerSecurity
+    implementation mnSecurity.micronaut.security
     implementation projects.micronautJaxrsClient
     implementation projects.micronautJaxrsStandardProviders
     implementation projects.micronautJaxrsProcessor
@@ -32,8 +35,49 @@ dependencies {
         }
     }
 
+    // the signature test of the JAX-RS API
+    testRuntimeOnly libs.jakarta.sigtest
     testRuntimeOnly mnLogging.logback.classic
     testRuntimeOnly mnTest.junit.jupiter.engine
+}
+
+// the Java SE bootstrap test is not an Arquillian deployment, which ArchiveCompiler compiles: it is
+// compiled with the annotation processors, like an application, found before the one of the TCK
+// jar, and run on its own, as its beans are not the ones of the deployments
+def seBootstrapSources = layout.buildDirectory.dir("generated/sources/tck-se-bootstrap")
+def extractSeBootstrapSources = tasks.register("extractSeBootstrapSources", Copy) {
+    from({
+        def sources = configurations.testCompileClasspath.incoming.artifactView { lenient(true) }.files
+            .filter { it.name.startsWith("jakarta-restful-ws-tck") && it.name.endsWith("-sources.jar") }
+        sources.collect { zipTree(it) }
+    }) {
+        include "ee/jakarta/tck/ws/rs/sebootstrap/SeBootstrapIT.java"
+    }
+    into(seBootstrapSources)
+}
+sourceSets {
+    seBootstrap {
+        java.srcDir(extractSeBootstrapSources)
+    }
+}
+configurations {
+    seBootstrapImplementation.extendsFrom(testImplementation)
+    seBootstrapRuntimeOnly.extendsFrom(testRuntimeOnly)
+}
+dependencies {
+    seBootstrapImplementation sourceSets.main.output
+    seBootstrapAnnotationProcessor mn.micronaut.inject.java
+    seBootstrapAnnotationProcessor projects.micronautJaxrsProcessor
+}
+def seBootstrapTest = tasks.register("seBootstrapTest", Test) {
+    description = "Runs the Java SE bootstrap test of the TCK."
+    group = "verification"
+    testClassesDirs = sourceSets.seBootstrap.output.classesDirs
+    classpath = sourceSets.seBootstrap.runtimeClasspath
+    useJUnitPlatform()
+}
+tasks.named("check") {
+    dependsOn(seBootstrapTest)
 }
 
 test {
@@ -43,6 +87,17 @@ test {
     systemProperty("webServerHost", "localhost")
     systemProperty("webServerPort", "8123")
     systemProperty("micronaut.testing.jaxrs.min.clients", "5")
+    // the users of the security tests, see TckDeployableContainer
+    systemProperty("user", "javajoe")
+    systemProperty("password", "javajoe")
+    systemProperty("authuser", "j2ee")
+    systemProperty("authpassword", "j2ee")
+    // the signature test: the API under test, and the classes of the JDK it extracts
+    def jaxrsApi = configurations.testRuntimeClasspath.incoming.artifactView { lenient(true) }.files.filter { it.name.startsWith("jakarta.ws.rs-api") }
+    systemProperty("jimage.dir", layout.buildDirectory.dir("jimage").get().asFile.absolutePath)
+    doFirst {
+        systemProperty("signature.sigTestClasspath", jaxrsApi.asPath + File.pathSeparator + layout.buildDirectory.dir("jimage/java.base").get().asFile.absolutePath)
+    }
     useJUnitPlatform()
     maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
     filter {

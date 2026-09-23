@@ -58,20 +58,27 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateEngine, Rout
      * The identifier of the language.
      */
     public static final String ID = "jakarta.ws.rs";
-    private static final String VERSION = "1";
-    private static final String DEFAULT_REGEX = "[^/]+";
-    private static final String QS = "qs";
-    private static final String WILDCARD = "*";
+
     /**
      * Marks the end of the {@code @Path} of the root resource class in a template: JAX-RS selects
      * the root resource class first (section 3.7.2, step 1).
      */
     public static final char ROOT_MARK = '\u001E';
+
     /**
      * Marks the end of the {@code @Path} of a sub-resource locator in a template: a resource method
      * is selected before a locator that matches as specifically (section 3.7.2, step 2).
      */
     public static final char LOCATOR_MARK = '\u001F';
+
+    private static final String VERSION = "1";
+
+    private static final String DEFAULT_REGEX = "[^/]+";
+
+    private static final String QS = "qs";
+
+    private static final String WILDCARD = "*";
+
     /**
      * The order of specificity of JAX-RS (section 3.7.2): more literal characters, then more
      * template variables, then more variables with a regular expression.
@@ -80,6 +87,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateEngine, Rout
         .comparingInt(ParsedRouteTemplate::rawLength).reversed()
         .thenComparing(Comparator.comparingInt(ParsedRouteTemplate::pathVariableCount).reversed())
         .thenComparing(Comparator.comparingInt(ParsedRouteTemplate::patternVariableCount).reversed());
+
     /**
      * The order of JAX-RS routes: the root resource class, by the specificity of its {@code @Path},
      * then the whole template, then fewer sub-resource locators.
@@ -99,6 +107,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateEngine, Rout
     private static final Parsed EMPTY = new Parsed(template(""), List.of(), null, 0);
 
     private final Map<RouteTemplate, ParsedRouteTemplate> parsedTemplates = new ConcurrentHashMap<>();
+
     /**
      * The root resource classes of the routes, most specific first, see {@link #committed}.
      */
@@ -292,27 +301,6 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateEngine, Rout
     private static double qs(MediaType type) {
         String qs = type.getParameters().get(QS).orElse(null);
         return qs == null ? 1 : Double.parseDouble(qs);
-    }
-
-    /**
-     * A combined media type of JAX-RS: compared by specificity, then the quality of the accepted
-     * type, then the {@code qs} of the produced type, then the distance, the smaller the better.
-     */
-    private record Negotiated(MediaType type, double q, double qs, int distance) implements Comparable<Negotiated> {
-        @Override
-        public int compareTo(Negotiated other) {
-            int result = Integer.compare(specificity(type), specificity(other.type));
-            if (result == 0) {
-                result = Double.compare(q, other.q);
-            }
-            if (result == 0) {
-                result = Double.compare(qs, other.qs);
-            }
-            if (result == 0) {
-                result = Integer.compare(other.distance, distance);
-            }
-            return result;
-        }
     }
 
     @Override
@@ -594,18 +582,47 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateEngine, Rout
     }
 
     /**
+     * A combined media type of JAX-RS: compared by specificity, then the quality of the accepted
+     * type, then the {@code qs} of the produced type, then the distance, the smaller the better.
+     *
+     * @param type     The media type
+     * @param q        The quality of the accepted type
+     * @param qs       The quality of the produced type
+     * @param distance The distance of the types
+     */
+    private record Negotiated(MediaType type, double q, double qs, int distance) implements Comparable<Negotiated> {
+        @Override
+        public int compareTo(Negotiated other) {
+            int result = Integer.compare(specificity(type), specificity(other.type));
+            if (result == 0) {
+                result = Double.compare(q, other.q);
+            }
+            if (result == 0) {
+                result = Double.compare(qs, other.qs);
+            }
+            if (result == 0) {
+                result = Integer.compare(other.distance, distance);
+            }
+            return result;
+        }
+    }
+
+    /**
+     * A root resource class: its template, and the pattern of the paths it matches.
+     *
+     * @param template The template
+     * @param pattern  The pattern of the paths it matches
+     */
+    private record Root(Parsed template, Pattern pattern) {
+    }
+
+    /**
      * A literal part, or a variable.
      *
      * @param text     The literal text
      * @param variable The name of the variable
      * @param regex    The regular expression of the variable, {@code null} for one segment
      */
-    /**
-     * A root resource class: its template, and the pattern of the paths it matches.
-     */
-    private record Root(Parsed template, Pattern pattern) {
-    }
-
     private record Part(@Nullable String text, @Nullable String variable, @Nullable String regex) {
         static Part literal(String text) {
             return new Part(text, null, null);
@@ -628,7 +645,6 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateEngine, Rout
         ParsedRouteTemplate root() {
             return rootPart == null ? EMPTY : rootPart;
         }
-
 
         @Override
         public String engineVersion() {

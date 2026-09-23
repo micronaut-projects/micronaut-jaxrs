@@ -81,11 +81,18 @@ final class QueryStringEncoder {
                     buf = new char[s.length() - i];
                 }
 
-                do {
+                while (true) {
                     buf[index] = c;
                     ++index;
                     ++i;
-                } while (i < s.length() && !dontNeedEncoding(c = s.charAt(i)));
+                    if (i == s.length()) {
+                        break;
+                    }
+                    c = s.charAt(i);
+                    if (dontNeedEncoding(c)) {
+                        break;
+                    }
+                }
 
                 byte[] bytes = new String(buf, 0, index).getBytes(this.charset);
 

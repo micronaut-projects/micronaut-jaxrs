@@ -17,11 +17,13 @@ package io.micronaut.jaxrs.common.body.standard;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.jaxrs.common.JaxRsStandardProviders;
+import io.micronaut.jaxrs.common.multipart.JaxRsMultipartMessageBodyReader;
+import io.micronaut.jaxrs.common.multipart.JaxRsMultipartMessageBodyWriter;
 
 import java.util.List;
 
 /**
- * The standard providers of the boxed primitive types for the client, which registers the ones of
+ * The standard providers of the boxed primitive types and of multipart entities for the client, which registers the ones of
  * the other JDK types itself.
  *
  * @author Denis Stepanov
@@ -35,7 +37,9 @@ public final class JdkStandardProviders implements JaxRsStandardProviders {
         return List.of(
             new JaxRsNumberMessageBodyReaderWriter<>(),
             new JaxRsBooleanMessageBodyReaderWriter(),
-            new JaxRsCharacterMessageBodyReaderWriter()
+            new JaxRsCharacterMessageBodyReaderWriter(),
+            new JaxRsMultipartMessageBodyReader(),
+            new JaxRsMultipartMessageBodyWriter()
         );
     }
 }

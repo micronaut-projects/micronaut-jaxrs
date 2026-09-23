@@ -32,4 +32,6 @@ noReflection {
     // the JAX-RS providers are handed the annotations as Annotation[]
     allowIn("io.micronaut.jaxrs.common.JaxRsArgumentUtil", "ANNOTATION_SYNTHESIS")
     allowIn("io.micronaut.jaxrs.common.AbstractJaxRsInterceptorContext", "ANNOTATION_SYNTHESIS")
+    // SeBootstrap starts the server of the server module, which it provides as a service
+    allowIn("io.micronaut.jaxrs.common.MicronautRuntimeDelegate", "SERVICE_LOADING")
 }

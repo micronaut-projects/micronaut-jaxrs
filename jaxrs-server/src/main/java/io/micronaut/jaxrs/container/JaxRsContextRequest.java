@@ -51,7 +51,6 @@ final class JaxRsContextRequest implements Request {
      */
     static final String VARY = JaxRsContextRequest.class.getName() + ".vary";
 
-
     @Override
     public String getMethod() {
         return request().getMethodName();

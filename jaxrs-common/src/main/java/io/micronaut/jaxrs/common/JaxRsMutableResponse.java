@@ -18,6 +18,7 @@ package io.micronaut.jaxrs.common;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpResponseProvider;
+import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.MutableHttpResponse;
 import jakarta.ws.rs.ProcessingException;
 import jakarta.ws.rs.core.MultivaluedMap;
@@ -27,9 +28,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.Date;
 
 /**
  * Adapter for JAX-RS and final Micronaut response.
@@ -42,18 +41,43 @@ public final class JaxRsMutableResponse extends JaxRsResponse implements HttpRes
 
     private final MutableHttpResponse<?> mutableHttpResponse;
     // the objects of the headers, see JaxRsResponseMetadata
-    private @Nullable Map<@Nullable String, List<Object>> metadata;
+    private final JaxRsResponseMetadata.State metadata;
     @Nullable
     private InputStream entityStream;
 
     public JaxRsMutableResponse(MutableHttpResponse<?> mutableHttpResponse) {
+        this(mutableHttpResponse, new JaxRsResponseMetadata.State());
+    }
+
+    /**
+     * @param mutableHttpResponse The response
+     * @param metadata            The objects of its headers, see {@link JaxRsResponseMetadata}
+     */
+    public JaxRsMutableResponse(MutableHttpResponse<?> mutableHttpResponse, JaxRsResponseMetadata.State metadata) {
         super(mutableHttpResponse);
         this.mutableHttpResponse = mutableHttpResponse;
+        this.metadata = metadata;
     }
 
     public JaxRsMutableResponse(MutableHttpResponse<?> mutableHttpResponse, HttpMessageEntityReader entityReader) {
+        this(mutableHttpResponse, entityReader, new JaxRsResponseMetadata.State());
+    }
+
+    private JaxRsMutableResponse(MutableHttpResponse<?> mutableHttpResponse, HttpMessageEntityReader entityReader, JaxRsResponseMetadata.State metadata) {
         super(mutableHttpResponse, entityReader);
         this.mutableHttpResponse = mutableHttpResponse;
+        this.metadata = metadata;
+    }
+
+    @Override
+    public @Nullable Date getDate() {
+        // the date it was given, not only to the second of the header
+        return getHeaders().getFirst(HttpHeaders.DATE) instanceof Date date ? date : super.getDate();
+    }
+
+    @Override
+    public @Nullable Date getLastModified() {
+        return getHeaders().getFirst(HttpHeaders.LAST_MODIFIED) instanceof Date date ? date : super.getLastModified();
     }
 
     @Override
@@ -91,7 +115,7 @@ public final class JaxRsMutableResponse extends JaxRsResponse implements HttpRes
 
     @Override
     public JaxRsMutableResponse withEntityReader(HttpMessageEntityReader entityReader) {
-        return new JaxRsMutableResponse(mutableHttpResponse, entityReader);
+        return new JaxRsMutableResponse(mutableHttpResponse, entityReader, metadata);
     }
 
     @Override
@@ -101,12 +125,7 @@ public final class JaxRsMutableResponse extends JaxRsResponse implements HttpRes
 
     @Override
     public MultivaluedMap<String, Object> getHeaders() {
-        Map<@Nullable String, List<Object>> objects = metadata;
-        if (objects == null) {
-            objects = new HashMap<>();
-            metadata = objects;
-        }
-        return new JaxRsResponseMetadata(mutableHttpResponse.getHeaders(), objects);
+        return new JaxRsResponseMetadata(mutableHttpResponse.getHeaders(), metadata);
     }
 
     public InputStream getEntityStream() {

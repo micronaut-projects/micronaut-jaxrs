@@ -34,6 +34,18 @@ import io.micronaut.jaxrs.common.JaxRsIOException;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import io.micronaut.jaxrs.common.JaxRsResponse;
 import jakarta.ws.rs.ProcessingException;
+import jakarta.ws.rs.BadRequestException;
+import jakarta.ws.rs.ClientErrorException;
+import jakarta.ws.rs.ForbiddenException;
+import jakarta.ws.rs.InternalServerErrorException;
+import jakarta.ws.rs.NotAcceptableException;
+import jakarta.ws.rs.NotAllowedException;
+import jakarta.ws.rs.NotAuthorizedException;
+import jakarta.ws.rs.NotFoundException;
+import jakarta.ws.rs.NotSupportedException;
+import jakarta.ws.rs.RedirectionException;
+import jakarta.ws.rs.ServerErrorException;
+import jakarta.ws.rs.ServiceUnavailableException;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.client.AsyncInvoker;
 import jakarta.ws.rs.client.ClientRequestFilter;
@@ -218,7 +230,7 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
                             if (response.getStatusInfo().getFamily() == Response.Status.Family.SUCCESSFUL) {
                                 future.complete(response.readEntity(type.getType()));
                             } else {
-                                future.completeExceptionally(new WebApplicationException(response));
+                                future.completeExceptionally(exception(response));
                             }
                         }
                         return future;
@@ -256,7 +268,7 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
                                     future.completeExceptionally(new ProcessingException(e));
                                 }
                             } else {
-                                future.completeExceptionally(new WebApplicationException(new JaxRsResponse(response)));
+                                future.completeExceptionally(exception(new JaxRsResponse(response)));
                             }
                         } else {
                             future.completeExceptionally(new ProcessingException(throwable));
@@ -273,6 +285,8 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
                     private void complete(JaxRsMutableResponse jaxRsMutableResponse) {
                         if (isResponseReturn()) {
                             future.complete((T) jaxRsMutableResponse);
+                        } else if (jaxRsMutableResponse.getStatusInfo().getFamily() != Response.Status.Family.SUCCESSFUL) {
+                            future.completeExceptionally(exception(jaxRsMutableResponse));
                         } else {
                             future.complete(jaxRsMutableResponse.readEntity(type));
                         }
@@ -311,6 +325,31 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
             request.body(requestContext.writeThroughEntityStream(bytes));
         }
         return request;
+    }
+
+    /**
+     * The exception of a response that is not successful: the most specific one of its status
+     * (JAX-RS, {@code SyncInvoker}).
+     */
+    private static WebApplicationException exception(Response response) {
+        int status = response.getStatus();
+        return switch (status) {
+            case 400 -> new BadRequestException(response);
+            case 401 -> new NotAuthorizedException(response);
+            case 403 -> new ForbiddenException(response);
+            case 404 -> new NotFoundException(response);
+            case 405 -> new NotAllowedException(response);
+            case 406 -> new NotAcceptableException(response);
+            case 415 -> new NotSupportedException(response);
+            case 500 -> new InternalServerErrorException(response);
+            case 503 -> new ServiceUnavailableException(response);
+            default -> switch (response.getStatusInfo().getFamily()) {
+                case REDIRECTION -> new RedirectionException(response);
+                case CLIENT_ERROR -> new ClientErrorException(response);
+                case SERVER_ERROR -> new ServerErrorException(response);
+                default -> new WebApplicationException(response);
+            };
+        };
     }
 
     /**

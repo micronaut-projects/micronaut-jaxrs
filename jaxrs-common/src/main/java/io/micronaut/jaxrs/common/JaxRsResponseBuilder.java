@@ -56,13 +56,20 @@ import static jakarta.ws.rs.ext.RuntimeDelegate.getInstance;
 final class JaxRsResponseBuilder extends Response.ResponseBuilder {
 
     private final MutableHttpResponse<Object> response;
+    // the objects of the headers, e.g. a Date to the millisecond, see JaxRsResponseMetadata
+    private final JaxRsResponseMetadata.State metadata;
 
     JaxRsResponseBuilder() {
         this(HttpResponse.ok());
     }
 
     JaxRsResponseBuilder(MutableHttpResponse<Object> response) {
+        this(response, new JaxRsResponseMetadata.State());
+    }
+
+    private JaxRsResponseBuilder(MutableHttpResponse<Object> response, JaxRsResponseMetadata.State metadata) {
         this.response = response;
+        this.metadata = metadata;
     }
 
     @Override
@@ -70,7 +77,7 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
         MutableHttpResponse<Object> mutableHttpResponse = HttpResponse.status(response.code(), response.reason())
             .body(response.getBody().orElse(null))
             .headers(newHeaders -> response.getHeaders().forEachValue(newHeaders::add));
-        return new JaxRsMutableResponse(mutableHttpResponse);
+        return new JaxRsMutableResponse(mutableHttpResponse, metadata.copy());
     }
 
     @Override
@@ -79,7 +86,7 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
         MutableHttpResponse<Object> copy = HttpResponse.status(response.code(), response.reason())
             .body(response.getBody().orElse(null))
             .headers(newHeaders -> response.getHeaders().forEachValue(newHeaders::add));
-        return new JaxRsResponseBuilder(copy);
+        return new JaxRsResponseBuilder(copy, metadata.copy());
     }
 
     @Override
@@ -147,6 +154,7 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
         if (value != null) {
             if (value instanceof Date date) {
                 response.getHeaders().add(name, ZonedDateTime.ofInstant(date.toInstant(), ZoneId.systemDefault()));
+                metadata.set(response.getHeaders(), name, date);
             } else {
                 RuntimeDelegate.HeaderDelegate headerDelegate = getInstance().createHeaderDelegate(value.getClass());
                 if (headerDelegate == null) {
@@ -240,6 +248,7 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
     public Response.ResponseBuilder cookie(NewCookie... cookies) {
         if (cookies == null) {
             response.getHeaders().remove(HttpHeaders.SET_COOKIE);
+            metadata.set(response.getHeaders(), HttpHeaders.SET_COOKIE, null);
             return this;
         }
         for (NewCookie cookie : cookies) {
@@ -263,6 +272,8 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
 
             }
             response.cookie(c);
+            // the metadata has the cookie, e.g. with its version
+            metadata.add(response.getHeaders(), HttpHeaders.SET_COOKIE, cookie);
         }
         return this;
     }
@@ -271,10 +282,11 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
     public Response.ResponseBuilder expires(Date expires) {
         final MutableHttpHeaders headers = response.getHeaders();
         if (expires == null) {
-            headers.remove(io.micronaut.http.HttpHeaders.EXPECT);
+            headers.remove(io.micronaut.http.HttpHeaders.EXPIRES);
         } else {
             headers.expires(expires.getTime());
         }
+        metadata.set(headers, io.micronaut.http.HttpHeaders.EXPIRES, expires);
         return this;
     }
 
@@ -286,6 +298,7 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
         } else {
             headers.lastModified(lastModified.getTime());
         }
+        metadata.set(headers, io.micronaut.http.HttpHeaders.LAST_MODIFIED, lastModified);
         return this;
     }
 
