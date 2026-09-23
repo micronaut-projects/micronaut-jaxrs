@@ -167,9 +167,6 @@ ee.jakarta.tck.ws.rs.ee.rs.core.securitycontext.basic.JAXRSBasicClientIT
 
 
 
-# Request matching: the harness serves the deployment at the root, so a wrong application name is still routed
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#slashAppNameTest
-ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#wrongAppNameTest
 
 
 
