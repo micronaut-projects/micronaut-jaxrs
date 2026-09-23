@@ -16,17 +16,28 @@
 package io.micronaut.jaxrs.container;
 
 import io.micronaut.context.BeanContext;
+import io.micronaut.context.processor.ExecutableMethodProcessor;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.annotation.Introspected;
+import io.micronaut.core.beans.BeanIntrospection;
+import io.micronaut.core.beans.BeanIntrospector;
+import io.micronaut.core.beans.BeanMethod;
+import io.micronaut.core.beans.BeanProperty;
 import io.micronaut.core.type.Argument;
+import io.micronaut.core.type.Executable;
+import io.micronaut.core.util.SupplierUtil;
+import io.micronaut.http.AsyncServerHttpRequest;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.annotation.Controller;
 import io.micronaut.http.form.FormData;
-import io.micronaut.http.AsyncServerHttpRequest;
 import io.micronaut.inject.BeanDefinition;
+import io.micronaut.inject.ExecutableMethod;
+import io.micronaut.inject.ProxyBeanDefinition;
+import io.micronaut.inject.annotation.AnnotationMetadataHierarchy;
 import io.micronaut.inject.qualifiers.Qualifiers;
-import io.micronaut.reflection.ReflectionAnnotations;
+import io.micronaut.reflection.ReflectionBeanIntrospection;
 import io.micronaut.web.router.builder.HttpRouteBuilder;
 import io.micronaut.web.router.builder.HttpRouteSpec;
 import io.micronaut.web.router.builder.HttpRoutes;
@@ -58,44 +69,42 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
-import java.lang.reflect.TypeVariable;
-import java.lang.reflect.WildcardType;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 /**
- * The routes of the JAX-RS resources, built at runtime: the public resource methods and
- * sub-resource locators of each root resource class are collected with reflection, with the
- * annotations JAX-RS inherits (section 3.6), and routed with handler functions that read their
- * parameters with {@link JaxRsRouteSupport}, call them and convert their result. A sub-resource
- * locator locates its target at runtime, whose class is routed the same way.
+ * The routes of the JAX-RS resources, built at runtime like the routes of the controllers (see
+ * {@code AnnotatedMethodRouteBuilder}): the executable resource methods and sub-resource locators,
+ * which the annotation mappers mark with {@link JaxRsResourceMethod}, are processed on startup, and
+ * the classes that have them are the root resources, whose methods are routed with handler
+ * functions. The handlers read the
+ * {@link Argument}s of a method with {@link JaxRsRouteSupport}, call it and convert its result.
+ * The methods of a sub-resource are the executable methods of its introspection.
+ *
+ * <p>A class the annotation processor never saw, which an {@code Application} lists, is described
+ * by a reflective introspection.</p>
  *
  * @author Denis Stepanov
  * @since 5.0.0
  */
 @Internal
 @Singleton
-final class JaxRsRuntimeRoutes implements HttpRoutes {
+final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<JaxRsResourceMethod> {
 
     private static final Logger LOG = LoggerFactory.getLogger(JaxRsRuntimeRoutes.class);
 
     private static final Set<String> NO_BODY_METHODS = Set.of("GET", "HEAD", "OPTIONS", "TRACE");
 
     private static final String NAMED = "jakarta.inject.Named";
+
+    private static final String INTRODUCTION = "io.micronaut.aop.Introduction";
 
     /**
      * How many times a type can appear in a chain of sub-resource locators: a locator returning
@@ -130,6 +139,9 @@ final class JaxRsRuntimeRoutes implements HttpRoutes {
 
     private final BeanContext beanContext;
     private final JaxRsRouteSupport support;
+    private final Map<Class<?>, Resource<?>> resources = new LinkedHashMap<>();
+    // how to create the classes the locators return
+    private final Map<Class<?>, Creator<?>> creators = new ConcurrentHashMap<>();
 
     JaxRsRuntimeRoutes(BeanContext beanContext, JaxRsRouteSupport support) {
         this.beanContext = beanContext;
@@ -137,24 +149,48 @@ final class JaxRsRuntimeRoutes implements HttpRoutes {
     }
 
     @Override
+    public <B> void process(BeanDefinition<B> beanDefinition, ExecutableMethod<B, ?> method) {
+        if (beanDefinition.hasStereotype(Controller.class) || beanDefinition.hasStereotype(INTRODUCTION)) {
+            // routed as a controller, e.g. compiled by another language, or an interface
+            // implemented by introduction advice, e.g. a declarative HTTP client
+            return;
+        }
+        resource(beanDefinition).methods().add(method);
+    }
+
+    /**
+     * The resource of a bean definition, by the class of the resource, not the one of its AOP
+     * proxy.
+     */
+    @SuppressWarnings("unchecked")
+    private <B> Resource<B> resource(BeanDefinition<B> beanDefinition) {
+        Class<?> type = beanDefinition instanceof ProxyBeanDefinition<?> proxy ? proxy.getTargetType() : beanDefinition.getBeanType();
+        return (Resource<B>) resources.computeIfAbsent(type, t -> new Resource<>(beanDefinition, new ArrayList<>()));
+    }
+
+    @Override
     public void routes(HttpRouteBuilder routes) {
-        Map<Class<?>, Supplier<Object>> resources = rootResources();
-        resources.forEach((type, instances) -> {
-            if (!support.isRegistered(type)) {
-                return;
+        rootResources().forEach((type, root) -> {
+            if (support.isRegistered(type)) {
+                route(routes, type, root);
             }
-            Path path = rootPath(type);
-            String rootPath = path == null ? "" : path.value();
-            // the root resource class is selected first by the specificity of its @Path: the end
-            // of it is marked in the templates, for the JAX-RS route template engine
-            String prefix = strip(rootPath).isEmpty() ? rootPath : strip(rootPath) + JaxRsRouteTemplateEngine.ROOT_MARK;
-            RequestType root = requestType(type);
-            int rootSegments = segments(rootPath);
-            Instances instance = root == null
-                ? (request, pathVariables, form) -> support.matched(request, instances.get(), rootSegments)
-                : (request, pathVariables, form) -> support.matched(request, create(root, request, pathVariables, form), rootSegments);
-            declare(routes, type, type, prefix, false, instance, root, new LinkedHashMap<>(Map.of(type, 1)), false);
         });
+    }
+
+    private <B> void route(HttpRouteBuilder routes, Class<?> type, Root<B> root) {
+        String rootPath = root.metadata().stringValue(Path.class).orElse("");
+        // the root resource class is selected first by the specificity of its @Path: the end
+        // of it is marked in the templates, for the JAX-RS route template engine
+        String prefix = strip(rootPath).isEmpty() ? rootPath : strip(rootPath) + JaxRsRouteTemplateEngine.ROOT_MARK;
+        RequestType<B> requestType = requestType(root.type(), root.definition());
+        int rootSegments = segments(rootPath);
+        Supplier<B> instances = root.instances();
+        Instances<B> instance = requestType == null
+            ? (request, pathVariables, form) -> support.matched(request, instances.get(), rootSegments)
+            : (request, pathVariables, form) -> support.matched(request, create(requestType, request, pathVariables, form), rootSegments);
+        Map<Class<?>, Integer> visited = new LinkedHashMap<>();
+        visited.put(type, 1);
+        declare(routes, type, root.methods(), type, prefix, false, instance, requestType != null && requestType.usesForm(), visited, false);
     }
 
     /**
@@ -164,153 +200,200 @@ final class JaxRsRuntimeRoutes implements HttpRoutes {
      * @param type   The class of the target
      * @param routes The builder
      */
-    void located(Class<?> type, HttpRouteBuilder routes) {
-        declare(routes, type, type, "", true, (request, pathVariables, form) -> pathVariables.locatedTarget(type), null,
-            new LinkedHashMap<>(Map.of(type, 1)), false);
+    <T> void located(Class<T> type, HttpRouteBuilder routes) {
+        Map<Class<?>, Integer> visited = new LinkedHashMap<>();
+        visited.put(type, 1);
+        declare(routes, type, methods(type), type, "", true, (request, pathVariables, form) -> pathVariables.locatedTarget(type), false,
+            visited, false);
     }
 
     /**
-     * The root resource classes and how to get their instance: the beans with {@code @Path}, or
-     * marked as resources, and the classes and instances of the {@code Application}.
+     * The root resources: the processed bean definitions, and the classes and instances of the
+     * {@code Application}.
      */
-    private Map<Class<?>, Supplier<Object>> rootResources() {
-        Map<Class<?>, Supplier<Object>> resources = new LinkedHashMap<>();
-        List<BeanDefinition<?>> definitions = new ArrayList<>(beanContext.getBeanDefinitions(Qualifiers.byStereotype(Path.class)));
-        definitions.addAll(beanContext.getBeanDefinitions(Qualifiers.byStereotype(JaxRsResource.class)));
-        for (BeanDefinition<?> definition : definitions) {
-            // the class of the resource, not the one of its AOP proxy
-            Class<?> type = resourceClass(definition.getBeanType());
-            if (definition.hasStereotype(Controller.class) || !isRootResource(type)) {
-                // routed as a controller, e.g. compiled by another language
-                continue;
+    private Map<Class<?>, Root<?>> rootResources() {
+        Map<Class<?>, Root<?>> roots = new LinkedHashMap<>();
+        resources.forEach((type, resource) -> roots.put(type, root(resource)));
+        // the resources the annotation processor did not describe, e.g. the instances of an
+        // application the Java SE bootstrap registers as beans: routed from their introspection
+        for (BeanDefinition<?> definition : beanContext.getBeanDefinitions(Qualifiers.byStereotype(Path.class))) {
+            if (!definition.hasStereotype(Controller.class) && !definition.hasStereotype(INTRODUCTION)
+                && !roots.containsKey(definition.getBeanType())) {
+                Root<?> root = beanRoot(definition);
+                if (root != null) {
+                    roots.put(definition.getBeanType(), root);
+                }
             }
-            resources.putIfAbsent(type, () -> beanContext.getBean(type));
         }
         Application application = beanContext.findBean(Application.class).orElse(null);
         if (application != null) {
-            for (Object singleton : application.getSingletons()) {
-                if (isRootResource(singleton.getClass())) {
-                    // the instance of the application is the resource (JAX-RS 2.3)
-                    resources.put(singleton.getClass(), () -> singleton);
-                }
-            }
             for (Class<?> type : application.getClasses()) {
-                if (isRootResource(type) && !resources.containsKey(type)) {
-                    // a class the annotation processors never saw
-                    resources.put(type, () -> newInstance(type));
+                if (!roots.containsKey(type)) {
+                    Root<?> root = classRoot(type);
+                    if (root != null) {
+                        roots.put(type, root);
+                    }
                 }
             }
         }
-        return resources;
+        return roots;
     }
 
     /**
-     * The {@code @Path} of a root resource class: of the class, else of a superclass or of an
-     * interface it implements, as the annotation processor sees it.
+     * The instances of a bean, resolved by its type like it is injected, so that a definition
+     * that replaces it provides them, e.g. the instances of an application the Java SE bootstrap
+     * registers. A singleton is resolved once, when first used.
      */
-    private static @Nullable Path rootPath(Class<?> type) {
-        for (Class<?> t = type; t != null && t != Object.class; t = t.getSuperclass()) {
-            Path path = t.getAnnotation(Path.class);
-            if (path != null) {
-                return path;
-            }
-        }
-        for (Class<?> t = type; t != null && t != Object.class; t = t.getSuperclass()) {
-            Path path = interfacePath(t.getInterfaces());
-            if (path != null) {
-                return path;
-            }
-        }
-        return null;
+    private <B> Supplier<B> instances(BeanDefinition<B> definition) {
+        Class<B> type = definition.getBeanType();
+        return definition.isSingleton()
+            ? SupplierUtil.memoized(() -> beanContext.getBean(type))
+            : () -> beanContext.getBean(type);
     }
 
-    private static @Nullable Path interfacePath(Class<?>[] interfaces) {
-        for (Class<?> i : interfaces) {
-            Path path = i.getAnnotation(Path.class);
-            if (path == null) {
-                path = interfacePath(i.getInterfaces());
-            }
-            if (path != null) {
-                return path;
-            }
+    private <B> Root<B> root(Resource<B> resource) {
+        BeanDefinition<B> definition = resource.definition();
+        List<JaxRsMethod<B>> methods = new ArrayList<>();
+        for (ExecutableMethod<B, ?> method : resource.methods()) {
+            methods.add(new JaxRsMethod<>(method.getMethodName(), method.getArguments(), method.getReturnType().asArgument(),
+                methodMetadata(method.getAnnotationMetadata()), method));
         }
-        return null;
+        return new Root<>(definition.getBeanType(), definition, definition.getAnnotationMetadata(), methods, instances(definition));
     }
 
-    private static Class<?> resourceClass(Class<?> type) {
-        Class<?> resource = type;
-        while (isProxy(resource) && resource.getSuperclass() != null) {
-            resource = resource.getSuperclass();
+    private <B> @Nullable Root<B> beanRoot(BeanDefinition<B> definition) {
+        Class<B> type = definition.getBeanType();
+        BeanIntrospection<B> introspection = introspection(type);
+        if (introspection == null) {
+            return null;
         }
-        return resource;
+        List<JaxRsMethod<B>> methods = methods(introspection);
+        return methods.isEmpty() ? null
+            : new Root<>(type, definition, definition.getAnnotationMetadata(), methods, instances(definition));
     }
 
-    private static boolean isProxy(Class<?> type) {
-        for (Class<?> i : type.getInterfaces()) {
-            if ("io.micronaut.aop.Intercepted".equals(i.getName())) {
-                return true;
-            }
+    /**
+     * The root resource of a class of the application that is not a bean: a class the
+     * annotation processors never saw.
+     */
+    private <T> @Nullable Root<T> classRoot(Class<T> type) {
+        BeanIntrospection<T> introspection = introspection(type);
+        if (introspection == null || !isRootResource(introspection)) {
+            return null;
         }
-        return false;
+        return new Root<>(type, null, introspection.getAnnotationMetadata(), methods(introspection),
+            () -> beanContext.inject(introspection.instantiate()));
     }
 
-    private static boolean isRootResource(Class<?> type) {
-        if (type.isInterface() || Modifier.isAbstract(type.getModifiers())) {
-            return false;
-        }
-        if (rootPath(type) != null) {
+    private static boolean isRootResource(BeanIntrospection<?> introspection) {
+        if (introspection.hasAnnotation(Path.class)) {
             return true;
         }
-        for (Method method : type.getMethods()) {
-            if (httpMethod(annotated(type, method)) != null) {
+        for (BeanMethod<?, ?> method : introspection.getBeanMethods()) {
+            if (httpMethod(method.getAnnotationMetadata()) != null) {
                 return true;
             }
         }
         return false;
     }
 
-    private Object newInstance(Class<?> type) {
-        if (beanContext.containsBean(type)) {
-            return beanContext.getBean(type);
+    /**
+     * The introspection of a class: generated, or else reflective, for a class the annotation
+     * processor never saw.
+     */
+    private static <T> @Nullable BeanIntrospection<T> introspection(Class<T> type) {
+        BeanIntrospection<T> introspection = BeanIntrospector.SHARED.findIntrospection(type).orElse(null);
+        if (introspection != null) {
+            return introspection;
         }
-        try {
-            Constructor<?> constructor = type.getDeclaredConstructor();
-            constructor.setAccessible(true);
-            return beanContext.inject(constructor.newInstance());
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("Cannot create the resource " + type.getName(), e);
+        if (!ReflectionBeanIntrospection.isIntrospectable(type)) {
+            return null;
         }
+        return ReflectionBeanIntrospection.of(type, Set.of(Introspected.AccessKind.FIELD, Introspected.AccessKind.METHOD));
+    }
+
+    /**
+     * The resource methods and sub-resource locators of a class: of its bean definition, else of
+     * its introspection.
+     */
+    private <T> List<JaxRsMethod<T>> methods(Class<T> type) {
+        BeanDefinition<T> definition = beanContext.findBeanDefinition(type).orElse(null);
+        if (definition != null && !definition.hasStereotype(Controller.class)) {
+            List<JaxRsMethod<T>> methods = executableMethods(definition);
+            if (!methods.isEmpty()) {
+                return methods;
+            }
+        }
+        BeanIntrospection<T> introspection = introspection(type);
+        return introspection == null ? List.of() : methods(introspection);
+    }
+
+    private static <T> List<JaxRsMethod<T>> executableMethods(BeanDefinition<T> definition) {
+        List<JaxRsMethod<T>> methods = new ArrayList<>();
+        for (ExecutableMethod<T, ?> method : definition.getExecutableMethods()) {
+            AnnotationMetadata metadata = methodMetadata(method.getAnnotationMetadata());
+            if (metadata.hasStereotype(JaxRsResourceMethod.class)) {
+                methods.add(new JaxRsMethod<>(method.getMethodName(), method.getArguments(), method.getReturnType().asArgument(),
+                    metadata, method));
+            }
+        }
+        return methods;
+    }
+
+    private static <T> List<JaxRsMethod<T>> methods(BeanIntrospection<T> introspection) {
+        List<JaxRsMethod<T>> methods = new ArrayList<>();
+        for (BeanMethod<T, Object> method : introspection.getBeanMethods()) {
+            AnnotationMetadata metadata = methodMetadata(method.getAnnotationMetadata());
+            // marked by the annotation processor, else a public method of a class it never saw
+            boolean routed = metadata.hasStereotype(JaxRsResourceMethod.class)
+                || httpMethod(metadata) != null || metadata.hasDeclaredAnnotation(Path.class);
+            if (routed) {
+                methods.add(new JaxRsMethod<>(method.getName(), method.getArguments(), method.getReturnType().asArgument(),
+                    metadata, method));
+            }
+        }
+        return methods;
+    }
+
+    /**
+     * The annotations of a method, without the ones of its class.
+     */
+    private static AnnotationMetadata methodMetadata(AnnotationMetadata metadata) {
+        return metadata instanceof AnnotationMetadataHierarchy hierarchy ? hierarchy.getDeclaredMetadata() : metadata;
     }
 
     /**
      * Declare the routes of the resource methods and locators of a class.
      */
-    private void declare(HttpRouteBuilder routes, Class<?> type, Class<?> rootClass, String path, boolean located,
-                         Instances instances, @Nullable RequestType root, Map<Class<?>, Integer> visited, boolean chainUsesForm) {
-        Map<String, Method> methods = new LinkedHashMap<>();
-        for (Method method : type.getMethods()) {
-            if (method.isBridge() || method.isSynthetic() || Modifier.isStatic(method.getModifiers())
-                || Modifier.isAbstract(method.getModifiers()) || method.getDeclaringClass() == Object.class) {
-                continue;
-            }
-            methods.putIfAbsent(method.getName() + Arrays.toString(method.getParameterTypes()), method);
-        }
-        for (Method method : methods.values()) {
-            Method annotated = annotated(type, method);
-            String httpMethod = httpMethod(annotated);
-            Path methodPath = annotated.getAnnotation(Path.class);
+    private <B> void declare(HttpRouteBuilder routes, Class<?> type, List<JaxRsMethod<B>> methods, Class<?> rootClass, String path,
+                             boolean located, Instances<B> instances, boolean rootUsesForm, Map<Class<?>, Integer> visited,
+                             boolean chainUsesForm) {
+        AnnotationMetadata classMetadata = classMetadata(type);
+        for (JaxRsMethod<B> method : methods) {
+            AnnotationMetadata metadata = method.metadata();
+            String httpMethod = httpMethod(metadata);
+            String methodPath = metadata.stringValue(Path.class).orElse(null);
             if (httpMethod != null) {
-                String template = template(path, methodPath == null ? "" : methodPath.value());
-                ResourceMethod resourceMethod = resourceMethod(type, rootClass, method, annotated, httpMethod, template);
+                String template = template(path, methodPath == null ? "" : methodPath);
+                ResourceMethod<B> resourceMethod = resourceMethod(type, classMetadata, rootClass, method, httpMethod, template);
                 if (resourceMethod != null) {
-                    route(routes, resourceMethod, located, instances, root, chainUsesForm);
+                    route(routes, resourceMethod, located, instances, rootUsesForm || chainUsesForm);
                 }
             } else if (methodPath != null) {
                 // a resource method is selected before a locator: the end of its @Path is marked
-                String prefix = template(path, methodPath.value()) + JaxRsRouteTemplateEngine.LOCATOR_MARK;
-                locator(routes, type, rootClass, method, annotated, prefix, located, instances, root, visited, chainUsesForm);
+                String prefix = template(path, methodPath) + JaxRsRouteTemplateEngine.LOCATOR_MARK;
+                locator(routes, rootClass, method, prefix, located, instances, rootUsesForm, visited, chainUsesForm);
             }
         }
+    }
+
+    private AnnotationMetadata classMetadata(Class<?> type) {
+        Resource<?> resource = resources.get(type);
+        if (resource != null) {
+            return resource.definition().getAnnotationMetadata();
+        }
+        BeanIntrospection<?> introspection = introspection(type);
+        return introspection == null ? AnnotationMetadata.EMPTY_METADATA : introspection.getAnnotationMetadata();
     }
 
     /**
@@ -319,99 +402,133 @@ final class JaxRsRuntimeRoutes implements HttpRoutes {
      * only at runtime, or a locator that repeats, is located by the router, which routes the
      * rest of the path with the routes of the class of the target.
      */
-    private void locator(HttpRouteBuilder routes, Class<?> owner, Class<?> rootClass, Method method, Method annotated, String prefix,
-                         boolean located, Instances instances, @Nullable RequestType root, Map<Class<?>, Integer> visited,
-                         boolean chainUsesForm) {
-        if (!Modifier.isPublic(method.getDeclaringClass().getModifiers()) && !method.trySetAccessible()) {
-            LOG.warn("The JAX-RS sub-resource locator {} is not accessible: it is not routed", method);
-            return;
-        }
-        Parameter[] parameters = parameters(method, annotated);
-        Reader[] readers = new Reader[parameters.length];
+    private <B> void locator(HttpRouteBuilder routes, Class<?> rootClass, JaxRsMethod<B> method, String prefix, boolean located,
+                             Instances<B> instances, boolean rootUsesForm, Map<Class<?>, Integer> visited, boolean chainUsesForm) {
+        Argument<?>[] arguments = arguments(method);
+        Reader[] readers = new Reader[arguments.length];
         boolean usesForm = chainUsesForm;
-        for (int i = 0; i < parameters.length; i++) {
-            Parameter parameter = parameters[i];
-            if (!isRequestAnnotated(parameter.metadata())) {
-                LOG.info("The JAX-RS sub-resource locator {} has a parameter that is not read from the request: it is not routed", method);
+        for (int i = 0; i < arguments.length; i++) {
+            Argument<?> argument = arguments[i];
+            if (!isRequestAnnotated(argument.getAnnotationMetadata())) {
+                LOG.info("The JAX-RS sub-resource locator {} has a parameter that is not read from the request: it is not routed", method.name());
                 return;
             }
-            readers[i] = reader(parameter, method);
-            usesForm |= usesForm(parameter.metadata(), parameter.argument().getType());
+            readers[i] = reader(argument, method.metadata());
+            usesForm |= usesForm(argument);
         }
-        Type returned = method.getGenericReturnType();
-        boolean classReturn = method.getReturnType() == Class.class;
+        Argument<?> returned = method.returnType();
+        boolean classReturn = returned.getType() == Class.class;
+        Class<?> target = returned.getType();
         if (classReturn) {
-            returned = returned instanceof ParameterizedType parameterized ? parameterized.getActualTypeArguments()[0] : Object.class;
+            Argument<?> typeArgument = returned.getFirstTypeVariable().orElse(null);
+            target = typeArgument == null ? Object.class : typeArgument.getType();
         }
-        Class<?> target = returned instanceof Class<?> c ? c : returned instanceof ParameterizedType p && p.getRawType() instanceof Class<?> r ? r : null;
-        int occurrences = target == null ? 0 : visited.getOrDefault(target, 0);
-        if (target == null || target.isPrimitive() || target == Object.class || Response.class.isAssignableFrom(target)
-            || occurrences >= MAX_LOCATOR_REPEAT) {
-            // known only at runtime, or recursive: the paths cannot be enumerated
-            if (classReturn) {
-                LOG.info("The JAX-RS sub-resource locator {} returns a class known only at runtime: it is not routed", method);
-                return;
-            }
-            if (usesForm && !chainUsesForm) {
-                LOG.info("The JAX-RS sub-resource locator {} known only at runtime has a form parameter: it is not routed", method);
-                return;
-            }
-            int segments = located ? -1 : segments(prefix);
-            routes.locate(located ? support.locatedPrefix(prefix) : support.prefix(prefix), (request, pathVariables) -> {
-                Object instance = instances.get(request, pathVariables, null);
-                return support.matched(request, locate(method, instance, readers, request, pathVariables, null), segments);
-            }, support.locatedTables());
+        int occurrences = visited.getOrDefault(target, 0);
+        boolean known = !target.isPrimitive() && target != Object.class && !Response.class.isAssignableFrom(target)
+            && occurrences < MAX_LOCATOR_REPEAT;
+        if (known && follow(routes, rootClass, method, readers, prefix, located, instances, target, rootUsesForm, visited, usesForm)) {
             return;
+        }
+        // known only at runtime, or recursive: the paths cannot be enumerated
+        if (classReturn) {
+            LOG.info("The JAX-RS sub-resource locator {} returns a class known only at runtime: it is not routed", method.name());
+            return;
+        }
+        if (usesForm && !chainUsesForm) {
+            LOG.info("The JAX-RS sub-resource locator {} known only at runtime has a form parameter: it is not routed", method.name());
+            return;
+        }
+        int segments = located ? -1 : segments(prefix);
+        routes.locate(located ? support.locatedPrefix(prefix) : support.prefix(prefix), (request, pathVariables) -> {
+            B instance = instances.get(request, pathVariables, null);
+            return support.matched(request, locate(method, instance, readers, request, pathVariables, null), segments);
+        }, support.locatedTables());
+    }
+
+    /**
+     * Follow a locator to the class of its target: the routes of the class under the prefix of
+     * the locator, which call the locator.
+     *
+     * @return Whether the class has routes
+     */
+    private <B, T> boolean follow(HttpRouteBuilder routes, Class<?> rootClass, JaxRsMethod<B> method, Reader[] readers, String prefix,
+                                  boolean located, Instances<B> instances, Class<T> target, boolean rootUsesForm,
+                                  Map<Class<?>, Integer> visited, boolean usesForm) {
+        List<JaxRsMethod<T>> targetMethods = methods(target);
+        if (targetMethods.isEmpty()) {
+            return false;
         }
         int segments = segments(prefix);
-        Instances chained = (request, pathVariables, form) -> {
-            Object instance = instances.get(request, pathVariables, form);
-            return support.matched(request, locate(method, instance, readers, request, pathVariables, form), segments);
+        Instances<T> chained = (request, pathVariables, form) -> {
+            B instance = instances.get(request, pathVariables, form);
+            return support.matched(request, target.cast(locate(method, instance, readers, request, pathVariables, form)), segments);
         };
+        int occurrences = visited.getOrDefault(target, 0);
         visited.put(target, occurrences + 1);
         try {
-            declare(routes, target, rootClass, prefix, located, chained, root, visited, usesForm);
+            declare(routes, target, targetMethods, rootClass, prefix, located, chained, rootUsesForm, visited, usesForm);
         } finally {
             visited.put(target, occurrences);
         }
+        return true;
     }
 
     /**
      * Call a locator: its target, or an instance created for the request of the class it returns.
      */
-    private Object locate(Method method, Object instance, Reader[] readers, HttpRequest<?> request, PathVariables pathVariables,
-                          @Nullable FormData form) {
+    private <B> Object locate(JaxRsMethod<B> method, B instance, Reader[] readers, HttpRequest<?> request, PathVariables pathVariables,
+                              @Nullable FormData form) {
         Object[] arguments = new Object[readers.length];
         for (int i = 0; i < readers.length; i++) {
             arguments[i] = readers[i].read(request, pathVariables, form, null);
         }
         // a locator returning null is a 404
-        Object target = support.located(invoke(method, instance, arguments));
+        Object target = support.located(method.executable().invoke(instance, arguments));
         if (target instanceof Class<?> targetClass) {
             // the locator returned the class: an instance is created for the request
-            RequestType created = requestType(targetClass);
-            target = created == null ? newInstance(targetClass) : create(created, request, pathVariables, form);
+            return createLocated(targetClass, request, pathVariables, form);
         }
         return target;
     }
 
-    private void route(HttpRouteBuilder routes, ResourceMethod method, boolean located, Instances instances,
-                       @Nullable RequestType root, boolean chainUsesForm) {
+    @SuppressWarnings("unchecked")
+    private <T> T createLocated(Class<T> type, HttpRequest<?> request, PathVariables pathVariables, @Nullable FormData form) {
+        return ((Creator<T>) creators.computeIfAbsent(type, this::creator)).create(request, pathVariables, form);
+    }
+
+    /**
+     * How to create an instance of a class a locator returned, for a request.
+     */
+    private <T> Creator<T> creator(Class<T> type) {
+        RequestType<T> created = requestType(type, beanContext.findBeanDefinition(type).orElse(null));
+        if (created != null) {
+            return (request, pathVariables, form) -> create(created, request, pathVariables, form);
+        }
+        BeanIntrospection<T> introspection = introspection(type);
+        if (introspection == null) {
+            throw new IllegalStateException("Cannot create the sub-resource " + type.getName());
+        }
+        return (request, pathVariables, form) -> beanContext.inject(introspection.instantiate());
+    }
+
+    private <B> void route(HttpRouteBuilder routes, ResourceMethod<B> method, boolean located, Instances<B> instances,
+                           boolean chainUsesForm) {
         String name = method.httpMethod();
         RouteDeclaration declaration = located
             ? support.locatedDeclaration(name, method.template())
             : support.declaration(name, method.template());
         boolean body = method.entity() >= 0 && !method.formEntity() && !"GET".equals(name);
-        boolean usesForm = method.usesForm() || chainUsesForm || root != null && root.usesForm();
+        boolean usesForm = method.usesForm() || chainUsesForm;
         // a form is read for a method that can have one and reads no entity
-        boolean form = method.form() || usesForm && !NO_BODY_METHODS.contains(name) && method.entity() < 0;
+        boolean form = method.form() || (usesForm && !NO_BODY_METHODS.contains(name) && method.entity() < 0);
         // a route that reads the entity and form parameters: the form is parsed from the entity
         boolean entityForm = body && !form && usesForm;
         HttpRouteSpec spec;
         if (method.async()) {
             if (form) {
                 spec = routes.handleAsync(declaration, (request, pathVariables) -> support.formAsync(request, pathVariables,
-                    (readRequest, readPathVariables, value) -> (CompletionStage<? extends HttpResponse<?>>) call(method, instances, readRequest, readPathVariables, value, null)));
+                    (readRequest, readPathVariables, value) -> (CompletionStage<? extends HttpResponse<?>>) call(method, instances, readRequest,
+                        readPathVariables, value, null)));
             } else if (body) {
                 spec = routes.handleAsync(declaration, (request, pathVariables) -> support.entityAsync(request, pathVariables,
                     (readRequest, readPathVariables, value) -> (CompletionStage<? extends HttpResponse<?>>) call(method, instances, readRequest,
@@ -438,112 +555,101 @@ final class JaxRsRuntimeRoutes implements HttpRoutes {
      * Call a resource method: get the instance, read the parameters, call it and convert its
      * result to the response, or the stage of the response of an asynchronous method.
      */
-    private Object call(ResourceMethod method, Instances instances, HttpRequest<?> request, PathVariables pathVariables,
-                        @Nullable FormData form, byte @Nullable [] body) throws Exception {
-        if (!method.produces().isEmpty()) {
+    private <B> Object call(ResourceMethod<B> method, Instances<B> instances, HttpRequest<?> request, PathVariables pathVariables,
+                            @Nullable FormData form, byte @Nullable [] body) throws Exception {
+        if (method.produces()) {
             // a negotiated type that is not concrete is not acceptable
             support.acceptable(pathVariables);
         }
-        Object instance = instances.get(request, pathVariables, form);
+        B instance = instances.get(request, pathVariables, form);
         Reader[] readers = method.readers();
         Object[] arguments = new Object[readers.length];
         for (int i = 0; i < readers.length; i++) {
             arguments[i] = readers[i].read(request, pathVariables, form, body);
         }
-        Object result = invoke(method.method(), instance, arguments);
+        Object result = method.method().executable().invoke(instance, arguments);
+        Converter converter = method.converter();
         if (method.async()) {
             CompletionStage<?> stage = (CompletionStage<?>) result;
             if (stage == null) {
-                throw new IllegalStateException("The asynchronous resource method " + method.method() + " returned no stage");
+                throw new IllegalStateException("The asynchronous resource method " + method.method().name() + " returned no stage");
             }
-            return stage.thenApply(value -> response(method, request, value));
+            return stage.thenApply(value -> converter.convert(request, value));
         }
-        HttpResponse<?> response = response(method, request, result);
-        if (method.produces().isEmpty()) {
-            // the type of the response from the JAX-RS writers of its entity
-            return support.negotiate(request, response, method.returnType());
-        }
-        // the entity has the negotiated type, also when a HEAD request drops it (JAX-RS 3.8)
-        return support.produced(pathVariables, response);
+        return method.completion().complete(request, pathVariables, converter.convert(request, result));
     }
 
     /**
-     * The response of a result, converted as its declared type says.
+     * How to convert the result of a method to its response, selected from its declared type.
      */
-    private HttpResponse<?> response(ResourceMethod method, HttpRequest<?> request, @Nullable Object result) {
-        Type type = method.valueType();
-        if (type == void.class || type == Void.class && !method.async()) {
-            return support.noContent();
+    private Converter converter(Argument<?> type, boolean async) {
+        Class<?> raw = type.getType();
+        if (raw == void.class || (raw == Void.class && !async)) {
+            return (request, result) -> support.noContent();
         }
-        Class<?> raw = Argument.of(type).getType();
-        if (type instanceof TypeVariable<?> || type instanceof WildcardType || raw == Object.class) {
+        if (raw == Object.class || type.isTypeVariable()) {
             // known only at runtime
-            return support.anyResponse(request, result, method.returnType());
+            return (request, result) -> support.anyResponse(request, result, type);
         }
         if (Response.class.isAssignableFrom(raw)) {
-            return support.jaxRsResponse((Response) result);
+            return (request, result) -> support.jaxRsResponse((Response) result);
         }
         if (HttpResponse.class.isAssignableFrom(raw)) {
-            return support.httpResponse((HttpResponse<?>) result);
+            return (request, result) -> support.httpResponse((HttpResponse<?>) result);
         }
         if (GenericEntity.class.isAssignableFrom(raw)) {
             // the type of the generic entity selects the message body writer
-            return support.genericEntityResponse(request, (GenericEntity<?>) result);
+            return (request, result) -> support.genericEntityResponse(request, (GenericEntity<?>) result);
         }
-        if (type instanceof ParameterizedType) {
+        if (!raw.isArray() && type.getTypeParameters().length > 0) {
             // the declared type, with its type arguments, selects the message body writer
-            return support.genericEntityResponse(request, result, method.returnType());
+            return (request, result) -> support.genericEntityResponse(request, result, type);
         }
-        return support.entityResponse(result);
+        return (request, result) -> support.entityResponse(result);
     }
 
-    private static @Nullable Object invoke(Method method, Object instance, @Nullable Object[] arguments) {
-        try {
-            return method.invoke(instance, arguments);
-        } catch (InvocationTargetException e) {
-            // what the resource method throws, unchanged
-            throw JaxRsRouteSupport.rethrow(e.getCause() == null ? e : e.getCause());
-        } catch (IllegalAccessException e) {
-            throw new IllegalStateException("Cannot call the resource method " + method, e);
+    /**
+     * How to complete the response of a method that is not asynchronous.
+     */
+    private Completion completion(boolean produces, Argument<?> returnType) {
+        if (produces) {
+            // the entity has the negotiated type, also when a HEAD request drops it (JAX-RS 3.8)
+            return (request, pathVariables, response) -> support.produced(pathVariables, response);
         }
+        // the type of the response from the JAX-RS writers of its entity
+        return (request, pathVariables, response) -> support.negotiate(request, response, returnType);
     }
 
-    private @Nullable ResourceMethod resourceMethod(Class<?> owner, Class<?> rootClass, Method method, Method annotated,
-                                                    String httpMethod, String template) {
-        if (!Modifier.isPublic(method.getDeclaringClass().getModifiers()) && !method.trySetAccessible()) {
-            LOG.warn("The JAX-RS resource method {} is not accessible: it is not routed", method);
-            return null;
-        }
-        Parameter[] parameters = parameters(method, annotated);
-        Reader[] readers = new Reader[parameters.length];
+    private <B> @Nullable ResourceMethod<B> resourceMethod(Class<?> owner, AnnotationMetadata classMetadata, Class<?> rootClass,
+                                                           JaxRsMethod<B> method, String httpMethod, String template) {
+        Argument<?>[] arguments = arguments(method);
+        Reader[] readers = new Reader[arguments.length];
         boolean form = false;
         boolean usesForm = false;
         int entity = -1;
-        for (int i = 0; i < parameters.length; i++) {
-            Parameter parameter = parameters[i];
-            AnnotationMetadata metadata = parameter.metadata();
+        for (int i = 0; i < arguments.length; i++) {
+            Argument<?> argument = arguments[i];
+            AnnotationMetadata metadata = argument.getAnnotationMetadata();
             if (metadata.hasAnnotation(Suspended.class)) {
-                LOG.warn("JAX-RS asynchronous responses with @Suspended are not routed yet: {}", method);
+                LOG.warn("JAX-RS asynchronous responses with @Suspended are not routed yet: {}", method.name());
                 return null;
             }
             if (metadata.hasAnnotation(FormParam.class) && NO_BODY_METHODS.contains(httpMethod)) {
                 // no form without a body: read from the query, like the controllers did
-                String name = metadata.stringValue(FormParam.class).orElse("");
+                String name = metadata.stringValue(FormParam.class).orElse(argument.getName());
                 String defaultValue = metadata.stringValue(DefaultValue.class).orElse(null);
-                boolean encoded = encoded(parameter, method);
-                Argument<?> argument = parameter.argument();
+                boolean encoded = encoded(argument, method.metadata());
                 readers[i] = (request, pathVariables, f, body) -> support.queryParam(request, name, argument, defaultValue, encoded);
             } else if (isRequestAnnotated(metadata)) {
-                readers[i] = reader(parameter, method);
+                readers[i] = reader(argument, method.metadata());
                 form |= metadata.hasAnnotation(FormParam.class);
-                usesForm |= metadata.hasAnnotation(BeanParam.class) && usesForm(parameter.argument().getType(), 0);
-            } else if (CONTEXT_TYPES.contains(parameter.argument().getType().getName())) {
-                Argument<?> argument = parameter.argument();
+                usesForm |= metadata.hasAnnotation(BeanParam.class) && usesForm(argument);
+            } else if (CONTEXT_TYPES.contains(argument.getType().getName())) {
                 String named = metadata.stringValue(NAMED).orElse(null);
                 readers[i] = (request, pathVariables, f, body) -> support.context(request, argument, named);
             } else {
                 if (entity >= 0) {
-                    LOG.error("The JAX-RS resource method {} has more than one entity parameter: it is not routed", method);
+                    LOG.error("The JAX-RS resource method {} has more than one entity parameter: it is not routed", method.name());
                     return null;
                 }
                 entity = i;
@@ -551,49 +657,73 @@ final class JaxRsRuntimeRoutes implements HttpRoutes {
         }
         boolean formEntity = false;
         if (entity >= 0) {
-            Parameter parameter = parameters[entity];
-            Argument<?> argument = parameter.argument();
+            Argument<?> argument = arguments[entity];
             if (form) {
                 Class<?> entityType = argument.getType();
                 if (entityType != MultivaluedMap.class && entityType != Form.class) {
-                    LOG.error("The entity of the JAX-RS resource method {} with @FormParam parameters must be a form: it is not routed", method);
+                    LOG.error("The entity of the JAX-RS resource method {} with @FormParam parameters must be a form: it is not routed", method.name());
                     return null;
                 }
                 formEntity = true;
                 readers[entity] = (request, pathVariables, f, body) -> f == null ? null : support.formEntity(f, argument);
             } else {
                 // the readers see the annotations of the parameter
-                Argument<?> entityArgument = parameter.metadata().isEmpty() ? argument
-                    : Argument.of(argument.getType(), parameter.metadata(), argument.getTypeParameters());
-                readers[entity] = (request, pathVariables, f, body) -> support.entity(request, body, entityArgument);
+                readers[entity] = (request, pathVariables, f, body) -> support.entity(request, body, argument);
             }
         }
-        Type genericReturnType = method.getGenericReturnType();
-        Class<?> returnClass = method.getReturnType();
+        Argument<?> returnType = method.returnType();
+        Class<?> returnClass = returnType.getType();
         boolean async = returnClass == CompletionStage.class
-            || CompletionStage.class.isAssignableFrom(returnClass) && returnClass.getName().startsWith("java.util.concurrent.");
-        Type valueType = async
-            ? genericReturnType instanceof ParameterizedType parameterized ? parameterized.getActualTypeArguments()[0] : Object.class
-            : genericReturnType;
-        Argument<?> returnType = valueType == void.class || valueType == Void.class ? Argument.VOID : Argument.of(valueType);
-        List<String> produces = mediaTypes(annotated, owner, Produces.class);
-        List<String> consumes = mediaTypes(annotated, owner, Consumes.class);
-        JaxRsRouteSupport.RouteMetadata metadata = new JaxRsRouteSupport.RouteMetadata(owner, method.getName(), method.getParameterTypes(),
-            produces.toArray(String[]::new), consumes.toArray(String[]::new), rootClass);
-        return new ResourceMethod(method, httpMethod, template, readers, form, formEntity, usesForm, entity, async, valueType,
-            returnType, produces, metadata);
+            || (CompletionStage.class.isAssignableFrom(returnClass) && returnClass.getName().startsWith("java.util.concurrent."));
+        Argument<?> valueType = async ? returnType.getFirstTypeVariable().orElse(Argument.OBJECT_ARGUMENT) : returnType;
+        if (valueType.getType() == Void.class && async) {
+            valueType = Argument.VOID;
+        }
+        List<String> produces = mediaTypes(method.metadata(), classMetadata, Produces.class);
+        List<String> consumes = mediaTypes(method.metadata(), classMetadata, Consumes.class);
+        JaxRsRouteSupport.RouteMetadata metadata = new JaxRsRouteSupport.RouteMetadata(owner, method.name(),
+            Argument.toClassArray(method.arguments()), produces.toArray(String[]::new), consumes.toArray(String[]::new), rootClass);
+        return new ResourceMethod<>(method, httpMethod, template, readers, form, formEntity, usesForm, entity, async,
+            !produces.isEmpty(), converter(valueType, async), completion(!produces.isEmpty(), valueType), metadata);
     }
 
-    private Reader reader(Parameter parameter, Method method) {
-        JaxRsRouteSupport.ValueReader reader = support.reader(parameter.metadata(), parameter.argument(), encoded(parameter, method));
+    /**
+     * The parameters of a method, with the annotations JAX-RS gives them (section 3.6): a method
+     * that declares a JAX-RS annotation itself inherits none from the method it overrides, on the
+     * method or its parameters.
+     */
+    private static Argument<?>[] arguments(JaxRsMethod<?> method) {
+        Argument<?>[] arguments = method.arguments();
+        boolean declares = false;
+        for (String name : method.metadata().getDeclaredMetadata().getAnnotationNames()) {
+            if (name.startsWith("jakarta.ws.rs.")) {
+                declares = true;
+                break;
+            }
+        }
+        if (!declares) {
+            return arguments;
+        }
+        Argument<?>[] declared = new Argument<?>[arguments.length];
+        for (int i = 0; i < arguments.length; i++) {
+            Argument<?> argument = arguments[i];
+            AnnotationMetadata own = argument.getAnnotationMetadata().getDeclaredMetadata();
+            declared[i] = own == argument.getAnnotationMetadata() ? argument
+                : Argument.of(argument.getType(), argument.getName(), own, argument.getTypeParameters());
+        }
+        return declared;
+    }
+
+    private Reader reader(Argument<?> argument, AnnotationMetadata methodMetadata) {
+        JaxRsRouteSupport.ValueReader reader = support.reader(argument.getAnnotationMetadata(), argument, encoded(argument, methodMetadata));
         if (reader == null) {
             return (request, pathVariables, form, body) -> null;
         }
         return (request, pathVariables, form, body) -> reader.read(request, pathVariables, form);
     }
 
-    private static boolean encoded(Parameter parameter, Method method) {
-        return parameter.metadata().hasAnnotation(Encoded.class) || method.isAnnotationPresent(Encoded.class);
+    private static boolean encoded(Argument<?> argument, AnnotationMetadata methodMetadata) {
+        return argument.getAnnotationMetadata().hasAnnotation(Encoded.class) || methodMetadata.hasAnnotation(Encoded.class);
     }
 
     private static boolean isRequestAnnotated(AnnotationMetadata metadata) {
@@ -605,112 +735,15 @@ final class JaxRsRuntimeRoutes implements HttpRoutes {
         return false;
     }
 
-    private static boolean isRequestAnnotated(Annotation[] annotations) {
-        for (Annotation annotation : annotations) {
-            if (REQUEST_ANNOTATIONS.contains(annotation.annotationType())) {
-                return true;
-            }
-        }
-        return false;
+    private static @Nullable String httpMethod(AnnotationMetadata metadata) {
+        return metadata.stringValue(HttpMethod.class).map(name -> name.toUpperCase(Locale.ENGLISH)).orElse(null);
     }
 
-    /**
-     * The parameters of a method, with the annotations of the method that declares its JAX-RS
-     * annotations.
-     */
-    private static Parameter[] parameters(Method method, Method annotated) {
-        Type[] types = method.getGenericParameterTypes();
-        Annotation[][] annotations = annotated.getParameterAnnotations();
-        Parameter[] parameters = new Parameter[types.length];
-        for (int i = 0; i < types.length; i++) {
-            AnnotationMetadata metadata = annotations[i].length == 0 ? AnnotationMetadata.EMPTY_METADATA
-                : ReflectionAnnotations.metadataOf(annotations[i]);
-            parameters[i] = new Parameter(Argument.of(types[i]), metadata);
-        }
-        return parameters;
-    }
-
-    /**
-     * The method whose JAX-RS annotations a method has (JAX-RS 3.6): the method itself, else the
-     * one it overrides in a superclass, then in an interface, that has JAX-RS annotations. A
-     * method with JAX-RS annotations inherits none.
-     */
-    private static Method annotated(Class<?> type, Method method) {
-        if (hasJaxRsAnnotations(method)) {
-            return method;
-        }
-        for (Class<?> t = type; t != null && t != Object.class; t = t.getSuperclass()) {
-            Method declared = declared(t, method);
-            if (declared != null && hasJaxRsAnnotations(declared)) {
-                return declared;
-            }
-        }
-        for (Class<?> t = type; t != null && t != Object.class; t = t.getSuperclass()) {
-            Method found = fromInterfaces(t.getInterfaces(), method);
-            if (found != null) {
-                return found;
-            }
-        }
-        return method;
-    }
-
-    private static @Nullable Method fromInterfaces(Class<?>[] interfaces, Method method) {
-        for (Class<?> i : interfaces) {
-            Method declared = declared(i, method);
-            if (declared != null && hasJaxRsAnnotations(declared)) {
-                return declared;
-            }
-            Method inherited = fromInterfaces(i.getInterfaces(), method);
-            if (inherited != null) {
-                return inherited;
-            }
-        }
-        return null;
-    }
-
-    private static @Nullable Method declared(Class<?> type, Method method) {
-        try {
-            return type.getDeclaredMethod(method.getName(), method.getParameterTypes());
-        } catch (NoSuchMethodException e) {
-            return null;
-        }
-    }
-
-    private static boolean hasJaxRsAnnotations(Method method) {
-        for (Annotation annotation : method.getDeclaredAnnotations()) {
-            if (isJaxRs(annotation)) {
-                return true;
-            }
-        }
-        for (Annotation[] parameter : method.getParameterAnnotations()) {
-            for (Annotation annotation : parameter) {
-                if (isJaxRs(annotation)) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    private static boolean isJaxRs(Annotation annotation) {
-        Class<? extends Annotation> type = annotation.annotationType();
-        return type.getName().startsWith("jakarta.ws.rs.") || type.isAnnotationPresent(HttpMethod.class);
-    }
-
-    private static @Nullable String httpMethod(Method method) {
-        for (Annotation annotation : method.getAnnotations()) {
-            HttpMethod httpMethod = annotation.annotationType().getAnnotation(HttpMethod.class);
-            if (httpMethod != null) {
-                return httpMethod.value().toUpperCase(Locale.ENGLISH);
-            }
-        }
-        return null;
-    }
-
-    private static List<String> mediaTypes(Method method, Class<?> owner, Class<? extends Annotation> annotation) {
-        String[] values = values(method.getAnnotation(annotation));
+    private static List<String> mediaTypes(AnnotationMetadata methodMetadata, AnnotationMetadata classMetadata,
+                                           Class<? extends Annotation> annotation) {
+        String[] values = methodMetadata.stringValues(annotation);
         if (values.length == 0) {
-            values = values(owner.getAnnotation(annotation));
+            values = classMetadata.stringValues(annotation);
         }
         List<String> mediaTypes = new ArrayList<>();
         for (String value : values) {
@@ -724,64 +757,46 @@ final class JaxRsRuntimeRoutes implements HttpRoutes {
         return mediaTypes;
     }
 
-    private static String[] values(@Nullable Annotation annotation) {
-        if (annotation instanceof Produces produces) {
-            return produces.value();
-        }
-        if (annotation instanceof Consumes consumes) {
-            return consumes.value();
-        }
-        return new String[0];
-    }
-
     /**
      * How to create a class for every request: with the values of the request in its constructor,
      * fields and setters. {@code null} for a class that is not created per request.
      */
-    private @Nullable RequestType requestType(Class<?> type) {
-        Constructor<?> constructor = requestConstructor(type);
-        List<Member> members = new ArrayList<>();
-        for (Class<?> t = type; t != null && t != Object.class; t = t.getSuperclass()) {
-            for (Field field : t.getDeclaredFields()) {
-                if (!Modifier.isStatic(field.getModifiers()) && isRequestAnnotated(field.getAnnotations())) {
-                    AnnotationMetadata metadata = ReflectionAnnotations.metadataOf(field.getAnnotations());
-                    boolean encoded = metadata.hasAnnotation(Encoded.class) || type.isAnnotationPresent(Encoded.class);
-                    members.add(new Member(field, null, support.reader(metadata, Argument.of(field.getGenericType()), encoded),
-                        usesForm(metadata, field.getType())));
+    private <T> @Nullable RequestType<T> requestType(Class<T> type, @Nullable BeanDefinition<T> definition) {
+        BeanIntrospection<T> introspection = introspection(type);
+        Argument<?>[] constructorArguments = definition != null ? definition.getConstructor().getArguments()
+            : introspection != null ? introspection.getConstructorArguments() : new Argument<?>[0];
+        boolean encodedType = introspection != null && introspection.hasAnnotation(Encoded.class);
+        JaxRsRouteSupport.@Nullable ValueReader[] constructorReaders = new JaxRsRouteSupport.ValueReader[constructorArguments.length];
+        boolean perRequest = false;
+        boolean usesForm = false;
+        for (int i = 0; i < constructorArguments.length; i++) {
+            Argument<?> argument = constructorArguments[i];
+            if (isRequestAnnotated(argument.getAnnotationMetadata())) {
+                boolean encoded = encodedType || argument.getAnnotationMetadata().hasAnnotation(Encoded.class);
+                constructorReaders[i] = support.reader(argument.getAnnotationMetadata(), argument, encoded);
+                perRequest = true;
+                usesForm |= usesForm(argument);
+            }
+        }
+        List<Member<T>> members = new ArrayList<>();
+        if (introspection != null) {
+            for (BeanProperty<T, Object> property : introspection.getBeanProperties()) {
+                AnnotationMetadata metadata = property.getAnnotationMetadata();
+                if (!property.isReadOnly() && isRequestAnnotated(metadata)) {
+                    boolean encoded = encodedType || metadata.hasAnnotation(Encoded.class);
+                    members.add(new Member<>(property, support.reader(metadata, property.asArgument(), encoded)));
+                    usesForm |= usesForm(property.asArgument());
                 }
             }
         }
-        for (Method method : type.getMethods()) {
-            if (method.getParameterCount() == 1 && !Modifier.isStatic(method.getModifiers()) && httpMethod(method) == null
-                && !method.isAnnotationPresent(Path.class) && isRequestAnnotated(method.getAnnotations())) {
-                AnnotationMetadata metadata = ReflectionAnnotations.metadataOf(method.getAnnotations());
-                boolean encoded = metadata.hasAnnotation(Encoded.class) || type.isAnnotationPresent(Encoded.class);
-                members.add(new Member(null, method, support.reader(metadata, Argument.of(method.getGenericParameterTypes()[0]), encoded),
-                    usesForm(metadata, method.getParameterTypes()[0])));
-            }
-        }
-        if (constructor == null && members.isEmpty()) {
+        if (!perRequest && members.isEmpty()) {
             return null;
         }
-        JaxRsRouteSupport.@Nullable ValueReader[] constructorReaders = new JaxRsRouteSupport.ValueReader[0];
-        String[] names = new String[0];
-        if (constructor != null) {
-            Annotation[][] annotations = constructor.getParameterAnnotations();
-            Type[] types = constructor.getGenericParameterTypes();
-            constructorReaders = new JaxRsRouteSupport.ValueReader[types.length];
-            for (int i = 0; i < types.length; i++) {
-                if (isRequestAnnotated(annotations[i])) {
-                    AnnotationMetadata metadata = ReflectionAnnotations.metadataOf(annotations[i]);
-                    boolean encoded = metadata.hasAnnotation(Encoded.class) || type.isAnnotationPresent(Encoded.class);
-                    constructorReaders[i] = support.reader(metadata, Argument.of(types[i]), encoded);
-                }
-            }
-            // the names of the @Parameters of the bean, which the annotation processor saw
-            names = beanContext.findBeanDefinition(type)
-                .map(definition -> Arrays.stream(definition.getConstructor().getArguments()).map(Argument::getName).toArray(String[]::new))
-                .orElse(names);
+        String[] names = new String[constructorArguments.length];
+        for (int i = 0; i < names.length; i++) {
+            names[i] = constructorArguments[i].getName();
         }
-        return new RequestType(type, constructor, constructorReaders, names, members);
+        return new RequestType<>(type, definition != null, introspection, constructorReaders, names, members, usesForm);
     }
 
     /**
@@ -789,75 +804,36 @@ final class JaxRsRuntimeRoutes implements HttpRoutes {
      * {@code @Parameter}s, or else the class, then its fields and setters with the values of the
      * request.
      */
-    private Object create(RequestType requestType, HttpRequest<?> request, PathVariables pathVariables, @Nullable FormData form) {
-        Class<?> type = requestType.type();
-        Constructor<?> constructor = requestType.constructor();
-        Object instance;
-        if (constructor == null) {
-            instance = beanContext.containsBean(type) ? support.create(type, new String[0], new Object[0]) : newInstance(type);
-        } else {
-            JaxRsRouteSupport.@Nullable ValueReader[] readers = requestType.constructorReaders();
-            Object[] values = new Object[readers.length];
-            for (int i = 0; i < readers.length; i++) {
-                JaxRsRouteSupport.ValueReader reader = readers[i];
-                values[i] = reader == null ? null : reader.read(request, pathVariables, form);
-            }
-            if (beanContext.containsBean(type) && requestType.names().length == values.length) {
-                List<String> names = new ArrayList<>();
-                List<Object> requestValues = new ArrayList<>();
-                for (int i = 0; i < readers.length; i++) {
-                    if (readers[i] != null) {
-                        names.add(requestType.names()[i]);
-                        requestValues.add(values[i]);
-                    }
-                }
-                instance = support.create(type, names.toArray(String[]::new), requestValues.toArray());
-            } else {
-                try {
-                    constructor.setAccessible(true);
-                    instance = beanContext.inject(constructor.newInstance(values));
-                } catch (InvocationTargetException e) {
-                    throw JaxRsRouteSupport.rethrow(e.getCause() == null ? e : e.getCause());
-                } catch (ReflectiveOperationException e) {
-                    throw new IllegalStateException("Cannot create " + type.getName(), e);
-                }
+    private <T> T create(RequestType<T> requestType, HttpRequest<?> request, PathVariables pathVariables, @Nullable FormData form) {
+        JaxRsRouteSupport.@Nullable ValueReader[] readers = requestType.constructorReaders();
+        Object[] values = new Object[readers.length];
+        List<String> names = new ArrayList<>();
+        List<Object> requestValues = new ArrayList<>();
+        for (int i = 0; i < readers.length; i++) {
+            JaxRsRouteSupport.ValueReader reader = readers[i];
+            if (reader != null) {
+                values[i] = reader.read(request, pathVariables, form);
+                names.add(requestType.names()[i]);
+                requestValues.add(values[i]);
             }
         }
-        for (Member member : requestType.members()) {
+        T instance;
+        BeanIntrospection<T> introspection = requestType.introspection();
+        if (requestType.bean() || introspection == null) {
+            instance = support.create(requestType.type(), names.toArray(String[]::new), requestValues.toArray());
+        } else {
+            instance = beanContext.inject(values.length == 0 ? introspection.instantiate() : introspection.instantiate(values));
+        }
+        for (Member<T> member : requestType.members()) {
             JaxRsRouteSupport.ValueReader reader = member.reader();
-            Object value = reader == null ? null : reader.read(request, pathVariables, form);
-            Field field = member.field();
-            if (field != null) {
-                support.setField(instance, field.getDeclaringClass(), field.getName(), value);
-            } else {
-                Method setter = java.util.Objects.requireNonNull(member.setter());
-                setter.setAccessible(true);
-                invoke(setter, instance, new Object[]{value});
-            }
+            member.property().set(instance, reader == null ? null : reader.read(request, pathVariables, form));
         }
         return instance;
     }
 
-    private static @Nullable Constructor<?> requestConstructor(Class<?> type) {
-        Constructor<?> selected = null;
-        for (Constructor<?> constructor : type.getConstructors()) {
-            if (selected == null || constructor.getParameterCount() > selected.getParameterCount()) {
-                selected = constructor;
-            }
-        }
-        if (selected == null) {
-            return null;
-        }
-        for (Annotation[] annotations : selected.getParameterAnnotations()) {
-            if (isRequestAnnotated(annotations)) {
-                return selected;
-            }
-        }
-        return null;
-    }
-
-    private boolean usesForm(AnnotationMetadata metadata, Class<?> type) {
-        return metadata.hasAnnotation(FormParam.class) || metadata.hasAnnotation(BeanParam.class) && usesForm(type, 0);
+    private static boolean usesForm(Argument<?> argument) {
+        AnnotationMetadata metadata = argument.getAnnotationMetadata();
+        return metadata.hasAnnotation(FormParam.class) || metadata.hasAnnotation(BeanParam.class) && usesForm(argument.getType(), 0);
     }
 
     /**
@@ -867,27 +843,20 @@ final class JaxRsRuntimeRoutes implements HttpRoutes {
         if (depth > 8) {
             return false;
         }
-        for (Class<?> t = type; t != null && t != Object.class; t = t.getSuperclass()) {
-            for (Field field : t.getDeclaredFields()) {
-                if (field.isAnnotationPresent(FormParam.class)
-                    || field.isAnnotationPresent(BeanParam.class) && usesForm(field.getType(), depth + 1)) {
-                    return true;
-                }
-            }
+        BeanIntrospection<?> introspection = introspection(type);
+        if (introspection == null) {
+            return false;
         }
-        for (Method method : type.getMethods()) {
-            if (method.getParameterCount() == 1 && method.isAnnotationPresent(FormParam.class)) {
+        for (Argument<?> argument : introspection.getConstructorArguments()) {
+            if (argument.getAnnotationMetadata().hasAnnotation(FormParam.class)) {
                 return true;
             }
         }
-        Constructor<?> constructor = requestConstructor(type);
-        if (constructor != null) {
-            for (Annotation[] annotations : constructor.getParameterAnnotations()) {
-                for (Annotation annotation : annotations) {
-                    if (annotation instanceof FormParam) {
-                        return true;
-                    }
-                }
+        for (BeanProperty<?, ?> property : introspection.getBeanProperties()) {
+            AnnotationMetadata metadata = property.getAnnotationMetadata();
+            if (metadata.hasAnnotation(FormParam.class)
+                || metadata.hasAnnotation(BeanParam.class) && usesForm(property.getType(), depth + 1)) {
+                return true;
             }
         }
         return false;
@@ -945,11 +914,39 @@ final class JaxRsRuntimeRoutes implements HttpRoutes {
     }
 
     /**
-     * Gets the instance a route calls.
+     * Creates an instance of a class for a request.
+     *
+     * @param <T> The class
      */
     @FunctionalInterface
-    private interface Instances {
-        Object get(HttpRequest<?> request, PathVariables pathVariables, @Nullable FormData form) throws Exception;
+    private interface Creator<T> {
+        T create(HttpRequest<?> request, PathVariables pathVariables, @Nullable FormData form);
+    }
+
+    /**
+     * Converts the result of a method to its response.
+     */
+    @FunctionalInterface
+    private interface Converter {
+        HttpResponse<?> convert(HttpRequest<?> request, @Nullable Object result);
+    }
+
+    /**
+     * Completes the response of a method with its media type.
+     */
+    @FunctionalInterface
+    private interface Completion {
+        HttpResponse<?> complete(HttpRequest<?> request, PathVariables pathVariables, HttpResponse<?> response);
+    }
+
+    /**
+     * Gets the instance a route calls.
+     *
+     * @param <B> The type of the instance
+     */
+    @FunctionalInterface
+    private interface Instances<B> {
+        B get(HttpRequest<?> request, PathVariables pathVariables, @Nullable FormData form) throws Exception;
     }
 
     /**
@@ -961,12 +958,42 @@ final class JaxRsRuntimeRoutes implements HttpRoutes {
     }
 
     /**
-     * A parameter of a method.
+     * A resource: its bean definition, and its executable resource methods and locators.
      *
-     * @param argument The type of the parameter
-     * @param metadata Its JAX-RS annotations, of the method that declares them
+     * @param definition The bean definition
+     * @param methods    The methods
+     * @param <B>        The type of the bean
      */
-    private record Parameter(Argument<?> argument, AnnotationMetadata metadata) {
+    private record Resource<B>(BeanDefinition<B> definition, List<ExecutableMethod<B, ?>> methods) {
+    }
+
+    /**
+     * A root resource.
+     *
+     * @param type       Its class
+     * @param definition Its bean definition, {@code null} for a class the processor never saw
+     * @param metadata   The annotations of its class
+     * @param methods    Its resource methods and locators
+     * @param instances  Gets its instance
+     * @param <B>        Its type
+     */
+    private record Root<B>(Class<B> type, @Nullable BeanDefinition<B> definition, AnnotationMetadata metadata,
+                           List<JaxRsMethod<B>> methods, Supplier<B> instances) {
+    }
+
+    /**
+     * A resource method or a locator, an executable method of a bean definition or an
+     * introspection.
+     *
+     * @param name       The name
+     * @param arguments  The parameters
+     * @param returnType The return type
+     * @param metadata   The annotations of the method
+     * @param executable Calls it
+     * @param <B>        The type of the instances it is called on
+     */
+    private record JaxRsMethod<B>(String name, Argument<?>[] arguments, Argument<?> returnType, AnnotationMetadata metadata,
+                                  Executable<B, ?> executable) {
     }
 
     /**
@@ -981,48 +1008,41 @@ final class JaxRsRuntimeRoutes implements HttpRoutes {
      * @param usesForm   Whether a bean parameter reads the form
      * @param entity     The index of its entity parameter, -1 without one
      * @param async      Whether it returns a stage of its result
-     * @param valueType  The type of its result
-     * @param returnType The argument of the type of its result
-     * @param produces   Its media types
+     * @param produces   Whether it declares the media types it produces
+     * @param converter  Converts its result to its response
+     * @param completion Completes its response
      * @param metadata   Its route metadata
+     * @param <B>        The type of the instances it is called on
      */
-    private record ResourceMethod(Method method, String httpMethod, String template, Reader[] readers, boolean form,
-                                  boolean formEntity, boolean usesForm, int entity, boolean async, Type valueType,
-                                  Argument<?> returnType, List<String> produces, JaxRsRouteSupport.RouteMetadata metadata) {
+    private record ResourceMethod<B>(JaxRsMethod<B> method, String httpMethod, String template, Reader[] readers, boolean form,
+                                     boolean formEntity, boolean usesForm, int entity, boolean async, boolean produces,
+                                     Converter converter, Completion completion, JaxRsRouteSupport.RouteMetadata metadata) {
     }
 
     /**
      * A field or setter of a type created per request.
      *
-     * @param field    The field
-     * @param setter   The setter
+     * @param property The property
      * @param reader   How to read its value
-     * @param usesForm Whether it reads the form
+     * @param <T>      The type that has it
      */
-    private record Member(@Nullable Field field, @Nullable Method setter, JaxRsRouteSupport.@Nullable ValueReader reader,
-                          boolean usesForm) {
+    private record Member<T>(BeanProperty<T, Object> property, JaxRsRouteSupport.@Nullable ValueReader reader) {
     }
 
     /**
      * A type created per request.
      *
-     * @param type        The type
-     * @param constructor        Its constructor with values of the request
-     * @param constructorReaders How to read the values of the parameters of the constructor
-     * @param names              The names of the parameters of the constructor of the bean
+     * @param type               The type
+     * @param bean               Whether it is a bean
+     * @param introspection      Its introspection
+     * @param constructorReaders How to read the values of the parameters of its constructor
+     * @param names              The names of the parameters of its constructor
      * @param members            Its fields and setters with values of the request
+     * @param usesForm           Whether it reads the form
+     * @param <T>                The type
      */
-    private record RequestType(Class<?> type, @Nullable Constructor<?> constructor,
+    private record RequestType<T>(Class<T> type, boolean bean, @Nullable BeanIntrospection<T> introspection,
                                JaxRsRouteSupport.@Nullable ValueReader[] constructorReaders, String[] names,
-                               List<Member> members) {
-
-        boolean usesForm() {
-            for (Member member : members) {
-                if (member.usesForm()) {
-                    return true;
-                }
-            }
-            return constructor != null && JaxRsRuntimeRoutes.usesForm(type, 0);
-        }
+                                  List<Member<T>> members, boolean usesForm) {
     }
 }

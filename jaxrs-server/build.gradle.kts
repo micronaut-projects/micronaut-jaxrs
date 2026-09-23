@@ -46,8 +46,6 @@ noReflection {
     allowIn("io.micronaut.jaxrs.container.JaxRsApplicationFactory", "CLASS_LOADING", "REFLECTIVE_ACCESS")
     // the annotations of an Application class that is not a bean
     allowIn("io.micronaut.jaxrs.container.ApplicationProvider", "ANNOTATIONS")
-    // the runtime routes collect the resource methods and their annotations, and call them
-    allowIn("io.micronaut.jaxrs.container.JaxRsRuntimeRoutes", "ANNOTATIONS", "CLASS_MEMBERS", "GENERIC_SIGNATURES", "INTERFACES", "REFLECTIVE_ACCESS", "TARGET_MEMBERS")
     // the context resolvers of the application are instances too: their @Produces and type argument
     allowIn("io.micronaut.jaxrs.container.JaxRsProviders", "ANNOTATIONS", "GENERIC_SIGNATURES")
     // ResourceInfo.getResourceMethod() returns a java.lang.reflect.Method

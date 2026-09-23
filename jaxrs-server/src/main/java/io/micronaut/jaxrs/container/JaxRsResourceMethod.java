@@ -15,17 +15,21 @@
  */
 package io.micronaut.jaxrs.container;
 
+import io.micronaut.context.annotation.Executable;
 import io.micronaut.core.annotation.Internal;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
+import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Marks a JAX-RS resource class without {@code @Path}, whose resource methods are routed from the
- * root: the annotation processor adds it, for {@link JaxRsRuntimeRoutes} to find the class.
+ * Marks a public JAX-RS resource method or sub-resource locator (JAX-RS 3.3.1): the annotation
+ * mappers of the JAX-RS HTTP methods and of {@code @Path} add it. The method is executable and
+ * processed on startup by {@link JaxRsRuntimeRoutes}, like {@code @HttpMethodMapping} makes the
+ * methods of a controller executable.
  *
  * @author Denis Stepanov
  * @since 5.0.0
@@ -33,6 +37,10 @@ import java.lang.annotation.Target;
 @Internal
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.TYPE)
-public @interface JaxRsResource {
+@Target({ElementType.METHOD, ElementType.TYPE})
+@Executable(processOnStartup = true)
+// an implementation of a resource method of an interface or superclass is one too, like it is a
+// controller method with @HttpMethodMapping
+@Inherited
+public @interface JaxRsResourceMethod {
 }
