@@ -66,6 +66,13 @@ public final class JaxRsMessageBodyWriter<T> implements MessageBodyWriter<T> {
             .toList();
     }
 
+    /**
+     * @return The JAX-RS writer
+     */
+    public jakarta.ws.rs.ext.MessageBodyWriter<T> delegate() {
+        return delegate;
+    }
+
     @Override
     public boolean isWriteable(@NonNull Argument<T> type, @Nullable MediaType mediaType) {
         return delegate.isWriteable(type.getType(), type.asType(), JaxRsArgumentUtil.annotations(type.getAnnotationMetadata(), delegate), JaxRsUtils.convert(mediaType));

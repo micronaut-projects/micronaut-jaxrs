@@ -18,12 +18,14 @@ package io.micronaut.jaxrs.container;
 import io.micronaut.context.BeanContext;
 import io.micronaut.context.BeanRegistration;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.reflect.GenericTypeUtils;
 import io.micronaut.core.type.Argument;
 import io.micronaut.inject.qualifiers.MatchArgumentQualifier;
 import io.micronaut.jaxrs.common.JaxRsContainerMessageBodyHandlerRegistry;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.WebApplicationException;
+import jakarta.ws.rs.core.Application;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.ext.ContextResolver;
@@ -133,20 +135,33 @@ final class JaxRsProviders implements Providers {
     @SuppressWarnings({"unchecked", "rawtypes"})
     public <T> @Nullable ContextResolver<T> getContextResolver(Class<T> contextType, MediaType mediaType) {
         // the resolvers of the type whose produced types are compatible with the media type,
-        // the most specific first (JAX-RS 4.3)
-        List<BeanRegistration<ContextResolver>> candidates = new ArrayList<>();
+        // the most specific first (JAX-RS 4.3): the beans, and the instances of the application
+        List<Candidate<T>> candidates = new ArrayList<>();
         for (BeanRegistration<ContextResolver> registration : beanContext.getBeanRegistrations(ContextResolver.class,
                 MatchArgumentQualifier.covariant(ContextResolver.class, Argument.of(contextType)))) {
-            if (specificity(registration, mediaType) >= 0) {
-                candidates.add(registration);
+            int specificity = specificity(registration.getBeanDefinition().getAnnotationMetadata().stringValues(Produces.class), mediaType);
+            if (specificity >= 0) {
+                candidates.add(new Candidate<>((ContextResolver<T>) registration.getBean(), specificity));
+            }
+        }
+        Application application = beanContext.findBean(Application.class).orElse(null);
+        if (application != null) {
+            for (Object singleton : application.getSingletons()) {
+                if (singleton instanceof ContextResolver resolver && resolves(resolver, contextType)) {
+                    Produces produces = singleton.getClass().getAnnotation(Produces.class);
+                    int specificity = specificity(produces == null ? new String[0] : produces.value(), mediaType);
+                    if (specificity >= 0) {
+                        candidates.add(new Candidate<>((ContextResolver<T>) resolver, specificity));
+                    }
+                }
             }
         }
         if (candidates.isEmpty()) {
             // "null if no matching context providers are found"
             return null;
         }
-        candidates.sort(Comparator.comparingInt((BeanRegistration<ContextResolver> r) -> specificity(r, mediaType)).reversed());
-        List<ContextResolver<T>> resolvers = candidates.stream().map(r -> (ContextResolver<T>) r.getBean()).toList();
+        candidates.sort(Comparator.comparingInt((Candidate<T> c) -> c.specificity()).reversed());
+        List<ContextResolver<T>> resolvers = candidates.stream().map(Candidate::resolver).toList();
         if (resolvers.size() == 1) {
             return resolvers.get(0);
         }
@@ -163,11 +178,19 @@ final class JaxRsProviders implements Providers {
     }
 
     /**
+     * Whether a context resolver instance resolves contexts of a type: its type argument is the
+     * type or a subtype, or it is not known.
+     */
+    private static boolean resolves(ContextResolver<?> resolver, Class<?> contextType) {
+        Class<?>[] arguments = GenericTypeUtils.resolveInterfaceTypeArguments(resolver.getClass(), ContextResolver.class);
+        return arguments.length == 0 || contextType.isAssignableFrom(arguments[0]);
+    }
+
+    /**
      * How specifically a context resolver produces a media type: 2 for the type, 1 for a type with a
      * wildcard subtype, 0 for any type, and -1 if it does not produce it.
      */
-    private static int specificity(BeanRegistration<?> registration, MediaType mediaType) {
-        String[] produces = registration.getBeanDefinition().getAnnotationMetadata().stringValues(Produces.class);
+    private static int specificity(String[] produces, MediaType mediaType) {
         if (produces.length == 0) {
             return 0;
         }
@@ -180,5 +203,15 @@ final class JaxRsProviders implements Providers {
             }
         }
         return best;
+    }
+
+    /**
+     * A context resolver, and how specifically it produces the media type.
+     *
+     * @param resolver    The resolver
+     * @param specificity The specificity
+     * @param <T>         The type of the context
+     */
+    private record Candidate<T>(ContextResolver<T> resolver, int specificity) {
     }
 }

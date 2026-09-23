@@ -89,4 +89,50 @@ public final class JaxRsUtils {
         return mediaType == null ? null : MediaType.of(mediaType.toString());
     }
 
+    /**
+     * The number of steps from a type to the type a reader reads or a writer writes, through the
+     * superclasses and interfaces: 0 for the type itself, {@link Integer#MAX_VALUE} for another type.
+     *
+     * @param provided The type of the provider
+     * @param type     The type
+     * @return The distance
+     */
+    public static int typeDistance(Class<?> provided, Class<?> type) {
+        if (!provided.isAssignableFrom(type)) {
+            return Integer.MAX_VALUE;
+        }
+        int distance = 0;
+        for (Class<?> t = type; t != null; t = t.getSuperclass()) {
+            if (t == provided) {
+                return distance;
+            }
+            if (provided.isInterface() && provided.isAssignableFrom(t)) {
+                return distance + 1;
+            }
+            distance++;
+        }
+        return distance;
+    }
+
+    /**
+     * How specific the consumed type of a reader, or the produced type of a writer, that matches
+     * the media types is: 2 for a type, 1 for a type with a wildcard subtype, 0 for any type.
+     *
+     * @param declared   The declared media types, none for any
+     * @param mediaTypes The media types
+     * @return The specificity
+     */
+    public static int mediaTypeSpecificity(String[] declared, List<MediaType> mediaTypes) {
+        int best = 0;
+        for (String value : declared) {
+            MediaType produced = new MediaType(value);
+            for (MediaType mediaType : mediaTypes) {
+                if (mediaType.matches(produced) || produced.matches(mediaType)) {
+                    int specificity = "*".equals(produced.getType()) ? 0 : "*".equals(produced.getSubtype()) ? 1 : 2;
+                    best = Math.max(best, specificity);
+                }
+            }
+        }
+        return best;
+    }
 }

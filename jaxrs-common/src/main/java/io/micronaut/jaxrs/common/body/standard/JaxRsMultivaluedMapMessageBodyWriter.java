@@ -17,31 +17,24 @@ package io.micronaut.jaxrs.common.body.standard;
 
 import io.micronaut.context.annotation.Prototype;
 import io.micronaut.core.annotation.Internal;
-import org.jspecify.annotations.NonNull;
-import org.jspecify.annotations.Nullable;
 import io.micronaut.core.annotation.Order;
-import io.micronaut.core.io.buffer.ByteBuffer;
-import io.micronaut.core.io.buffer.ByteBufferFactory;
 import io.micronaut.core.order.Ordered;
-import io.micronaut.core.type.Argument;
-import io.micronaut.core.type.MutableHeaders;
-import io.micronaut.http.HttpHeaders;
-import io.micronaut.http.MediaType;
-import io.micronaut.http.body.MessageBodyReader;
-import io.micronaut.http.body.MessageBodyWriter;
-import io.micronaut.http.codec.CodecException;
-import io.micronaut.jaxrs.common.JaxRsIOException;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
+import jakarta.ws.rs.ext.MessageBodyWriter;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
 /**
- * The writer of {@link MultivaluedMap} for {@link MessageBodyReader}.
+ * The standard writer of a {@code MultivaluedMap<String, String>} as a form (JAX-RS 4.2.4): a JAX-RS
+ * provider, so it is sorted with the ones of the application, by its media type first.
  *
  * @author Denis Stepanov
  * @since 4.9
@@ -53,29 +46,20 @@ import java.util.Map;
 public final class JaxRsMultivaluedMapMessageBodyWriter implements MessageBodyWriter<MultivaluedMap<String, String>> {
 
     @Override
-    public boolean isWriteable(@NonNull Argument<MultivaluedMap<String, String>> type, @Nullable MediaType mediaType) {
-        return MessageBodyWriter.super.isWriteable(type, mediaType) && mediaType != null && MediaType.APPLICATION_FORM_URLENCODED_TYPE.equals(mediaType);
+    public boolean isWriteable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+        return MultivaluedMap.class.isAssignableFrom(type) && FormMaps.isForm(mediaType);
     }
 
     @Override
-    public @NonNull ByteBuffer<?> writeTo(@NonNull Argument<MultivaluedMap<String, String>> type, @NonNull MediaType mediaType, MultivaluedMap<String, String> object, @NonNull MutableHeaders outgoingHeaders, @NonNull ByteBufferFactory<?, ?> bufferFactory) throws CodecException {
-        return MessageBodyWriter.super.writeTo(type, mediaType, object, outgoingHeaders, bufferFactory);
-    }
-
-    @Override
-    public void writeTo(@NonNull Argument<MultivaluedMap<String, String>> type, @NonNull MediaType mediaType, MultivaluedMap<String, String> object, @NonNull MutableHeaders outgoingHeaders, @NonNull OutputStream outputStream) throws CodecException {
-        outgoingHeaders.setIfMissing(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_FORM_URLENCODED);
-        try {
-            QueryStringEncoder encoder = new QueryStringEncoder("", StandardCharsets.UTF_8);
-            for (Map.Entry<String, List<String>> e : object.entrySet()) {
-                e.getValue().forEach(value -> encoder.addParam(e.getKey(), value));
-            }
-            // the encoder builds a query: the form is without its leading '?'
-            String form = encoder.toString();
-            outputStream.write((form.startsWith("?") ? form.substring(1) : form).getBytes(StandardCharsets.UTF_8));
-        } catch (IOException e) {
-            throw new JaxRsIOException(e);
+    public void writeTo(MultivaluedMap<String, String> map, Class<?> type, Type genericType, Annotation[] annotations,
+                        MediaType mediaType, MultivaluedMap<String, Object> httpHeaders,
+                        OutputStream entityStream) throws IOException {
+        QueryStringEncoder encoder = new QueryStringEncoder("", FormMaps.charset(mediaType));
+        for (Map.Entry<String, List<String>> e : map.entrySet()) {
+            e.getValue().forEach(value -> encoder.addParam(e.getKey(), value));
         }
+        // the encoder builds a query: the form is without its leading '?'
+        String form = encoder.toString();
+        entityStream.write((form.startsWith("?") ? form.substring(1) : form).getBytes(StandardCharsets.UTF_8));
     }
-
 }

@@ -16,6 +16,7 @@
 package io.micronaut.jaxrs.client;
 
 import io.micronaut.context.AnnotationReflectionUtils;
+import io.micronaut.core.reflect.GenericTypeUtils;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.Internal;
@@ -42,6 +43,8 @@ import io.micronaut.jaxrs.common.JaxRsMessageBodyReaderDefinition;
 import io.micronaut.jaxrs.common.JaxRsMessageBodyWriter;
 import io.micronaut.jaxrs.common.JaxRsUtils;
 import io.micronaut.jaxrs.common.JaxRsWriterInterceptorContextState;
+import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.ext.Providers;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.ContextResolver;
@@ -498,14 +501,22 @@ final class JaxRsConfiguration implements Configuration {
 
     <T> io.micronaut.http.body.@Nullable MessageBodyReader<T> findReader(Argument<T> argument,
                                                                                 @Nullable MediaType mediaType) {
-        // First, let's try to find JaxRs reader
+        // First, the JAX-RS reader in the order of the providers, then of their priority
+        io.micronaut.http.body.MessageBodyReader<T> best = null;
+        long bestRank = Long.MAX_VALUE;
         for (JaxRsMessageBodyReaderDefinition readerDer : getReaders()) {
             io.micronaut.http.body.MessageBodyReader<T> reader = (io.micronaut.http.body.MessageBodyReader<T>) readerDer.messageBodyReader();
-            if (reader instanceof JaxRsMessageBodyReader<?>) {
-                if (readerDer.type().isAssignableFrom(argument.getType()) && reader.isReadable(argument, mediaType)) {
-                    return reader;
+            if (reader instanceof JaxRsMessageBodyReader<?> jaxRsReader
+                && readerDer.type().isAssignableFrom(argument.getType()) && reader.isReadable(argument, mediaType)) {
+                long rank = rank(readerDer.type().getType(), jaxRsReader.delegate(), Consumes.class, argument.getType(), mediaType);
+                if (rank < bestRank) {
+                    best = reader;
+                    bestRank = rank;
                 }
             }
+        }
+        if (best != null) {
+            return best;
         }
         // Find any kind of reader
         for (JaxRsMessageBodyReaderDefinition readerDer : getReaders()) {
@@ -564,14 +575,22 @@ final class JaxRsConfiguration implements Configuration {
 
     private <T> io.micronaut.http.body.@Nullable MessageBodyWriter<T> findWriter(Argument<T> argument,
                                                                                 MediaType mediaType) {
-        // First, let's try to find JaxRs writer
+        // First, the JAX-RS writer in the order of the providers, then of their priority
+        io.micronaut.http.body.MessageBodyWriter<T> best = null;
+        long bestRank = Long.MAX_VALUE;
         for (JaxRsMessageBodyWriterDefinition writerDef : getWriters()) {
             io.micronaut.http.body.MessageBodyWriter<T> writer = (io.micronaut.http.body.MessageBodyWriter<T>) writerDef.messageBodyWriter();
-            if (writer instanceof JaxRsMessageBodyWriter<?>) {
-                if (writerDef.type().isAssignableFrom(argument.getType()) && writer.isWriteable(argument, mediaType)) {
-                    return writer;
+            if (writer instanceof JaxRsMessageBodyWriter<?> jaxRsWriter
+                && writerDef.type().isAssignableFrom(argument.getType()) && writer.isWriteable(argument, mediaType)) {
+                long rank = rank(writerDef.type().getType(), jaxRsWriter.delegate(), Produces.class, argument.getType(), mediaType);
+                if (rank < bestRank) {
+                    best = writer;
+                    bestRank = rank;
                 }
             }
+        }
+        if (best != null) {
+            return best;
         }
         // Find any kind of writer
         for (JaxRsMessageBodyWriterDefinition writerDef : getWriters()) {
@@ -581,6 +600,22 @@ final class JaxRsConfiguration implements Configuration {
             }
         }
         return null;
+    }
+
+    /**
+     * The order of a JAX-RS provider, like the one of the server (JAX-RS 4.2.2, step 4): the nearest
+     * type first, then the most specific media type, then the providers of the application before
+     * the standard ones. Equal ones keep the order of their priority.
+     */
+    private static long rank(Class<?> provided, Object provider, Class<? extends Annotation> declaring, Class<?> type,
+                             @Nullable MediaType mediaType) {
+        Annotation annotation = provider.getClass().getAnnotation(declaring);
+        String[] declared = annotation instanceof Consumes consumes ? consumes.value()
+            : annotation instanceof Produces produces ? produces.value() : new String[0];
+        int distance = JaxRsUtils.typeDistance(provided, type);
+        int specificity = mediaType == null ? 0 : JaxRsUtils.mediaTypeSpecificity(declared, List.of(mediaType));
+        int standard = provider.getClass().getName().startsWith("io.micronaut.") ? 1 : 0;
+        return ((long) distance * 3 + (2 - specificity)) * 2 + standard;
     }
 
     public List<ClientRequestFilter> getRequestFilters() {
@@ -698,13 +733,34 @@ final class JaxRsConfiguration implements Configuration {
         @Override
         @SuppressWarnings("unchecked")
         public <T> @Nullable ContextResolver<T> getContextResolver(Class<T> contextType, jakarta.ws.rs.core.MediaType mediaType) {
+            // the resolvers of the context type, by their type argument (JAX-RS 4.3): a resolver is
+            // asked for the context of an entity type, and may have none for it
+            List<ContextResolver<T>> resolvers = new ArrayList<>();
             for (Component component : components) {
                 ContextResolver<T> resolver = component.tryGet(ContextResolver.class);
-                if (resolver != null && resolver.getContext(contextType) != null) {
-                    return injected(resolver);
+                if (resolver != null) {
+                    Class<?>[] arguments = GenericTypeUtils.resolveInterfaceTypeArguments(resolver.getClass(), ContextResolver.class);
+                    if (arguments.length == 0 || contextType.isAssignableFrom(arguments[0])) {
+                        resolvers.add(injected(resolver));
+                    }
                 }
             }
-            return null;
+            if (resolvers.isEmpty()) {
+                return null;
+            }
+            if (resolvers.size() == 1) {
+                return resolvers.get(0);
+            }
+            return type -> {
+                // the first context that is not null
+                for (ContextResolver<T> resolver : resolvers) {
+                    T context = resolver.getContext(type);
+                    if (context != null) {
+                        return context;
+                    }
+                }
+                return null;
+            };
         }
     }
 

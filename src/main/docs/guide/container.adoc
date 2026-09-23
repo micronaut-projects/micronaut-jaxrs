@@ -147,13 +147,18 @@ Micronaut supports JAX-RS body writers / readers API:
 
 NOTE: Body handlers should be defined as beans
 
-The readers and writers of the application are selected before the standard ones: by the most specific media type they declare, then by the nearest type.
 
 The standard entity providers for `java.io.File`, `jakarta.activation.DataSource`, `javax.xml.transform.Source` and JAXB (classes annotated with `@XmlRootElement` or `@XmlType`, and `JAXBElement`) are in a separate module:
 
 dependency:micronaut-jaxrs-standard-providers[scope="implementation",groupId="io.micronaut.jaxrs"]
 
 A `ContextResolver<JAXBContext>` of the application gives the `JAXBContext` of a JAXB type.
+
+When a JSON-B implementation, such as Yasson, is on the classpath, the module also reads and writes the JSON media types with JSON-B, and a `ContextResolver<Jsonb>` of the application or of the client gives the `Jsonb` of a type. JSON-B then reads and writes JSON in place of the Micronaut JSON codecs, except for the types of the other standard providers.
+
+Providers are selected like JAX-RS specifies for writers (section 4.2.2): the provider of the nearest type first, then of the most specific media type, then the providers of the application before the standard ones.
+
+When a JSON-B implementation, such as Yasson, is on the classpath, the module also reads and writes the JSON media types with JSON-B, and a `ContextResolver<Jsonb>` of the application or of the client gives the `Jsonb` of a type. JSON-B then reads and writes JSON in place of the Micronaut JSON codecs, except for the types of the other standard providers.
 
 ==== Multipart Entities
 

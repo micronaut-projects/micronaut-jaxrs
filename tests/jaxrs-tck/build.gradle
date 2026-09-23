@@ -25,6 +25,8 @@ dependencies {
     implementation libs.jakarta.jaxrs.tck.tests
     implementation mnLogging.slf4j.jul.to.slf4j
 
+    // the JSON-B implementation of the standard providers
+    runtimeOnly libs.yasson
     runtimeOnly(mnLogging.logback.classic)
 
     testImplementation mnTest.junit.jupiter.api

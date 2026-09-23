@@ -7,9 +7,3 @@ ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT#getHeadersTest
 
 # HttpServletRequest
 ee.jakarta.tck.ws.rs.ee.rs.container.requestcontext.JAXRSClientIT
-
-# No JSON-B entity provider: JSON is read and written by the Micronaut codecs
-ee.jakarta.tck.ws.rs.spec.contextprovider.JsonbContextProviderIT
-
-# The standard MultivaluedMap form reader and writer are Micronaut ones, used after the JAX-RS providers of the application
-ee.jakarta.tck.ws.rs.spec.provider.standardhaspriority.JAXRSClientIT#readWriteMapProviderTest

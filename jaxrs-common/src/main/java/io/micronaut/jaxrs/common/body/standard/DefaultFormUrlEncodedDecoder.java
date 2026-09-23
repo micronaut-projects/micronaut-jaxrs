@@ -21,6 +21,7 @@ import io.micronaut.http.form.FormConfiguration;
 import io.micronaut.http.form.FormUrlEncodedDecoder;
 
 import java.nio.charset.Charset;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -47,5 +48,16 @@ final class DefaultFormUrlEncodedDecoder implements FormUrlEncodedDecoder {
             formConfiguration.getMaxDecodedKeyValueParameters(),
             formConfiguration.isSemicolonIsNormalChar());
         return flatten(decoder.parameters());
+    }
+
+    /**
+     * @param formUrlEncodedString The form
+     * @param charset              The charset
+     * @return Every value of each field
+     */
+    Map<String, List<String>> decodeAll(String formUrlEncodedString, Charset charset) {
+        return new QueryStringDecoder(formUrlEncodedString, charset, false,
+            formConfiguration.getMaxDecodedKeyValueParameters(),
+            formConfiguration.isSemicolonIsNormalChar()).parameters();
     }
 }

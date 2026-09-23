@@ -17,31 +17,29 @@ package io.micronaut.jaxrs.common.body.standard;
 
 import io.micronaut.context.annotation.Prototype;
 import io.micronaut.core.annotation.Internal;
-import org.jspecify.annotations.NonNull;
-import org.jspecify.annotations.Nullable;
 import io.micronaut.core.annotation.Order;
 import io.micronaut.core.io.IOUtils;
 import io.micronaut.core.order.Ordered;
-import io.micronaut.core.type.Argument;
-import io.micronaut.core.type.Headers;
-import io.micronaut.http.MediaType;
-import io.micronaut.http.annotation.Consumes;
-import io.micronaut.http.body.MessageBodyReader;
-import io.micronaut.http.codec.CodecException;
-import io.micronaut.http.form.FormUrlEncodedDecoder;
-import io.micronaut.jaxrs.common.JaxRsIOException;
+import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.core.MultivaluedMap;
+import jakarta.ws.rs.ext.MessageBodyReader;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
- * The implementation of {@link MessageBodyReader} for {@link MessageBodyReader}.
+ * The standard reader of a form as a {@code MultivaluedMap<String, Object>} (JAX-RS 4.2.4): a JAX-RS
+ * provider, so it is sorted with the ones of the application, by its media type first.
  *
  * @author Denis Stepanov
  * @since 4.9
@@ -52,28 +50,22 @@ import java.util.Map;
 @Prototype
 public final class JaxRsMultivaluedStringObjectMapMessageBodyReader implements MessageBodyReader<MultivaluedMap<String, Object>> {
 
-    private final FormUrlEncodedDecoder formUrlEncodedDecoder = new DefaultFormUrlEncodedDecoder();
+    private final DefaultFormUrlEncodedDecoder formUrlEncodedDecoder = new DefaultFormUrlEncodedDecoder();
 
     @Override
-    public boolean isReadable(@NonNull Argument<MultivaluedMap<String, Object>> type, @Nullable MediaType mediaType) {
-        return MessageBodyReader.super.isReadable(type, mediaType) && mediaType != null && MediaType.APPLICATION_FORM_URLENCODED_TYPE.equals(mediaType);
+    public boolean isReadable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+        return FormMaps.isFormMap(type) && FormMaps.isForm(mediaType);
     }
 
     @Override
-    public @Nullable MultivaluedMap<String, Object> read(@NonNull Argument<MultivaluedMap<String, Object>> type,
-                                                         @Nullable MediaType mediaType,
-                                                         @NonNull Headers httpHeaders,
-                                                         @NonNull InputStream inputStream) throws CodecException {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
-            Map<String, Object> decoded = formUrlEncodedDecoder.decode(
-                IOUtils.readText(reader),
-                mediaType == null ? StandardCharsets.UTF_8 : mediaType.getCharset().orElse(StandardCharsets.UTF_8)
-            );
-            MultivaluedHashMap<String, Object> map = new MultivaluedHashMap<>();
-            decoded.forEach(map::add);
-            return map;
-        } catch (IOException e) {
-            throw new JaxRsIOException("Failed to read to a string", e);
-        }
+    public MultivaluedMap<String, Object> readFrom(Class<MultivaluedMap<String, Object>> type, Type genericType, Annotation[] annotations,
+                                                MediaType mediaType, MultivaluedMap<String, String> httpHeaders,
+                                                InputStream entityStream) throws IOException {
+        BufferedReader reader = new BufferedReader(new InputStreamReader(entityStream, StandardCharsets.UTF_8));
+        Map<String, List<String>> decoded = formUrlEncodedDecoder.decodeAll(IOUtils.readText(reader), FormMaps.charset(mediaType));
+        MultivaluedHashMap<String, Object> map = new MultivaluedHashMap<>();
+        // every value of a field repeated in the form
+        decoded.forEach((key, values) -> map.addAll(key, new ArrayList<Object>(values)));
+        return map;
     }
 }

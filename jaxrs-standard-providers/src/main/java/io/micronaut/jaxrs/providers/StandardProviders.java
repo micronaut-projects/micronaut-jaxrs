@@ -16,8 +16,10 @@
 package io.micronaut.jaxrs.providers;
 
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.reflect.ClassUtils;
 import io.micronaut.jaxrs.common.JaxRsStandardProviders;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -31,11 +33,17 @@ public final class StandardProviders implements JaxRsStandardProviders {
 
     @Override
     public List<Object> providers() {
-        return List.of(
+        List<Object> providers = new ArrayList<>(List.of(
             new JaxRsFileMessageBodyReaderWriter(),
             new JaxRsDataSourceMessageBodyReaderWriter(),
             new JaxRsSourceMessageBodyReaderWriter(),
+            new JaxRsJaxbElementMessageBodyReaderWriter(),
             new JaxRsJaxbMessageBodyReaderWriter()
-        );
+        ));
+        if (ClassUtils.isPresent("jakarta.json.bind.Jsonb", StandardProviders.class.getClassLoader())
+            && JsonbImplementationCondition.isPresent()) {
+            providers.add(new JaxRsJsonbMessageBodyReaderWriter());
+        }
+        return providers;
     }
 }
