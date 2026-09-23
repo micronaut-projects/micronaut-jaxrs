@@ -44,6 +44,13 @@ public final class JaxRsWebTarget implements WebTarget, JaxRsConfigurable<WebTar
         this.configuration = configuration;
     }
 
+    /**
+     * @return The client of the target
+     */
+    JaxRsClient client() {
+        return client;
+    }
+
     @Override
     public WebTarget self() {
         return this;

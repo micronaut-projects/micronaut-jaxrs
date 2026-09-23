@@ -19,6 +19,8 @@ import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpRequest;
+import io.micronaut.http.HttpStatus;
+import io.micronaut.http.MediaType;
 import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.jaxrs.runtime.ext.bind.UriInfoImpl;
 import io.micronaut.web.router.RouteAttributes;
@@ -53,6 +55,7 @@ final class JaxRsServerFilters implements HttpRoutes {
     }
 
     @Override
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public void routes(HttpRouteBuilder routes) {
         routes.filter("/**").preMatching()
             .before(filters::filterPreMatchingRequest)
@@ -68,6 +71,16 @@ final class JaxRsServerFilters implements HttpRoutes {
                     // the response of a JAX-RS Response entity: the filters run on it
                     replace(response, filtered);
                 }
+                request.getAttribute(JaxRsRouteSupport.SSE_EVENT_SINK, JaxRsSseEventSink.class).ifPresent(sink -> {
+                    if (response.getStatus().getCode() >= 300) {
+                        // the resource method failed, e.g. with a 503: the error is the response
+                        sink.close();
+                        return;
+                    }
+                    // the events a resource method sends to its sink (JAX-RS 9.3)
+                    ((MutableHttpResponse) response).status(HttpStatus.OK).body(sink.publisher());
+                    response.getHeaders().set(HttpHeaders.CONTENT_TYPE, MediaType.TEXT_EVENT_STREAM);
+                });
             });
     }
 

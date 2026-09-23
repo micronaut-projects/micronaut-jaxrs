@@ -22,6 +22,8 @@ import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.RouteInfo;
 import io.micronaut.web.router.MethodBasedRouteInfo;
 import io.micronaut.core.annotation.AnnotationMetadataProvider;
+import io.micronaut.http.simple.SimpleHttpHeaders;
+import io.micronaut.jaxrs.common.JaxRsUtils;
 import io.micronaut.http.body.MessageBodyHandlerRegistry;
 import io.micronaut.http.body.MessageBodyReader;
 import io.micronaut.jaxrs.common.JaxRsMessageBodyReader;
@@ -71,6 +73,8 @@ import jakarta.ws.rs.NotAcceptableException;
 import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.NotSupportedException;
 import jakarta.ws.rs.WebApplicationException;
+import jakarta.ws.rs.sse.SseEventSink;
+import jakarta.ws.rs.sse.OutboundSseEvent;
 import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.Application;
 import jakarta.ws.rs.core.Form;
@@ -90,6 +94,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashSet;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
@@ -574,6 +581,48 @@ public final class JaxRsRouteSupport {
     }
 
     /**
+     * The attribute of the request that holds its event sink.
+     */
+    static final String SSE_EVENT_SINK = SseEventSink.class.getName();
+
+    /**
+     * The event sink of a request, whose events are the body of its response, see
+     * {@link JaxRsServerFilters}.
+     */
+    private SseEventSink sseEventSink(HttpRequest<?> request) {
+        Optional<JaxRsSseEventSink> existing = request.getAttribute(SSE_EVENT_SINK, JaxRsSseEventSink.class);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+        JaxRsSseEventSink sink = new JaxRsSseEventSink(this::sseData);
+        request.setAttribute(SSE_EVENT_SINK, sink);
+        return sink;
+    }
+
+    /**
+     * The data of an event as text, written by the message body writer of its type and media type
+     * (JAX-RS 9.3).
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private String sseData(OutboundSseEvent event) {
+        Object data = Objects.requireNonNull(event.getData());
+        MediaType mediaType = Objects.requireNonNull(JaxRsUtils.convert(event.getMediaType()));
+        Argument<Object> type = (Argument) Argument.of(event.getType());
+        List<MediaType> mediaTypes = List.of(mediaType);
+        Optional<io.micronaut.http.body.MessageBodyWriter<Object>> writer = beanContext.getBean(JaxRsContainerMessageBodyHandlerRegistry.class)
+            .findWriter(type, mediaTypes);
+        if (writer.isEmpty()) {
+            writer = beanContext.getBean(MessageBodyHandlerRegistry.class).findWriter(type, mediaTypes);
+        }
+        if (writer.isEmpty()) {
+            return data.toString();
+        }
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        writer.get().writeTo(type, mediaType, data, new SimpleHttpHeaders(), out);
+        return out.toString(mediaType.getCharset().orElse(StandardCharsets.UTF_8));
+    }
+
+    /**
      * A {@code @Context} parameter, bound like for a controller: by the argument binder of its type,
      * or else as a bean.
      *
@@ -587,6 +636,9 @@ public final class JaxRsRouteSupport {
         Class<?> type = argument.getType();
         if (type.isInstance(request)) {
             return request;
+        }
+        if (type == SseEventSink.class) {
+            return sseEventSink(request);
         }
         Optional<ArgumentBinder<Object, HttpRequest<?>>> binder = contextBinders.computeIfAbsent(argument,
             a -> (Optional) binderRegistry.findArgumentBinder((Argument) a));
