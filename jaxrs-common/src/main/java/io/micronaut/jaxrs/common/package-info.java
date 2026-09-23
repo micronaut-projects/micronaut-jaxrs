@@ -19,4 +19,7 @@
  * @author graemerocher
  * @since 1.0
  */
+@NullMarked
 package io.micronaut.jaxrs.common;
+
+import org.jspecify.annotations.NullMarked;

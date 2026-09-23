@@ -17,6 +17,7 @@ package io.micronaut.jaxrs.container;
 
 import io.micronaut.context.BeanContext;
 import io.micronaut.context.BeanRegistration;
+import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
 import org.jspecify.annotations.Nullable;
 import io.micronaut.core.type.Argument;
@@ -106,7 +107,7 @@ final class JaxRsFilters {
     MutableHttpResponse<?> filterResponse(@Nullable RouteInfo<?> routeInfo,
                                           HttpRequest<?> request,
                                           MutableHttpResponse<?> mutableHttpResponse) throws IOException {
-        if (routeInfo != null && !routeInfo.getAnnotationMetadata().hasAnnotation(Path.class)) {
+        if (routeInfo != null && !isJaxRs(routeInfo)) {
             // Intercept only JaxRs routes
             return mutableHttpResponse;
         }
@@ -209,6 +210,16 @@ final class JaxRsFilters {
     }
 
     /**
+     * Whether a route is one of a JAX-RS resource method: of a root resource, with its
+     * {@code @Path}, or of a sub-resource, whose class may have none, with its request method
+     * designator, e.g. {@code @GET}.
+     */
+    private static boolean isJaxRs(RouteInfo<?> routeInfo) {
+        AnnotationMetadata metadata = routeInfo.getAnnotationMetadata();
+        return metadata.hasAnnotation(Path.class) || metadata.hasStereotype(jakarta.ws.rs.HttpMethod.class);
+    }
+
+    /**
      * The filters and interceptors the dynamic features registered for the resource method of a
      * route.
      */
@@ -241,7 +252,7 @@ final class JaxRsFilters {
     @Nullable
     @RequestFilter
     HttpResponse<?> filterRequest(RouteInfo<?> routeInfo, MutableHttpRequest<?> request) throws IOException {
-        if (!routeInfo.getAnnotationMetadata().hasAnnotation(Path.class)) {
+        if (!isJaxRs(routeInfo)) {
             // Intercept only JaxRs routes
             return null;
         }
