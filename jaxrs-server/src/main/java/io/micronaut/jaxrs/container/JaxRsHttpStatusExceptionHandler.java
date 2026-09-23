@@ -52,23 +52,26 @@ import java.util.Objects;
 final class JaxRsHttpStatusExceptionHandler implements ExceptionHandler<HttpStatusException, HttpResponse<?>> {
     private final ErrorResponseProcessor<?> responseProcessor;
     private final Providers providers;
+    private final ApplicationProvider applicationProvider;
 
     /**
      * Constructor.
      *
      * @param responseProcessor Error Response Processor
-     * @param providers         The providers
+     * @param providers           The providers
+     * @param applicationProvider The application
      */
     @Inject
-    JaxRsHttpStatusExceptionHandler(ErrorResponseProcessor<?> responseProcessor, Providers providers) {
+    JaxRsHttpStatusExceptionHandler(ErrorResponseProcessor<?> responseProcessor, Providers providers, ApplicationProvider applicationProvider) {
         this.responseProcessor = responseProcessor;
         this.providers = providers;
+        this.applicationProvider = applicationProvider;
     }
 
     @Override
     public HttpResponse<?> handle(HttpRequest request, HttpStatusException exception) {
         WebApplicationException webApplicationException = remap(exception);
-        if (webApplicationException != null) {
+        if (webApplicationException != null && isInApplication(request)) {
             ExceptionMapper exceptionMapper = providers.getExceptionMapper(webApplicationException.getClass());
             Response response;
             if (exceptionMapper != null) {
@@ -81,7 +84,20 @@ final class JaxRsHttpStatusExceptionHandler implements ExceptionHandler<HttpStat
         return responseProcessor.processResponse(ErrorContext.builder(request)
             .errorMessage(Objects.requireNonNullElse(exception.getMessage(), "Unknown error"))
             .cause(exception)
-            .build(), HttpResponse.badRequest());
+            .build(), HttpResponse.status(exception.getStatus()));
+    }
+
+    /**
+     * Whether a request is one of the application, under its path: a request outside of it, e.g.
+     * of another application name, does not reach the application, nor its exception mappers.
+     */
+    private boolean isInApplication(HttpRequest<?> request) {
+        String applicationPath = applicationProvider.getPath();
+        if (applicationPath.isEmpty() || "/".equals(applicationPath)) {
+            return true;
+        }
+        String path = request.getPath();
+        return path.equals(applicationPath) || path.startsWith(applicationPath + "/");
     }
 
     @Nullable
