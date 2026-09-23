@@ -260,14 +260,10 @@ public final class JaxRsRouteSupport {
             // the routes of the class, or of its nearest supertype that has routes
             JaxRsLocatedRoutes routes = locatedRoutes(type);
             RouteTableFactory factory = beanContext.getBean(RouteTableFactory.class);
-            table = factory.buildLocatedHttpRoutes(builder -> {
-                if (routes != null) {
-                    routes.routes(builder);
-                } else {
-                    // the routes of the class collected at runtime
-                    beanContext.getBean(JaxRsRuntimeRoutes.class).located(type, builder);
-                }
-            });
+            // the routes of the class collected at runtime, whose handlers get the target
+            table = routes != null
+                ? factory.buildLocatedHttpRoutes(routes::routes)
+                : beanContext.getBean(JaxRsRuntimeRoutes.class).locatedTable(type, factory);
             locatedTables.putIfAbsent(type, table);
         }
         return table;

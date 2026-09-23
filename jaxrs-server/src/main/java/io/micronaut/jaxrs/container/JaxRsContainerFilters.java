@@ -159,6 +159,9 @@ final class JaxRsContainerFilters {
             declaredType = true;
         } else if (body != null && routeInfo != null) {
             bodyArgument = routeInfo.getResponseBodyType();
+            // the declared type of the route, with its type arguments, e.g. List<Item> for an
+            // ArrayList, is the generic type the writers see (JAX-RS 4.2.2)
+            declaredType = bodyArgument.getTypeParameters().length > 0 && bodyArgument.getType().isInstance(body);
         } else {
             bodyArgument = Argument.OBJECT_ARGUMENT;
         }
