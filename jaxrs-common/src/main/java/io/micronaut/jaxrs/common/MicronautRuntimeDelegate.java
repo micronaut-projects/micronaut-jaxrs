@@ -18,6 +18,7 @@ package io.micronaut.jaxrs.common;
 import io.micronaut.core.annotation.Internal;
 import org.jspecify.annotations.NonNull;
 import jakarta.ws.rs.SeBootstrap;
+import org.jspecify.annotations.Nullable;
 import jakarta.ws.rs.core.Application;
 import jakarta.ws.rs.core.CacheControl;
 import jakarta.ws.rs.core.Cookie;
@@ -72,7 +73,10 @@ public final class MicronautRuntimeDelegate extends RuntimeDelegate {
     }
 
     @Override
-    public <T> T createEndpoint(Application application, Class<T> endpointType) throws IllegalArgumentException, UnsupportedOperationException {
+    public <T> T createEndpoint(@Nullable Application application, Class<T> endpointType) throws IllegalArgumentException, UnsupportedOperationException {
+        if (application == null) {
+            throw new IllegalArgumentException("The application is null");
+        }
         throw new UnsupportedOperationException("Method createEndpoint(..) not supported by implementation");
     }
 

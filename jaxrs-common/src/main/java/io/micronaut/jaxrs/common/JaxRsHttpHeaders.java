@@ -111,7 +111,12 @@ public sealed class JaxRsHttpHeaders implements HttpHeaders permits JaxRsMutable
 
     @Override
     public List<MediaType> getAcceptableMediaTypes() {
-        return httpHeaders.getAll(io.micronaut.http.HttpHeaders.ACCEPT)
+        List<String> accept = httpHeaders.getAll(io.micronaut.http.HttpHeaders.ACCEPT);
+        if (accept.isEmpty()) {
+            // any type is acceptable without an Accept header
+            return List.of(MediaType.WILDCARD_TYPE);
+        }
+        return accept
             .stream()
             .flatMap(text -> {
                 int len = text.length();

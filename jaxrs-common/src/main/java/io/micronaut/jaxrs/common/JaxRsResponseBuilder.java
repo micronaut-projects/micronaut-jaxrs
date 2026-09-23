@@ -22,6 +22,7 @@ import io.micronaut.http.HttpStatus;
 import io.micronaut.http.MutableHttpHeaders;
 import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.http.cookie.Cookie;
+import org.jspecify.annotations.Nullable;
 import jakarta.ws.rs.core.CacheControl;
 import jakarta.ws.rs.core.EntityTag;
 import jakarta.ws.rs.core.HttpHeaders;
@@ -74,7 +75,11 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
 
     @Override
     public Response.ResponseBuilder clone() {
-        return new JaxRsResponseBuilder();
+        // a builder of the same response, which changes independently of this one
+        MutableHttpResponse<Object> copy = HttpResponse.status(response.code(), response.reason())
+            .body(response.getBody().orElse(null))
+            .headers(newHeaders -> response.getHeaders().forEachValue(newHeaders::add));
+        return new JaxRsResponseBuilder(copy);
     }
 
     @Override
@@ -131,14 +136,14 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
     }
 
     @Override
-    public Response.ResponseBuilder encoding(String encoding) {
+    public Response.ResponseBuilder encoding(@Nullable String encoding) {
         header(io.micronaut.http.HttpHeaders.CONTENT_ENCODING, encoding);
         return this;
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     @Override
-    public Response.ResponseBuilder header(String name, Object value) {
+    public Response.ResponseBuilder header(String name, @Nullable Object value) {
         if (value != null) {
             if (value instanceof Date date) {
                 response.getHeaders().add(name, ZonedDateTime.ofInstant(date.toInstant(), ZoneId.systemDefault()));
@@ -176,19 +181,22 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
     }
 
     @Override
-    public Response.ResponseBuilder language(String language) {
-        response.header(io.micronaut.http.HttpHeaders.CONTENT_LANGUAGE, language);
+    public Response.ResponseBuilder language(@Nullable String language) {
+        if (language == null) {
+            response.getHeaders().remove(io.micronaut.http.HttpHeaders.CONTENT_LANGUAGE);
+        } else {
+            response.header(io.micronaut.http.HttpHeaders.CONTENT_LANGUAGE, language);
+        }
         return this;
     }
 
     @Override
-    public Response.ResponseBuilder language(Locale language) {
-        response.header(io.micronaut.http.HttpHeaders.CONTENT_LANGUAGE, language.toLanguageTag());
-        return this;
+    public Response.ResponseBuilder language(@Nullable Locale language) {
+        return language(language == null ? null : language.toLanguageTag());
     }
 
     @Override
-    public Response.ResponseBuilder type(MediaType type) {
+    public Response.ResponseBuilder type(@Nullable MediaType type) {
         if (type == null) {
             response.getHeaders().remove(io.micronaut.http.HttpHeaders.CONTENT_TYPE);
         } else {
@@ -198,7 +206,7 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
     }
 
     @Override
-    public Response.ResponseBuilder type(String type) {
+    public Response.ResponseBuilder type(@Nullable String type) {
         if (type == null) {
             response.getHeaders().remove(io.micronaut.http.HttpHeaders.CONTENT_TYPE);
         } else {
@@ -208,7 +216,17 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
     }
 
     @Override
-    public Response.ResponseBuilder variant(Variant variant) {
+    public Response.ResponseBuilder variant(@Nullable Variant variant) {
+        // the media type, language and encoding of the variant, none for a null one
+        if (variant == null) {
+            type((MediaType) null);
+            language((String) null);
+            encoding(null);
+        } else {
+            type(variant.getMediaType());
+            language(variant.getLanguageString());
+            encoding(variant.getEncoding());
+        }
         return this;
     }
 

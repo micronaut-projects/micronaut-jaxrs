@@ -21,6 +21,8 @@ import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.HttpResponseProvider;
+import jakarta.ws.rs.ProcessingException;
+import jakarta.ws.rs.core.NoContentException;
 import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.EntityTag;
 import jakarta.ws.rs.core.GenericEntity;
@@ -145,16 +147,26 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
         }
         checkCanReadEntity();
         try {
+            T value;
             if (buffered) {
-                return entityReader.readEntity(response.toMutableResponse().body(buffer), entityType);
+                value = entityReader.readEntity(response.toMutableResponse().body(buffer), entityType);
             } else {
                 readBodyArgument = entityType;
                 readBody = entityReader.readEntity(response, entityType);
-                return (T) readBody;
+                value = (T) readBody;
             }
+            if (value == null && isPrimitiveOrWrapper(entityType.getType())) {
+                // the standard readers of these types cannot read an empty entity (JAX-RS 4.2.4)
+                throw new ProcessingException(new NoContentException("An empty entity cannot be read as " + entityType.getType().getName()));
+            }
+            return value;
         } finally {
             close();
         }
+    }
+
+    private static boolean isPrimitiveOrWrapper(Class<?> type) {
+        return type.isPrimitive() || type == Boolean.class || type == Character.class || Number.class.isAssignableFrom(type);
     }
 
     @Override

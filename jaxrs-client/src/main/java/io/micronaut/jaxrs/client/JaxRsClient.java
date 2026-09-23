@@ -26,6 +26,7 @@ import jakarta.ws.rs.core.UriBuilder;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 import java.net.URI;
+import java.util.Objects;
 
 /**
  * The implementation of {@link Client}.
@@ -34,10 +35,11 @@ import java.net.URI;
  * @since 4.6
  */
 @Internal
-final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
+public final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
 
     private final DefaultHttpClient httpClient;
     private final JaxRsConfiguration config;
+    private volatile boolean closed;
 
     JaxRsClient(DefaultHttpClient httpClient, JaxRsConfiguration config) {
         this.httpClient = httpClient;
@@ -55,36 +57,56 @@ final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
 
     @Override
     public void close() {
-        httpClient.close();
+        // closing again has no effect
+        if (!closed) {
+            closed = true;
+            httpClient.close();
+        }
+    }
+
+    /**
+     * Fail when the client is closed: its methods and the ones of its web targets cannot be used.
+     */
+    void checkOpen() {
+        if (closed) {
+            throw new IllegalStateException("The client is closed");
+        }
     }
 
     @Override
     public JaxRsConfiguration getConfiguration() {
+        checkOpen();
         return config;
     }
 
     @Override
     public JaxRsWebTarget target(String uri) {
-        return target(UriBuilder.fromUri(uri));
+        checkOpen();
+        return target(UriBuilder.fromUri(Objects.requireNonNull(uri, "uri")));
     }
 
     @Override
     public JaxRsWebTarget target(URI uri) {
-        return target(UriBuilder.fromUri(uri));
+        checkOpen();
+        return target(UriBuilder.fromUri(Objects.requireNonNull(uri, "uri")));
     }
 
     @Override
     public JaxRsWebTarget target(UriBuilder uriBuilder) {
-        return new JaxRsWebTarget(this, uriBuilder, config.copy());
+        checkOpen();
+        return new JaxRsWebTarget(this, Objects.requireNonNull(uriBuilder, "uriBuilder"), config.copy());
     }
 
     @Override
     public JaxRsWebTarget target(Link link) {
-        return target(UriBuilder.fromLink(link));
+        checkOpen();
+        return target(UriBuilder.fromLink(Objects.requireNonNull(link, "link")));
     }
 
     @Override
     public Invocation.Builder invocation(Link link) {
+        checkOpen();
+        Objects.requireNonNull(link, "link");
         Invocation.Builder request = target(UriBuilder.fromLink(link)).request();
         String type = link.getType();
         if (type != null) {

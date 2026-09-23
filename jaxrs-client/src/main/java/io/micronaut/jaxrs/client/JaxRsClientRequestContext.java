@@ -32,11 +32,14 @@ import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
 import org.jspecify.annotations.Nullable;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.net.URI;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -63,6 +66,11 @@ final class JaxRsClientRequestContext implements ClientRequestContext {
     private Response response;
     private Argument<?> bodyType;
     private Annotation @Nullable [] annotations;
+    // the method a filter changed the request to
+    private @Nullable String method;
+    // the entity stream a filter replaced, which writes to the entity sink
+    private @Nullable OutputStream entityStream;
+    private @Nullable ByteArrayOutputStream entitySink;
 
     public JaxRsClientRequestContext(Client client,
                                      Configuration configuration,
@@ -82,7 +90,7 @@ final class JaxRsClientRequestContext implements ClientRequestContext {
 
     @Override
     public Collection<String> getPropertyNames() {
-        return properties.keySet();
+        return Collections.unmodifiableSet(properties.keySet());
     }
 
     @Override
@@ -112,12 +120,19 @@ final class JaxRsClientRequestContext implements ClientRequestContext {
 
     @Override
     public String getMethod() {
-        return mutableHttpRequest.getMethod().name();
+        return method != null ? method : mutableHttpRequest.getMethodName();
     }
 
     @Override
     public void setMethod(String method) {
-        throw new IllegalArgumentException("Not supported");
+        this.method = Objects.requireNonNull(method, "method");
+    }
+
+    /**
+     * @return The method a filter changed the request to, {@code null} if unchanged
+     */
+    @Nullable String getChangedMethod() {
+        return method;
     }
 
     @Override
@@ -224,12 +239,36 @@ final class JaxRsClientRequestContext implements ClientRequestContext {
 
     @Override
     public OutputStream getEntityStream() {
-        throw new UnsupportedOperationException();
+        if (entityStream != null) {
+            return entityStream;
+        }
+        if (entitySink == null) {
+            entitySink = new ByteArrayOutputStream();
+        }
+        return entitySink;
     }
 
     @Override
     public void setEntityStream(OutputStream outputStream) {
-        throw new UnsupportedOperationException();
+        getEntityStream();
+        this.entityStream = Objects.requireNonNull(outputStream, "outputStream");
+    }
+
+    /**
+     * Write the entity through the entity stream a filter replaced.
+     *
+     * @param entity The written entity
+     * @return The entity as the stream wrote it, or the given one when no filter replaced it
+     * @throws IOException If the stream fails
+     */
+    byte[] writeThroughEntityStream(byte[] entity) throws IOException {
+        if (entityStream == null || entitySink == null) {
+            return entity;
+        }
+        entityStream.write(entity);
+        entityStream.flush();
+        entityStream.close();
+        return entitySink.toByteArray();
     }
 
     @Override
