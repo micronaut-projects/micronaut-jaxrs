@@ -17,6 +17,7 @@ dependencies {
 
     implementation projects.micronautJaxrsServer
     implementation projects.micronautJaxrsClient
+    implementation projects.micronautJaxrsStandardProviders
     implementation projects.micronautJaxrsProcessor
     implementation libs.jakarta.jaxrs.tck.tests
     implementation mnLogging.slf4j.jul.to.slf4j

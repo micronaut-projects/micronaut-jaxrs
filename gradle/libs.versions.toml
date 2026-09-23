@@ -8,6 +8,10 @@ micronaut-servlet = "6.1.0"
 micronaut-validation = "5.1.0"
 micronaut-reactor = "4.1.0"
 jakarta-jaxrs-tck = "4.0.1"
+jakarta-activation-api = "2.1.4"
+jakarta-xml-bind-api = "4.0.5"
+jaxb-runtime = "4.0.9"
+angus-activation = "2.0.3"
 # the version of the sourcegen model micronaut-core-processor is built with
 micronaut-sourcegen = "2.1.0"
 
@@ -24,6 +28,11 @@ micronaut-sourcegen-generator = { module = "io.micronaut.sourcegen:micronaut-sou
 micronaut-sourcegen-generator-java = { module = "io.micronaut.sourcegen:micronaut-sourcegen-generator-java", version.ref = "micronaut-sourcegen" }
 
 managed-jaxrs-api = { module = "jakarta.ws.rs:jakarta.ws.rs-api", version.ref = "managed-jaxrs-api" }
+
+jakarta-activation-api = { module = "jakarta.activation:jakarta.activation-api", version.ref = "jakarta-activation-api" }
+jakarta-xml-bind-api = { module = "jakarta.xml.bind:jakarta.xml.bind-api", version.ref = "jakarta-xml-bind-api" }
+jaxb-runtime = { module = "org.glassfish.jaxb:jaxb-runtime", version.ref = "jaxb-runtime" }
+angus-activation = { module = "org.eclipse.angus:angus-activation", version.ref = "angus-activation" }
 
 junit-platform-suite-engine = { module = "org.junit.platform:junit-platform-suite-engine" }
 jakarta-jaxrs-tck-tests = { module = 'jakarta.ws.rs:jakarta-restful-ws-tck', version.ref = "jakarta-jaxrs-tck" }

@@ -82,6 +82,7 @@ import jakarta.ws.rs.ext.ParamConverter;
 import jakarta.ws.rs.ext.ParamConverterProvider;
 import org.jspecify.annotations.Nullable;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
 import java.util.ArrayList;
@@ -124,6 +125,13 @@ public final class JaxRsRouteSupport {
     private final Map<String, java.lang.reflect.Field> fields = new ConcurrentHashMap<>();
     private final Map<Class<?>, BeanParamBinder> beanParams = new ConcurrentHashMap<>();
     private final Map<Class<?>, RouteTable> locatedTables = new ConcurrentHashMap<>();
+    /**
+     * The body of a route with an entity: its bytes, {@code null} without a body. The route reads
+     * the entity with the JAX-RS readers, see {@link #entity(HttpRequest, byte[], Argument)}.
+     */
+    public static final Argument<byte[]> ENTITY = HttpRouteBuilder.nullableBody(Argument.of(byte[].class));
+
+    private volatile @Nullable JaxRsMessageBodyReaders<?> readers;
     private final Map<RouteMetadata, Argument<?>> entityArguments = new ConcurrentHashMap<>();
     private volatile @Nullable Set<Class<?>> registeredClasses;
     private volatile @Nullable Map<Class<?>, JaxRsLocatedRoutes> locatedRoutesByType;
@@ -294,36 +302,33 @@ public final class JaxRsRouteSupport {
     }
 
     /**
-     * The entity of a resource method whose entity parameter is annotated: an empty entity is read
-     * with the annotations of the parameter.
+     * The entity of a resource method whose entity parameter is annotated: the readers see the
+     * annotations of the parameter.
      *
      * @param request  The request
-     * @param body     The entity read by the route, {@code null} for an empty body
+     * @param body     The entity, {@code null} for an empty body
      * @param metadata The metadata of the resource method
      * @param index    The index of the entity parameter
      * @param argument The type of the entity, without the annotations
      * @return The entity
      */
-    public @Nullable Object entity(HttpRequest<?> request, @Nullable Object body, RouteMetadata metadata, int index, Argument<?> argument) {
-        if (body != null) {
-            return body;
-        }
-        return entity(request, null, entityArguments.computeIfAbsent(metadata, m -> entityArgument(m, index, argument)));
+    public @Nullable Object entity(HttpRequest<?> request, byte @Nullable [] body, RouteMetadata metadata, int index, Argument<?> argument) {
+        return entity(request, body, entityArguments.computeIfAbsent(metadata, m -> entityArgument(m, index, argument)));
     }
 
     /**
-     * The body argument of a route whose entity parameter is annotated: the argument of the
-     * resource method, with the annotations of the parameter, which the message body readers see.
+     * The type of the entity parameter of a resource method, with the annotations of the parameter,
+     * which the message body readers see.
      *
      * @param metadata The metadata of the resource method
      * @param index    The index of the entity parameter
      * @param fallback The argument without the annotations, for a method that is not executable
-     * @return The body argument
+     * @return The type of the entity
      */
     public Argument<?> entityArgument(RouteMetadata metadata, int index, Argument<?> fallback) {
         return beanContext.findBeanDefinition(metadata.resourceClass)
             .flatMap(definition -> definition.findMethod(metadata.methodName, metadata.parameterTypes))
-            .<Argument<?>>map(method -> HttpRouteBuilder.nullableBody(method.getArguments()[index]))
+            .<Argument<?>>map(method -> method.getArguments()[index])
             .orElse(fallback);
     }
 
@@ -461,16 +466,33 @@ public final class JaxRsRouteSupport {
     }
 
     /**
+     * The entity of a resource method, read by the JAX-RS readers of the application, else by the
+     * Micronaut readers, through the reader interceptors (JAX-RS 4.2.1 and 6.3).
+     *
      * @param request  The request
-     * @param body     The entity read by the route, {@code null} for an empty body
+     * @param body     The entity, {@code null} for an empty body
      * @param argument The type of the entity
      * @return The entity
      */
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    public @Nullable Object entity(HttpRequest<?> request, @Nullable Object body, Argument<?> argument) {
-        if (body != null) {
-            return body;
+    public @Nullable Object entity(HttpRequest<?> request, byte @Nullable [] body, Argument<?> argument) {
+        if (body == null || body.length == 0) {
+            return emptyEntity(request, argument);
         }
+        return readers()
+            .readEntity(argument, request.getContentType().orElse(null), request.getHeaders(), new ByteArrayInputStream(body));
+    }
+
+    private JaxRsMessageBodyReaders<?> readers() {
+        JaxRsMessageBodyReaders<?> readers = this.readers;
+        if (readers == null) {
+            readers = beanContext.getBean(JaxRsMessageBodyReaders.class);
+            this.readers = readers;
+        }
+        return readers;
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private @Nullable Object emptyEntity(HttpRequest<?> request, Argument<?> argument) {
         Class<?> type = argument.getType();
         if (type == String.class) {
             return "";

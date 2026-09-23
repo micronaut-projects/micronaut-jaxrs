@@ -726,9 +726,7 @@ public final class JaxRsRoutesGenerator {
                         builderMethod = method.async ? "handleFormAsync" : "handleForm";
                     } else if (route.body) {
                         builderMethod = method.async ? "handleAsync" : "handle";
-                        handle.add(route.annotatedEntity < 0
-                            ? route.entityArgument
-                            : support.invoke("entityArgument", ARGUMENT, route.metadata, ExpressionDef.constant(route.annotatedEntity), route.entityArgument));
+                        handle.add(route.entityArgument);
                     } else {
                         builderMethod = method.async ? "handleAsync" : "handle";
                     }
@@ -871,13 +869,9 @@ public final class JaxRsRoutesGenerator {
                         // the readers see the annotations of the parameter, see RouteSupport#entityArgument
                         annotatedEntity = List.of(method.method.getParameters()).indexOf(param.element);
                     }
-                    // an entity is optional
-                    String key = "nullable " + signature(param.element.getGenericType());
-                    entityArgument = arguments.get(key);
-                    if (entityArgument == null) {
-                        entityArgument = constants.add("B", ARGUMENT, types.routeBuilder.invokeStatic("nullableBody", ARGUMENT, argument));
-                        arguments.put(key, entityArgument);
-                    }
+                    // the route receives the bytes of an optional entity: the JAX-RS readers read it,
+                    // see RouteSupport#entity
+                    entityArgument = types.support.getStaticField("ENTITY", ARGUMENT);
                 }
             }
             ClassElement valueType = method.async ? firstTypeArgument(method.returnType) : method.returnType;
@@ -1163,6 +1157,13 @@ public final class JaxRsRoutesGenerator {
         }
 
         /**
+         * The bytes of the entity the route receives, {@code null} for a route without one.
+         */
+        private ExpressionDef entityBytes(Scope scope) {
+            return scope.body == null ? ExpressionDef.nullValue() : scope.body.cast(TypeDef.of(byte[].class));
+        }
+
+        /**
          * The value of a parameter, read from the request and converted.
          */
         ExpressionDef value(Param param, Scope scope) {
@@ -1187,10 +1188,10 @@ public final class JaxRsRoutesGenerator {
                 case FORM_ENTITY -> support.invoke("formEntity", TypeDef.OBJECT, formOrNull(scope), argument);
                 case CONTEXT -> support.invoke("context", TypeDef.OBJECT, scope.request, argument, name);
                 case ENTITY -> scope.route != null && scope.route.annotatedEntity() >= 0
-                    // an empty entity is read with the annotations of the parameter too
-                    ? support.invoke("entity", TypeDef.OBJECT, scope.request, scope.body == null ? ExpressionDef.nullValue() : scope.body,
+                    // the readers see the annotations of the parameter
+                    ? support.invoke("entity", TypeDef.OBJECT, scope.request, entityBytes(scope),
                         scope.route.metadata(), ExpressionDef.constant(scope.route.annotatedEntity()), argument)
-                    : support.invoke("entity", TypeDef.OBJECT, scope.request, scope.body == null ? ExpressionDef.nullValue() : scope.body, argument);
+                    : support.invoke("entity", TypeDef.OBJECT, scope.request, entityBytes(scope), argument);
                 case BEAN -> throw new IllegalStateException("Handled above");
             };
             return value.cast(TypeDef.erasure(param.element.getType()));
