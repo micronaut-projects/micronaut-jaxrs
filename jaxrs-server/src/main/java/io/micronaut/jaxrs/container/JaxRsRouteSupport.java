@@ -134,6 +134,7 @@ public final class JaxRsRouteSupport {
     public static final Argument<byte[]> ENTITY = HttpRouteBuilder.nullableBody(Argument.of(byte[].class));
 
     private volatile @Nullable JaxRsMessageBodyReaders<?> readers;
+    private volatile @Nullable JaxRsContainerFilters containerFilters;
     private final Map<RouteMetadata, Argument<?>> entityArguments = new ConcurrentHashMap<>();
     private volatile @Nullable Set<Class<?>> registeredClasses;
     private volatile @Nullable Map<Class<?>, JaxRsLocatedRoutes> locatedRoutesByType;
@@ -301,6 +302,17 @@ public final class JaxRsRouteSupport {
             // a sub-resource that is not a bean: the route has the annotations of the root resource
             beanContext.findBeanDefinition(metadata.rootClass).ifPresent(root -> route.annotationMetadata(root.getAnnotationMetadata()));
         }
+        // the post-matching request filters of the resource method (JAX-RS 6.7.2)
+        route.before(request -> containerFilters().filterRequest(RouteAttributes.getRouteInfo(request).orElseThrow(), request));
+    }
+
+    private JaxRsContainerFilters containerFilters() {
+        JaxRsContainerFilters filters = this.containerFilters;
+        if (filters == null) {
+            filters = beanContext.getBean(JaxRsContainerFilters.class);
+            this.containerFilters = filters;
+        }
+        return filters;
     }
 
     /**

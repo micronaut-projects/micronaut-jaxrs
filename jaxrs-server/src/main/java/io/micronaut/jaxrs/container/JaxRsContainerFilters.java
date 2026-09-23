@@ -56,7 +56,7 @@ import java.util.stream.Collectors;
 /**
  * The container filters of JAX-RS (section 6): the pre-matching and post-matching request
  * filters, and the response filters, with the ones the dynamic features registered for a resource
- * method. Independent of how they are plugged into the request processing, see {@link JaxRsFilters}.
+ * method. Independent of how they are plugged into the request processing, see {@link JaxRsServerFilters} and {@link JaxRsRouteSupport#configure}.
  *
  * @author graemerocher
  * @author Denis Stepanov
