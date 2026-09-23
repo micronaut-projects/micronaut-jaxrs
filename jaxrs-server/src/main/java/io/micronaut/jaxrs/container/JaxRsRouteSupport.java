@@ -339,7 +339,7 @@ public final class JaxRsRouteSupport {
             beanContext.findBeanDefinition(metadata.rootClass).ifPresent(root -> route.annotationMetadata(root));
         }
         // the post-matching request filters of the resource method (JAX-RS 6.7.2)
-        route.before(request -> containerFilters().filterRequest(RouteAttributes.getRouteInfo(request).orElseThrow(), request));
+        route.beforeReplacing(request -> containerFilters().filterRequest(RouteAttributes.getRouteInfo(request).orElseThrow(), request));
     }
 
     private JaxRsContainerFilters containerFilters() {
