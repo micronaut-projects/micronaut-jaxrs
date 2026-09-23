@@ -17,13 +17,19 @@ package io.micronaut.jaxrs.container;
 
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.http.HttpHeaders;
+import io.micronaut.http.HttpRequest;
 import io.micronaut.http.MutableHttpResponse;
+import io.micronaut.jaxrs.runtime.ext.bind.UriInfoImpl;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.RouteInfo;
 import io.micronaut.web.router.builder.HttpRouteBuilder;
 import io.micronaut.web.router.builder.HttpRoutes;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.Path;
+
+import java.net.URI;
+import java.net.URISyntaxException;
 
 /**
  * The container filters of JAX-RS that are not the ones of a resource method: the pre-matching
@@ -39,9 +45,11 @@ import jakarta.ws.rs.Path;
 final class JaxRsServerFilters implements HttpRoutes {
 
     private final JaxRsContainerFilters filters;
+    private final ApplicationProvider applicationProvider;
 
-    JaxRsServerFilters(JaxRsContainerFilters filters) {
+    JaxRsServerFilters(JaxRsContainerFilters filters, ApplicationProvider applicationProvider) {
         this.filters = filters;
+        this.applicationProvider = applicationProvider;
     }
 
     @Override
@@ -54,12 +62,34 @@ final class JaxRsServerFilters implements HttpRoutes {
                     // a route that is not one of a resource method, e.g. of a controller
                     return;
                 }
+                resolveLocation(request, response);
                 MutableHttpResponse<?> filtered = filters.filterResponse(route, request, response);
                 if (filtered != response) {
                     // the response of a JAX-RS Response entity: the filters run on it
                     replace(response, filtered);
                 }
             });
+    }
+
+    /**
+     * A relative location of a response, e.g. of {@code Response.created(URI.create("created"))},
+     * is resolved against the base URI of the application (JAX-RS, {@code ResponseBuilder#location}).
+     */
+    private void resolveLocation(HttpRequest<?> request, MutableHttpResponse<?> response) {
+        String location = response.getHeaders().get(HttpHeaders.LOCATION);
+        if (location == null) {
+            return;
+        }
+        URI uri;
+        try {
+            uri = new URI(location);
+        } catch (URISyntaxException e) {
+            return;
+        }
+        if (!uri.isAbsolute()) {
+            URI base = new UriInfoImpl(request, applicationProvider.getPath(), applicationProvider.getContextPath()).getBaseUri();
+            response.getHeaders().set(HttpHeaders.LOCATION, base.resolve(uri).toString());
+        }
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

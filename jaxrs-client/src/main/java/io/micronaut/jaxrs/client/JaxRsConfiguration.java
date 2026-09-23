@@ -42,6 +42,10 @@ import io.micronaut.jaxrs.common.JaxRsMessageBodyReaderDefinition;
 import io.micronaut.jaxrs.common.JaxRsMessageBodyWriter;
 import io.micronaut.jaxrs.common.JaxRsUtils;
 import io.micronaut.jaxrs.common.JaxRsWriterInterceptorContextState;
+import jakarta.ws.rs.ext.Providers;
+import jakarta.ws.rs.ext.ExceptionMapper;
+import jakarta.ws.rs.ext.ContextResolver;
+import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.GenericEntity;
 import jakarta.ws.rs.ConstrainedTo;
 import jakarta.ws.rs.RuntimeType;
@@ -56,6 +60,9 @@ import jakarta.ws.rs.ext.WriterInterceptor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.Type;
+import java.lang.reflect.Modifier;
+import java.lang.reflect.Field;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
@@ -87,6 +94,7 @@ import java.util.stream.Stream;
 final class JaxRsConfiguration implements Configuration {
 
     private static final Logger LOG = LoggerFactory.getLogger(JaxRsConfiguration.class);
+    private final Providers providers = new ClientProviders();
 
     private final Map<String, Object> properties;
     private final List<Component> components;
@@ -264,7 +272,7 @@ final class JaxRsConfiguration implements Configuration {
         if (readers == null) {
             readers = new ArrayList<>();
             for (JaxRsConfiguration.Component component : components) {
-                MessageBodyReader<?> reader = component.tryGet(MessageBodyReader.class);
+                MessageBodyReader<?> reader = injected(component.tryGet(MessageBodyReader.class));
                 if (reader != null) {
                     if (isNotConstrainedToClient(reader.getClass())) {
                         continue;
@@ -275,7 +283,7 @@ final class JaxRsConfiguration implements Configuration {
                         component.priority() == 0 ? JaxRsUtils.getPriorityOrder(reader) : component.priority()
                     ));
                 }
-                io.micronaut.http.body.MessageBodyReader<?> micronautReader = component.tryGet(io.micronaut.http.body.MessageBodyReader.class);
+                io.micronaut.http.body.MessageBodyReader<?> micronautReader = injected(component.tryGet(io.micronaut.http.body.MessageBodyReader.class));
                 if (micronautReader != null) {
                     if (isNotConstrainedToClient(micronautReader.getClass())) {
                         continue;
@@ -322,7 +330,7 @@ final class JaxRsConfiguration implements Configuration {
         if (writers == null) {
             writers = new ArrayList<>();
             for (JaxRsConfiguration.Component component : components) {
-                MessageBodyWriter<?> writer = component.tryGet(MessageBodyWriter.class);
+                MessageBodyWriter<?> writer = injected(component.tryGet(MessageBodyWriter.class));
                 if (writer != null) {
                     AnnotationMetadata annotationMetadata = annotationMetadataOf(writer.getClass());
                     if (isNotConstrainedToClient(annotationMetadata)) {
@@ -335,7 +343,7 @@ final class JaxRsConfiguration implements Configuration {
                         component.priority() == 0 ? JaxRsUtils.getPriorityOrder(writer) : component.priority()
                     ));
                 }
-                io.micronaut.http.body.MessageBodyWriter<?> micronautWriter = component.tryGet(io.micronaut.http.body.MessageBodyWriter.class);
+                io.micronaut.http.body.MessageBodyWriter<?> micronautWriter = injected(component.tryGet(io.micronaut.http.body.MessageBodyWriter.class));
                 if (micronautWriter != null) {
                     if (micronautWriter instanceof TypedMessageBodyWriter<?> typedMessageBodyWriter) {
                         Argument<?> type = typedMessageBodyWriter.getType();
@@ -524,13 +532,93 @@ final class JaxRsConfiguration implements Configuration {
     private <T> List<T> getComponentOfType(Class<T> type) {
         var valuesWithPriority = new ArrayList<Map.Entry<T, Integer>>();
         for (JaxRsConfiguration.Component component : components) {
-            T instance = component.tryGet(type);
+            T instance = injected(component.tryGet(type));
             if (instance != null) {
                 valuesWithPriority.add(Map.entry(instance, component.priority() == 0 ? JaxRsUtils.getPriorityOrder(instance) : component.priority()));
             }
         }
         valuesWithPriority.sort(Comparator.comparingInt(Map.Entry::getValue));
         return valuesWithPriority.stream().map(Map.Entry::getKey).collect(Collectors.toList());
+    }
+
+    /**
+     * Inject the {@code @Context} fields of a provider a client supports (JAX-RS 9.2): its
+     * {@link Providers} and {@link Configuration}. The other context types are the ones of a
+     * server request.
+     */
+    private <T> @Nullable T injected(@Nullable T instance) {
+        if (instance == null) {
+            return null;
+        }
+        for (Class<?> type = instance.getClass(); type != null && type != Object.class; type = type.getSuperclass()) {
+            for (Field field : type.getDeclaredFields()) {
+                if (!field.isAnnotationPresent(Context.class) || Modifier.isStatic(field.getModifiers())) {
+                    continue;
+                }
+                Object value = field.getType() == Providers.class ? providers
+                    : field.getType() == Configuration.class ? this
+                    : null;
+                if (value != null) {
+                    try {
+                        field.setAccessible(true);
+                        if (field.get(instance) == null) {
+                            field.set(instance, value);
+                        }
+                    } catch (ReflectiveOperationException | RuntimeException e) {
+                        LOG.debug("Cannot inject the field {} of {}", field.getName(), type, e);
+                    }
+                }
+            }
+        }
+        return instance;
+    }
+
+    /**
+     * The providers of the client, see {@link Providers}.
+     */
+    private final class ClientProviders implements Providers {
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <T> @Nullable MessageBodyReader<T> getMessageBodyReader(Class<T> type, Type genericType, Annotation[] annotations, jakarta.ws.rs.core.MediaType mediaType) {
+            for (Component component : components) {
+                MessageBodyReader<T> reader = component.tryGet(MessageBodyReader.class);
+                if (reader != null && reader.isReadable(type, genericType, annotations, mediaType)) {
+                    return injected(reader);
+                }
+            }
+            return null;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <T> @Nullable MessageBodyWriter<T> getMessageBodyWriter(Class<T> type, Type genericType, Annotation[] annotations, jakarta.ws.rs.core.MediaType mediaType) {
+            for (Component component : components) {
+                MessageBodyWriter<T> writer = component.tryGet(MessageBodyWriter.class);
+                if (writer != null && writer.isWriteable(type, genericType, annotations, mediaType)) {
+                    return injected(writer);
+                }
+            }
+            return null;
+        }
+
+        @Override
+        public <T extends Throwable> @Nullable ExceptionMapper<T> getExceptionMapper(Class<T> type) {
+            // exception mappers are providers of the server
+            return null;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <T> @Nullable ContextResolver<T> getContextResolver(Class<T> contextType, jakarta.ws.rs.core.MediaType mediaType) {
+            for (Component component : components) {
+                ContextResolver<T> resolver = component.tryGet(ContextResolver.class);
+                if (resolver != null && resolver.getContext(contextType) != null) {
+                    return injected(resolver);
+                }
+            }
+            return null;
+        }
     }
 
     sealed interface Component {

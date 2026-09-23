@@ -27,6 +27,9 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Adapter for JAX-RS and final Micronaut response.
@@ -38,6 +41,8 @@ import java.io.UncheckedIOException;
 public final class JaxRsMutableResponse extends JaxRsResponse implements HttpResponseProvider {
 
     private final MutableHttpResponse<?> mutableHttpResponse;
+    // the objects of the headers, see JaxRsResponseMetadata
+    private @Nullable Map<@Nullable String, List<Object>> metadata;
     @Nullable
     private InputStream entityStream;
 
@@ -96,7 +101,12 @@ public final class JaxRsMutableResponse extends JaxRsResponse implements HttpRes
 
     @Override
     public MultivaluedMap<String, Object> getHeaders() {
-        return new JaxRsMutableObjectHeadersMultivaluedMap(mutableHttpResponse.getHeaders());
+        Map<@Nullable String, List<Object>> objects = metadata;
+        if (objects == null) {
+            objects = new HashMap<>();
+            metadata = objects;
+        }
+        return new JaxRsResponseMetadata(mutableHttpResponse.getHeaders(), objects);
     }
 
     public InputStream getEntityStream() {

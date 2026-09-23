@@ -196,7 +196,7 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
                     requestFilter.filter(requestContext);
                     Response response = requestContext.getResponse();
                     if (response != null) {
-                        response = filterResponse(response, requestContext);
+                        response = filterResponse(written(response), requestContext);
                         if (type.getType().equals(Response.class)) {
                             future.complete((T) response);
                         } else {
@@ -210,6 +210,7 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
                     }
                 }
             }
+            request = changed(request, requestContext);
             client.getHttpClient().exchange(request)
                 .subscribe(new Subscriber<>() {
                     @Override
@@ -272,6 +273,45 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
             future.completeExceptionally(new ProcessingException(e));
         }
         return future;
+    }
+
+    /**
+     * The request as the request filters changed it: its method, and its entity written through
+     * the entity stream they replaced.
+     */
+    @SuppressWarnings("unchecked")
+    private MutableHttpRequest<Object> changed(MutableHttpRequest<Object> request, JaxRsClientRequestContext requestContext) throws IOException {
+        String changedMethod = requestContext.getChangedMethod();
+        if (changedMethod != null && !changedMethod.equals(request.getMethodName())) {
+            HttpMethod httpMethod = HttpMethod.parse(changedMethod);
+            MutableHttpRequest<Object> copy = httpMethod == HttpMethod.CUSTOM
+                ? HttpRequest.create(HttpMethod.CUSTOM, request.getUri().toString(), changedMethod)
+                : HttpRequest.create(httpMethod, request.getUri().toString());
+            request.getHeaders().forEachValue(copy::header);
+            request.getBody().ifPresent(copy::body);
+            request = copy;
+        }
+        Object body = request.getBody().orElse(null);
+        if (body instanceof byte[] bytes) {
+            request.body(requestContext.writeThroughEntityStream(bytes));
+        }
+        return request;
+    }
+
+    /**
+     * The response a request filter aborted with, with its entity written by the writers of the
+     * client, like the entity of a response of the server: it is read as any type.
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private Response written(Response response) {
+        if (response instanceof JaxRsMutableResponse jaxRsMutableResponse) {
+            MutableHttpResponse<?> httpResponse = jaxRsMutableResponse.getResponse();
+            Object entity = httpResponse.getBody().orElse(null);
+            if (entity != null && !(entity instanceof byte[])) {
+                configuration.writeBody(httpResponse, (Argument) Argument.of(entity.getClass()), entity);
+            }
+        }
+        return response;
     }
 
     private Response filterResponse(Response response, JaxRsClientRequestContext requestContext) {

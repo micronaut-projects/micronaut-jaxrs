@@ -1,27 +1,11 @@
-# Why multivaluedmap of headers should accept nulls???
-ee.jakarta.tck.ws.rs.api.rs.core.multivaluedmap.JAXRSClientIT
-
 # Package-private and protected resource methods are routed, like the controllers did
 ee.jakarta.tck.ws.rs.spec.resourceconstructor.JAXRSClientIT#packageVisibilityTest
 ee.jakarta.tck.ws.rs.spec.resourceconstructor.JAXRSClientIT#protectedVisibilityTest
 
-# The client reads an empty entity of these types as null instead of failing
-ee.jakarta.tck.ws.rs.spec.provider.standardnotnull.JAXRSClientIT#clientBigDecimalProviderTest
-ee.jakarta.tck.ws.rs.spec.provider.standardnotnull.JAXRSClientIT#clientBooleanProviderTest
-ee.jakarta.tck.ws.rs.spec.provider.standardnotnull.JAXRSClientIT#clientCharProviderTest
-ee.jakarta.tck.ws.rs.spec.provider.standardnotnull.JAXRSClientIT#clientIntegerProviderTest
-# Standard providers: DataSource, File, Source and JAXBElement
-
-# Interceptors
-
 # Security
 ee.jakarta.tck.ws.rs.ee.rs.container.requestcontext.security.JAXRSClientIT
 
-# Standard writers / readers cannot be replaced - support JAXBElement
-
-# Closed client
-ee.jakarta.tck.ws.rs.api.client.client.JAXRSClientIT
-
+# Java SE bootstrap (SeBootstrap) is not supported
 ee.jakarta.tck.ws.rs.sebootstrap.SeBootstrapIT
 
 # RX Invoker
@@ -31,24 +15,15 @@ ee.jakarta.tck.ws.rs.jaxrs21.api.client.invocationbuilder.JAXRSClientIT
 ee.jakarta.tck.ws.rs.jaxrs21.ee.client.executor.rx.JAXRSClientIT
 
 # Configuration
-ee.jakarta.tck.ws.rs.ee.rs.core.configuration.JAXRSClientIT
 ee.jakarta.tck.ws.rs.api.client.clientbuilder.JAXRSClientIT#newClientWithConfigurationTest
-
-# Field injection in providers
-ee.jakarta.tck.ws.rs.spec.context.client.JAXRSClientIT
 
 # Unsupported SSE
 ee.jakarta.tck.ws.rs.jaxrs21.ee.sse.sseeventsink.JAXRSClientIT
 ee.jakarta.tck.ws.rs.jaxrs21.ee.sse.sseeventsource.JAXRSClientIT
 ee.jakarta.tck.ws.rs.jaxrs21.ee.sse.ssebroadcaster.JAXRSClientIT
 
-# No default */*
-ee.jakarta.tck.ws.rs.api.client.webtarget.JAXRSClientIT#requestNoArgTest
-
 # Arquillian issue
 ee.jakarta.tck.ws.rs.spec.client.exceptions.ClientExceptionsIT
-
-# Support catching exceptions from body writer
 
 # Incorrect tests include milliseconds
 ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#expiresTest
@@ -68,43 +43,14 @@ ee.jakarta.tck.ws.rs.ee.rs.core.configurable.JAXRSClientIT#registerObjectNotAssi
 ee.jakarta.tck.ws.rs.ee.rs.core.configurable.JAXRSClientIT#registerClassNotAssignableContractsTest
 ee.jakarta.tck.ws.rs.ee.rs.core.configurable.JAXRSClientIT#registerObjectBindingPriorityInMapTest
 
-# Relative location URI
-ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT#responseCreatedRelativeURITest
-
-# createEndpoint() unsupported
-ee.jakarta.tck.ws.rs.api.rs.ext.runtimedelegate.create.JAXRSClientIT#createEndpointThrowsIllegalArgumentExceptionTest
-
-
 # Receive MultivaluedMap as a form body - FIX writing byte[] form data in Core
 ee.jakarta.tck.ws.rs.spec.provider.standardwithjaxrsclient.JAXRSClientIT#mapElementProviderTest
 ee.jakarta.tck.ws.rs.spec.provider.standardhaspriority.JAXRSClientIT#readWriteMapProviderTest
 ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT#clientMultivaluedMapWriterTest
 ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT#clientStreamingOutputWriterTest
 
-# Investigate ACCEPT should produce CONTENT-TYPE
-ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT#clientMultivaluedMapReaderTest
-
-# Fake response 1 to String incorrectly converts
-ee.jakarta.tck.ws.rs.api.client.clientrequestcontext.JAXRSClientIT#getPropertyNamesIsImmutableTest
-
-# Not supported to change the method in ClientRequestContext
-ee.jakarta.tck.ws.rs.ee.rs.client.clientrequestcontext.JAXRSClientIT#setMethodTest
-
-# Not supported to access / replace OutputStream in ClientRequestContext
-ee.jakarta.tck.ws.rs.ee.rs.client.clientrequestcontext.JAXRSClientIT#getEntityStreamTest
-
-# Unsupported writers / readers
-
-# Cannot plug interceptors to Micronaut controller body reader / writer
-ee.jakarta.tck.ws.rs.spec.filter.lastvalue.JAXRSClientIT#writerContextOnClientTest
-
 # HttpServletRequest
 ee.jakarta.tck.ws.rs.ee.rs.container.requestcontext.JAXRSClientIT
-
-# Client body readers / writers with @Context annotations
-
-# Support a special way to resolve body readers / writers
-
 
 # cookies do not contain version=1
 ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#cookieTest
@@ -112,14 +58,8 @@ ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#getCookiesTest
 ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT#cookieTest
 ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT#getCookiesTest
 
-# StringBean
-
 # Arquillian issue but test is likely broken anyway because we don't use jsonb
 ee.jakarta.tck.ws.rs.spec.contextprovider.JsonbContextProviderIT
-
-
-
-# JAXB
 
 # API.Status.STABLE compilation issue
 ee.jakarta.tck.ws.rs.jaxrs31.ee.multipart.MultipartSupportIT
@@ -145,29 +85,5 @@ ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT#queryParamOnFieldTest
 ee.jakarta.tck.ws.rs.ee.rs.ext.paramconverter.JAXRSClientIT#formParamUsesParamConvertorTest
 ee.jakarta.tck.ws.rs.ee.rs.ext.paramconverter.JAXRSClientIT#formParamInLocatorTest
 
-
-
-
-
 # The harness does not configure the users and passwords the tests authenticate with
 ee.jakarta.tck.ws.rs.ee.rs.core.securitycontext.basic.JAXRSBasicClientIT
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Standard providers: DataSource, File and Source
