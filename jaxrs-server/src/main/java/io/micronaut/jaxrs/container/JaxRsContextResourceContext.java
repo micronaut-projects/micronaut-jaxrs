@@ -15,9 +15,9 @@
  */
 package io.micronaut.jaxrs.container;
 
+import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.context.BeanContext;
 import io.micronaut.core.annotation.Internal;
-import io.micronaut.core.reflect.InstantiationUtils;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.container.ResourceContext;
 
@@ -41,7 +41,7 @@ final class JaxRsContextResourceContext implements ResourceContext {
     @Override
     public <T> T getResource(Class<T> resourceClass) {
         return beanContext.findBean(resourceClass)
-            .orElseGet(() -> initResource(InstantiationUtils.instantiate(resourceClass)));
+            .orElseGet(() -> initResource(JaxRsReflection.get().instantiate(resourceClass)));
     }
 
     @Override

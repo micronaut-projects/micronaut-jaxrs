@@ -58,6 +58,7 @@ import jakarta.ws.rs.MatrixParam;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.core.Application;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.HttpHeaders;
@@ -136,7 +137,15 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             }
             element.annotate(Singleton.class);
             element.annotate(Named.class);
+            if (!element.isAbstract() && !element.hasAnnotation(Introspected.class)) {
+                // its annotations, e.g. @Priority, without reflection
+                element.annotate(Introspected.class);
+            }
             return;
+        }
+        if (element.isAssignable(Application.class) && !element.isAbstract() && !element.hasAnnotation(Introspected.class)) {
+            // its @ApplicationPath and constructor, without reflection
+            element.annotate(Introspected.class);
         }
         // the @Path of a class maps to the annotation of a resource method or locator: the
         // methods of the class are not all resource methods

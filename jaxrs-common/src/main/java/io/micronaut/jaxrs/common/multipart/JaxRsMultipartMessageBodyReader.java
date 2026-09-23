@@ -17,6 +17,7 @@ package io.micronaut.jaxrs.common.multipart;
 
 import io.micronaut.context.annotation.Prototype;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.annotation.Introspected;
 import io.micronaut.core.annotation.Order;
 import io.micronaut.core.order.Ordered;
 import jakarta.inject.Inject;
@@ -51,6 +52,8 @@ import java.util.Optional;
 @Order(Ordered.LOWEST_PRECEDENCE)
 @Consumes("multipart/*")
 @Prototype
+// the @Context fields the client injects, without reflection
+@Introspected(accessKind = Introspected.AccessKind.FIELD, visibility = Introspected.Visibility.ANY)
 @Internal
 public final class JaxRsMultipartMessageBodyReader implements MessageBodyReader<List<EntityPart>> {
 

@@ -15,14 +15,14 @@
  */
 package io.micronaut.jaxrs.container;
 
+import io.micronaut.inject.annotation.MutableAnnotationMetadata;
+import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.context.ApplicationContext;
 import io.micronaut.context.RuntimeBeanDefinition;
 import io.micronaut.context.annotation.Primary;
-import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.jaxrs.common.bootstrap.JaxRsSeBootstrap;
 import io.micronaut.jaxrs.common.bootstrap.JaxRsSeConfiguration;
-import io.micronaut.reflection.ReflectionAnnotations;
 import io.micronaut.runtime.server.EmbeddedServer;
 import jakarta.ws.rs.SeBootstrap;
 import jakarta.ws.rs.core.Application;
@@ -137,14 +137,14 @@ public final class JaxRsSeBootstrapServer implements JaxRsSeBootstrap {
     @SuppressWarnings("unchecked")
     private static <T> void register(ApplicationContext context, T instance, @Nullable Class<? super T> exposed) {
         Class<T> type = (Class<T>) instance.getClass();
-        // the annotations of the class, e.g. its @ApplicationPath
-        AnnotationMetadata metadata = ReflectionAnnotations.metadataOf(type);
+        // the annotations of the class, e.g. its @ApplicationPath, which the builder adds to
+        MutableAnnotationMetadata metadata = MutableAnnotationMetadata.of(JaxRsReflection.get().annotationMetadata(type));
         RuntimeBeanDefinition.Builder<T> definition = RuntimeBeanDefinition.builder(type, () -> instance)
             .singleton(true)
             .replaces(type);
         if (exposed != null) {
             definition.exposedTypes(type, exposed);
-            metadata = ReflectionAnnotations.merge(metadata, ReflectionAnnotations.declaring(Primary.class));
+            metadata.addDeclaredAnnotation(Primary.class.getName(), Map.of());
         }
         context.registerBeanDefinition(definition.annotationMetadata(metadata).build());
     }

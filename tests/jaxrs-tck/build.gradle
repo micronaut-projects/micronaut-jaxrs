@@ -16,6 +16,8 @@ dependencies {
     implementation mn.micronaut.jackson.databind
 
     implementation projects.micronautJaxrsServer
+    // the TCK deploys classes the annotation processors never saw: they need reflection
+    implementation mn.micronaut.reflection
     // the security of the deployments with a login configuration
     implementation projects.micronautJaxrsServerSecurity
     implementation mnSecurity.micronaut.security

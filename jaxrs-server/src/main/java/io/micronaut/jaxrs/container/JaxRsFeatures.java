@@ -15,16 +15,16 @@
  */
 package io.micronaut.jaxrs.container;
 
+import io.micronaut.inject.ExecutableMethod;
+import io.micronaut.context.RuntimeBeanDefinition;
+import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.context.ApplicationContext;
 import io.micronaut.core.annotation.Internal;
-import io.micronaut.core.reflect.InstantiationUtils;
 import io.micronaut.http.context.ServerRequestContext;
 import io.micronaut.jaxrs.common.JaxRsRouteInterceptors;
 import io.micronaut.web.router.MethodBasedRouteInfo;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.RouteInfo;
-import io.micronaut.reflection.ReflectionBeanDefinition;
-import io.micronaut.reflection.ReflectionBeanIntrospection;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.container.ContainerRequestFilter;
 import jakarta.ws.rs.container.ContainerResponseFilter;
@@ -71,7 +71,7 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
     private final List<DynamicFeature> dynamicFeatures;
     private final Set<Class<?>> registeredClasses = ConcurrentHashMap.newKeySet();
     private final Set<Object> registeredInstances = ConcurrentHashMap.newKeySet();
-    private final Map<Method, Components> components = new ConcurrentHashMap<>();
+    private final Map<ExecutableMethod<?, ?>, Components> components = new ConcurrentHashMap<>();
     private volatile boolean configured;
 
     JaxRsFeatures(ApplicationContext context, Collection<Feature> features, Collection<DynamicFeature> dynamicFeatures) {
@@ -128,7 +128,7 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
      * @param method        The resource method
      * @return The components
      */
-    Components components(Class<?> resourceClass, Method method) {
+    Components components(Class<?> resourceClass, ExecutableMethod<?, ?> method) {
         if (dynamicFeatures.isEmpty()) {
             return Components.EMPTY;
         }
@@ -137,7 +137,7 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
             ResourceInfo resourceInfo = new ResourceInfo() {
                 @Override
                 public Method getResourceMethod() {
-                    return m;
+                    return JaxRsReflection.get().targetMethod(m);
                 }
 
                 @Override
@@ -187,11 +187,8 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
         if (context.containsBean(type)) {
             return context.getBean(type);
         }
-        // a class the annotation processors never saw: instantiated from a reflective
-        // introspection, which reaches a class or constructor that is not public
-        Object instance = ReflectionBeanIntrospection.isIntrospectable(type)
-            ? ReflectionBeanIntrospection.of(type).instantiate()
-            : InstantiationUtils.instantiate(type);
+        // a class the annotation processors never saw
+        Object instance = JaxRsReflection.get().instantiate(type);
         return context.inject(instance);
     }
 
@@ -211,7 +208,7 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
      */
     Components components(@Nullable RouteInfo<?> route) {
         if (route instanceof MethodBasedRouteInfo<?, ?> methodRoute) {
-            return components(methodRoute.getDeclaringType(), methodRoute.getTargetMethod().getTargetMethod());
+            return components(methodRoute.getDeclaringType(), methodRoute.getTargetMethod().getExecutableMethod());
         }
         return Components.EMPTY;
     }
@@ -224,24 +221,6 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
             .flatMap(RouteAttributes::getRouteInfo)
             .map(this::components)
             .orElse(Components.EMPTY);
-    }
-
-    /**
-     * A class and every class and interface it extends or implements, but {@code Object}.
-     */
-    private static Class<?>[] supertypes(Class<?> type) {
-        Set<Class<?>> types = new LinkedHashSet<>();
-        List<Class<?>> pending = new ArrayList<>();
-        pending.add(type);
-        while (!pending.isEmpty()) {
-            Class<?> next = pending.remove(pending.size() - 1);
-            if (next == null || next == Object.class || !types.add(next)) {
-                continue;
-            }
-            pending.add(next.getSuperclass());
-            pending.addAll(List.of(next.getInterfaces()));
-        }
-        return types.toArray(Class<?>[]::new);
     }
 
     /**
@@ -301,12 +280,11 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
         private FeatureContext registerClass(Class<?> componentClass) {
             if (global) {
                 registeredClasses.add(componentClass);
-                if (!context.containsBean(componentClass) && ReflectionBeanDefinition.isDefinable(componentClass)) {
-                    // a class the annotation processors never saw becomes a bean, found by each of
-                    // its types: a runtime definition is only indexed by the types it exposes
-                    context.registerBeanDefinition(ReflectionBeanDefinition.builder((Class) componentClass)
-                        .exposedTypes(supertypes(componentClass))
-                        .build());
+                RuntimeBeanDefinition<?> definition = context.containsBean(componentClass) ? null
+                    : JaxRsReflection.get().beanDefinition(componentClass);
+                if (definition != null) {
+                    // a class the annotation processors never saw becomes a bean
+                    context.registerBeanDefinition(definition);
                 }
             } else {
                 instances.add(instance(componentClass));

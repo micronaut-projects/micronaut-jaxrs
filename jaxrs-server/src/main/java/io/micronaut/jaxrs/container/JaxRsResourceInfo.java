@@ -15,6 +15,7 @@
  */
 package io.micronaut.jaxrs.container;
 
+import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.core.annotation.Internal;
 import org.jspecify.annotations.Nullable;
 import io.micronaut.http.HttpRequest;
@@ -51,7 +52,7 @@ public class JaxRsResourceInfo implements RequestAware, ResourceInfo {
     @Override
     public Method getResourceMethod() {
         if (routeInfo instanceof MethodBasedRouteInfo<?, ?> methodBasedRouteInfo) {
-            return methodBasedRouteInfo.getTargetMethod().getTargetMethod();
+            return JaxRsReflection.get().targetMethod(methodBasedRouteInfo.getTargetMethod().getExecutableMethod());
         }
         return null;
     }

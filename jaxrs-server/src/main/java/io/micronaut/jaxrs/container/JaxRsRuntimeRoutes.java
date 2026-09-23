@@ -15,13 +15,12 @@
  */
 package io.micronaut.jaxrs.container;
 
+import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.context.BeanContext;
 import io.micronaut.context.processor.ExecutableMethodProcessor;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
-import io.micronaut.core.annotation.Introspected;
 import io.micronaut.core.beans.BeanIntrospection;
-import io.micronaut.core.beans.BeanIntrospector;
 import io.micronaut.core.beans.BeanMethod;
 import io.micronaut.core.beans.BeanProperty;
 import io.micronaut.core.type.Argument;
@@ -37,7 +36,6 @@ import io.micronaut.inject.ExecutableMethod;
 import io.micronaut.inject.ProxyBeanDefinition;
 import io.micronaut.inject.annotation.AnnotationMetadataHierarchy;
 import io.micronaut.inject.qualifiers.Qualifiers;
-import io.micronaut.reflection.ReflectionBeanIntrospection;
 import io.micronaut.web.router.RouteTable;
 import io.micronaut.web.router.RouteTableFactory;
 import io.micronaut.http.uri.RouteTemplate;
@@ -317,14 +315,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      * processor never saw.
      */
     private static <T> @Nullable BeanIntrospection<T> introspection(Class<T> type) {
-        BeanIntrospection<T> introspection = BeanIntrospector.SHARED.findIntrospection(type).orElse(null);
-        if (introspection != null) {
-            return introspection;
-        }
-        if (!ReflectionBeanIntrospection.isIntrospectable(type)) {
-            return null;
-        }
-        return ReflectionBeanIntrospection.of(type, Set.of(Introspected.AccessKind.FIELD, Introspected.AccessKind.METHOD));
+        return JaxRsReflection.get().introspection(type);
     }
 
     /**

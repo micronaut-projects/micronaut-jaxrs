@@ -15,10 +15,10 @@
  */
 package io.micronaut.jaxrs.container;
 
+import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.context.BeanContext;
 import io.micronaut.context.BeanRegistration;
 import io.micronaut.core.annotation.Internal;
-import io.micronaut.core.reflect.GenericTypeUtils;
 import io.micronaut.core.type.Argument;
 import io.micronaut.inject.qualifiers.MatchArgumentQualifier;
 import io.micronaut.jaxrs.common.JaxRsContainerMessageBodyHandlerRegistry;
@@ -148,8 +148,7 @@ final class JaxRsProviders implements Providers {
         if (application != null) {
             for (Object singleton : application.getSingletons()) {
                 if (singleton instanceof ContextResolver resolver && resolves(resolver, contextType)) {
-                    Produces produces = singleton.getClass().getAnnotation(Produces.class);
-                    int specificity = specificity(produces == null ? new String[0] : produces.value(), mediaType);
+                    int specificity = specificity(JaxRsReflection.get().annotationMetadata(singleton.getClass()).stringValues(Produces.class), mediaType);
                     if (specificity >= 0) {
                         candidates.add(new Candidate<>((ContextResolver<T>) resolver, specificity));
                     }
@@ -182,8 +181,9 @@ final class JaxRsProviders implements Providers {
      * type or a subtype, or it is not known.
      */
     private static boolean resolves(ContextResolver<?> resolver, Class<?> contextType) {
-        Class<?>[] arguments = GenericTypeUtils.resolveInterfaceTypeArguments(resolver.getClass(), ContextResolver.class);
-        return arguments.length == 0 || contextType.isAssignableFrom(arguments[0]);
+        Argument<?> argument = JaxRsReflection.get().resolveGeneric(resolver.getClass(), ContextResolver.class);
+        Argument<?>[] arguments = argument == null ? new Argument<?>[0] : argument.getTypeParameters();
+        return arguments.length == 0 || contextType.isAssignableFrom(arguments[0].getType());
     }
 
     /**

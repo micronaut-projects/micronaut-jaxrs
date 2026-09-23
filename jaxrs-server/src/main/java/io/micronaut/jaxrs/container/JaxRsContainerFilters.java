@@ -15,6 +15,7 @@
  */
 package io.micronaut.jaxrs.container;
 
+import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.context.BeanContext;
 import io.micronaut.context.BeanRegistration;
 import io.micronaut.core.annotation.Internal;
@@ -173,7 +174,7 @@ final class JaxRsContainerFilters {
         if (routeInfo instanceof MethodBasedRouteInfo<?, ?> methodRoute) {
             // the writers see the annotations given with the entity, then the Java annotations of
             // the resource method, like JAX-RS passes them
-            Annotation[] methodAnnotations = methodRoute.getTargetMethod().getTargetMethod().getAnnotations();
+            Annotation[] methodAnnotations = JaxRsReflection.get().annotations(methodRoute.getTargetMethod().getExecutableMethod());
             if (entityAnnotations == null) {
                 entityAnnotations = methodAnnotations;
             } else {
