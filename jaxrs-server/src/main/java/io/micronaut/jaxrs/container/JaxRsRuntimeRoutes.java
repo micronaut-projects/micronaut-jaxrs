@@ -38,6 +38,15 @@ import io.micronaut.inject.ProxyBeanDefinition;
 import io.micronaut.inject.annotation.AnnotationMetadataHierarchy;
 import io.micronaut.inject.qualifiers.Qualifiers;
 import io.micronaut.reflection.ReflectionBeanIntrospection;
+import io.micronaut.web.router.RouteTable;
+import io.micronaut.web.router.RouteTableFactory;
+import io.micronaut.http.uri.RouteTemplate;
+import io.micronaut.web.router.builder.LocatedAsyncRequestHandler;
+import io.micronaut.web.router.builder.LocatedBodyRequestHandler;
+import io.micronaut.web.router.builder.LocatedFormRequestHandler;
+import io.micronaut.web.router.builder.LocatedHttpRouteBuilder;
+import io.micronaut.web.router.builder.LocatedLocatorHandler;
+import io.micronaut.web.router.builder.LocatedRequestHandler;
 import io.micronaut.web.router.builder.HttpRouteBuilder;
 import io.micronaut.web.router.builder.HttpRouteSpec;
 import io.micronaut.web.router.builder.HttpRoutes;
@@ -74,6 +83,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
@@ -170,14 +180,15 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
 
     @Override
     public void routes(HttpRouteBuilder routes) {
-        rootResources().forEach((type, root) -> {
+        Routes<@Nullable Void> root = new RootRoutes(routes);
+        rootResources().forEach((type, resource) -> {
             if (support.isRegistered(type)) {
-                route(routes, type, root);
+                route(root, type, resource);
             }
         });
     }
 
-    private <B> void route(HttpRouteBuilder routes, Class<?> type, Root<B> root) {
+    private <B> void route(Routes<@Nullable Void> routes, Class<?> type, Root<B> root) {
         String rootPath = root.metadata().stringValue(Path.class).orElse("");
         // the root resource class is selected first by the specificity of its @Path: the end
         // of it is marked in the templates, for the JAX-RS route template engine
@@ -185,26 +196,30 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         RequestType<B> requestType = requestType(root.type(), root.definition());
         int rootSegments = segments(rootPath);
         Supplier<B> instances = root.instances();
-        Instances<B> instance = requestType == null
-            ? (request, pathVariables, form) -> support.matched(request, instances.get(), rootSegments)
-            : (request, pathVariables, form) -> support.matched(request, create(requestType, request, pathVariables, form), rootSegments);
+        Instances<@Nullable Void, B> instance = requestType == null
+            ? (request, pathVariables, form, target) -> support.matched(request, instances.get(), rootSegments)
+            : (request, pathVariables, form, target) -> support.matched(request, create(requestType, request, pathVariables, form), rootSegments);
         Map<Class<?>, Integer> visited = new LinkedHashMap<>();
         visited.put(type, 1);
-        declare(routes, type, root.methods(), type, prefix, false, instance, requestType != null && requestType.usesForm(), visited, false);
+        declare(routes, type, root.methods(), type, prefix, instance, requestType != null && requestType.usesForm(), visited, false);
     }
 
     /**
-     * Declare the routes of the class of a target a locator located at runtime, relative to the
-     * prefix of the locator.
+     * The route table of the class of a target a locator located at runtime: the routes of the
+     * class relative to the prefix of the locator, whose handlers get the target.
      *
-     * @param type   The class of the target
-     * @param routes The builder
+     * @param type    The class of the target
+     * @param factory The route table factory
+     * @param <T>     The type of the target
+     * @return The route table
      */
-    <T> void located(Class<T> type, HttpRouteBuilder routes) {
-        Map<Class<?>, Integer> visited = new LinkedHashMap<>();
-        visited.put(type, 1);
-        declare(routes, type, methods(type), type, "", true, (request, pathVariables, form) -> pathVariables.locatedTarget(type), false,
-            visited, false);
+    <T> RouteTable locatedTable(Class<T> type, RouteTableFactory factory) {
+        return factory.buildLocatedHttpRoutes(type, builder -> {
+            Map<Class<?>, Integer> visited = new LinkedHashMap<>();
+            visited.put(type, 1);
+            Instances<T, T> instances = (request, pathVariables, form, target) -> Objects.requireNonNull(target, "target");
+            declare(new LocatedRoutes<>(builder), type, methods(type), type, "", instances, false, visited, false);
+        });
     }
 
     /**
@@ -365,9 +380,9 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     /**
      * Declare the routes of the resource methods and locators of a class.
      */
-    private <B> void declare(HttpRouteBuilder routes, Class<?> type, List<JaxRsMethod<B>> methods, Class<?> rootClass, String path,
-                             boolean located, Instances<B> instances, boolean rootUsesForm, Map<Class<?>, Integer> visited,
-                             boolean chainUsesForm) {
+    private <L, B> void declare(Routes<L> routes, Class<?> type, List<JaxRsMethod<B>> methods, Class<?> rootClass, String path,
+                                Instances<L, B> instances, boolean rootUsesForm, Map<Class<?>, Integer> visited,
+                                boolean chainUsesForm) {
         AnnotationMetadata classMetadata = classMetadata(type);
         for (JaxRsMethod<B> method : methods) {
             AnnotationMetadata metadata = method.metadata();
@@ -377,12 +392,12 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 String template = template(path, methodPath == null ? "" : methodPath);
                 ResourceMethod<B> resourceMethod = resourceMethod(type, classMetadata, rootClass, method, httpMethod, template);
                 if (resourceMethod != null) {
-                    route(routes, resourceMethod, located, instances, rootUsesForm || chainUsesForm);
+                    route(routes, resourceMethod, instances, rootUsesForm || chainUsesForm);
                 }
             } else if (methodPath != null) {
                 // a resource method is selected before a locator: the end of its @Path is marked
                 String prefix = template(path, methodPath) + JaxRsRouteTemplateEngine.LOCATOR_MARK;
-                locator(routes, rootClass, method, prefix, located, instances, rootUsesForm, visited, chainUsesForm);
+                locator(routes, rootClass, method, prefix, instances, rootUsesForm, visited, chainUsesForm);
             }
         }
     }
@@ -402,8 +417,8 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      * only at runtime, or a locator that repeats, is located by the router, which routes the
      * rest of the path with the routes of the class of the target.
      */
-    private <B> void locator(HttpRouteBuilder routes, Class<?> rootClass, JaxRsMethod<B> method, String prefix, boolean located,
-                             Instances<B> instances, boolean rootUsesForm, Map<Class<?>, Integer> visited, boolean chainUsesForm) {
+    private <L, B> void locator(Routes<L> routes, Class<?> rootClass, JaxRsMethod<B> method, String prefix,
+                                Instances<L, B> instances, boolean rootUsesForm, Map<Class<?>, Integer> visited, boolean chainUsesForm) {
         Argument<?>[] arguments = arguments(method);
         Reader[] readers = new Reader[arguments.length];
         boolean usesForm = chainUsesForm;
@@ -426,7 +441,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         int occurrences = visited.getOrDefault(target, 0);
         boolean known = !target.isPrimitive() && target != Object.class && !Response.class.isAssignableFrom(target)
             && occurrences < MAX_LOCATOR_REPEAT;
-        if (known && follow(routes, rootClass, method, readers, prefix, located, instances, target, rootUsesForm, visited, usesForm)) {
+        if (known && follow(routes, rootClass, method, readers, prefix, instances, target, rootUsesForm, visited, usesForm)) {
             return;
         }
         // known only at runtime, or recursive: the paths cannot be enumerated
@@ -438,11 +453,11 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             LOG.info("The JAX-RS sub-resource locator {} known only at runtime has a form parameter: it is not routed", method.name());
             return;
         }
-        int segments = located ? -1 : segments(prefix);
-        routes.locate(located ? support.locatedPrefix(prefix) : support.prefix(prefix), (request, pathVariables) -> {
-            B instance = instances.get(request, pathVariables, null);
+        int segments = routes.located() ? -1 : segments(prefix);
+        routes.locate(routes.prefix(prefix), (request, pathVariables, target1) -> {
+            B instance = instances.get(request, pathVariables, null, target1);
             return support.matched(request, locate(method, instance, readers, request, pathVariables, null), segments);
-        }, support.locatedTables());
+        });
     }
 
     /**
@@ -451,22 +466,22 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      *
      * @return Whether the class has routes
      */
-    private <B, T> boolean follow(HttpRouteBuilder routes, Class<?> rootClass, JaxRsMethod<B> method, Reader[] readers, String prefix,
-                                  boolean located, Instances<B> instances, Class<T> target, boolean rootUsesForm,
-                                  Map<Class<?>, Integer> visited, boolean usesForm) {
+    private <L, B, T> boolean follow(Routes<L> routes, Class<?> rootClass, JaxRsMethod<B> method, Reader[] readers, String prefix,
+                                     Instances<L, B> instances, Class<T> target, boolean rootUsesForm,
+                                     Map<Class<?>, Integer> visited, boolean usesForm) {
         List<JaxRsMethod<T>> targetMethods = methods(target);
         if (targetMethods.isEmpty()) {
             return false;
         }
         int segments = segments(prefix);
-        Instances<T> chained = (request, pathVariables, form) -> {
-            B instance = instances.get(request, pathVariables, form);
+        Instances<L, T> chained = (request, pathVariables, form, located) -> {
+            B instance = instances.get(request, pathVariables, form, located);
             return support.matched(request, target.cast(locate(method, instance, readers, request, pathVariables, form)), segments);
         };
         int occurrences = visited.getOrDefault(target, 0);
         visited.put(target, occurrences + 1);
         try {
-            declare(routes, target, targetMethods, rootClass, prefix, located, chained, rootUsesForm, visited, usesForm);
+            declare(routes, target, targetMethods, rootClass, prefix, chained, rootUsesForm, visited, usesForm);
         } finally {
             visited.put(target, occurrences);
         }
@@ -511,12 +526,9 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         return (request, pathVariables, form) -> beanContext.inject(introspection.instantiate());
     }
 
-    private <B> void route(HttpRouteBuilder routes, ResourceMethod<B> method, boolean located, Instances<B> instances,
-                           boolean chainUsesForm) {
+    private <L, B> void route(Routes<L> routes, ResourceMethod<B> method, Instances<L, B> instances, boolean chainUsesForm) {
         String name = method.httpMethod();
-        RouteDeclaration declaration = located
-            ? support.locatedDeclaration(name, method.template())
-            : support.declaration(name, method.template());
+        RouteDeclaration declaration = routes.declaration(name, method.template());
         boolean body = method.entity() >= 0 && !method.formEntity() && !"GET".equals(name);
         boolean usesForm = method.usesForm() || chainUsesForm;
         // a form is read for a method that can have one and reads no entity
@@ -526,57 +538,76 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         HttpRouteSpec spec;
         if (method.async()) {
             if (form) {
-                spec = routes.handleAsync(declaration, (request, pathVariables) -> support.formAsync(request, pathVariables,
-                    (readRequest, readPathVariables, value) -> (CompletionStage<? extends HttpResponse<?>>) call(method, instances, readRequest,
-                        readPathVariables, value, null)));
+                spec = routes.handleAsync(declaration, (request, pathVariables, target) -> support.formAsync(request, pathVariables,
+                    (readRequest, readPathVariables, value) -> callAsync(method, instances, readRequest, readPathVariables, target, value, null)));
             } else if (body) {
-                spec = routes.handleAsync(declaration, (request, pathVariables) -> support.entityAsync(request, pathVariables,
-                    (readRequest, readPathVariables, value) -> (CompletionStage<? extends HttpResponse<?>>) call(method, instances, readRequest,
-                        readPathVariables, entityForm ? support.entityForm(readRequest, value) : null, value)));
+                spec = routes.handleAsync(declaration, (request, pathVariables, target) -> support.entityAsync(request, pathVariables,
+                    (readRequest, readPathVariables, value) -> callAsync(method, instances, readRequest, readPathVariables, target,
+                        entityForm ? support.entityForm(readRequest, value) : null, value)));
             } else {
-                spec = routes.handleAsync(declaration, (AsyncServerHttpRequest<?> request, PathVariables pathVariables) ->
-                    (CompletionStage<? extends HttpResponse<?>>) call(method, instances, request, pathVariables, null, null));
+                spec = routes.handleAsync(declaration, (request, pathVariables, target) ->
+                    callAsync(method, instances, request, pathVariables, target, null, null));
             }
         } else if (form) {
-            spec = routes.handleForm(declaration, (request, pathVariables, value) ->
-                (HttpResponse<?>) call(method, instances, request, pathVariables, value, null));
+            spec = routes.handleForm(declaration, (request, pathVariables, target, value) ->
+                call(method, instances, request, pathVariables, target, value, null));
         } else if (body) {
-            spec = routes.handle(declaration, JaxRsRouteSupport.ENTITY, (request, pathVariables, value) ->
-                (HttpResponse<?>) call(method, instances, request, pathVariables,
-                    entityForm ? support.entityForm(request, value) : null, value));
+            spec = routes.handleEntity(declaration, (request, pathVariables, target, value) ->
+                call(method, instances, request, pathVariables, target, entityForm ? support.entityForm(request, value) : null, value));
         } else {
-            spec = routes.handle(declaration, (request, pathVariables) ->
-                (HttpResponse<?>) call(method, instances, request, pathVariables, null, null));
+            spec = routes.handle(declaration, (request, pathVariables, target, value) ->
+                call(method, instances, request, pathVariables, target, null, null));
         }
         support.configure(spec, method.metadata());
+        Argument<?> responseType = method.responseType();
+        if (responseType != null) {
+            // the writer is selected for the declared type of the entity, like the return type of
+            // a controller method
+            spec.responseType(responseType);
+        }
     }
 
     /**
-     * Call a resource method: get the instance, read the parameters, call it and convert its
-     * result to the response, or the stage of the response of an asynchronous method.
+     * Call a resource method and convert its result to the response.
      */
-    private <B> Object call(ResourceMethod<B> method, Instances<B> instances, HttpRequest<?> request, PathVariables pathVariables,
-                            @Nullable FormData form, byte @Nullable [] body) throws Exception {
+    private <L, B> HttpResponse<?> call(ResourceMethod<B> method, Instances<L, B> instances, HttpRequest<?> request,
+                                        PathVariables pathVariables, @Nullable L target, @Nullable FormData form,
+                                        byte @Nullable [] body) throws Exception {
+        Object result = invoke(method, instances, request, pathVariables, target, form, body);
+        return method.completion().complete(request, pathVariables, method.converter().convert(request, result));
+    }
+
+    /**
+     * Call an asynchronous resource method: the stage of its response.
+     */
+    private <L, B> CompletionStage<HttpResponse<?>> callAsync(ResourceMethod<B> method, Instances<L, B> instances, HttpRequest<?> request,
+                                                             PathVariables pathVariables, @Nullable L target, @Nullable FormData form,
+                                                             byte @Nullable [] body) throws Exception {
+        CompletionStage<?> stage = (CompletionStage<?>) invoke(method, instances, request, pathVariables, target, form, body);
+        if (stage == null) {
+            throw new IllegalStateException("The asynchronous resource method " + method.method().name() + " returned no stage");
+        }
+        Converter converter = method.converter();
+        return stage.thenApply(value -> converter.convert(request, value));
+    }
+
+    /**
+     * Get the instance, read the parameters and call a resource method.
+     */
+    private <L, B> @Nullable Object invoke(ResourceMethod<B> method, Instances<L, B> instances, HttpRequest<?> request,
+                                           PathVariables pathVariables, @Nullable L target, @Nullable FormData form,
+                                           byte @Nullable [] body) throws Exception {
         if (method.produces()) {
             // a negotiated type that is not concrete is not acceptable
             support.acceptable(pathVariables);
         }
-        B instance = instances.get(request, pathVariables, form);
+        B instance = instances.get(request, pathVariables, form, target);
         Reader[] readers = method.readers();
         Object[] arguments = new Object[readers.length];
         for (int i = 0; i < readers.length; i++) {
             arguments[i] = readers[i].read(request, pathVariables, form, body);
         }
-        Object result = method.method().executable().invoke(instance, arguments);
-        Converter converter = method.converter();
-        if (method.async()) {
-            CompletionStage<?> stage = (CompletionStage<?>) result;
-            if (stage == null) {
-                throw new IllegalStateException("The asynchronous resource method " + method.method().name() + " returned no stage");
-            }
-            return stage.thenApply(value -> converter.convert(request, value));
-        }
-        return method.completion().complete(request, pathVariables, converter.convert(request, result));
+        return method.method().executable().invoke(instance, arguments);
     }
 
     /**
@@ -601,11 +632,22 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             // the type of the generic entity selects the message body writer
             return (request, result) -> support.genericEntityResponse(request, (GenericEntity<?>) result);
         }
-        if (!raw.isArray() && type.getTypeParameters().length > 0) {
-            // the declared type, with its type arguments, selects the message body writer
-            return (request, result) -> support.genericEntityResponse(request, result, type);
-        }
+        // the declared type of the route selects the message body writer, see responseType
         return (request, result) -> support.entityResponse(result);
+    }
+
+    /**
+     * The declared type of the entity of a method, {@code null} for a method that returns a
+     * response, a generic entity, no entity or an entity known only at runtime.
+     */
+    private static @Nullable Argument<?> responseType(Argument<?> type) {
+        Class<?> raw = type.getType();
+        if (raw == void.class || raw == Void.class || raw == Object.class || type.isTypeVariable()
+            || Response.class.isAssignableFrom(raw) || HttpResponse.class.isAssignableFrom(raw)
+            || GenericEntity.class.isAssignableFrom(raw)) {
+            return null;
+        }
+        return type;
     }
 
     /**
@@ -684,7 +726,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         JaxRsRouteSupport.RouteMetadata metadata = new JaxRsRouteSupport.RouteMetadata(owner, method.name(),
             Argument.toClassArray(method.arguments()), produces.toArray(String[]::new), consumes.toArray(String[]::new), rootClass);
         return new ResourceMethod<>(method, httpMethod, template, readers, form, formEntity, usesForm, entity, async,
-            !produces.isEmpty(), converter(valueType, async), completion(!produces.isEmpty(), valueType), metadata);
+            !produces.isEmpty(), converter(valueType, async), completion(!produces.isEmpty(), valueType), responseType(valueType), metadata);
     }
 
     /**
@@ -942,11 +984,175 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     /**
      * Gets the instance a route calls.
      *
+     * @param <L> The type of the target the route is located on, {@code Void} for a root route
      * @param <B> The type of the instance
      */
     @FunctionalInterface
-    private interface Instances<B> {
-        B get(HttpRequest<?> request, PathVariables pathVariables, @Nullable FormData form) throws Exception;
+    private interface Instances<L, B> {
+        B get(HttpRequest<?> request, PathVariables pathVariables, @Nullable FormData form, @Nullable L target) throws Exception;
+    }
+
+    /**
+     * Handles a request of a route, with the target it is located on and its entity or form.
+     *
+     * @param <L> The type of the target
+     * @param <V> The type of the entity or form
+     */
+    @FunctionalInterface
+    private interface Handler<L, V> {
+        HttpResponse<?> handle(HttpRequest<?> request, PathVariables pathVariables, @Nullable L target, @Nullable V value) throws Exception;
+    }
+
+    /**
+     * Handles a request of an asynchronous route, with the target it is located on.
+     *
+     * @param <L> The type of the target
+     */
+    @FunctionalInterface
+    private interface AsyncHandler<L> {
+        CompletionStage<? extends HttpResponse<?>> handle(AsyncServerHttpRequest<?> request, PathVariables pathVariables,
+                                                          @Nullable L target) throws Exception;
+    }
+
+    /**
+     * Locates the target of a locator known only at runtime.
+     *
+     * @param <L> The type of the target the locator is located on
+     */
+    @FunctionalInterface
+    private interface Locator<L> {
+        @Nullable Object locate(HttpRequest<?> request, PathVariables pathVariables, @Nullable L target) throws Exception;
+    }
+
+    /**
+     * Declares the routes of a class: the root routes, or the routes of a class located at runtime,
+     * whose handlers get the target.
+     *
+     * @param <L> The type of the target, {@code Void} for the root routes
+     */
+    private interface Routes<L> {
+
+        boolean located();
+
+        RouteDeclaration declaration(String method, String template);
+
+        RouteTemplate prefix(String template);
+
+        HttpRouteSpec handle(RouteDeclaration route, Handler<L, Void> handler);
+
+        HttpRouteSpec handleEntity(RouteDeclaration route, Handler<L, byte[]> handler);
+
+        HttpRouteSpec handleForm(RouteDeclaration route, Handler<L, FormData> handler);
+
+        HttpRouteSpec handleAsync(RouteDeclaration route, AsyncHandler<L> handler);
+
+        void locate(RouteTemplate prefix, Locator<L> locator);
+    }
+
+    /**
+     * The root routes.
+     */
+    private final class RootRoutes implements Routes<@Nullable Void> {
+        private final HttpRouteBuilder routes;
+
+        RootRoutes(HttpRouteBuilder routes) {
+            this.routes = routes;
+        }
+
+        @Override
+        public boolean located() {
+            return false;
+        }
+
+        @Override
+        public RouteDeclaration declaration(String method, String template) {
+            return support.declaration(method, template);
+        }
+
+        @Override
+        public RouteTemplate prefix(String template) {
+            return support.prefix(template);
+        }
+
+        @Override
+        public HttpRouteSpec handle(RouteDeclaration route, Handler<@Nullable Void, Void> handler) {
+            return routes.handle(route, (request, pathVariables) -> handler.handle(request, pathVariables, null, null));
+        }
+
+        @Override
+        public HttpRouteSpec handleEntity(RouteDeclaration route, Handler<@Nullable Void, byte[]> handler) {
+            return routes.handle(route, JaxRsRouteSupport.ENTITY, (request, pathVariables, body) -> handler.handle(request, pathVariables, null, body));
+        }
+
+        @Override
+        public HttpRouteSpec handleForm(RouteDeclaration route, Handler<@Nullable Void, FormData> handler) {
+            return routes.handleForm(route, (request, pathVariables, form) -> handler.handle(request, pathVariables, null, form));
+        }
+
+        @Override
+        public HttpRouteSpec handleAsync(RouteDeclaration route, AsyncHandler<@Nullable Void> handler) {
+            return routes.handleAsync(route, (request, pathVariables) -> handler.handle(request, pathVariables, null));
+        }
+
+        @Override
+        public void locate(RouteTemplate prefix, Locator<@Nullable Void> locator) {
+            routes.<Object>locate(prefix, (request, pathVariables) -> locator.locate(request, pathVariables, null), support.locatedTables());
+        }
+    }
+
+    /**
+     * The routes of a class located at runtime, whose handlers get the target.
+     *
+     * @param <L> The type of the target
+     */
+    private final class LocatedRoutes<L> implements Routes<L> {
+        private final LocatedHttpRouteBuilder<L> routes;
+
+        LocatedRoutes(LocatedHttpRouteBuilder<L> routes) {
+            this.routes = routes;
+        }
+
+        @Override
+        public boolean located() {
+            return true;
+        }
+
+        @Override
+        public RouteDeclaration declaration(String method, String template) {
+            return support.locatedDeclaration(method, template);
+        }
+
+        @Override
+        public RouteTemplate prefix(String template) {
+            return support.locatedPrefix(template);
+        }
+
+        @Override
+        public HttpRouteSpec handle(RouteDeclaration route, Handler<L, Void> handler) {
+            return routes.handle(route, (LocatedRequestHandler<L>) (request, pathVariables, target) -> handler.handle(request, pathVariables, target, null));
+        }
+
+        @Override
+        public HttpRouteSpec handleEntity(RouteDeclaration route, Handler<L, byte[]> handler) {
+            return routes.handle(route, JaxRsRouteSupport.ENTITY,
+                (LocatedBodyRequestHandler<L, byte[]>) (request, pathVariables, target, body) -> handler.handle(request, pathVariables, target, body));
+        }
+
+        @Override
+        public HttpRouteSpec handleForm(RouteDeclaration route, Handler<L, FormData> handler) {
+            return routes.handleForm(route, (LocatedFormRequestHandler<L>) (request, pathVariables, target, form) -> handler.handle(request, pathVariables, target, form));
+        }
+
+        @Override
+        public HttpRouteSpec handleAsync(RouteDeclaration route, AsyncHandler<L> handler) {
+            return routes.handleAsync(route, (LocatedAsyncRequestHandler<L>) (request, pathVariables, target) -> handler.handle(request, pathVariables, target));
+        }
+
+        @Override
+        public void locate(RouteTemplate prefix, Locator<L> locator) {
+            routes.<Object>locate(prefix, (LocatedLocatorHandler<L, Object>) (request, pathVariables, target) -> locator.locate(request, pathVariables, target),
+                support.locatedTables());
+        }
     }
 
     /**
@@ -1011,12 +1217,14 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      * @param produces   Whether it declares the media types it produces
      * @param converter  Converts its result to its response
      * @param completion Completes its response
+     * @param responseType The declared type of its entity, {@code null} for none
      * @param metadata   Its route metadata
      * @param <B>        The type of the instances it is called on
      */
     private record ResourceMethod<B>(JaxRsMethod<B> method, String httpMethod, String template, Reader[] readers, boolean form,
                                      boolean formEntity, boolean usesForm, int entity, boolean async, boolean produces,
-                                     Converter converter, Completion completion, JaxRsRouteSupport.RouteMetadata metadata) {
+                                     Converter converter, Completion completion, @Nullable Argument<?> responseType,
+                                     JaxRsRouteSupport.RouteMetadata metadata) {
     }
 
     /**
