@@ -138,6 +138,10 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             element.annotate(Named.class);
             return;
         }
+        // the @Path of a class maps to the annotation of a resource method or locator: the
+        // methods of the class are not all resource methods
+        element.removeStereotype(HttpMethodMappingMapper.RESOURCE_METHOD);
+        element.removeAnnotation(HttpMethodMappingMapper.RESOURCE_METHOD);
         currentClassElement = element;
         generateRoutes = context.getLanguage() == VisitorContext.Language.JAVA && JaxRsRoutesGenerator.isSupported(context);
         if (!generateRoutes) {
@@ -153,6 +157,15 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         }
         boolean resource = element.hasAnnotation(Path.class) || !element.getEnclosedElements(ElementQuery.ALL_METHODS.onlyInstance()
             .annotated(metadata -> metadata.hasStereotype(HttpMethod.class))).isEmpty();
+        boolean routed = !element.getEnclosedElements(ElementQuery.ALL_METHODS.onlyInstance()
+            .annotated(metadata -> metadata.hasStereotype(HttpMethod.class) || metadata.hasDeclaredAnnotation(Path.class))).isEmpty();
+        if (routed && !element.isInterface() && !element.hasAnnotation(Introspected.class)) {
+            // the target of a sub-resource locator, or a resource created per request: the runtime
+            // routes read its resource methods, locators, constructor and request members
+            element.annotate(Introspected.class, builder -> builder
+                .member("accessKind", new Introspected.AccessKind[]{Introspected.AccessKind.FIELD, Introspected.AccessKind.METHOD})
+                .member("visibility", new Introspected.Visibility[]{Introspected.Visibility.ANY}));
+        }
         if (!resource && !element.isAbstract() && !element.isInterface() && !JaxRsRoutesGenerator.requestMembers(element).isEmpty()) {
             // a @BeanParam type: initialized at runtime from its introspection, with the values of the request
             element.annotate(Introspected.class, builder -> builder
@@ -186,10 +199,6 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
                     }
                 }
             }
-            if (!element.hasAnnotation(Path.class)) {
-                // a resource without @Path, which the runtime routes find by this marker
-                element.annotate("io.micronaut.jaxrs.container.JaxRsResource");
-            }
         }
     }
 
@@ -200,9 +209,14 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             // a setter injected by the generated routes
             element.removeAnnotation(Inject.class);
         }
-        if (generateRoutes && !element.isPublic() && (element.hasStereotype(HttpMethod.class) || element.hasDeclaredAnnotation(Path.class))) {
+        // the methods of an interface are public without the modifier
+        boolean isPublic = element.isPublic() || element.getDeclaringType().isInterface() && !element.isPrivate();
+        if (generateRoutes && !isPublic && (element.hasStereotype(HttpMethod.class) || element.hasDeclaredAnnotation(Path.class))) {
+            // routed at runtime only when public
+            element.removeStereotype(HttpMethodMappingMapper.RESOURCE_METHOD);
+            element.removeAnnotation(HttpMethodMappingMapper.RESOURCE_METHOD);
             // not a resource method nor a sub-resource locator: only public methods are (JAX-RS 3.3.1),
-            // the generated routes leave it out
+            // the runtime routes leave it out
             context.warn("The method is not public, so it is not a JAX-RS resource method or sub-resource locator, and it is not routed", element);
         }
         if (element.hasStereotype(HttpMethod.class) && element.isPrivate() && generateRoutes) {
