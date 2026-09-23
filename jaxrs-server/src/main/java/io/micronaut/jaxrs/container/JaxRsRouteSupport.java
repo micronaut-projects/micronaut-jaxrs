@@ -34,6 +34,7 @@ import io.micronaut.core.convert.ConversionContext;
 import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.type.Argument;
 import io.micronaut.core.util.ExceptionUtils;
+import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.inject.ExecutableMethod;
 import io.micronaut.http.HttpResponse;
@@ -67,12 +68,14 @@ import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.NotAcceptableException;
 import jakarta.ws.rs.NotFoundException;
+import jakarta.ws.rs.NotSupportedException;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.Application;
 import jakarta.ws.rs.core.Form;
 import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.core.MultivaluedMap;
+import jakarta.ws.rs.core.NoContentException;
 import jakarta.ws.rs.core.PathSegment;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ParamConverter;
@@ -468,15 +471,34 @@ public final class JaxRsRouteSupport {
         if (body != null) {
             return body;
         }
-        if (argument.getType() == String.class) {
+        Class<?> type = argument.getType();
+        if (type == String.class) {
             return "";
         }
+        if (type.isPrimitive() || type == Boolean.class || type == Character.class || Number.class.isAssignableFrom(type)) {
+            // the standard readers of these types cannot read an empty entity (JAX-RS 4.2.4)
+            throw new BadRequestException(new NoContentException("An empty entity cannot be read as " + type.getName()));
+        }
         // a JAX-RS reader of the application reads an empty entity too
-        MediaType contentType = request.getContentType().orElse(MediaType.ALL_TYPE);
+        Optional<MediaType> declared = request.getContentType();
+        MediaType contentType = declared.orElse(MediaType.APPLICATION_OCTET_STREAM_TYPE);
         Optional<MessageBodyReader<Object>> reader = beanContext.getBean(JaxRsContainerMessageBodyHandlerRegistry.class)
             .findReader((Argument) argument, List.of(contentType));
-        return reader.map(r -> r.read((Argument) argument, contentType, request.getHeaders(), InputStream.nullInputStream()))
-            .orElse(null);
+        if (reader.isEmpty()) {
+            if (type == MultivaluedMap.class) {
+                // the standard reader of a form reads an empty one
+                return new MultivaluedHashMap<>();
+            }
+            if (type == Form.class) {
+                return new Form();
+            }
+            if (declared.isPresent() && beanContext.getBean(MessageBodyHandlerRegistry.class).findReader(argument, List.of(contentType)).isEmpty()) {
+                // no reader reads the entity as its type (JAX-RS 4.2.1)
+                throw new NotSupportedException();
+            }
+            return null;
+        }
+        return reader.get().read((Argument) argument, contentType, request.getHeaders(), InputStream.nullInputStream());
     }
 
     /**
@@ -692,6 +714,26 @@ public final class JaxRsRouteSupport {
         if (selected != null && "*".equals(selected.getSubtype())) {
             throw new NotAcceptableException();
         }
+    }
+
+    /**
+     * Give the entity of a response the negotiated type of a resource method that declares the
+     * types it produces, unless the method chose one (JAX-RS 3.8): the response has it before
+     * the entity is written, so a {@code HEAD} response has it too.
+     *
+     * @param pathVariables The path variables, with the selected media type
+     * @param response      The response of the resource method
+     * @return The response
+     */
+    public HttpResponse<?> produced(PathVariables pathVariables, HttpResponse<?> response) {
+        MediaType selected = pathVariables.selectedMediaType();
+        if (selected == null || "*".equals(selected.getType()) || "*".equals(selected.getSubtype())
+            || response.getBody().isEmpty() || response.getContentType().isPresent()
+            || !(response instanceof MutableHttpResponse<?> mutable)) {
+            return response;
+        }
+        // by the name as it is written, like when the entity is written
+        return mutable.header(HttpHeaders.CONTENT_TYPE, selected.toString());
     }
 
     /**

@@ -94,6 +94,19 @@ You can also use the link:{jaxrsapi}/jakarta/ws/rs/core/Context.html[@Context] a
 
 NOTE: Parameter binding to constructor argument of resource types is not supported at this time.
 
+==== Application
+
+A link:{jaxrsapi}jakarta/ws/rs/core/Application.html[Application] subclass annotated with `@ApplicationPath` is a bean, and its path prefixes the resources. The resources and providers it returns from `getClasses()` and `getSingletons()` are the only ones registered; an `Application` that returns none registers all of them.
+
+An `Application` subclass without `@ApplicationPath`, which a servlet names with its `jakarta.ws.rs.Application` parameter, can be named with the `micronaut.jaxrs.application` property instead:
+
+[source,yaml]
+----
+micronaut:
+  jaxrs:
+    application: example.MyApplication
+----
+
 ==== ResourceInfo
 
 link:{jaxrsapi}jakarta/ws/rs/container/ResourceInfo.html[ResourceInfo] is a JAX-RS context which can be injected to check which resource class and method are about to be invoked.

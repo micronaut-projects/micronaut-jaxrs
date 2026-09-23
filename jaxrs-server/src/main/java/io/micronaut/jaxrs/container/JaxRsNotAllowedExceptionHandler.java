@@ -18,6 +18,7 @@ package io.micronaut.jaxrs.container;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.Order;
 import io.micronaut.core.order.Ordered;
+import io.micronaut.http.HttpMethod;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.annotation.Produces;
@@ -58,6 +59,13 @@ final class JaxRsNotAllowedExceptionHandler implements ExceptionHandler<NotAllow
     @Override
     public HttpResponse<?> handle(HttpRequest request, NotAllowedException exception) {
         var allowedMethods = new ArrayList<>(exception.getAllowedMethods());
+        if (request.getMethod() == HttpMethod.OPTIONS) {
+            // the automatic response of an OPTIONS request without a resource method (JAX-RS 3.3.5)
+            if (!allowedMethods.contains(HttpMethod.OPTIONS.name())) {
+                allowedMethods.add(HttpMethod.OPTIONS.name());
+            }
+            return HttpResponse.ok().headers(headers -> headers.allowGeneric(allowedMethods));
+        }
         var notAllowedException = new jakarta.ws.rs.NotAllowedException(
             allowedMethods.get(0),
             allowedMethods.subList(1, allowedMethods.size()).toArray(String[]::new)

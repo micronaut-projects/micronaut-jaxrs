@@ -70,12 +70,20 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
         return registry.findReader(type, getMediaTypes(mediaType)).isPresent();
     }
 
-    private List<MediaType> getMediaTypes(MediaType mediaType) {
-        return mediaType == null ? List.of(MediaType.ALL_TYPE) : List.of(mediaType);
+    private List<MediaType> getMediaTypes(@Nullable MediaType mediaType) {
+        return List.of(mediaType(mediaType));
+    }
+
+    /**
+     * An entity without a content type is read as {@code application/octet-stream} (JAX-RS 4.2.1).
+     */
+    private static MediaType mediaType(@Nullable MediaType mediaType) {
+        return mediaType == null ? MediaType.APPLICATION_OCTET_STREAM_TYPE : mediaType;
     }
 
     @Override
-    public @Nullable T read(@NonNull Argument<T> type, @Nullable MediaType mediaType, @NonNull Headers httpHeaders, @NonNull ByteBuffer<?> byteBuffer) throws CodecException {
+    public @Nullable T read(@NonNull Argument<T> type, @Nullable MediaType contentType, @NonNull Headers httpHeaders, @NonNull ByteBuffer<?> byteBuffer) throws CodecException {
+        MediaType mediaType = mediaType(contentType);
         List<BeanRegistration<ReaderInterceptor>> interceptors = JaxRsRouteInterceptors.merge(readerInterceptorsRegsRegistrations, features.readerInterceptors());
         if (interceptors.isEmpty()) {
             Optional<MessageBodyReader<T>> reader = registry.findSelectingReader(type, getMediaTypes(mediaType));
@@ -100,7 +108,8 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
     }
 
     @Override
-    public @Nullable T read(@NonNull Argument<T> type, @Nullable MediaType mediaType, @NonNull Headers httpHeaders, @NonNull InputStream inputStream) throws CodecException {
+    public @Nullable T read(@NonNull Argument<T> type, @Nullable MediaType contentType, @NonNull Headers httpHeaders, @NonNull InputStream inputStream) throws CodecException {
+        MediaType mediaType = mediaType(contentType);
         List<BeanRegistration<ReaderInterceptor>> interceptors = JaxRsRouteInterceptors.merge(readerInterceptorsRegsRegistrations, features.readerInterceptors());
         if (interceptors.isEmpty()) {
             Optional<MessageBodyReader<T>> reader = registry.findSelectingReader(type, getMediaTypes(mediaType));

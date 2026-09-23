@@ -28,6 +28,7 @@ import org.jboss.arquillian.core.api.InstanceProducer;
 import org.jboss.arquillian.core.api.annotation.Inject;
 import org.jboss.arquillian.test.spi.TestClass;
 import org.jboss.shrinkwrap.api.Archive;
+import org.jboss.shrinkwrap.api.Node;
 import org.jboss.shrinkwrap.api.ShrinkWrap;
 import org.jboss.shrinkwrap.api.container.LibraryContainer;
 import org.jboss.shrinkwrap.api.spec.JavaArchive;
@@ -36,16 +37,26 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Internal
 public final class TckDeployableContainer implements DeployableContainer<TckContainerConfiguration> {
+
+    private static final Pattern APPLICATION_PARAM = Pattern.compile(
+        "<param-name>\\s*jakarta\\.ws\\.rs\\.Application\\s*</param-name>\\s*<param-value>([^<]+)</param-value>");
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TckDeployableContainer.class);
 
@@ -141,13 +152,16 @@ public final class TckDeployableContainer implements DeployableContainer<TckCont
             ClassLoader classLoader = new DeploymentClassLoader(deploymentDir);
             applicationClassLoader.set(classLoader);
 
+            Map<String, Object> properties = new HashMap<>(Map.of(
+                "micronaut.server.port", 0,
+                "micronaut.server.dispatch-options-requests", true,
+                "micronaut.server.not-found-on-missing-body", false,
+                "micronaut.server.context-path", archive.getName().replaceAll("\\.war$", "")
+            ));
+            // the Application the servlet of the web.xml names
+            applicationClass(archive).ifPresent(application -> properties.put("micronaut.jaxrs.application", application));
             ApplicationContext applicationContext = ApplicationContext.builder()
-                .properties(Map.of(
-                    "micronaut.server.port", 0,
-                    "micronaut.server.dispatch-options-requests", true,
-                    "micronaut.server.not-found-on-missing-body", false,
-                    "micronaut.server.context-path", archive.getName().replaceAll("\\.war$", "")
-                ))
+                .properties(properties)
                 .classLoader(classLoader)
                 .build()
                 .start();
@@ -236,6 +250,24 @@ public final class TckDeployableContainer implements DeployableContainer<TckCont
             });
         } catch (IOException e) {
             LOGGER.warn("Unable to delete directory: {}", dir, e);
+        }
+    }
+
+    /**
+     * The {@code jakarta.ws.rs.Application} parameter of the servlet in the {@code web.xml} of a
+     * deployment.
+     */
+    private static Optional<String> applicationClass(Archive<?> archive) {
+        Node webXml = archive.get("WEB-INF/web.xml");
+        if (webXml == null || webXml.getAsset() == null) {
+            return Optional.empty();
+        }
+        try (InputStream in = webXml.getAsset().openStream()) {
+            String xml = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            Matcher matcher = APPLICATION_PARAM.matcher(xml);
+            return matcher.find() ? Optional.of(matcher.group(1).trim()) : Optional.empty();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 }

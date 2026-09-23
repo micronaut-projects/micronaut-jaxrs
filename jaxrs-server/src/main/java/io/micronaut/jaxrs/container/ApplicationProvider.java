@@ -20,6 +20,8 @@ import io.micronaut.context.annotation.Value;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.AnnotationMetadataProvider;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.inject.BeanDefinition;
+import io.micronaut.reflection.ReflectionAnnotations;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import jakarta.inject.Singleton;
@@ -28,6 +30,7 @@ import jakarta.ws.rs.core.Application;
 
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Optional;
 
 /**
  * The application path provider.
@@ -52,15 +55,31 @@ public final class ApplicationProvider implements AnnotationMetadataProvider {
 
     ApplicationProvider(BeanContext beanContext,
                         @Value("${micronaut.server.context-path}") @Nullable String contextPath) {
-        this.annotationMetadata = beanContext.findBeanDefinition(Application.class)
-            .map(AnnotationMetadataProvider::getAnnotationMetadata)
-            .orElse(AnnotationMetadata.EMPTY_METADATA);
+        this.annotationMetadata = applicationMetadata(beanContext);
         String applicationPath = annotationMetadata.stringValue(ApplicationPath.class)
             .map(path -> URLDecoder.decode(path, StandardCharsets.UTF_8))
             .orElse("/");
         this.path = concatContextPath(contextPath, applicationPath);
         this.contextPath = contextPath == null || contextPath.isEmpty() || "/".equals(contextPath) ? "" : normalizeContextPath(contextPath);
 
+    }
+
+    /**
+     * The annotations of the {@code Application} class: of its bean definition, or of the class
+     * the {@link JaxRsApplicationFactory} created, which is not a bean.
+     */
+    private static AnnotationMetadata applicationMetadata(BeanContext beanContext) {
+        Optional<BeanDefinition<Application>> definition = beanContext.findBeanDefinition(Application.class);
+        if (definition.isEmpty()) {
+            return AnnotationMetadata.EMPTY_METADATA;
+        }
+        if (definition.get().getBeanType() != Application.class) {
+            return definition.get().getAnnotationMetadata();
+        }
+        Class<? extends Application> type = beanContext.getBean(Application.class).getClass();
+        return beanContext.findBeanDefinition(type)
+            .map(AnnotationMetadataProvider::getAnnotationMetadata)
+            .orElseGet(() -> ReflectionAnnotations.metadataOf(type.getAnnotations()));
     }
 
     /**
