@@ -15,13 +15,13 @@
  */
 package io.micronaut.jaxrs.common;
 
+import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.context.BeanRegistration;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.MediaType;
 import jakarta.annotation.Priority;
 import org.jspecify.annotations.Nullable;
 
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 
@@ -67,11 +67,7 @@ public final class JaxRsUtils {
     }
 
     public static int getPriorityOrder(Object o1) {
-        return Arrays.stream(o1.getClass().getAnnotations())
-            .filter(annotation -> annotation instanceof Priority)
-            .mapToInt(an -> ((Priority) an).value())
-            .findFirst()
-            .orElse(0);
+        return JaxRsReflection.get().annotationMetadata(o1.getClass()).intValue(Priority.class).orElse(0);
     }
 
     public static <T> T requireNonNull(String name, @Nullable T value) {

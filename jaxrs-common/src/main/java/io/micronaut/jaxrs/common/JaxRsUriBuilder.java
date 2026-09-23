@@ -15,6 +15,11 @@
  */
 package io.micronaut.jaxrs.common;
 
+import io.micronaut.inject.annotation.AnnotationMetadataHierarchy;
+import io.micronaut.core.annotation.AnnotationMetadata;
+import io.micronaut.core.beans.BeanMethod;
+import io.micronaut.core.beans.BeanIntrospection;
+import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.core.annotation.Internal;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.core.MultivaluedHashMap;
@@ -451,13 +456,11 @@ final class JaxRsUriBuilder extends UriBuilder {
             throw new IllegalArgumentException("resource was null");
         }
 
-        Path ann = (Path) resource.getAnnotation(Path.class);
-        if (ann != null) {
-            String[] segments = new String[] {ann.value()};
-            path = paths(true, path, segments);
-        } else {
+        String value = JaxRsReflection.get().annotationMetadata(resource).stringValue(Path.class).orElse(null);
+        if (value == null) {
             throw new IllegalArgumentException("class must be annotated with @Path");
         }
+        path = paths(true, path, new String[] {value});
         return this;
     }
 
@@ -470,21 +473,27 @@ final class JaxRsUriBuilder extends UriBuilder {
             throw new IllegalArgumentException("method is null");
         }
 
-        Method theMethod = null;
-        for (Method m : resource.getMethods()) {
-            if (m.getName().equals(method)) {
-                if (theMethod != null && m.isAnnotationPresent(Path.class)) {
-                    throw new IllegalArgumentException("Two methods with the same path " + method);
-                }
-                if (m.isAnnotationPresent(Path.class)) {
-                    theMethod = m;
+        // the public methods of the class, of its introspection
+        BeanIntrospection<?> introspection = JaxRsReflection.get().introspection(resource);
+        String methodPath = null;
+        if (introspection != null) {
+            for (BeanMethod<?, ?> m : introspection.getBeanMethods()) {
+                AnnotationMetadata metadata = m.getAnnotationMetadata();
+                AnnotationMetadata own = metadata instanceof AnnotationMetadataHierarchy hierarchy ? hierarchy.getDeclaredMetadata() : metadata;
+                String value = own.stringValue(Path.class).orElse(null);
+                if (m.getName().equals(method) && value != null) {
+                    if (methodPath != null) {
+                        throw new IllegalArgumentException("Two methods with the same path " + method);
+                    }
+                    methodPath = value;
                 }
             }
         }
-        if (theMethod == null) {
+        if (methodPath == null) {
             throw new IllegalArgumentException("No public method annotated with @Path " + resource.getName() + " " + method);
         }
-        return path(theMethod);
+        path = paths(encode, path, methodPath);
+        return this;
     }
 
     @Override
@@ -492,12 +501,11 @@ final class JaxRsUriBuilder extends UriBuilder {
         if (method == null) {
             throw new IllegalArgumentException("method is null");
         }
-        Path ann = method.getAnnotation(Path.class);
-        if (ann != null) {
-            path = paths(encode, path, ann.value());
-        } else {
+        String value = JaxRsReflection.get().annotationMetadata(method).stringValue(Path.class).orElse(null);
+        if (value == null) {
             throw new IllegalArgumentException("Method not annotated with @Path");
         }
+        path = paths(encode, path, value);
         return this;
     }
 

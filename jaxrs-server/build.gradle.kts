@@ -9,7 +9,6 @@ dependencies {
 	api(libs.managed.jaxrs.api)
 
 	implementation(mn.micronaut.router)
-	implementation(mn.micronaut.reflection)
 	implementation(mn.micronaut.http.server)
     implementation(projects.micronautJaxrsCommon)
     // a @Context servlet request is a stub when the server is not a servlet container
@@ -22,6 +21,8 @@ dependencies {
 
 	testImplementation(projects.micronautJaxrsProcessor)
     testImplementation(mnSerde.micronaut.serde.jackson)
+    // the reflection of the classes the annotation processors never saw, see JaxRsReflection
+    testRuntimeOnly(mn.micronaut.reflection)
 	testImplementation(mn.micronaut.http.server.netty)
     testImplementation(mnServlet.servlet.api)
 	testImplementation(mn.micronaut.http.client)
@@ -34,28 +35,37 @@ dependencies {
 }
 
 noReflection {
-    // the generated routes: JAX-RS converts a parameter with the static fromString or valueOf method or the
-    // String constructor of its type, and hands the annotations of the resource method to the providers; a
-    // sub-resource or bean parameter that is not a bean is instantiated, and its members the generated router
-    // cannot access are set reflectively; the resource method of ResourceInfo is a java.lang.reflect.Method
-    allowIn("io.micronaut.jaxrs.container.JaxRsRouteSupport", "ANNOTATIONS", "ANNOTATION_SYNTHESIS", "INTERFACES", "REFLECTION_UTILS", "REFLECTIVE_ACCESS", "TARGET_MEMBERS")
-    // Application.getClasses() and the Feature services are classes to instantiate; a DynamicFeature gets the
-    // resource method as a java.lang.reflect.Method
-    allowIn("io.micronaut.jaxrs.container.JaxRsFeatures", "INTERFACES", "REFLECTIVE_ACCESS", "SERVICE_LOADING", "TARGET_MEMBERS")
-    // the Application class named in the configuration is loaded and instantiated
-    allowIn("io.micronaut.jaxrs.container.JaxRsApplicationFactory", "CLASS_LOADING", "REFLECTIVE_ACCESS")
-    // the annotations of an Application class that is not a bean
-    allowIn("io.micronaut.jaxrs.container.ApplicationProvider", "ANNOTATIONS")
-    // the context resolvers of the application are instances too: their @Produces and type argument
-    allowIn("io.micronaut.jaxrs.container.JaxRsProviders", "ANNOTATIONS", "GENERIC_SIGNATURES")
-    // ResourceInfo.getResourceMethod() returns a java.lang.reflect.Method
-    allowIn("io.micronaut.jaxrs.container.JaxRsResourceInfo", "TARGET_MEMBERS")
-    // ResourceContext.getResource(Class) instantiates a class
-    allowIn("io.micronaut.jaxrs.container.JaxRsContextResourceContext", "REFLECTIVE_ACCESS")
-    // the writers get the annotations of the resource method as Annotation[]
-    allowIn("io.micronaut.jaxrs.container.JaxRsContainerFilters", "ANNOTATIONS", "TARGET_MEMBERS")
+    // reflection is used only through JaxRsReflection, when the micronaut-reflection module is on the classpath
+    // the parameter converters are handed the annotations as Annotation[], synthesized from the metadata
+    allowIn("io.micronaut.jaxrs.container.JaxRsRouteSupport", "ANNOTATION_SYNTHESIS")
+    // the Feature services
+    allowIn("io.micronaut.jaxrs.container.JaxRsFeatures", "SERVICE_LOADING")
+    // the Application class named by the configuration
+    allowIn("io.micronaut.jaxrs.container.JaxRsApplicationFactory", "CLASS_LOADING")
     // ContainerResponseContext.getEntityAnnotations() returns Annotation[]
     allowIn("io.micronaut.jaxrs.container.JaxRsContainerResponseContext", "ANNOTATION_SYNTHESIS")
     // a ParamConverterProvider gets the annotations of the parameter as Annotation[]
     allowIn("io.micronaut.jaxrs.container.QueryParamArgumentBinder", "ANNOTATION_SYNTHESIS")
 }
+
+// the server without the micronaut-reflection module: only the generated metadata is used
+val testWithoutReflection by tasks.registering(Test::class) {
+    description = "Runs the tests without the micronaut-reflection module on the classpath."
+    group = "verification"
+    val test = tasks.named<Test>("test").get()
+    testClassesDirs = test.testClassesDirs
+    classpath = test.classpath.filter { !it.name.startsWith("micronaut-reflection") }
+    useJUnitPlatform()
+    filter {
+        // ResourceInfo.getResourceMethod and the classes a feature registers that are not beans
+        // need the module: WithoutReflectionTest checks they fail with an error that says so
+        excludeTestsMatching("io.micronaut.jaxrs.runtime.core.ResourceInfoSpec")
+        excludeTestsMatching("io.micronaut.jaxrs.container.FeatureTest")
+        excludeTestsMatching("io.micronaut.jaxrs.container.FormParamTest")
+    }
+    systemProperty("micronaut.jaxrs.test.reflection", "false")
+}
+tasks.named("check") {
+    dependsOn(testWithoutReflection)
+}
+

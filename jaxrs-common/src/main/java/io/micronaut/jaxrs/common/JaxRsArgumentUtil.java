@@ -15,10 +15,8 @@
  */
 package io.micronaut.jaxrs.common;
 
+import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.core.annotation.AnnotationMetadata;
-import io.micronaut.core.annotation.AnnotationValue;
-import io.micronaut.reflection.ReflectionAnnotations;
-import io.micronaut.reflection.ReflectionArguments;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.type.Argument;
 import jakarta.ws.rs.client.Entity;
@@ -27,9 +25,6 @@ import jakarta.ws.rs.core.GenericEntity;
 import jakarta.ws.rs.core.GenericType;
 
 import java.lang.annotation.Annotation;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.Objects;
 
 /**
  * An argument util class.
@@ -45,10 +40,11 @@ public final class JaxRsArgumentUtil {
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static <T> Argument<T> from(InvocationCallback<T> callback) {
-        Argument<InvocationCallback> invocationCallbackArgument = ReflectionArguments.resolveGenericToArgument(
-            callback.getClass(),
-            InvocationCallback.class);
-        Objects.requireNonNull(invocationCallbackArgument, "InvocationCallback argument cannot be null");
+        // the type argument of the callback, known only with reflection
+        Argument<?> invocationCallbackArgument = JaxRsReflection.get().resolveGeneric(callback.getClass(), InvocationCallback.class);
+        if (invocationCallbackArgument == null || invocationCallbackArgument.getTypeParameters().length == 0) {
+            return (Argument<T>) Argument.OBJECT_ARGUMENT;
+        }
         return (Argument<T>) invocationCallbackArgument.getTypeParameters()[0];
     }
 
@@ -100,19 +96,7 @@ public final class JaxRsArgumentUtil {
         if (classLoader == null) {
             return metadata.synthesizeAll();
         }
-        List<Annotation> annotations = new ArrayList<>();
-        for (String name : metadata.getAnnotationNames()) {
-            AnnotationValue<Annotation> value = metadata.getAnnotation(name);
-            if (value == null) {
-                continue;
-            }
-            try {
-                annotations.add(ReflectionAnnotations.synthesize(value, classLoader));
-            } catch (IllegalArgumentException e) {
-                // not an annotation the provider can see
-            }
-        }
-        return annotations.toArray(Annotation[]::new);
+        return JaxRsReflection.get().annotations(metadata, classLoader);
     }
 
     /**
@@ -126,14 +110,7 @@ public final class JaxRsArgumentUtil {
         if (annotations == null || annotations.length == 0) {
             return AnnotationMetadata.EMPTY_METADATA;
         }
-        List<Annotation> real = new ArrayList<>(annotations.length);
-        for (Annotation annotation : annotations) {
-            if (annotation.annotationType() != null) {
-                // a fake annotation of a test has no type
-                real.add(annotation);
-            }
-        }
-        return ReflectionAnnotations.metadataOf(real.toArray(Annotation[]::new));
+        return JaxRsReflection.get().annotationMetadata(annotations);
     }
 
 }

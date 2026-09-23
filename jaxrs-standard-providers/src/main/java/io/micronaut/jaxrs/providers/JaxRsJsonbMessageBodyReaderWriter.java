@@ -18,6 +18,7 @@ package io.micronaut.jaxrs.providers;
 import io.micronaut.context.BeanProvider;
 import io.micronaut.context.annotation.Requires;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.annotation.Introspected;
 import io.micronaut.core.annotation.Order;
 import io.micronaut.core.order.Ordered;
 import jakarta.activation.DataSource;
@@ -63,6 +64,8 @@ import java.util.List;
  */
 @Order(Ordered.LOWEST_PRECEDENCE)
 @Singleton
+// the @Context fields the client injects, without reflection
+@Introspected(accessKind = Introspected.AccessKind.FIELD, visibility = Introspected.Visibility.ANY)
 @Internal
 @Requires(classes = Jsonb.class)
 @Requires(condition = JsonbImplementationCondition.class)

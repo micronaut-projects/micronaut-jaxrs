@@ -13,9 +13,6 @@ dependencies {
 noReflection {
     // the standard providers of the other modules are services
     allowIn("io.micronaut.jaxrs.client.JaxRsClientBuilder", "SERVICE_LOADING")
-    // a component registered by class is instantiated, the annotations of a provider class are read, and the
-    // type argument of a context resolver selects it
-    allowIn("io.micronaut.jaxrs.client.JaxRsConfiguration", "ANNOTATIONS", "CLASS_MEMBERS", "GENERIC_SIGNATURES", "REFLECTION_UTILS", "REFLECTIVE_ACCESS")
     // ClientRequestContext.getEntityAnnotations() returns Annotation[]
     allowIn("io.micronaut.jaxrs.client.JaxRsClientRequestContext", "ANNOTATION_SYNTHESIS")
     // the HTTP method of a request is looked up by its name

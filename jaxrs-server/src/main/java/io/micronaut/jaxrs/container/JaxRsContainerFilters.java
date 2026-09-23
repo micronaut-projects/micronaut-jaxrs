@@ -169,11 +169,10 @@ final class JaxRsContainerFilters {
         }
 
         Argument<?> returnType = routeInfo == null ? Argument.VOID : routeInfo.getReturnType().asArgument();
-        java.lang.reflect.Method resourceMethod = JaxRsRouteSupport.resourceMethod(routeInfo);
-        if (resourceMethod != null) {
+        Annotation[] methodAnnotations = JaxRsRouteSupport.resourceMethodAnnotationObjects(routeInfo);
+        if (methodAnnotations != null) {
             // the writers see the annotations given with the entity, then the Java annotations of
             // the resource method, like JAX-RS passes them
-            Annotation[] methodAnnotations = resourceMethod.getAnnotations();
             if (entityAnnotations == null) {
                 entityAnnotations = methodAnnotations;
             } else {

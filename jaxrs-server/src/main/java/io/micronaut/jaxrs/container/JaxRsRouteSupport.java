@@ -15,6 +15,7 @@
  */
 package io.micronaut.jaxrs.container;
 
+import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.context.BeanContext;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.AnnotationMetadataProvider;
@@ -92,6 +93,7 @@ import org.jspecify.annotations.Nullable;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -173,8 +175,6 @@ public final class JaxRsRouteSupport {
     private final Map<RouteMetadata, Argument<?>> entityArguments = new ConcurrentHashMap<>();
 
     private volatile @Nullable Set<Class<?>> registeredClasses;
-
-    private volatile @Nullable Map<Class<?>, JaxRsLocatedRoutes> locatedRoutesByType;
 
     JaxRsRouteSupport(ApplicationProvider applicationProvider,
                       ConversionService conversionService,
@@ -284,39 +284,14 @@ public final class JaxRsRouteSupport {
     }
 
     /**
-     * The routes of a class, or of its nearest supertype that has routes, else the routes of
-     * the class collected at runtime.
+     * The routes of the class of a located target: the routes of its resource methods and
+     * locators, collected at runtime, one instance per class.
      *
      * @param type The class of a located target
      * @return The routes
      */
     private LocatedRoutes<?> routesFor(Class<?> type) {
-        JaxRsLocatedRoutes routes = locatedRoutes(type);
-        return routes == null ? beanContext.getBean(JaxRsRuntimeRoutes.class).locatedRoutes(type) : routes;
-    }
-
-    private @Nullable JaxRsLocatedRoutes locatedRoutes(Class<?> type) {
-        Map<Class<?>, JaxRsLocatedRoutes> byType = locatedRoutesByType;
-        if (byType == null) {
-            byType = new HashMap<>();
-            for (JaxRsLocatedRoutes routes : beanContext.getBeansOfType(JaxRsLocatedRoutes.class)) {
-                byType.put(routes.type(), routes);
-            }
-            locatedRoutesByType = byType;
-        }
-        for (Class<?> t = type; t != null && t != Object.class; t = t.getSuperclass()) {
-            JaxRsLocatedRoutes routes = byType.get(t);
-            if (routes != null) {
-                return routes;
-            }
-            for (Class<?> i : t.getInterfaces()) {
-                routes = byType.get(i);
-                if (routes != null) {
-                    return routes;
-                }
-            }
-        }
-        return null;
+        return beanContext.getBean(JaxRsRuntimeRoutes.class).locatedRoutes(type);
     }
 
     private String underApplicationPath(String template) {
@@ -904,47 +879,92 @@ public final class JaxRsRouteSupport {
      */
     private static AnnotationMetadata routeAnnotations(HttpRequest<?> request) {
         RouteInfo<?> route = RouteAttributes.getRouteInfo(request).orElse(null);
-        java.lang.reflect.Method method = resourceMethod(route);
-        if (method != null) {
-            // the Java annotations of the resource method, like JAX-RS passes them: not merged
-            // with the ones of its class
-            return JaxRsArgumentUtil.createAnnotationMetadata(method.getAnnotations());
+        // the Java annotations of the resource method, like JAX-RS passes them: not merged with
+        // the ones of its class
+        AnnotationMetadata annotations = resourceMethodAnnotations(route);
+        if (annotations != null) {
+            return annotations;
         }
         return route == null ? AnnotationMetadata.EMPTY_METADATA : route.getAnnotationMetadata();
     }
 
     /**
-     * The resource method a route implements: the bean method given to the route, or the method
-     * of a sub-resource that is not a bean. A handler route has no Java method of its own.
+     * The element of the resource method a route implements: the bean method given to the route,
+     * or the {@link RouteMetadata} of a sub-resource that is not a bean. A handler route has no
+     * Java method of its own.
      *
      * @param route The route
-     * @return The resource method, or {@code null} for a route that is not a JAX-RS resource method
+     * @return The element, or {@code null} for a route that is not a JAX-RS resource method
      */
-    static java.lang.reflect.@Nullable Method resourceMethod(@Nullable RouteInfo<?> route) {
-        if (route instanceof MethodBasedRouteInfo<?, ?> methodRoute) {
-            AnnotationMetadataProvider provider = methodRoute.getAnnotationMetadataProvider().orElse(null);
-            if (provider instanceof ExecutableMethod<?, ?> method) {
-                return method.getTargetMethod();
-            }
-            if (provider instanceof SubResourceMethod subResource) {
-                return subResource.metadata().resourceMethod();
-            }
+    static @Nullable Object resourceMethodKey(@Nullable RouteInfo<?> route) {
+        AnnotationMetadataProvider provider = provider(route);
+        if (provider instanceof ExecutableMethod<?, ?> method) {
+            return method;
+        }
+        return provider instanceof SubResourceMethod subResource ? subResource.metadata() : null;
+    }
+
+    /**
+     * @param route The route
+     * @return The resource method it implements, or {@code null} for a route that is not a JAX-RS resource method
+     */
+    static @Nullable Method resourceMethod(@Nullable RouteInfo<?> route) {
+        AnnotationMetadataProvider provider = provider(route);
+        if (provider instanceof ExecutableMethod<?, ?> method) {
+            return JaxRsReflection.get().targetMethod(method);
+        }
+        if (provider instanceof SubResourceMethod(RouteMetadata metadata, AnnotationMetadata ignored)) {
+            return JaxRsReflection.get().targetMethod(metadata.resourceClass, metadata.methodName, metadata.parameterTypes);
         }
         return null;
     }
 
     /**
-     * The resource class of a route: the class of its resource method.
-     *
      * @param route The route
-     * @return The resource class
+     * @return The annotations of the resource method it implements, not merged with the ones of
+     * its class, or {@code null} for a route that is not a JAX-RS resource method
+     */
+    static @Nullable AnnotationMetadata resourceMethodAnnotations(@Nullable RouteInfo<?> route) {
+        AnnotationMetadataProvider provider = provider(route);
+        if (provider instanceof ExecutableMethod<?, ?> method) {
+            return JaxRsReflection.get().methodAnnotations(method);
+        }
+        if (provider instanceof SubResourceMethod(RouteMetadata metadata, AnnotationMetadata ignored)) {
+            return JaxRsReflection.get().methodAnnotations(metadata.resourceClass, metadata.methodName, metadata.parameterTypes);
+        }
+        return null;
+    }
+
+    /**
+     * @param route The route
+     * @return The annotations of the resource method it implements as objects, as JAX-RS hands
+     * them to the providers, or {@code null} for a route that is not a JAX-RS resource method
+     */
+    static Annotation @Nullable [] resourceMethodAnnotationObjects(@Nullable RouteInfo<?> route) {
+        AnnotationMetadataProvider provider = provider(route);
+        if (provider instanceof ExecutableMethod<?, ?> method) {
+            return JaxRsReflection.get().annotations(method);
+        }
+        if (provider instanceof SubResourceMethod(RouteMetadata metadata, AnnotationMetadata ignored)) {
+            AnnotationMetadata annotations = JaxRsReflection.get().methodAnnotations(metadata.resourceClass, metadata.methodName, metadata.parameterTypes);
+            return JaxRsReflection.get().annotations(annotations, metadata.resourceClass.getClassLoader());
+        }
+        return null;
+    }
+
+    /**
+     * @param route The route
+     * @return The resource class of the resource method it implements
      */
     static @Nullable Class<?> resourceClass(@Nullable RouteInfo<?> route) {
-        if (route instanceof MethodBasedRouteInfo<?, ?> methodRoute
-            && methodRoute.getAnnotationMetadataProvider().orElse(null) instanceof SubResourceMethod subResource) {
-            return subResource.metadata().resourceClass();
+        if (provider(route) instanceof SubResourceMethod subResource) {
+            return subResource.metadata().resourceClass;
         }
         return route == null ? null : route.getDeclaringType();
+    }
+
+    private static @Nullable AnnotationMetadataProvider provider(@Nullable RouteInfo<?> route) {
+        return route instanceof MethodBasedRouteInfo<?, ?> methodRoute ? methodRoute.getAnnotationMetadataProvider().orElse(null) : null;
     }
 
     /**
@@ -1159,37 +1179,6 @@ public final class JaxRsRouteSupport {
     }
 
     /**
-     * Set a field of a type created per request that the generated router cannot access.
-     *
-     * @param instance      The instance
-     * @param declaringType The class that declares the field
-     * @param name          The name of the field
-     * @param value         The value
-     */
-    public void setField(Object instance, Class<?> declaringType, String name, @Nullable Object value) {
-        java.lang.reflect.Field field = fields.computeIfAbsent(declaringType.getName() + '#' + name, key -> {
-            java.lang.reflect.Field f = io.micronaut.core.reflect.ReflectionUtils.getRequiredField(declaringType, name);
-            f.setAccessible(true);
-            return f;
-        });
-        io.micronaut.core.reflect.ReflectionUtils.setField(field, instance, value);
-    }
-
-    /**
-     * Call a setter of a type created per request that the generated router cannot access.
-     *
-     * @param instance      The instance
-     * @param declaringType The class that declares the setter
-     * @param name          The name of the setter
-     * @param parameterType The type of its parameter
-     * @param value         The value
-     */
-    public void invokeSetter(Object instance, Class<?> declaringType, String name, Class<?> parameterType, @Nullable Object value) {
-        java.lang.reflect.Method setter = io.micronaut.core.reflect.ReflectionUtils.getRequiredMethod(declaringType, name, parameterType);
-        io.micronaut.core.reflect.ReflectionUtils.invokeMethod(instance, setter, value);
-    }
-
-    /**
      * Create a resource for a request: a resource whose constructor reads values of the request
      * is a prototype, and gets them as its {@code @Parameter}s.
      *
@@ -1202,7 +1191,7 @@ public final class JaxRsRouteSupport {
     public <T> T create(Class<T> type, String[] names, @Nullable Object[] values) {
         if (!beanContext.containsBean(type)) {
             // a sub-resource or a bean parameter that is not a bean
-            return io.micronaut.core.reflect.InstantiationUtils.instantiate(type);
+            return JaxRsReflection.get().instantiate(type);
         }
         Map<String, Object> arguments = new java.util.HashMap<>(names.length * 2);
         for (int i = 0; i < names.length; i++) {
@@ -1255,11 +1244,11 @@ public final class JaxRsRouteSupport {
         if (type.isArray()) {
             Argument<?> componentType = Argument.of(type.getComponentType());
             List<String> elements = values.isEmpty() && defaultValue != null ? List.of(defaultValue) : values;
-            Object array = java.lang.reflect.Array.newInstance(type.getComponentType(), elements.size());
-            for (int i = 0; i < elements.size(); i++) {
-                java.lang.reflect.Array.set(array, i, convertOne(elements.get(i), componentType, notFound));
+            List<Object> converted = new ArrayList<>(elements.size());
+            for (String element : elements) {
+                converted.add(convertOne(element, componentType, notFound));
             }
-            return array;
+            return conversionService.convertRequired(converted, type);
         }
         String value = values.isEmpty() ? defaultValue : values.get(0);
         if (value == null) {
@@ -1321,29 +1310,12 @@ public final class JaxRsRouteSupport {
         if (type == String.class) {
             return value -> value;
         }
-        if (!type.isPrimitive() && !type.isArray() && !io.micronaut.core.reflect.ClassUtils.isJavaLangType(type)) {
-            // valueOf before fromString, except for an enum
-            for (String factory : type.isEnum() ? new String[]{"fromString", "valueOf"} : new String[]{"valueOf", "fromString"}) {
-                java.lang.reflect.Method method = io.micronaut.core.reflect.ReflectionUtils.findMethod(type, factory, String.class).orElse(null);
-                if (method != null && java.lang.reflect.Modifier.isStatic(method.getModifiers()) && type.isAssignableFrom(method.getReturnType())) {
-                    return value -> invoke(() -> method.invoke(null, value));
-                }
-            }
-            java.lang.reflect.Constructor<?> constructor = io.micronaut.core.reflect.ReflectionUtils.findConstructor(type, String.class).orElse(null);
-            if (constructor != null) {
-                return value -> invoke(() -> constructor.newInstance(value));
-            }
+        // a static valueOf or fromString method, or a constructor with a string (JAX-RS 3.2)
+        java.util.function.Function<String, Object> conversion = JaxRsReflection.get().stringConversion(type);
+        if (conversion != null) {
+            return conversion::apply;
         }
         return value -> conversionService.convert(value, argument).orElse(null);
-    }
-
-    private static Object invoke(java.util.concurrent.Callable<Object> call) throws Exception {
-        try {
-            return call.call();
-        } catch (java.lang.reflect.InvocationTargetException e) {
-            Throwable cause = e.getCause();
-            throw cause instanceof Exception exception ? exception : e;
-        }
     }
 
     private static MediaType[] mediaTypes(String[] values) {
@@ -1398,7 +1370,6 @@ public final class JaxRsRouteSupport {
         private final String[] produces;
         private final String[] consumes;
         private final Class<?> rootClass;
-        private volatile java.lang.reflect.@Nullable Method method;
 
         /**
          * @param resourceClass  The resource class
@@ -1425,17 +1396,6 @@ public final class JaxRsRouteSupport {
             return resourceClass;
         }
 
-        /**
-         * @return The resource method, looked up the first time it is asked for
-         */
-        public java.lang.reflect.Method resourceMethod() {
-            java.lang.reflect.Method m = method;
-            if (m == null) {
-                m = io.micronaut.core.reflect.ReflectionUtils.getRequiredMethod(resourceClass, methodName, parameterTypes);
-                method = m;
-            }
-            return m;
-        }
     }
 
     /**

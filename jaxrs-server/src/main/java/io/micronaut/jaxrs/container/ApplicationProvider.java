@@ -15,13 +15,13 @@
  */
 package io.micronaut.jaxrs.container;
 
+import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.context.BeanContext;
 import io.micronaut.context.annotation.Value;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.AnnotationMetadataProvider;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.inject.BeanDefinition;
-import io.micronaut.reflection.ReflectionAnnotations;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import jakarta.inject.Singleton;
@@ -79,7 +79,7 @@ public final class ApplicationProvider implements AnnotationMetadataProvider {
         Class<? extends Application> type = beanContext.getBean(Application.class).getClass();
         return beanContext.findBeanDefinition(type)
             .map(AnnotationMetadataProvider::getAnnotationMetadata)
-            .orElseGet(() -> ReflectionAnnotations.metadataOf(type.getAnnotations()));
+            .orElseGet(() -> JaxRsReflection.get().annotationMetadata(type));
     }
 
     /**

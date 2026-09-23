@@ -15,15 +15,13 @@
  */
 package io.micronaut.jaxrs.client;
 
-import io.micronaut.context.AnnotationReflectionUtils;
-import io.micronaut.core.reflect.GenericTypeUtils;
+import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.Internal;
 import org.jspecify.annotations.Nullable;
 import io.micronaut.core.io.buffer.ByteBuffer;
 import io.micronaut.core.order.OrderUtil;
-import io.micronaut.core.reflect.ReflectionUtils;
 import io.micronaut.core.type.Argument;
 import io.micronaut.core.type.Headers;
 import io.micronaut.http.HttpHeaders;
@@ -32,7 +30,6 @@ import io.micronaut.http.MediaType;
 import io.micronaut.http.MutableHttpMessage;
 import io.micronaut.http.body.TypedMessageBodyReader;
 import io.micronaut.http.body.TypedMessageBodyWriter;
-import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
 import io.micronaut.jaxrs.common.ByteArrayByteBuffer;
 import io.micronaut.jaxrs.common.HttpMessageEntityReader;
@@ -64,14 +61,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Type;
-import java.lang.reflect.Modifier;
-import java.lang.reflect.Field;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
-import java.lang.reflect.AnnotatedElement;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -80,7 +72,6 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -349,7 +340,7 @@ final class JaxRsConfiguration implements Configuration {
                         continue;
                     }
                     readers.add(new JaxRsMessageBodyReaderDefinition(
-                        Objects.requireNonNull(AnnotationReflectionUtils.resolveGenericToArgument(reader.getClass(), MessageBodyReader.class)).getTypeParameters()[0],
+                        providedType(reader, MessageBodyReader.class),
                         new JaxRsMessageBodyReader<>(reader),
                         component.priority() == 0 ? JaxRsUtils.getPriorityOrder(reader) : component.priority()
                     ));
@@ -371,7 +362,7 @@ final class JaxRsConfiguration implements Configuration {
                         ));
                     } else {
                         readers.add(new JaxRsMessageBodyReaderDefinition(
-                            Objects.requireNonNull(AnnotationReflectionUtils.resolveGenericToArgument(micronautReader.getClass(), io.micronaut.http.body.MessageBodyReader.class)).getTypeParameters()[0],
+                            providedType(micronautReader, io.micronaut.http.body.MessageBodyReader.class),
                             micronautReader,
                             component.priority() == 0 ? JaxRsUtils.getPriorityOrder(micronautReader) : component.priority()
                         ));
@@ -407,9 +398,8 @@ final class JaxRsConfiguration implements Configuration {
                     if (isNotConstrainedToClient(annotationMetadata)) {
                         continue;
                     }
-                    Argument<MessageBodyWriter> messageBodyWriterArgument = Objects.requireNonNull(AnnotationReflectionUtils.resolveGenericToArgument(writer.getClass(), MessageBodyWriter.class));
                     writers.add(new JaxRsMessageBodyWriterDefinition(
-                        messageBodyWriterArgument.getTypeParameters()[0],
+                        providedType(writer, MessageBodyWriter.class),
                         new JaxRsMessageBodyWriter<>(annotationMetadata, (MessageBodyWriter<Object>) writer),
                         component.priority() == 0 ? JaxRsUtils.getPriorityOrder(writer) : component.priority()
                     ));
@@ -425,7 +415,7 @@ final class JaxRsConfiguration implements Configuration {
                         ));
                     } else {
                         writers.add(new JaxRsMessageBodyWriterDefinition(
-                            Objects.requireNonNull(AnnotationReflectionUtils.resolveGenericToArgument(micronautWriter.getClass(), io.micronaut.http.body.MessageBodyWriter.class)).getTypeParameters()[0],
+                            providedType(micronautWriter, io.micronaut.http.body.MessageBodyWriter.class),
                             micronautWriter,
                             component.priority() == 0 ? JaxRsUtils.getPriorityOrder(micronautWriter) : component.priority()
                         ));
@@ -437,29 +427,17 @@ final class JaxRsConfiguration implements Configuration {
         return writers;
     }
 
-    private static AnnotationMetadata annotationMetadataOf(AnnotatedElement annotatedElement) {
-        // Use AnnotationReflectionUtils#annotationMetadataOf
-        Annotation[] annotations = annotatedElement.getAnnotations();
-        if (annotations.length == 0) {
-            return AnnotationMetadata.EMPTY_METADATA;
-        }
-        MutableAnnotationMetadata mutableAnnotationMetadata = new MutableAnnotationMetadata();
-        for (Annotation annotation : annotations) {
-            Map<CharSequence, Object> values = new LinkedHashMap<>();
-            Class<? extends Annotation> annotationType = annotation.annotationType();
-            Method[] methods = annotationType.getMethods();
-            for (Method method : methods) {
-                if (!method.getDeclaringClass().equals(annotationType)) {
-                    continue;
-                }
-                Object value = ReflectionUtils.invokeMethod(annotation, method);
-                if (value != null) {
-                    values.put(method.getName(), value);
-                }
-            }
-            mutableAnnotationMetadata.addAnnotation(annotationType.getName(), values);
-        }
-        return mutableAnnotationMetadata;
+    private static AnnotationMetadata annotationMetadataOf(Class<?> type) {
+        return JaxRsReflection.get().annotationMetadata(type);
+    }
+
+    /**
+     * The type a provider reads or writes: the type argument of its provider interface, known with
+     * reflection, else any type.
+     */
+    private static Argument<?> providedType(Object provider, Class<?> providerType) {
+        Argument<?> argument = JaxRsReflection.get().resolveGeneric(provider.getClass(), providerType);
+        return argument == null || argument.getTypeParameters().length == 0 ? Argument.OBJECT_ARGUMENT : argument.getTypeParameters()[0];
     }
 
     public HttpMessageEntityReader createHttpMessageEntityReader() {
@@ -609,9 +587,7 @@ final class JaxRsConfiguration implements Configuration {
      */
     private static long rank(Class<?> provided, Object provider, Class<? extends Annotation> declaring, Class<?> type,
                              @Nullable MediaType mediaType) {
-        Annotation annotation = provider.getClass().getAnnotation(declaring);
-        String[] declared = annotation instanceof Consumes consumes ? consumes.value()
-            : annotation instanceof Produces produces ? produces.value() : new String[0];
+        String[] declared = annotationMetadataOf(provider.getClass()).stringValues(declaring);
         int distance = JaxRsUtils.typeDistance(provided, type);
         int specificity = mediaType == null ? 0 : JaxRsUtils.mediaTypeSpecificity(declared, List.of(mediaType));
         int standard = provider.getClass().getName().startsWith("io.micronaut.") ? 1 : 0;
@@ -672,26 +648,9 @@ final class JaxRsConfiguration implements Configuration {
         if (instance == null) {
             return null;
         }
-        for (Class<?> type = instance.getClass(); type != null && type != Object.class; type = type.getSuperclass()) {
-            for (Field field : type.getDeclaredFields()) {
-                if (!field.isAnnotationPresent(Context.class) || Modifier.isStatic(field.getModifiers())) {
-                    continue;
-                }
-                Object value = field.getType() == Providers.class ? providers
-                    : field.getType() == Configuration.class ? this
-                    : null;
-                if (value != null) {
-                    try {
-                        field.setAccessible(true);
-                        if (field.get(instance) == null) {
-                            field.set(instance, value);
-                        }
-                    } catch (ReflectiveOperationException | RuntimeException e) {
-                        LOG.debug("Cannot inject the field {} of {}", field.getName(), type, e);
-                    }
-                }
-            }
-        }
+        JaxRsReflection.get().injectFields(instance, Context.class, type -> type == Providers.class ? providers
+            : type == Configuration.class ? this
+            : null);
         return instance;
     }
 
@@ -739,8 +698,9 @@ final class JaxRsConfiguration implements Configuration {
             for (Component component : components) {
                 ContextResolver<T> resolver = component.tryGet(ContextResolver.class);
                 if (resolver != null) {
-                    Class<?>[] arguments = GenericTypeUtils.resolveInterfaceTypeArguments(resolver.getClass(), ContextResolver.class);
-                    if (arguments.length == 0 || contextType.isAssignableFrom(arguments[0])) {
+                    Argument<?> resolved = JaxRsReflection.get().resolveGeneric(resolver.getClass(), ContextResolver.class);
+                    Argument<?>[] arguments = resolved == null ? new Argument<?>[0] : resolved.getTypeParameters();
+                    if (arguments.length == 0 || contextType.isAssignableFrom(arguments[0].getType())) {
                         resolvers.add(injected(resolver));
                     }
                 }
@@ -808,17 +768,9 @@ final class JaxRsConfiguration implements Configuration {
             return type.equals(componentClass);
         }
 
-        private <T> @Nullable T initialize(Class<?> clazz) {
-            try {
-                Optional<? extends Constructor<?>> optionalConstructor = ReflectionUtils.findConstructor(clazz);
-                if (optionalConstructor.isPresent()) {
-                    return (T) optionalConstructor.get().newInstance();
-                }
-                LOG.error("Cannot initialize class {}", clazz);
-                return null;
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
+        @SuppressWarnings("unchecked")
+        private <T> T initialize(Class<?> clazz) {
+            return (T) JaxRsReflection.get().instantiate(clazz);
         }
     }
 

@@ -15,6 +15,7 @@
  */
 package io.micronaut.jaxrs.container;
 
+import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.context.BeanContext;
 import io.micronaut.context.annotation.Factory;
 import io.micronaut.context.annotation.Property;
@@ -24,8 +25,6 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.Order;
 import io.micronaut.core.order.Ordered;
 import io.micronaut.core.reflect.ClassUtils;
-import io.micronaut.core.reflect.InstantiationUtils;
-import io.micronaut.reflection.ReflectionBeanIntrospection;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.core.Application;
 
@@ -57,11 +56,8 @@ final class JaxRsApplicationFactory {
         if (!Application.class.isAssignableFrom(type)) {
             throw new ConfigurationException("The class " + className + " of " + APPLICATION + " is not an Application");
         }
-        // a class the annotation processors did not make a bean: instantiated from a reflective
-        // introspection, which reaches a class or constructor that is not public
-        Object application = ReflectionBeanIntrospection.isIntrospectable(type)
-            ? ReflectionBeanIntrospection.of(type).instantiate()
-            : InstantiationUtils.instantiate(type);
+        // a class the annotation processors did not make a bean
+        Object application = JaxRsReflection.get().instantiate(type);
         return (Application) beanContext.inject(application);
     }
 }
