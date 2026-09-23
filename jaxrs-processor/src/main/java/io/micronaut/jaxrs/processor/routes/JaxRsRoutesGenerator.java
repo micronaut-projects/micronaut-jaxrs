@@ -115,6 +115,7 @@ public final class JaxRsRoutesGenerator {
     private static final String HTTP_RESPONSE = "io.micronaut.http.HttpResponse";
     private static final String SUPPORT = "io.micronaut.jaxrs.container.JaxRsRouteSupport";
     private static final String ROUTER = "io.micronaut.web.router.builder.";
+    private static final String ASYNC_HANDLER = "io.micronaut.jaxrs.container.JaxRsAsyncHandler";
     private static final ClassTypeDef ARGUMENT = ClassTypeDef.of(Argument.class);
     private static final ClassTypeDef HTTP_METHOD = ClassTypeDef.of(io.micronaut.http.HttpMethod.class);
     /**
@@ -722,13 +723,16 @@ public final class JaxRsRoutesGenerator {
                     handle.add(support.invoke(model.located ? "locatedDeclaration" : "declaration", types.routeDeclaration,
                         ExpressionDef.constant(method.httpMethod), ExpressionDef.constant(method.template)));
                     String builderMethod;
-                    if (route.form) {
-                        builderMethod = method.async ? "handleFormAsync" : "handleForm";
+                    if (method.async) {
+                        // the handler reads the entity or the form, see handlerLambda
+                        builderMethod = "handleAsync";
+                    } else if (route.form) {
+                        builderMethod = "handleForm";
                     } else if (route.body) {
-                        builderMethod = method.async ? "handleAsync" : "handle";
+                        builderMethod = "handle";
                         handle.add(route.entityArgument);
                     } else {
-                        builderMethod = method.async ? "handleAsync" : "handle";
+                        builderMethod = "handle";
                     }
                     handle.add(generator.handlerLambda(aThis, route));
                     statements.add(support.invoke("configure", TypeDef.VOID,
@@ -918,19 +922,30 @@ public final class JaxRsRoutesGenerator {
          */
         ExpressionDef handlerLambda(VariableDef.This aThis, RouteModel route) {
             String handlerType = handlerType(route);
+            if (route.route.method.async && (route.form || route.body)) {
+                // read the form or the entity from the request, then call the method of the route
+                TypeDef read = route.form ? types.form : TypeDef.of(byte[].class);
+                return types.type(ROUTER + handlerType).getLambda(Map.of()).implement((lambdaThis, lambdaParams) ->
+                    aThis.field(supportField).invoke(route.form ? "formAsync" : "entityAsync", ClassTypeDef.of(COMPLETION_STAGE),
+                        lambdaParams.get(0), lambdaParams.get(1),
+                        types.type(ASYNC_HANDLER).getLambda(Map.of("T", read)).implement((valueThis, valueParams) ->
+                            aThis.invoke(route.name, TypeDef.OBJECT, new ArrayList<ExpressionDef>(valueParams)).returning())
+                    ).returning());
+            }
             Map<String, TypeDef> typeVariables = handlerType.endsWith("BodyRequestHandler") ? Map.of("B", TypeDef.OBJECT) : Map.of();
             return types.type(ROUTER + handlerType).getLambda(typeVariables).implement((lambdaThis, lambdaParams) ->
                 aThis.invoke(route.name, TypeDef.OBJECT, new ArrayList<ExpressionDef>(lambdaParams)).returning());
         }
 
         private String handlerType(RouteModel route) {
-            boolean async = route.route.method.async;
-            if (route.form) {
-                return async ? "AsyncFormRequestHandler" : "FormRequestHandler";
+            if (route.route.method.async) {
+                return "AsyncRequestHandler";
+            } else if (route.form) {
+                return "FormRequestHandler";
             } else if (route.body) {
-                return async ? "AsyncBodyRequestHandler" : "BodyRequestHandler";
+                return "BodyRequestHandler";
             }
-            return async ? "AsyncRequestHandler" : "RequestHandler";
+            return "RequestHandler";
         }
 
         /**

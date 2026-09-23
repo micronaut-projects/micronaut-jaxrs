@@ -34,6 +34,7 @@ import io.micronaut.core.convert.ConversionContext;
 import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.type.Argument;
 import io.micronaut.core.util.ExceptionUtils;
+import io.micronaut.http.AsyncServerHttpRequest;
 import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.inject.ExecutableMethod;
@@ -97,6 +98,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
@@ -314,6 +316,42 @@ public final class JaxRsRouteSupport {
      */
     public @Nullable Object entity(HttpRequest<?> request, byte @Nullable [] body, RouteMetadata metadata, int index, Argument<?> argument) {
         return entity(request, body, entityArguments.computeIfAbsent(metadata, m -> entityArgument(m, index, argument)));
+    }
+
+    /**
+     * Read the entity of an asynchronous resource method, then call it.
+     *
+     * @param request       The request
+     * @param pathVariables The path variables
+     * @param handler       Calls the resource method with the bytes of the entity
+     * @return The response
+     */
+    public CompletionStage<? extends HttpResponse<?>> entityAsync(AsyncServerHttpRequest<?> request, PathVariables pathVariables,
+                                                                  JaxRsAsyncHandler<byte[]> handler) {
+        return request.body(ENTITY).thenCompose(body -> call(handler, request, pathVariables, body));
+    }
+
+    /**
+     * Read the form of an asynchronous resource method, then call it.
+     *
+     * @param request       The request
+     * @param pathVariables The path variables
+     * @param handler       Calls the resource method with the form
+     * @return The response
+     */
+    public CompletionStage<? extends HttpResponse<?>> formAsync(AsyncServerHttpRequest<?> request, PathVariables pathVariables,
+                                                                JaxRsAsyncHandler<FormData> handler) {
+        return request.form().thenCompose(form -> call(handler, request, pathVariables, form));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> CompletionStage<HttpResponse<?>> call(JaxRsAsyncHandler<T> handler, HttpRequest<?> request,
+                                                             PathVariables pathVariables, @Nullable T value) {
+        try {
+            return (CompletionStage<HttpResponse<?>>) handler.handle(request, pathVariables, value);
+        } catch (Exception e) {
+            return CompletableFuture.failedFuture(e);
+        }
     }
 
     /**
