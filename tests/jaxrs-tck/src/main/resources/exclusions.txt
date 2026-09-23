@@ -8,15 +8,6 @@ ee.jakarta.tck.ws.rs.ee.rs.container.requestcontext.security.JAXRSClientIT
 # Java SE bootstrap (SeBootstrap) is not supported
 ee.jakarta.tck.ws.rs.sebootstrap.SeBootstrapIT
 
-# RX Invoker
-ee.jakarta.tck.ws.rs.jaxrs21.api.client.invocationbuilder.JAXRSClientIT
-
-# Use set ExecutorService for the client
-ee.jakarta.tck.ws.rs.jaxrs21.ee.client.executor.rx.JAXRSClientIT
-
-# Configuration
-ee.jakarta.tck.ws.rs.api.client.clientbuilder.JAXRSClientIT#newClientWithConfigurationTest
-
 # Unsupported SSE
 ee.jakarta.tck.ws.rs.jaxrs21.ee.sse.sseeventsink.JAXRSClientIT
 ee.jakarta.tck.ws.rs.jaxrs21.ee.sse.sseeventsource.JAXRSClientIT
@@ -35,13 +26,6 @@ ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT#getLastModifiedTes
 # Netty Client strips custom Content-Encoding header
 ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT#getHeaderStringTest
 ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT#getHeadersTest
-
-# Unsupported client configurations
-ee.jakarta.tck.ws.rs.ee.rs.core.configurable.JAXRSClientIT#registerObjectNotAssignableContractsInMapTest
-ee.jakarta.tck.ws.rs.ee.rs.core.configurable.JAXRSClientIT#registerClassBindingPriorityInMapTest
-ee.jakarta.tck.ws.rs.ee.rs.core.configurable.JAXRSClientIT#registerObjectNotAssignableContractsTest
-ee.jakarta.tck.ws.rs.ee.rs.core.configurable.JAXRSClientIT#registerClassNotAssignableContractsTest
-ee.jakarta.tck.ws.rs.ee.rs.core.configurable.JAXRSClientIT#registerObjectBindingPriorityInMapTest
 
 # Receive MultivaluedMap as a form body - FIX writing byte[] form data in Core
 ee.jakarta.tck.ws.rs.spec.provider.standardwithjaxrsclient.JAXRSClientIT#mapElementProviderTest

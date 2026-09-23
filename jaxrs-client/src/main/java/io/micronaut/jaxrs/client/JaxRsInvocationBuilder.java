@@ -29,6 +29,7 @@ import jakarta.ws.rs.client.CompletionStageRxInvoker;
 import jakarta.ws.rs.client.Entity;
 import jakarta.ws.rs.client.Invocation;
 import jakarta.ws.rs.client.RxInvoker;
+import jakarta.ws.rs.client.RxInvokerProvider;
 import jakarta.ws.rs.core.CacheControl;
 import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.GenericType;
@@ -180,8 +181,15 @@ final class JaxRsInvocationBuilder implements Invocation.Builder {
     }
 
     @Override
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public <T extends RxInvoker> T rx(Class<T> clazz) {
-        throw new IllegalStateException("unsupported");
+        // the invoker of a registered provider for the type
+        for (RxInvokerProvider provider : configuration.getProviders(RxInvokerProvider.class)) {
+            if (provider.isProviderFor(clazz)) {
+                return (T) provider.getRxInvoker(this, client.getExecutorService());
+            }
+        }
+        throw new IllegalStateException("No RxInvokerProvider registered for " + clazz.getName());
     }
 
     @Override
