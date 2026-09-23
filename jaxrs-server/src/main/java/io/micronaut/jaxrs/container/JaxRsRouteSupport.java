@@ -136,6 +136,13 @@ public final class JaxRsRouteSupport {
      */
     static final String SSE_EVENT_SINK = SseEventSink.class.getName();
 
+    // the servlet request types of a @Context value, bound to a stub when the server is not a
+    // servlet container
+    private static final Set<String> SERVLET_REQUEST_TYPES = Set.of("jakarta.servlet.ServletRequest", "jakarta.servlet.http.HttpServletRequest");
+
+    // the attribute of the request that holds its stub servlet request
+    private static final String STUB_SERVLET_REQUEST = JaxRsRouteSupport.class.getName() + ".servletRequest";
+
     private final ApplicationProvider applicationProvider;
 
     private final String applicationPath;
@@ -618,6 +625,11 @@ public final class JaxRsRouteSupport {
      * @return The entity
      */
     public @Nullable Object entity(HttpRequest<?> request, byte @Nullable [] body, Argument<?> argument) {
+        InputStream replaced = request.getAttribute(JaxRsContainerRequestContext.ENTITY_STREAM, InputStream.class).orElse(null);
+        if (replaced != null) {
+            // the entity stream a request filter set
+            return readers().readEntity(argument, request.getContentType().orElse(null), request.getHeaders(), replaced);
+        }
         if (body == null || body.length == 0) {
             return emptyEntity(request, argument);
         }
@@ -730,7 +742,25 @@ public final class JaxRsRouteSupport {
                 return result.get();
             }
         }
+        if (SERVLET_REQUEST_TYPES.contains(type.getName())) {
+            // not a servlet container
+            return stubServletRequest(request);
+        }
         return beanContext.findBean(type, named == null ? null : Qualifiers.byName(named)).orElse(null);
+    }
+
+    /**
+     * The stub servlet request of a request a servlet container does not serve, the same for all
+     * the {@code @Context} values of the request. Typed as an object, as the servlet API is
+     * optional.
+     */
+    private Object stubServletRequest(HttpRequest<?> request) {
+        Object stub = request.getAttribute(STUB_SERVLET_REQUEST).orElse(null);
+        if (stub == null) {
+            stub = new JaxRsStubHttpServletRequest(request, applicationProvider.getContextPath());
+            request.setAttribute(STUB_SERVLET_REQUEST, stub);
+        }
+        return stub;
     }
 
     /**
