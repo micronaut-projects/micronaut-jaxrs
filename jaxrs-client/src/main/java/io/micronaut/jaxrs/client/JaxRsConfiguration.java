@@ -32,6 +32,7 @@ import io.micronaut.http.MutableHttpMessage;
 import io.micronaut.http.body.TypedMessageBodyReader;
 import io.micronaut.http.body.TypedMessageBodyWriter;
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
+import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
 import io.micronaut.jaxrs.common.ByteArrayByteBuffer;
 import io.micronaut.jaxrs.common.HttpMessageEntityReader;
 import io.micronaut.jaxrs.common.JaxRsInterceptedRead;
@@ -41,6 +42,7 @@ import io.micronaut.jaxrs.common.JaxRsMessageBodyReaderDefinition;
 import io.micronaut.jaxrs.common.JaxRsMessageBodyWriter;
 import io.micronaut.jaxrs.common.JaxRsUtils;
 import io.micronaut.jaxrs.common.JaxRsWriterInterceptorContextState;
+import jakarta.ws.rs.core.GenericEntity;
 import jakarta.ws.rs.ConstrainedTo;
 import jakarta.ws.rs.RuntimeType;
 import jakarta.ws.rs.client.ClientRequestFilter;
@@ -432,8 +434,14 @@ final class JaxRsConfiguration implements Configuration {
         return null;
     }
 
+    @SuppressWarnings("unchecked")
     <T> void writeBody(MutableHttpMessage<?> mutableHttpMessage, Argument<T> bodyArgument, T body) {
         if (body == null) {
+            return;
+        }
+        if (body instanceof GenericEntity<?> genericEntity) {
+            // the entity, written as its generic type
+            writeBody(mutableHttpMessage, (Argument<Object>) JaxRsArgumentUtil.from(genericEntity), genericEntity.getEntity());
             return;
         }
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();

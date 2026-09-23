@@ -178,16 +178,3 @@ ee.jakarta.tck.ws.rs.spec.resource.requestmatching.JAXRSClientIT#wrongAppNameTes
 
 
 # Standard providers: DataSource, File and Source
-# The client does not use the standard providers of micronaut-jaxrs-standard-providers: DataSource, File, Source and JAXB
-ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT#clientDataSourceReaderTest
-ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT#clientDataSourceWriterTest
-ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT#clientFileReaderTest
-ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT#clientFileWriterTest
-ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT#clientSourceReaderTest
-ee.jakarta.tck.ws.rs.spec.client.typedentities.JAXRSClientIT#clientSourceWriterTest
-ee.jakarta.tck.ws.rs.spec.client.typedentitieswithxmlbinding.JAXRSClientIT#clientJaxbElementReaderTest
-ee.jakarta.tck.ws.rs.spec.client.typedentitieswithxmlbinding.JAXRSClientIT#clientJaxbElementWriterTest
-ee.jakarta.tck.ws.rs.spec.filter.interceptor.JAXRSClientIT#dataSourceWriterClientInterceptorTest
-ee.jakarta.tck.ws.rs.spec.filter.interceptor.JAXRSClientIT#fileWriterClientInterceptorTest
-ee.jakarta.tck.ws.rs.spec.filter.interceptor.JAXRSClientIT#jaxbWriterClientInterceptorTest
-ee.jakarta.tck.ws.rs.spec.provider.standardhaspriority.JAXRSClientIT#readWriteJaxbProviderTest

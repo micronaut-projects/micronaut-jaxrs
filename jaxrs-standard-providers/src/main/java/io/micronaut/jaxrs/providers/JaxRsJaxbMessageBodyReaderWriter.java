@@ -19,6 +19,7 @@ import io.micronaut.context.BeanProvider;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.Order;
 import io.micronaut.core.order.Ordered;
+import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.Consumes;
@@ -70,11 +71,19 @@ import java.util.concurrent.ConcurrentHashMap;
 @Produces({MediaType.TEXT_XML, MediaType.APPLICATION_XML, "application/*"})
 public final class JaxRsJaxbMessageBodyReaderWriter implements MessageBodyReader<Object>, MessageBodyWriter<Object> {
 
-    private final BeanProvider<Providers> providers;
+    private final @Nullable BeanProvider<Providers> providers;
     private final Map<Class<?>, JAXBContext> contexts = new ConcurrentHashMap<>();
 
+    @Inject
     JaxRsJaxbMessageBodyReaderWriter(BeanProvider<Providers> providers) {
         this.providers = providers;
+    }
+
+    /**
+     * A provider without the context resolvers of an application, for the client.
+     */
+    JaxRsJaxbMessageBodyReaderWriter() {
+        this.providers = null;
     }
 
     @Override
@@ -164,7 +173,7 @@ public final class JaxRsJaxbMessageBodyReaderWriter implements MessageBodyReader
      */
     @SuppressWarnings("unchecked")
     private JAXBContext context(Class<?> type, @Nullable MediaType mediaType) throws JAXBException {
-        Providers providers = this.providers.isPresent() ? this.providers.get() : null;
+        Providers providers = this.providers != null && this.providers.isPresent() ? this.providers.get() : null;
         ContextResolver<JAXBContext> resolver = providers == null ? null : providers.getContextResolver(JAXBContext.class, mediaType);
         if (resolver != null) {
             JAXBContext context = resolver.getContext(type);
