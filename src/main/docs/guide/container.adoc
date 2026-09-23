@@ -107,6 +107,21 @@ micronaut:
     application: example.MyApplication
 ----
 
+==== Java SE Bootstrap
+
+`SeBootstrap.start` starts a server for an `Application` at the protocol, host, port and root path of its configuration, with the application context of a Micronaut application. The instances the application returns from `getSingletons()` are its resources and providers:
+
+[source,java]
+----
+SeBootstrap.Instance instance = SeBootstrap.start(new MyApplication(), SeBootstrap.Configuration.builder()
+        .port(8080)
+        .rootPath("/api")
+        .build())
+    .toCompletableFuture().get();
+----
+
+The resources are served by the routes the annotation processors generate, so the application is compiled with them like any other. `Instance.unwrap` gives the `ApplicationContext` and the `EmbeddedServer`.
+
 ==== ResourceInfo
 
 link:{jaxrsapi}jakarta/ws/rs/container/ResourceInfo.html[ResourceInfo] is a JAX-RS context which can be injected to check which resource class and method are about to be invoked.
@@ -139,6 +154,20 @@ The standard entity providers for `java.io.File`, `jakarta.activation.DataSource
 dependency:micronaut-jaxrs-standard-providers[scope="implementation",groupId="io.micronaut.jaxrs"]
 
 A `ContextResolver<JAXBContext>` of the application gives the `JAXBContext` of a JAXB type.
+
+==== Multipart Entities
+
+A `multipart/form-data` entity is read and written as a `List<EntityPart>`, and its parts are `@FormParam` parameters of type `EntityPart`, `InputStream` or `String`. The client sends one as a `GenericEntity<List<EntityPart>>`:
+
+[source,java]
+----
+List<EntityPart> parts = List.of(EntityPart.withName("file")
+    .content("file.txt", inputStream)
+    .mediaType(MediaType.TEXT_PLAIN_TYPE)
+    .build());
+client.target(uri).request()
+    .post(Entity.entity(new GenericEntity<>(parts) { }, MediaType.MULTIPART_FORM_DATA));
+----
 
 ==== SecurityContext and Micronaut Security
 

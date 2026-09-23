@@ -155,7 +155,8 @@ final class JaxRsInvocationBuilder implements Invocation.Builder {
 
     @Override
     public Invocation.Builder header(String name, Object value) {
-        mutableHttpHeaders.add(name, JaxRsHeaderUtil.headerToString(value));
+        // the optional whitespace around a value is not part of it (RFC 9110, section 5.5)
+        mutableHttpHeaders.add(name, JaxRsHeaderUtil.headerToString(value).strip());
         return this;
     }
 
@@ -165,7 +166,7 @@ final class JaxRsInvocationBuilder implements Invocation.Builder {
             mutableHttpHeaders.remove(header);
         }
         if (headers != null) {
-            headers.forEach((key, values) -> values.forEach(value -> mutableHttpHeaders.add(key, JaxRsHeaderUtil.headerToString(value))));
+            headers.forEach((key, values) -> values.forEach(value -> mutableHttpHeaders.add(key, JaxRsHeaderUtil.headerToString(value).strip())));
         }
         return this;
     }

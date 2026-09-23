@@ -16,6 +16,9 @@
 package io.micronaut.jaxrs.common;
 
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.jaxrs.common.bootstrap.JaxRsSeBootstrap;
+import io.micronaut.jaxrs.common.bootstrap.JaxRsSeConfiguration;
+import io.micronaut.jaxrs.common.multipart.JaxRsEntityPartBuilder;
 import org.jspecify.annotations.NonNull;
 import jakarta.ws.rs.SeBootstrap;
 import org.jspecify.annotations.Nullable;
@@ -34,6 +37,7 @@ import jakarta.ws.rs.ext.RuntimeDelegate;
 
 import java.util.HashMap;
 import java.util.Map;
+import io.micronaut.core.io.service.SoftServiceLoader;
 import java.util.concurrent.CompletionStage;
 
 /**
@@ -93,22 +97,30 @@ public final class MicronautRuntimeDelegate extends RuntimeDelegate {
 
     @Override
     public SeBootstrap.Configuration.Builder createConfigurationBuilder() {
-        return SeBootstrap.Configuration.builder();
+        return new JaxRsSeConfiguration.Builder();
     }
 
     @Override
     public CompletionStage<SeBootstrap.Instance> bootstrap(Application application, SeBootstrap.Configuration configuration) {
-        return SeBootstrap.start(application, configuration);
+        return seBootstrap().bootstrap(application, configuration);
     }
 
     @Override
     public CompletionStage<SeBootstrap.Instance> bootstrap(Class<? extends Application> clazz, SeBootstrap.Configuration configuration) {
-        return SeBootstrap.start(clazz, configuration);
+        return seBootstrap().bootstrap(clazz, configuration);
+    }
+
+    /**
+     * The bootstrap of the server module.
+     */
+    private static JaxRsSeBootstrap seBootstrap() {
+        return SoftServiceLoader.load(JaxRsSeBootstrap.class, MicronautRuntimeDelegate.class.getClassLoader()).firstAvailable()
+            .orElseThrow(() -> new UnsupportedOperationException("The Java SE bootstrap needs the micronaut-jaxrs-server module"));
     }
 
     @Override
     public EntityPart.Builder createEntityPartBuilder(@NonNull String partName) throws IllegalArgumentException {
-        return EntityPart.withName(partName);
+        return new JaxRsEntityPartBuilder(partName);
     }
 }
 

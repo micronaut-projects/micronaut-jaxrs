@@ -21,7 +21,9 @@ import io.micronaut.runtime.server.EmbeddedServer;
 import io.micronaut.validation.tck.runtime.TestClassVisitor;
 import org.jboss.arquillian.container.spi.client.container.DeployableContainer;
 import org.jboss.arquillian.container.spi.client.protocol.ProtocolDescription;
+import org.jboss.arquillian.container.spi.client.protocol.metadata.HTTPContext;
 import org.jboss.arquillian.container.spi.client.protocol.metadata.ProtocolMetaData;
+import org.jboss.arquillian.container.spi.client.protocol.metadata.Servlet;
 import org.jboss.arquillian.container.spi.context.annotation.DeploymentScoped;
 import org.jboss.arquillian.core.api.Instance;
 import org.jboss.arquillian.core.api.InstanceProducer;
@@ -45,7 +47,9 @@ import java.nio.file.FileVisitor;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -55,6 +59,10 @@ import java.util.regex.Pattern;
 @Internal
 public final class TckDeployableContainer implements DeployableContainer<TckContainerConfiguration> {
 
+    private static final Pattern LOGIN_BASIC = Pattern.compile("<auth-method>\\s*BASIC\\s*</auth-method>");
+    private static final Pattern SECURITY_CONSTRAINT = Pattern.compile("<security-constraint>(.*?)</security-constraint>", Pattern.DOTALL);
+    private static final Pattern URL_PATTERN = Pattern.compile("<url-pattern>([^<]+)</url-pattern>");
+    private static final Pattern ROLE_NAME = Pattern.compile("<role-name>([^<]+)</role-name>");
     private static final Pattern APPLICATION_PARAM = Pattern.compile(
         "<param-name>\\s*jakarta\\.ws\\.rs\\.Application\\s*</param-name>\\s*<param-value>([^<]+)</param-value>");
 
@@ -160,8 +168,12 @@ public final class TckDeployableContainer implements DeployableContainer<TckCont
             ));
             // the Application the servlet of the web.xml names
             applicationClass(archive).ifPresent(application -> properties.put("micronaut.jaxrs.application", application));
+            // the security constraints of the web.xml, with the users of the TCK
+            String contextPath = "/" + archive.getName().replaceAll("\\.war$", "");
+            boolean secured = security(webXml(archive), contextPath, properties);
             ApplicationContext applicationContext = ApplicationContext.builder()
                 .properties(properties)
+                .singletons(secured ? new Object[] {new TckAuthenticationProvider<>()} : new Object[0])
                 .classLoader(classLoader)
                 .build()
                 .start();
@@ -175,13 +187,16 @@ public final class TckDeployableContainer implements DeployableContainer<TckCont
             APP.set(applicationContext);
             Thread.currentThread().setContextClassLoader(classLoader);
 
+            // the URL of the deployment, which tests inject with @ArquillianResource
+            String contextRoot = "/" + archive.getName().replaceAll("\\.war$", "");
+            HTTPContext httpContext = new HTTPContext(embeddedServer.getHost(), embeddedServer.getPort());
+            httpContext.add(new Servlet("default", contextRoot));
+            return new ProtocolMetaData().addContext(httpContext);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         } finally {
             Thread.currentThread().setContextClassLoader(old);
         }
-
-        return new ProtocolMetaData();
     }
 
     /**
@@ -258,16 +273,59 @@ public final class TckDeployableContainer implements DeployableContainer<TckCont
      * deployment.
      */
     private static Optional<String> applicationClass(Archive<?> archive) {
+        Matcher matcher = APPLICATION_PARAM.matcher(webXml(archive));
+        return matcher.find() ? Optional.of(matcher.group(1).trim()) : Optional.empty();
+    }
+
+    /**
+     * The {@code web.xml} of a deployment, empty if it has none.
+     */
+    private static String webXml(Archive<?> archive) {
         Node webXml = archive.get("WEB-INF/web.xml");
         if (webXml == null || webXml.getAsset() == null) {
-            return Optional.empty();
+            return "";
         }
         try (InputStream in = webXml.getAsset().openStream()) {
-            String xml = new String(in.readAllBytes(), StandardCharsets.UTF_8);
-            Matcher matcher = APPLICATION_PARAM.matcher(xml);
-            return matcher.find() ? Optional.of(matcher.group(1).trim()) : Optional.empty();
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    /**
+     * Configure Micronaut Security like the servlet container would the {@code web.xml}: the BASIC
+     * login, and the security constraints as the roles of the URL patterns, under the context path;
+     * every other path is anonymous. Without a login configuration, security is disabled.
+     *
+     * @return Whether the deployment is secured
+     */
+    private static boolean security(String webXml, String contextPath, Map<String, Object> properties) {
+        if (!LOGIN_BASIC.matcher(webXml).find()) {
+            properties.put("micronaut.security.enabled", false);
+            return false;
+        }
+        properties.put("micronaut.security.enabled", true);
+        properties.put("micronaut.security.reject-not-found", false);
+        List<Map<String, Object>> rules = new ArrayList<>();
+        Matcher constraint = SECURITY_CONSTRAINT.matcher(webXml);
+        while (constraint.find()) {
+            String block = constraint.group(1);
+            List<String> roles = new ArrayList<>();
+            Matcher role = ROLE_NAME.matcher(block.substring(Math.max(0, block.indexOf("<auth-constraint>"))));
+            while (role.find()) {
+                roles.add(role.group(1).trim());
+            }
+            Matcher pattern = URL_PATTERN.matcher(block);
+            while (pattern.find()) {
+                String urlPattern = pattern.group(1).trim().replaceAll("/\\*$", "/**");
+                List<String> access = roles.isEmpty() ? List.of("isAuthenticated()") : roles;
+                // with and without the context path of the server
+                rules.add(Map.of("pattern", contextPath + urlPattern, "access", access));
+                rules.add(Map.of("pattern", urlPattern, "access", access));
+            }
+        }
+        rules.add(Map.of("pattern", "/**", "access", List.of("isAnonymous()")));
+        properties.put("micronaut.security.intercept-url-map", rules);
+        return true;
     }
 }

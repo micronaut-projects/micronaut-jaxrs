@@ -59,7 +59,6 @@ import javax.lang.model.element.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -89,7 +88,9 @@ import java.util.function.Function;
 public final class JaxRsRoutesGenerator {
 
     private static final Set<String> NO_BODY_METHODS = Set.of("GET", "HEAD", "OPTIONS", "TRACE");
+
     private static final String NAMED = "jakarta.inject.Named";
+
     private static final Set<String> CONTEXT_TYPES = Set.of(
         "jakarta.ws.rs.core.HttpHeaders",
         "jakarta.ws.rs.core.UriInfo",
@@ -109,31 +110,47 @@ public final class JaxRsRoutesGenerator {
         "jakarta.servlet.http.HttpServletResponse",
         "jakarta.servlet.ServletConfig"
     );
+
     private static final String FORM_TYPES_MAP = "jakarta.ws.rs.core.MultivaluedMap";
+
     private static final String FORM_TYPE = "jakarta.ws.rs.core.Form";
+
     private static final String COMPLETION_STAGE = "java.util.concurrent.CompletionStage";
+
     private static final String JAX_RS_RESPONSE = "jakarta.ws.rs.core.Response";
+
     private static final String HTTP_RESPONSE = "io.micronaut.http.HttpResponse";
+
     private static final String SUPPORT = "io.micronaut.jaxrs.container.JaxRsRouteSupport";
+
     private static final String ROUTER = "io.micronaut.web.router.builder.";
+
     private static final String ASYNC_HANDLER = "io.micronaut.jaxrs.container.JaxRsAsyncHandler";
+
     private static final ClassTypeDef ARGUMENT = ClassTypeDef.of(Argument.class);
+
     private static final ClassTypeDef HTTP_METHOD = ClassTypeDef.of(io.micronaut.http.HttpMethod.class);
+
     /**
      * How many times a type can appear in a chain of sub-resource locators: a locator returning
      * its own type is routed to this depth.
      */
     private static final int MAX_LOCATOR_REPEAT = 2;
+
     /**
      * See {@code JaxRsRouteTemplateEngine#ROOT_MARK}.
      */
     private static final char ROOT_MARK = '\u001E';
+
     /**
      * See {@code JaxRsRouteTemplateEngine#LOCATOR_MARK}.
      */
     private static final char LOCATOR_MARK = '\u001F';
+
     private static final String GENERIC_ENTITY = "jakarta.ws.rs.core.GenericEntity";
+
     private static final String LOCATED_ROUTES = "io.micronaut.jaxrs.container.JaxRsLocatedRoutes";
+
     private static final Map<String, String> BUILT_IN_ARGUMENTS = Map.ofEntries(
         Map.entry("java.lang.String", "STRING"),
         Map.entry("int", "INT"),
@@ -149,6 +166,7 @@ public final class JaxRsRoutesGenerator {
         Map.entry("java.lang.Object", "OBJECT_ARGUMENT"),
         Map.entry("java.util.List<java.lang.String>", "LIST_OF_STRING")
     );
+
     private static final List<Class<? extends java.lang.annotation.Annotation>> REQUEST_ANNOTATIONS = List.of(
         PathParam.class, QueryParam.class, MatrixParam.class, HeaderParam.class, CookieParam.class,
         FormParam.class, BeanParam.class, Context.class
@@ -302,6 +320,271 @@ public final class JaxRsRoutesGenerator {
             }
         }
         return members;
+    }
+
+    /**
+     * @return Whether a {@code @BeanParam} type, or one nested in it, reads a form field
+     */
+    private static boolean beanUsesForm(ClassElement type, int depth) {
+        if (depth > 8) {
+            return false;
+        }
+        for (MemberElement member : requestMembers(type)) {
+            if (member.hasAnnotation(FormParam.class)
+                || member.hasAnnotation(BeanParam.class) && member instanceof FieldElement field && beanUsesForm(field.getType(), depth + 1)) {
+                return true;
+            }
+        }
+        ConstructorElement constructor = requestConstructor(type);
+        return constructor != null && Arrays.stream(constructor.getParameters()).anyMatch(p -> p.hasAnnotation(FormParam.class));
+    }
+
+    private static boolean encoded(Element element, Element enclosing) {
+        return element.hasAnnotation(Encoded.class) || enclosing.hasAnnotation(Encoded.class);
+    }
+
+    private static List<String> mediaTypes(MethodElement method, ClassElement owner, Class<? extends java.lang.annotation.Annotation> annotation) {
+        String[] values = method.getMethodAnnotationMetadata().stringValues(annotation);
+        if (values.length == 0) {
+            values = owner.stringValues(annotation);
+        }
+        List<String> mediaTypes = new ArrayList<>();
+        for (String value : values) {
+            for (String mediaType : value.split(",")) {
+                String trimmed = mediaType.trim();
+                if (!trimmed.isEmpty()) {
+                    mediaTypes.add(trimmed);
+                }
+            }
+        }
+        return mediaTypes;
+    }
+
+    /**
+     * A route template in the language of JAX-RS: the paths joined by a slash.
+     */
+    static String template(String prefix, String path) {
+        StringBuilder template = new StringBuilder();
+        for (String part : new String[]{prefix, path}) {
+            String trimmed = strip(part);
+            if (!trimmed.isEmpty()) {
+                template.append('/').append(trimmed);
+            }
+        }
+        return template.isEmpty() ? "/" : template.toString();
+    }
+
+    /**
+     * The number of path segments a template matches, a variable with a regular expression
+     * counted as one.
+     */
+    static int segments(String template) {
+        int segments = 0;
+        int depth = 0;
+        boolean inSegment = false;
+        for (int i = 0; i < template.length(); i++) {
+            char c = template.charAt(i);
+            if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth--;
+            }
+            if (c == '/' && depth == 0) {
+                inSegment = false;
+            } else if (!inSegment) {
+                inSegment = true;
+                segments++;
+            }
+        }
+        return segments;
+    }
+
+    private static String strip(String path) {
+        int start = 0;
+        int end = path.length();
+        while (start < end && path.charAt(start) == '/') {
+            start++;
+        }
+        while (end > start && path.charAt(end - 1) == '/') {
+            end--;
+        }
+        return path.substring(start, end);
+    }
+
+    /**
+     * The model of the router of a resource: an {@code HttpRoutes} bean with a route per resource
+     * method, and a method per type created per request.
+     */
+    private static ClassDef router(Model model, @Nullable RequestType root) {
+        ClassElement resource = model.resource;
+        ClassTypeDef routerType = ClassTypeDef.of(resource.getPackageName() + "." + resource.getSimpleName()
+            + (model.located ? "$JaxRsLocatedRouter" : "$JaxRsRouter"));
+        ClassTypeDef resourceType = ClassTypeDef.erasure(resource);
+        Types types = new Types(model.context);
+
+        ClassDef.ClassDefBuilder router = ClassDef.builder(routerType.getName())
+            .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+            .addAnnotation(ClassTypeDef.of("jakarta.inject.Singleton"))
+            .addSuperinterface(model.located ? types.type(LOCATED_ROUTES) : types.type(ROUTER + "HttpRoutes"))
+            .addJavadoc(model.located
+                ? "Implements the routes of {@link " + resource.getCanonicalName() + "} as the target of a sub-resource locator, relative to its prefix."
+                : "Implements the routes of the JAX-RS resource {@link " + resource.getCanonicalName() + "} with handler functions.");
+        Constants constants = new Constants(router, routerType);
+
+        FieldDef resourceField = FieldDef.builder("resource", TypeDef.parameterized(ClassTypeDef.of(BeanProvider.class), resourceType))
+            .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
+            .build();
+        FieldDef supportField = FieldDef.builder("support", types.support)
+            .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
+            .build();
+        Generator generator = new Generator(model, constants, types, resourceField, supportField);
+
+        List<RouteModel> routes = new ArrayList<>();
+        for (int i = 0; i < model.routes.size(); i++) {
+            routes.add(generator.routeModel(model.routes.get(i), i, root));
+        }
+
+        router.addField(supportField);
+        if (model.located) {
+            router.addMethod(MethodDef.constructor()
+                .addModifiers(Modifier.PUBLIC)
+                .addParameter("support", types.support)
+                .build((aThis, params) -> aThis.field(supportField).assign(params.get(0))));
+            router.addMethod(MethodDef.builder("type")
+                .addModifiers(Modifier.PUBLIC)
+                .addAnnotation(Override.class)
+                .returns(TypeDef.parameterized(ClassTypeDef.of(Class.class), TypeDef.wildcard()))
+                .build((aThis, params) -> ExpressionDef.constant(resourceType).returning()));
+        } else {
+            router.addField(resourceField);
+            router.addMethod(MethodDef.constructor()
+                .addModifiers(Modifier.PUBLIC)
+                .addParameter("resource", resourceField.getType())
+                .addParameter("support", types.support)
+                .build((aThis, params) -> StatementDef.multi(
+                    aThis.field(resourceField).assign(params.get(0)),
+                    aThis.field(supportField).assign(params.get(1))
+                )));
+        }
+        for (RequestType requestType : model.requestTypes.values()) {
+            router.addMethod(generator.createMethod(requestType));
+        }
+        for (RouteModel route : routes) {
+            router.addMethod(generator.routeMethod(route, root));
+        }
+        for (int i = 0; i < model.runtimeLocators.size(); i++) {
+            router.addMethod(generator.locateMethod(model.runtimeLocators.get(i), "locate" + i, root));
+        }
+        router.addMethod(MethodDef.builder("routes")
+            .addModifiers(Modifier.PUBLIC)
+            .addAnnotation(Override.class)
+            .addParameter("routes", types.routeBuilder)
+            .returns(TypeDef.VOID)
+            .build((aThis, params) -> {
+                VariableDef support = aThis.field(supportField);
+                List<StatementDef> statements = new ArrayList<>();
+                for (RouteModel route : routes) {
+                    ResourceMethod method = route.route.method;
+                    List<ExpressionDef> handle = new ArrayList<>();
+                    // declared by the name of the HTTP method, custom or not, with the template in the language of JAX-RS
+                    handle.add(support.invoke(model.located ? "locatedDeclaration" : "declaration", types.routeDeclaration,
+                        ExpressionDef.constant(method.httpMethod), ExpressionDef.constant(method.template)));
+                    String builderMethod;
+                    if (method.async) {
+                        // the handler reads the entity or the form, see handlerLambda
+                        builderMethod = "handleAsync";
+                    } else if (route.form) {
+                        builderMethod = "handleForm";
+                    } else if (route.body) {
+                        builderMethod = "handle";
+                        handle.add(route.entityArgument);
+                    } else {
+                        builderMethod = "handle";
+                    }
+                    handle.add(generator.handlerLambda(aThis, route));
+                    statements.add(support.invoke("configure", TypeDef.VOID,
+                        params.get(0).invoke(builderMethod, types.routeSpec, handle),
+                        route.metadata));
+                }
+                for (int i = 0; i < model.runtimeLocators.size(); i++) {
+                    RuntimeLocator locator = model.runtimeLocators.get(i);
+                    String locateMethod = "locate" + i;
+                    // the router locates the target, then matches the rest of the path with the routes of its class
+                    statements.add(params.get(0).invoke("locate", TypeDef.VOID,
+                        support.invoke(model.located ? "locatedPrefix" : "prefix", types.routeTemplate, ExpressionDef.constant(locator.prefix)),
+                        types.type(ROUTER + "LocatorHandler").getLambda(Map.of()).implement((lambdaThis, lambdaParams) ->
+                            aThis.invoke(locateMethod, TypeDef.OBJECT, new ArrayList<ExpressionDef>(lambdaParams)).returning()),
+                        support.invoke("locatedTables", TypeDef.OBJECT)));
+                }
+                if (model.located) {
+                    return StatementDef.multi(statements);
+                }
+                // the resource is not a bean in this context, e.g. disabled by @Requires, or the
+                // Application lists its classes without it
+                return aThis.field(resourceField).invoke("isPresent", TypeDef.Primitive.BOOLEAN).ifTrue(
+                    support.invoke("isRegistered", TypeDef.Primitive.BOOLEAN, ExpressionDef.constant(ClassTypeDef.erasure(model.resource)))
+                        .ifTrue(StatementDef.multi(statements)));
+            }));
+        return router.build();
+    }
+
+    /**
+     * An expression creating the {@code Argument} of a type, with its type arguments.
+     */
+    private static ExpressionDef argument(ClassElement type, Generator generator) {
+        List<ExpressionDef> values = new ArrayList<>();
+        values.add(ExpressionDef.constant(TypeDef.erasure(type)));
+        if (!type.isArray() && !type.isPrimitive()) {
+            for (ClassElement typeArgument : type.getTypeArguments().values()) {
+                values.add(generator.argument(typeArgument));
+            }
+        }
+        return ARGUMENT.invokeStatic("of", ARGUMENT, values);
+    }
+
+    /**
+     * The generic signature of a type, which identifies its {@code Argument}.
+     */
+    private static String signature(ClassElement type) {
+        if (type.isGenericPlaceholder() || type.isWildcard()) {
+            return Object.class.getName();
+        }
+        StringBuilder signature = new StringBuilder(type.getName());
+        if (type.isArray()) {
+            signature.append("[]".repeat(Math.max(1, type.getArrayDimensions())));
+            return signature.toString();
+        }
+        if (!type.isPrimitive() && !type.getTypeArguments().isEmpty()) {
+            signature.append('<');
+            boolean first = true;
+            for (ClassElement typeArgument : type.getTypeArguments().values()) {
+                if (!first) {
+                    signature.append(',');
+                }
+                signature.append(signature(typeArgument));
+                first = false;
+            }
+            signature.append('>');
+        }
+        return signature.toString();
+    }
+
+    private static ExpressionDef strings(List<String> values) {
+        return TypeDef.STRING.array().instantiate(values.stream().map(v -> (ExpressionDef) ExpressionDef.constant(v)).toList());
+    }
+
+    private static boolean throwsThrowable(MethodElement method) {
+        for (ClassElement thrown : method.getThrownTypes()) {
+            if (!thrown.isAssignable(Exception.class)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static @Nullable ClassElement firstTypeArgument(ClassElement type) {
+        Map<String, ClassElement> typeArguments = type.getTypeArguments();
+        return typeArguments.isEmpty() ? null : typeArguments.values().iterator().next();
     }
 
     /**
@@ -555,212 +838,6 @@ public final class JaxRsRoutesGenerator {
         boolean accessible(MemberElement member) {
             return !member.isPrivate() && (member.isPublic() || member.getDeclaringType().getPackageName().equals(resource.getPackageName()));
         }
-    }
-
-    /**
-     * @return Whether a {@code @BeanParam} type, or one nested in it, reads a form field
-     */
-    private static boolean beanUsesForm(ClassElement type, int depth) {
-        if (depth > 8) {
-            return false;
-        }
-        for (MemberElement member : requestMembers(type)) {
-            if (member.hasAnnotation(FormParam.class)
-                || member.hasAnnotation(BeanParam.class) && member instanceof FieldElement field && beanUsesForm(field.getType(), depth + 1)) {
-                return true;
-            }
-        }
-        ConstructorElement constructor = requestConstructor(type);
-        return constructor != null && Arrays.stream(constructor.getParameters()).anyMatch(p -> p.hasAnnotation(FormParam.class));
-    }
-
-    private static boolean encoded(Element element, Element enclosing) {
-        return element.hasAnnotation(Encoded.class) || enclosing.hasAnnotation(Encoded.class);
-    }
-
-    private static List<String> mediaTypes(MethodElement method, ClassElement owner, Class<? extends java.lang.annotation.Annotation> annotation) {
-        String[] values = method.getMethodAnnotationMetadata().stringValues(annotation);
-        if (values.length == 0) {
-            values = owner.stringValues(annotation);
-        }
-        List<String> mediaTypes = new ArrayList<>();
-        for (String value : values) {
-            for (String mediaType : value.split(",")) {
-                String trimmed = mediaType.trim();
-                if (!trimmed.isEmpty()) {
-                    mediaTypes.add(trimmed);
-                }
-            }
-        }
-        return mediaTypes;
-    }
-
-    /**
-     * A route template in the language of JAX-RS: the paths joined by a slash.
-     */
-    static String template(String prefix, String path) {
-        StringBuilder template = new StringBuilder();
-        for (String part : new String[]{prefix, path}) {
-            String trimmed = strip(part);
-            if (!trimmed.isEmpty()) {
-                template.append('/').append(trimmed);
-            }
-        }
-        return template.isEmpty() ? "/" : template.toString();
-    }
-
-    /**
-     * The number of path segments a template matches, a variable with a regular expression
-     * counted as one.
-     */
-    static int segments(String template) {
-        int segments = 0;
-        int depth = 0;
-        boolean inSegment = false;
-        for (int i = 0; i < template.length(); i++) {
-            char c = template.charAt(i);
-            if (c == '{') {
-                depth++;
-            } else if (c == '}') {
-                depth--;
-            }
-            if (c == '/' && depth == 0) {
-                inSegment = false;
-            } else if (!inSegment) {
-                inSegment = true;
-                segments++;
-            }
-        }
-        return segments;
-    }
-
-    private static String strip(String path) {
-        int start = 0;
-        int end = path.length();
-        while (start < end && path.charAt(start) == '/') {
-            start++;
-        }
-        while (end > start && path.charAt(end - 1) == '/') {
-            end--;
-        }
-        return path.substring(start, end);
-    }
-
-    /**
-     * The model of the router of a resource: an {@code HttpRoutes} bean with a route per resource
-     * method, and a method per type created per request.
-     */
-    private static ClassDef router(Model model, @Nullable RequestType root) {
-        ClassElement resource = model.resource;
-        ClassTypeDef routerType = ClassTypeDef.of(resource.getPackageName() + "." + resource.getSimpleName()
-            + (model.located ? "$JaxRsLocatedRouter" : "$JaxRsRouter"));
-        ClassTypeDef resourceType = ClassTypeDef.erasure(resource);
-        Types types = new Types(model.context);
-
-        ClassDef.ClassDefBuilder router = ClassDef.builder(routerType.getName())
-            .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-            .addAnnotation(ClassTypeDef.of("jakarta.inject.Singleton"))
-            .addSuperinterface(model.located ? types.type(LOCATED_ROUTES) : types.type(ROUTER + "HttpRoutes"))
-            .addJavadoc(model.located
-                ? "Implements the routes of {@link " + resource.getCanonicalName() + "} as the target of a sub-resource locator, relative to its prefix."
-                : "Implements the routes of the JAX-RS resource {@link " + resource.getCanonicalName() + "} with handler functions.");
-        Constants constants = new Constants(router, routerType);
-
-        FieldDef resourceField = FieldDef.builder("resource", TypeDef.parameterized(ClassTypeDef.of(BeanProvider.class), resourceType))
-            .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-            .build();
-        FieldDef supportField = FieldDef.builder("support", types.support)
-            .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-            .build();
-        Generator generator = new Generator(model, constants, types, resourceField, supportField);
-
-        List<RouteModel> routes = new ArrayList<>();
-        for (int i = 0; i < model.routes.size(); i++) {
-            routes.add(generator.routeModel(model.routes.get(i), i, root));
-        }
-
-        router.addField(supportField);
-        if (model.located) {
-            router.addMethod(MethodDef.constructor()
-                .addModifiers(Modifier.PUBLIC)
-                .addParameter("support", types.support)
-                .build((aThis, params) -> aThis.field(supportField).assign(params.get(0))));
-            router.addMethod(MethodDef.builder("type")
-                .addModifiers(Modifier.PUBLIC)
-                .addAnnotation(Override.class)
-                .returns(TypeDef.parameterized(ClassTypeDef.of(Class.class), TypeDef.wildcard()))
-                .build((aThis, params) -> ExpressionDef.constant(resourceType).returning()));
-        } else {
-            router.addField(resourceField);
-            router.addMethod(MethodDef.constructor()
-                .addModifiers(Modifier.PUBLIC)
-                .addParameter("resource", resourceField.getType())
-                .addParameter("support", types.support)
-                .build((aThis, params) -> StatementDef.multi(
-                    aThis.field(resourceField).assign(params.get(0)),
-                    aThis.field(supportField).assign(params.get(1))
-                )));
-        }
-        for (RequestType requestType : model.requestTypes.values()) {
-            router.addMethod(generator.createMethod(requestType));
-        }
-        for (RouteModel route : routes) {
-            router.addMethod(generator.routeMethod(route, root));
-        }
-        for (int i = 0; i < model.runtimeLocators.size(); i++) {
-            router.addMethod(generator.locateMethod(model.runtimeLocators.get(i), "locate" + i, root));
-        }
-        router.addMethod(MethodDef.builder("routes")
-            .addModifiers(Modifier.PUBLIC)
-            .addAnnotation(Override.class)
-            .addParameter("routes", types.routeBuilder)
-            .returns(TypeDef.VOID)
-            .build((aThis, params) -> {
-                VariableDef support = aThis.field(supportField);
-                List<StatementDef> statements = new ArrayList<>();
-                for (RouteModel route : routes) {
-                    ResourceMethod method = route.route.method;
-                    List<ExpressionDef> handle = new ArrayList<>();
-                    // declared by the name of the HTTP method, custom or not, with the template in the language of JAX-RS
-                    handle.add(support.invoke(model.located ? "locatedDeclaration" : "declaration", types.routeDeclaration,
-                        ExpressionDef.constant(method.httpMethod), ExpressionDef.constant(method.template)));
-                    String builderMethod;
-                    if (method.async) {
-                        // the handler reads the entity or the form, see handlerLambda
-                        builderMethod = "handleAsync";
-                    } else if (route.form) {
-                        builderMethod = "handleForm";
-                    } else if (route.body) {
-                        builderMethod = "handle";
-                        handle.add(route.entityArgument);
-                    } else {
-                        builderMethod = "handle";
-                    }
-                    handle.add(generator.handlerLambda(aThis, route));
-                    statements.add(support.invoke("configure", TypeDef.VOID,
-                        params.get(0).invoke(builderMethod, types.routeSpec, handle),
-                        route.metadata));
-                }
-                for (int i = 0; i < model.runtimeLocators.size(); i++) {
-                    RuntimeLocator locator = model.runtimeLocators.get(i);
-                    String locateMethod = "locate" + i;
-                    // the router locates the target, then matches the rest of the path with the routes of its class
-                    statements.add(params.get(0).invoke("locate", TypeDef.VOID,
-                        support.invoke(model.located ? "locatedPrefix" : "prefix", types.routeTemplate, ExpressionDef.constant(locator.prefix)),
-                        types.type(ROUTER + "LocatorHandler").getLambda(Map.of()).implement((lambdaThis, lambdaParams) ->
-                            aThis.invoke(locateMethod, TypeDef.OBJECT, new ArrayList<ExpressionDef>(lambdaParams)).returning()),
-                        support.invoke("locatedTables", TypeDef.OBJECT)));
-                }
-                if (model.located) {
-                    return StatementDef.multi(statements);
-                }
-                // the resource is not a bean in this context, e.g. disabled by @Requires, or the
-                // Application lists its classes without it
-                return aThis.field(resourceField).invoke("isPresent", TypeDef.Primitive.BOOLEAN).ifTrue(
-                    support.invoke("isRegistered", TypeDef.Primitive.BOOLEAN, ExpressionDef.constant(ClassTypeDef.erasure(model.resource)))
-                        .ifTrue(StatementDef.multi(statements)));
-            }));
-        return router.build();
     }
 
     /**
@@ -1221,65 +1298,6 @@ public final class JaxRsRoutesGenerator {
         }
     }
 
-    /**
-     * An expression creating the {@code Argument} of a type, with its type arguments.
-     */
-    private static ExpressionDef argument(ClassElement type, Generator generator) {
-        List<ExpressionDef> values = new ArrayList<>();
-        values.add(ExpressionDef.constant(TypeDef.erasure(type)));
-        if (!type.isArray() && !type.isPrimitive()) {
-            for (ClassElement typeArgument : type.getTypeArguments().values()) {
-                values.add(generator.argument(typeArgument));
-            }
-        }
-        return ARGUMENT.invokeStatic("of", ARGUMENT, values);
-    }
-
-    /**
-     * The generic signature of a type, which identifies its {@code Argument}.
-     */
-    private static String signature(ClassElement type) {
-        if (type.isGenericPlaceholder() || type.isWildcard()) {
-            return Object.class.getName();
-        }
-        StringBuilder signature = new StringBuilder(type.getName());
-        if (type.isArray()) {
-            signature.append("[]".repeat(Math.max(1, type.getArrayDimensions())));
-            return signature.toString();
-        }
-        if (!type.isPrimitive() && !type.getTypeArguments().isEmpty()) {
-            signature.append('<');
-            boolean first = true;
-            for (ClassElement typeArgument : type.getTypeArguments().values()) {
-                if (!first) {
-                    signature.append(',');
-                }
-                signature.append(signature(typeArgument));
-                first = false;
-            }
-            signature.append('>');
-        }
-        return signature.toString();
-    }
-
-    private static ExpressionDef strings(List<String> values) {
-        return TypeDef.STRING.array().instantiate(values.stream().map(v -> (ExpressionDef) ExpressionDef.constant(v)).toList());
-    }
-
-    private static boolean throwsThrowable(MethodElement method) {
-        for (ClassElement thrown : method.getThrownTypes()) {
-            if (!thrown.isAssignable(Exception.class)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static @Nullable ClassElement firstTypeArgument(ClassElement type) {
-        Map<String, ClassElement> typeArguments = type.getTypeArguments();
-        return typeArguments.isEmpty() ? null : typeArguments.values().iterator().next();
-    }
-
     private enum ParamKind {
         PATH, QUERY, MATRIX, HEADER, COOKIE, FORM, FORM_ENTITY, CONTEXT, ENTITY, BEAN
     }
@@ -1385,6 +1403,7 @@ public final class JaxRsRoutesGenerator {
      * @param pathVariables The path variables parameter
      * @param form          The form, if the route reads one
      * @param body          The body parameter of a route with an entity
+     * @param route         The route, {@code null} outside a route method
      */
     private record Scope(VariableDef.This router, VariableDef support, VariableDef request, VariableDef pathVariables,
                          @Nullable ExpressionDef form, @Nullable VariableDef body, @Nullable RouteModel route) {
@@ -1396,11 +1415,13 @@ public final class JaxRsRoutesGenerator {
      * @param name           The name of the route method
      * @param route          The route
      * @param entityArgument The nullable body argument constant
+     * @param annotatedEntity The index of the entity parameter whose annotations the readers see, -1 if it has none
      * @param valueType      The declared type of the result, of the stage of an asynchronous method
      * @param returnType     The argument constant of the result
      * @param metadata       The route metadata constant
      * @param form           Whether the route reads a form
      * @param body           Whether the route reads an entity
+     * @param entityForm     Whether the route reads its form parameters from its entity
      */
     private record RouteModel(String name, Route route, @Nullable ExpressionDef entityArgument, int annotatedEntity, @Nullable ClassElement valueType,
                               ExpressionDef returnType, VariableDef.StaticField metadata, boolean form, boolean body,

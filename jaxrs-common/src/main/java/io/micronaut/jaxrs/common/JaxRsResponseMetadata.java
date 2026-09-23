@@ -45,15 +45,19 @@ import java.util.Set;
 public final class JaxRsResponseMetadata extends AbstractMap<String, List<Object>> implements MultivaluedMap<String, Object> {
 
     private final MutableHeaders headers;
+
     private final Map<@Nullable String, List<Object>> objects;
+
+    private final Map<String, List<String>> written;
 
     /**
      * @param headers The headers of the response
-     * @param objects The objects of the headers, kept by the response
+     * @param state   The objects of the headers, kept by the response
      */
-    public JaxRsResponseMetadata(MutableHeaders headers, Map<@Nullable String, List<Object>> objects) {
+    public JaxRsResponseMetadata(MutableHeaders headers, State state) {
         this.headers = headers;
-        this.objects = objects;
+        this.objects = state.objects;
+        this.written = state.written;
     }
 
     @Override
@@ -64,14 +68,22 @@ public final class JaxRsResponseMetadata extends AbstractMap<String, List<Object
         if (name == null) {
             return values;
         }
-        List<String> written = headers.getAll(name);
-        if (values == null || !written.equals(strings(values))) {
-            if (written.isEmpty()) {
+        List<String> current = headers.getAll(name);
+        if (values == null || !current.equals(written.get(name))) {
+            if (current.isEmpty()) {
+                List<String> previous = written.get(name);
+                if (previous != null && !previous.isEmpty()) {
+                    // removed through the response
+                    objects.remove(name);
+                    written.remove(name);
+                    return null;
+                }
                 return values == null ? null : new HeaderValues(name, values);
             }
             // changed through the response
-            values = new ArrayList<>(written);
+            values = new ArrayList<>(current);
             objects.put(name, values);
+            written.put(name, current);
         }
         return new HeaderValues(name, values);
     }
@@ -137,6 +149,7 @@ public final class JaxRsResponseMetadata extends AbstractMap<String, List<Object
         objects.remove(key);
         if (key instanceof String name) {
             headers.remove(name);
+            written.remove(name);
         }
         return previous;
     }
@@ -147,6 +160,7 @@ public final class JaxRsResponseMetadata extends AbstractMap<String, List<Object
             headers.remove(name);
         }
         objects.clear();
+        written.clear();
     }
 
     @Override
@@ -193,6 +207,7 @@ public final class JaxRsResponseMetadata extends AbstractMap<String, List<Object
                 headers.add(key, value);
             }
         }
+        written.put(key, headers.getAll(key));
     }
 
     @SuppressWarnings("unchecked")
@@ -205,6 +220,64 @@ public final class JaxRsResponseMetadata extends AbstractMap<String, List<Object
             }
         }
         return strings;
+    }
+
+    private static Map<Object, Integer> counts(List<?> list) {
+        Map<Object, Integer> counts = new HashMap<>();
+        for (Object o : list) {
+            counts.merge(o, 1, Integer::sum);
+        }
+        return counts;
+    }
+
+    /**
+     * The objects of the headers of a response, and the header values they were written as: the
+     * objects are the metadata as long as the headers keep these values.
+     */
+    public static final class State {
+        private final Map<@Nullable String, List<Object>> objects = new HashMap<>();
+        private final Map<String, List<String>> written = new HashMap<>();
+
+        /**
+         * @return A copy, for another response
+         */
+        public State copy() {
+            State copy = new State();
+            objects.forEach((name, values) -> copy.objects.put(name, new ArrayList<>(values)));
+            copy.written.putAll(written);
+            return copy;
+        }
+
+        /**
+         * Record one more object a header was written from, e.g. a {@code NewCookie}.
+         *
+         * @param headers The headers the value was written to
+         * @param name    The name of the header
+         * @param value   The object
+         */
+        public void add(MutableHeaders headers, String name, Object value) {
+            objects.computeIfAbsent(name, n -> new ArrayList<>()).add(value);
+            written.put(name, headers.getAll(name));
+        }
+
+        /**
+         * Record the object a header was written from, e.g. a {@code Date}.
+         *
+         * @param headers The headers the value was written to
+         * @param name    The name of the header
+         * @param value   The object, {@code null} to forget it
+         */
+        public void set(MutableHeaders headers, String name, @Nullable Object value) {
+            if (value == null) {
+                objects.remove(name);
+                written.remove(name);
+            } else {
+                List<Object> values = new ArrayList<>(1);
+                values.add(value);
+                objects.put(name, values);
+                written.put(name, headers.getAll(name));
+            }
+        }
     }
 
     /**
@@ -248,13 +321,5 @@ public final class JaxRsResponseMetadata extends AbstractMap<String, List<Object
             write(name);
             return previous;
         }
-    }
-
-    private static Map<Object, Integer> counts(List<?> list) {
-        Map<Object, Integer> counts = new HashMap<>();
-        for (Object o : list) {
-            counts.merge(o, 1, Integer::sum);
-        }
-        return counts;
     }
 }

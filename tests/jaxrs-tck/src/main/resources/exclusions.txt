@@ -1,18 +1,5 @@
-# Security
-ee.jakarta.tck.ws.rs.ee.rs.container.requestcontext.security.JAXRSClientIT
-
-# Java SE bootstrap (SeBootstrap) is not supported
+# Run by the seBootstrapTest task, compiled with the annotation processors
 ee.jakarta.tck.ws.rs.sebootstrap.SeBootstrapIT
-
-# Arquillian issue
-ee.jakarta.tck.ws.rs.spec.client.exceptions.ClientExceptionsIT
-
-# Incorrect tests include milliseconds
-ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#expiresTest
-ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#getDateTest
-ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#getLastModifiedTest
-ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT#getDateTest
-ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT#getLastModifiedTest
 
 # Netty Client strips custom Content-Encoding header
 ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT#getHeaderStringTest
@@ -21,23 +8,8 @@ ee.jakarta.tck.ws.rs.ee.rs.core.response.JAXRSClientIT#getHeadersTest
 # HttpServletRequest
 ee.jakarta.tck.ws.rs.ee.rs.container.requestcontext.JAXRSClientIT
 
-# cookies do not contain version=1
-ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#cookieTest
-ee.jakarta.tck.ws.rs.api.rs.core.responsebuilder.BuilderClientIT#getCookiesTest
-ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT#cookieTest
-ee.jakarta.tck.ws.rs.api.rs.core.responseclient.JAXRSClientIT#getCookiesTest
-
-# Arquillian issue but test is likely broken anyway because we don't use jsonb
+# No JSON-B entity provider: JSON is read and written by the Micronaut codecs
 ee.jakarta.tck.ws.rs.spec.contextprovider.JsonbContextProviderIT
-
-# API.Status.STABLE compilation issue
-ee.jakarta.tck.ws.rs.jaxrs31.ee.multipart.MultipartSupportIT
-
-# TDK missing
-ee.jakarta.tck.ws.rs.signaturetest.jaxrs.JAXRSSigTestIT
-
-# The harness does not configure the users and passwords the tests authenticate with
-ee.jakarta.tck.ws.rs.ee.rs.core.securitycontext.basic.JAXRSBasicClientIT
 
 # The standard MultivaluedMap form reader and writer are Micronaut ones, used after the JAX-RS providers of the application
 ee.jakarta.tck.ws.rs.spec.provider.standardhaspriority.JAXRSClientIT#readWriteMapProviderTest

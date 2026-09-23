@@ -39,6 +39,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.function.Predicate;
 
 /**
@@ -59,10 +60,22 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
     private boolean finished;
     private final boolean preMatching = false; // TODO: Support pre matching in Micronaut
 
+    // the security context of the request, unless a filter replaced it
+    private @Nullable Supplier<SecurityContext> securityContext;
+
     JaxRsContainerRequestContext(MutableHttpRequest<?> mutableHttpRequest, ApplicationProvider applicationProvider) {
         this.mutableHttpRequest = mutableHttpRequest;
         this.applicationProvider = applicationProvider;
         this.jaxRsHttpHeaders = JaxRsMutableHttpHeaders.forRequest(mutableHttpRequest.getHeaders());
+    }
+
+    /**
+     * @param securityContext The security context of the request
+     * @return This
+     */
+    JaxRsContainerRequestContext withSecurityContext(Supplier<SecurityContext> securityContext) {
+        this.securityContext = securityContext;
+        return this;
     }
 
     @Override
@@ -195,12 +208,13 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
 
     @Override
     public @Nullable SecurityContext getSecurityContext() {
-        return null;
+        return securityContext == null ? null : securityContext.get();
     }
 
     @Override
     public void setSecurityContext(SecurityContext context) {
         checkRequestFilteringInProgress();
+        this.securityContext = () -> context;
     }
 
     @Override

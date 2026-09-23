@@ -21,12 +21,10 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.RouteInfo;
 import io.micronaut.web.router.MethodBasedRouteInfo;
-import io.micronaut.core.annotation.AnnotationMetadataProvider;
 import io.micronaut.http.simple.SimpleHttpHeaders;
 import io.micronaut.jaxrs.common.JaxRsUtils;
 import io.micronaut.http.body.MessageBodyHandlerRegistry;
 import io.micronaut.http.body.MessageBodyReader;
-import io.micronaut.jaxrs.common.JaxRsMessageBodyReader;
 import io.micronaut.core.beans.BeanIntrospection;
 import io.micronaut.core.beans.BeanIntrospector;
 import io.micronaut.core.beans.BeanProperty;
@@ -43,6 +41,8 @@ import io.micronaut.inject.ExecutableMethod;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.http.MediaType;
+import io.micronaut.http.form.FileUpload;
+import io.micronaut.jaxrs.common.multipart.JaxRsEntityPart;
 import io.micronaut.http.bind.RequestBinderRegistry;
 import io.micronaut.inject.qualifiers.Qualifiers;
 import io.micronaut.jaxrs.common.JaxRsGenericEntity;
@@ -65,6 +65,7 @@ import jakarta.ws.rs.CookieParam;
 import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.Encoded;
 import jakarta.ws.rs.FormParam;
+import jakarta.ws.rs.core.EntityPart;
 import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.MatrixParam;
 import jakarta.ws.rs.PathParam;
@@ -124,27 +125,47 @@ import java.util.function.Function;
 @Singleton
 public final class JaxRsRouteSupport {
 
-    private final ApplicationProvider applicationProvider;
-    private final String applicationPath;
-    private final ConversionService conversionService;
-    private final List<ParamConverterProvider> paramConverterProviders;
-    private final RequestBinderRegistry binderRegistry;
-    private final Map<Argument<?>, Optional<ArgumentBinder<Object, HttpRequest<?>>>> contextBinders = new ConcurrentHashMap<>();
-    private final BeanContext beanContext;
-    private final Map<Argument<?>, StringConverter> converters = new ConcurrentHashMap<>();
-    private final Map<String, java.lang.reflect.Field> fields = new ConcurrentHashMap<>();
-    private final Map<Class<?>, BeanParamBinder> beanParams = new ConcurrentHashMap<>();
-    private final Map<Class<?>, RouteTable> locatedTables = new ConcurrentHashMap<>();
     /**
      * The body of a route with an entity: its bytes, {@code null} without a body. The route reads
      * the entity with the JAX-RS readers, see {@link #entity(HttpRequest, byte[], Argument)}.
      */
     public static final Argument<byte[]> ENTITY = HttpRouteBuilder.nullableBody(Argument.of(byte[].class));
 
+    /**
+     * The attribute of the request that holds its event sink.
+     */
+    static final String SSE_EVENT_SINK = SseEventSink.class.getName();
+
+    private final ApplicationProvider applicationProvider;
+
+    private final String applicationPath;
+
+    private final ConversionService conversionService;
+
+    private final List<ParamConverterProvider> paramConverterProviders;
+
+    private final RequestBinderRegistry binderRegistry;
+
+    private final Map<Argument<?>, Optional<ArgumentBinder<Object, HttpRequest<?>>>> contextBinders = new ConcurrentHashMap<>();
+
+    private final BeanContext beanContext;
+
+    private final Map<Argument<?>, StringConverter> converters = new ConcurrentHashMap<>();
+
+    private final Map<String, java.lang.reflect.Field> fields = new ConcurrentHashMap<>();
+
+    private final Map<Class<?>, BeanParamBinder> beanParams = new ConcurrentHashMap<>();
+
+    private final Map<Class<?>, RouteTable> locatedTables = new ConcurrentHashMap<>();
+
     private volatile @Nullable JaxRsMessageBodyReaders<?> readers;
+
     private volatile @Nullable JaxRsContainerFilters containerFilters;
+
     private final Map<RouteMetadata, Argument<?>> entityArguments = new ConcurrentHashMap<>();
+
     private volatile @Nullable Set<Class<?>> registeredClasses;
+
     private volatile @Nullable Map<Class<?>, JaxRsLocatedRoutes> locatedRoutesByType;
 
     JaxRsRouteSupport(ApplicationProvider applicationProvider,
@@ -396,6 +417,7 @@ public final class JaxRsRouteSupport {
      * @param name          The name of the path parameter
      * @param argument      The type of the parameter
      * @param defaultValue  The {@code @DefaultValue}
+     * @param encoded       Whether the value is kept encoded ({@code @Encoded})
      * @return The value, converted
      */
     public @Nullable Object pathParam(HttpRequest<?> request, PathVariables pathVariables, String name, Argument<?> argument,
@@ -437,6 +459,7 @@ public final class JaxRsRouteSupport {
      * @param name         The name of the query parameter
      * @param argument     The type of the parameter
      * @param defaultValue The {@code @DefaultValue}
+     * @param encoded      Whether the value is kept encoded ({@code @Encoded})
      * @return The value, converted
      */
     public @Nullable Object queryParam(HttpRequest<?> request, String name, Argument<?> argument,
@@ -450,6 +473,7 @@ public final class JaxRsRouteSupport {
      * @param name         The name of the matrix parameter, of the last segment of the path
      * @param argument     The type of the parameter
      * @param defaultValue The {@code @DefaultValue}
+     * @param encoded      Whether the value is kept encoded ({@code @Encoded})
      * @return The value, converted
      */
     public @Nullable Object matrixParam(HttpRequest<?> request, String name, Argument<?> argument,
@@ -488,10 +512,12 @@ public final class JaxRsRouteSupport {
     }
 
     /**
+     * @param request      The request
      * @param form         The form
      * @param name         The name of the field
      * @param argument     The type of the parameter
      * @param defaultValue The {@code @DefaultValue}
+     * @param encoded      Whether the value is kept encoded ({@code @Encoded})
      * @return The value, converted
      */
     public @Nullable Object formParam(HttpRequest<?> request, @Nullable FormData form, String name, Argument<?> argument,
@@ -500,12 +526,48 @@ public final class JaxRsRouteSupport {
             // no form read by the route
             return queryParam(request, name, argument, defaultValue, encoded);
         }
+        Class<?> type = argument.getType();
+        if (type == EntityPart.class || type == InputStream.class) {
+            // a part of a multipart form (JAX-RS 3.1 section 3.5.4)
+            EntityPart part = formPart(request, form, name);
+            return part == null || type == EntityPart.class ? part : part.getContent();
+        }
         List<String> values = form.getValues(name);
         if (encoded) {
             // form encoding: a space is a plus
             values = values.stream().map(value -> java.net.URLEncoder.encode(value, java.nio.charset.StandardCharsets.UTF_8)).toList();
         }
         return convert(values, argument, defaultValue, false);
+    }
+
+    /**
+     * A part of a multipart form: a new {@link EntityPart} each time, as its content is read once,
+     * over the content of the field, which is read once per request.
+     */
+    @SuppressWarnings("unchecked")
+    private static @Nullable EntityPart formPart(HttpRequest<?> request, FormData form, String name) {
+        Map<String, FormPart> parts = request.getAttribute(FormPart.class.getName(), Map.class).orElse(null);
+        if (parts == null) {
+            parts = new HashMap<>();
+            request.setAttribute(FormPart.class.getName(), parts);
+        }
+        FormPart part = parts.get(name);
+        if (part == null) {
+            Optional<FileUpload> file = form.findFile(name);
+            if (file.isPresent()) {
+                FileUpload upload = file.get();
+                MediaType mediaType = upload.contentType().orElse(MediaType.APPLICATION_OCTET_STREAM_TYPE);
+                part = new FormPart(upload.fileName(), jakarta.ws.rs.core.MediaType.valueOf(mediaType.toString()), upload.readAllBytes());
+            } else {
+                List<String> values = form.getValues(name);
+                if (values.isEmpty()) {
+                    return null;
+                }
+                part = new FormPart(null, jakarta.ws.rs.core.MediaType.TEXT_PLAIN_TYPE, values.get(0).getBytes(StandardCharsets.UTF_8));
+            }
+            parts.put(name, part);
+        }
+        return JaxRsEntityPart.read(name, part.fileName(), part.mediaType(), part.content());
     }
 
     /**
@@ -603,11 +665,6 @@ public final class JaxRsRouteSupport {
         }
         return reader.get().read((Argument) argument, contentType, request.getHeaders(), InputStream.nullInputStream());
     }
-
-    /**
-     * The attribute of the request that holds its event sink.
-     */
-    static final String SSE_EVENT_SINK = SseEventSink.class.getName();
 
     /**
      * The event sink of a request, whose events are the body of its response, see
@@ -952,25 +1009,24 @@ public final class JaxRsRouteSupport {
     private @Nullable ValueReader reader(AnnotationMetadata metadata, Argument<?> argument, boolean encodedType) {
         String defaultValue = metadata.stringValue(DefaultValue.class).orElse(null);
         boolean encoded = encodedType || metadata.hasAnnotation(Encoded.class);
-        Optional<String> name;
-        if ((name = metadata.stringValue(PathParam.class)).isPresent()) {
-            String n = name.get();
-            return (request, pathVariables, form) -> pathParam(request, pathVariables, n, argument, defaultValue, encoded);
-        } else if ((name = metadata.stringValue(QueryParam.class)).isPresent()) {
-            String n = name.get();
-            return (request, pathVariables, form) -> queryParam(request, n, argument, defaultValue, encoded);
-        } else if ((name = metadata.stringValue(MatrixParam.class)).isPresent()) {
-            String n = name.get();
-            return (request, pathVariables, form) -> matrixParam(request, n, argument, defaultValue, encoded);
-        } else if ((name = metadata.stringValue(HeaderParam.class)).isPresent()) {
-            String n = name.get();
-            return (request, pathVariables, form) -> headerParam(request, n, argument, defaultValue);
-        } else if ((name = metadata.stringValue(CookieParam.class)).isPresent()) {
-            String n = name.get();
-            return (request, pathVariables, form) -> cookieParam(request, n, argument, defaultValue);
-        } else if ((name = metadata.stringValue(FormParam.class)).isPresent()) {
-            String n = name.get();
-            return (request, pathVariables, form) -> formParam(request, form, n, argument, defaultValue, encoded);
+        String pathParam = metadata.stringValue(PathParam.class).orElse(null);
+        String queryParam = metadata.stringValue(QueryParam.class).orElse(null);
+        String matrixParam = metadata.stringValue(MatrixParam.class).orElse(null);
+        String headerParam = metadata.stringValue(HeaderParam.class).orElse(null);
+        String cookieParam = metadata.stringValue(CookieParam.class).orElse(null);
+        String formParam = metadata.stringValue(FormParam.class).orElse(null);
+        if (pathParam != null) {
+            return (request, pathVariables, form) -> pathParam(request, pathVariables, pathParam, argument, defaultValue, encoded);
+        } else if (queryParam != null) {
+            return (request, pathVariables, form) -> queryParam(request, queryParam, argument, defaultValue, encoded);
+        } else if (matrixParam != null) {
+            return (request, pathVariables, form) -> matrixParam(request, matrixParam, argument, defaultValue, encoded);
+        } else if (headerParam != null) {
+            return (request, pathVariables, form) -> headerParam(request, headerParam, argument, defaultValue);
+        } else if (cookieParam != null) {
+            return (request, pathVariables, form) -> cookieParam(request, cookieParam, argument, defaultValue);
+        } else if (formParam != null) {
+            return (request, pathVariables, form) -> formParam(request, form, formParam, argument, defaultValue, encoded);
         } else if (metadata.hasAnnotation(BeanParam.class)) {
             Class<?> type = argument.getType();
             return (request, pathVariables, form) -> beanParam(type, request, pathVariables, form);
@@ -979,22 +1035,6 @@ public final class JaxRsRouteSupport {
             return (request, pathVariables, form) -> context(request, argument, named);
         }
         return null;
-    }
-
-    /**
-     * Reads a value of the request.
-     */
-    @FunctionalInterface
-    private interface ValueReader {
-        @Nullable Object read(HttpRequest<?> request, PathVariables pathVariables, @Nullable FormData form);
-    }
-
-    /**
-     * Creates a bean parameter.
-     */
-    @FunctionalInterface
-    private interface BeanParamBinder {
-        Object bind(HttpRequest<?> request, PathVariables pathVariables, @Nullable FormData form);
     }
 
     /**
@@ -1185,20 +1225,46 @@ public final class JaxRsRouteSupport {
         }
     }
 
-    /**
-     * Converts the string value of a parameter.
-     */
-    @FunctionalInterface
-    private interface StringConverter {
-        @Nullable Object convert(String value) throws Exception;
-    }
-
     private static MediaType[] mediaTypes(String[] values) {
         MediaType[] mediaTypes = new MediaType[values.length];
         for (int i = 0; i < values.length; i++) {
             mediaTypes[i] = MediaType.of(values[i]);
         }
         return mediaTypes;
+    }
+
+    /**
+     * The content of a field of a multipart form.
+     *
+     * @param fileName  The file name, {@code null} for a text field
+     * @param mediaType The media type
+     * @param content   The content
+     */
+    private record FormPart(@Nullable String fileName, jakarta.ws.rs.core.MediaType mediaType, byte[] content) {
+    }
+
+    /**
+     * Reads a value of the request.
+     */
+    @FunctionalInterface
+    private interface ValueReader {
+        @Nullable Object read(HttpRequest<?> request, PathVariables pathVariables, @Nullable FormData form);
+    }
+
+    /**
+     * Creates a bean parameter.
+     */
+    @FunctionalInterface
+    private interface BeanParamBinder {
+        Object bind(HttpRequest<?> request, PathVariables pathVariables, @Nullable FormData form);
+    }
+
+    /**
+     * Converts the string value of a parameter.
+     */
+    @FunctionalInterface
+    private interface StringConverter {
+        @Nullable Object convert(String value) throws Exception;
     }
 
     /**

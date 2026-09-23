@@ -69,6 +69,7 @@ final class JaxRsContainerFilters {
     private static final String REQUEST_CONTEXT_KEY = ContainerRequestFilter.class.getName();
 
     private final ApplicationProvider applicationProvider;
+    private final BeanContext beanContext;
     private final List<ContainerRequestFilter> preMatchingRequestFilters;
     private final List<BeanRegistration<ContainerRequestFilter>> requestFilters;
     private final List<BeanRegistration<ContainerResponseFilter>> containerResponseFilters;
@@ -80,6 +81,7 @@ final class JaxRsContainerFilters {
                  NameBindingPredicate nameBindingPredicate,
                  JaxRsFeatures features) {
         this.applicationProvider = applicationProvider;
+        this.beanContext = beanContext;
         this.features = features;
         // the filters the features register are beans too
         features.configure();
@@ -93,6 +95,14 @@ final class JaxRsContainerFilters {
         JaxRsUtils.sortRegistrationsByPriority(this.requestFilters);
         this.containerResponseFilters = containerResponseFilters;
         JaxRsUtils.sortRegistrationsByPriorityReversed(this.containerResponseFilters);
+    }
+
+    /**
+     * The context of the filters of a request, with the security context of the request.
+     */
+    private JaxRsContainerRequestContext newContext(MutableHttpRequest<?> request) {
+        return new JaxRsContainerRequestContext(request, applicationProvider)
+            .withSecurityContext(() -> beanContext.getBean(JaxRsContextSecurityContext.class));
     }
 
     /**
@@ -132,6 +142,8 @@ final class JaxRsContainerFilters {
         Argument<?> bodyArgument;
         // the annotations given with the entity
         Annotation[] entityAnnotations = null;
+        // the type of a GenericEntity of the application is the one the writers see (JAX-RS 4.2.2)
+        boolean declaredType = false;
         if (body instanceof JaxRsGenericEntity<?> genericEntity) {
             bodyArgument = genericEntity.asArgument();
             entityAnnotations = genericEntity.getAnnotations();
@@ -141,12 +153,13 @@ final class JaxRsContainerFilters {
             body = genericEntity.getEntity();
             bodyArgument = JaxRsArgumentUtil.from(genericEntity);
             mutableHttpResponse.body(genericEntity.getEntity());
+            declaredType = true;
         } else if (body != null && routeInfo != null) {
             bodyArgument = routeInfo.getResponseBodyType();
         } else {
             bodyArgument = Argument.OBJECT_ARGUMENT;
         }
-        if (body != null && !bodyArgument.getType().equals(body.getClass())) {
+        if (body != null && !declaredType && !bodyArgument.getType().equals(body.getClass())) {
             bodyArgument = Argument.of(body.getClass(), bodyArgument.getAnnotationMetadata());
         }
 
@@ -177,7 +190,7 @@ final class JaxRsContainerFilters {
         JaxRsFeatures.Components dynamic = dynamicComponents(routeInfo);
         if (!containerResponseFilters.isEmpty() || !dynamic.responseFilters().isEmpty()) {
             JaxRsContainerRequestContext requestContext = request.getAttribute(REQUEST_CONTEXT_KEY, JaxRsContainerRequestContext.class)
-                .orElseGet(() -> new JaxRsContainerRequestContext(request.mutate(), applicationProvider));
+                .orElseGet(() -> newContext(request.mutate()));
             requestContext.finished();
             JaxRsContainerResponseContext responseContext = new JaxRsContainerResponseContext(mutableHttpResponse, bodyArgument, entityAnnotations);
             List<ContainerResponseFilter> filters = new ArrayList<>(containerResponseFilters.stream()
@@ -226,7 +239,7 @@ final class JaxRsContainerFilters {
             // Intercept only JaxRs routes
             return null;
         }
-        JaxRsContainerRequestContext requestContext = new JaxRsContainerRequestContext(request, applicationProvider);
+        JaxRsContainerRequestContext requestContext = newContext(request);
         for (ContainerRequestFilter preMatchingRequestFilter : preMatchingRequestFilters) {
             preMatchingRequestFilter.filter(requestContext);
             Response response = requestContext.getResponse();
@@ -254,7 +267,7 @@ final class JaxRsContainerFilters {
         if (requestFilters.isEmpty() && dynamic.requestFilters().isEmpty()) {
             return null;
         }
-        JaxRsContainerRequestContext requestContext = new JaxRsContainerRequestContext(request, applicationProvider);
+        JaxRsContainerRequestContext requestContext = newContext(request);
         if (!containerResponseFilters.isEmpty() || !dynamic.responseFilters().isEmpty()) {
             request.setAttribute(REQUEST_CONTEXT_KEY, requestContext);
         }

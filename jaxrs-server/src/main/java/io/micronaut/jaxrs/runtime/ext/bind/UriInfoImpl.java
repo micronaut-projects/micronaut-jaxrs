@@ -226,7 +226,6 @@ public final class UriInfoImpl implements UriInfo {
         return map;
     }
 
-
     @Override
     public List<String> getMatchedURIs() {
         return getMatchedURIs(true);
