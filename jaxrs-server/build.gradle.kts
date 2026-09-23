@@ -48,7 +48,7 @@ noReflection {
     // ResourceContext.getResource(Class) instantiates a class
     allowIn("io.micronaut.jaxrs.container.JaxRsContextResourceContext", "REFLECTIVE_ACCESS")
     // the writers get the annotations of the resource method as Annotation[]
-    allowIn("io.micronaut.jaxrs.container.JaxRsFilters", "ANNOTATIONS", "TARGET_MEMBERS")
+    allowIn("io.micronaut.jaxrs.container.JaxRsContainerFilters", "ANNOTATIONS", "TARGET_MEMBERS")
     // ContainerResponseContext.getEntityAnnotations() returns Annotation[]
     allowIn("io.micronaut.jaxrs.container.JaxRsContainerResponseContext", "ANNOTATION_SYNTHESIS")
     // a ParamConverterProvider gets the annotations of the parameter as Annotation[]
