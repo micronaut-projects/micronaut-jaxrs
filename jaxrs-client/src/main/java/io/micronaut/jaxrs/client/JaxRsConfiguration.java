@@ -496,7 +496,7 @@ final class JaxRsConfiguration implements Configuration {
         };
     }
 
-    private <T> io.micronaut.http.body.@Nullable MessageBodyReader<T> findReader(Argument<T> argument,
+    <T> io.micronaut.http.body.@Nullable MessageBodyReader<T> findReader(Argument<T> argument,
                                                                                 @Nullable MediaType mediaType) {
         // First, let's try to find JaxRs reader
         for (JaxRsMessageBodyReaderDefinition readerDer : getReaders()) {
