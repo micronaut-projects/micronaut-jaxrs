@@ -143,6 +143,7 @@ ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT#pathParamOnFieldTest
 ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT#queryParamInParamTest
 ee.jakarta.tck.ws.rs.ee.rs.beanparam.plain.JAXRSClientIT#queryParamOnFieldTest
 ee.jakarta.tck.ws.rs.ee.rs.ext.paramconverter.JAXRSClientIT#formParamUsesParamConvertorTest
+ee.jakarta.tck.ws.rs.ee.rs.ext.paramconverter.JAXRSClientIT#formParamInLocatorTest
 
 
 
@@ -163,9 +164,6 @@ ee.jakarta.tck.ws.rs.ee.rs.core.securitycontext.basic.JAXRSBasicClientIT
 
 
 
-# Sub-resources: still failing with locators known at runtime
-ee.jakarta.tck.ws.rs.ee.rs.ext.paramconverter.JAXRSClientIT#formParamInLocatorTest
-ee.jakarta.tck.ws.rs.spec.resource.locator.JAXRSClientIT#checkEntityIsNotSetTest
 
 
 

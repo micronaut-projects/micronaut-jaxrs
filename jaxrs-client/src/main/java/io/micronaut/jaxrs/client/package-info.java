@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2020 original authors
+ * Copyright 2017-2026 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,12 +14,11 @@
  * limitations under the License.
  */
 /**
- * Contains spec implementation classes, much of the code forked from RESTEasy or delegating to internal Micronaut classes.
+ * The JAX-RS client, on the Micronaut HTTP client.
  *
- * @author graemerocher
- * @since 1.0
+ * @since 5.0.0
  */
 @NullMarked
-package io.micronaut.jaxrs.common;
+package io.micronaut.jaxrs.client;
 
 import org.jspecify.annotations.NullMarked;
