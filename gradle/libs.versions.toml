@@ -12,6 +12,8 @@ jakarta-activation-api = "2.1.4"
 jakarta-xml-bind-api = "4.0.5"
 jaxb-runtime = "4.0.9"
 angus-activation = "2.0.3"
+jakarta-json-bind-api = "3.0.1"
+yasson = "3.0.5"
 errorprone-gradle-plugin = "5.1.1"
 errorprone-no-reflection = "1.0.1"
 error-prone-core = "2.50.0"
@@ -37,6 +39,8 @@ managed-jaxrs-api = { module = "jakarta.ws.rs:jakarta.ws.rs-api", version.ref = 
 jakarta-activation-api = { module = "jakarta.activation:jakarta.activation-api", version.ref = "jakarta-activation-api" }
 jakarta-xml-bind-api = { module = "jakarta.xml.bind:jakarta.xml.bind-api", version.ref = "jakarta-xml-bind-api" }
 jaxb-runtime = { module = "org.glassfish.jaxb:jaxb-runtime", version.ref = "jaxb-runtime" }
+jakarta-json-bind-api = { module = "jakarta.json.bind:jakarta.json.bind-api", version.ref = "jakarta-json-bind-api" }
+yasson = { module = "org.eclipse:yasson", version.ref = "yasson" }
 angus-activation = { module = "org.eclipse.angus:angus-activation", version.ref = "angus-activation" }
 
 nullaway = { module = "com.uber.nullaway:nullaway", version.ref = "nullaway" }

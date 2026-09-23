@@ -43,6 +43,13 @@ public final class JaxRsMessageBodyReader<T> implements MessageBodyReader<T> {
         this.delegate = delegate;
     }
 
+    /**
+     * @return The JAX-RS reader
+     */
+    public jakarta.ws.rs.ext.MessageBodyReader<T> delegate() {
+        return delegate;
+    }
+
     @Override
     public boolean isReadable(@NonNull Argument<T> type, @Nullable MediaType mediaType) {
         return delegate.isReadable(type.getType(), type.asType(), JaxRsArgumentUtil.annotations(type.getAnnotationMetadata(), delegate), JaxRsUtils.convert(mediaType));

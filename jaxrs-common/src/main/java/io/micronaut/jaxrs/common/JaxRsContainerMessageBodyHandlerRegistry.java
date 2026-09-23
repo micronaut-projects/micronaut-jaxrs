@@ -95,10 +95,11 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
             .filter(br -> isRegistered(br.getBeanDefinition().getBeanType()))
             // the readers of the type, a supertype, including Object, or a subtype
             .filter(br -> typeDistance(br, MessageBodyReader.class, theType) != Integer.MAX_VALUE || readsSubtype(br, theType))
-            // JAX-RS 4.2.1: the most specific media type first, then the nearest type, then the
-            // providers of the application before the standard ones (4.1.3)
-            .sorted(Comparator.<BeanRegistration<MessageBodyReader<T>>>comparingInt(br -> mediaTypeSpecificity(br, Consumes.class, mediaTypes)).reversed()
-                .thenComparingInt(br -> typeDistance(br, MessageBodyReader.class, theType))
+            // the order of the writers (JAX-RS 4.2.2, step 4), which 4.2.1 leaves open: the nearest
+            // type first, then the most specific media type, then the providers of the application
+            // before the standard ones (4.1.3)
+            .sorted(Comparator.<BeanRegistration<MessageBodyReader<T>>>comparingInt(br -> typeDistance(br, MessageBodyReader.class, theType))
+                .thenComparing(Comparator.<BeanRegistration<MessageBodyReader<T>>>comparingInt(br -> mediaTypeSpecificity(br, Consumes.class, mediaTypes)).reversed())
                 .thenComparing(br -> br.getBeanDefinition().getBeanType().getName().startsWith("io.micronaut.")))
             .map(BeanRegistration::getBean)
             .toList();
@@ -123,10 +124,10 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
             .filter(br -> isRegistered(br.getBeanDefinition().getBeanType()))
             // the writers of the type or a supertype, including Object: MessageBodyWriter<Object>
             .filter(br -> typeDistance(br, MessageBodyWriter.class, theType) != Integer.MAX_VALUE)
-            // JAX-RS 4.2.2: the most specific media type first, then the nearest type, then the
-            // providers of the application before the standard ones (4.1.3)
-            .sorted(Comparator.<BeanRegistration<MessageBodyWriter<T>>>comparingInt(br -> mediaTypeSpecificity(br, Produces.class, mediaTypes)).reversed()
-                .thenComparingInt(br -> typeDistance(br, MessageBodyWriter.class, theType))
+            // JAX-RS 4.2.2, step 4: the nearest type first, then the most specific media type, then
+            // the providers of the application before the standard ones (4.1.3)
+            .sorted(Comparator.<BeanRegistration<MessageBodyWriter<T>>>comparingInt(br -> typeDistance(br, MessageBodyWriter.class, theType))
+                .thenComparing(Comparator.<BeanRegistration<MessageBodyWriter<T>>>comparingInt(br -> mediaTypeSpecificity(br, Produces.class, mediaTypes)).reversed())
                 .thenComparing(br -> br.getBeanDefinition().getBeanType().getName().startsWith("io.micronaut.")))
             .toList();
     }
@@ -146,22 +147,7 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
      */
     private static int typeDistance(BeanRegistration<?> registration, Class<?> provider, Class<?> type) {
         List<Argument<?>> arguments = registration.getBeanDefinition().getTypeArguments(provider);
-        Class<?> written = arguments.isEmpty() ? Object.class : arguments.get(0).getType();
-        if (!written.isAssignableFrom(type)) {
-            // not a writer of the type
-            return Integer.MAX_VALUE;
-        }
-        int distance = 0;
-        for (Class<?> t = type; t != null; t = t.getSuperclass()) {
-            if (t == written) {
-                return distance;
-            }
-            if (written.isInterface() && written.isAssignableFrom(t)) {
-                return distance + 1;
-            }
-            distance++;
-        }
-        return distance;
+        return JaxRsUtils.typeDistance(arguments.isEmpty() ? Object.class : arguments.get(0).getType(), type);
     }
 
     /**
@@ -169,21 +155,7 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
      * the media types is: 2 for a type, 1 for a type with a wildcard subtype, 0 for any type.
      */
     private static int mediaTypeSpecificity(BeanRegistration<?> registration, Class<? extends Annotation> annotation, List<MediaType> mediaTypes) {
-        String[] produces = registration.getBeanDefinition().getAnnotationMetadata().stringValues(annotation);
-        if (produces.length == 0) {
-            return 0;
-        }
-        int best = 0;
-        for (String value : produces) {
-            MediaType produced = new MediaType(value);
-            for (MediaType mediaType : mediaTypes) {
-                if (mediaType.matches(produced) || produced.matches(mediaType)) {
-                    int specificity = "*".equals(produced.getType()) ? 0 : "*".equals(produced.getSubtype()) ? 1 : 2;
-                    best = Math.max(best, specificity);
-                }
-            }
-        }
-        return best;
+        return JaxRsUtils.mediaTypeSpecificity(registration.getBeanDefinition().getAnnotationMetadata().stringValues(annotation), mediaTypes);
     }
 
     @SuppressWarnings({"unchecked"})
