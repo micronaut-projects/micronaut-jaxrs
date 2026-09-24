@@ -26,8 +26,8 @@ import io.micronaut.core.beans.BeanProperty;
 import io.micronaut.core.type.Argument;
 import io.micronaut.core.type.Executable;
 import io.micronaut.core.util.SupplierUtil;
-import io.micronaut.http.AsyncServerHttpRequest;
 import io.micronaut.http.HttpRequest;
+import io.micronaut.http.body.AsyncRequestBody;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.annotation.Controller;
 import io.micronaut.http.form.FormData;
@@ -39,7 +39,8 @@ import io.micronaut.inject.qualifiers.Qualifiers;
 import io.micronaut.web.router.RouteTable;
 import io.micronaut.web.router.RouteTableFactory;
 import io.micronaut.http.uri.RouteTemplate;
-import io.micronaut.web.router.builder.LocatedAsyncRequestHandler;
+import io.micronaut.web.router.builder.AsyncBodyRequestHandler;
+import io.micronaut.web.router.builder.LocatedAsyncBodyRequestHandler;
 import io.micronaut.web.router.builder.LocatedBodyRequestHandler;
 import io.micronaut.web.router.builder.LocatedFormRequestHandler;
 import io.micronaut.web.router.builder.LocatedHttpRouteBuilder;
@@ -529,14 +530,15 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         HttpRouteSpec spec;
         if (method.async()) {
             if (form) {
-                spec = routes.handleAsync(declaration, (request, pathVariables, target) -> support.formAsync(request, pathVariables,
+                spec = routes.handleAsync(declaration, (request, pathVariables, target, requestBody) -> support.formAsync(request, pathVariables, requestBody,
                     (readRequest, readPathVariables, value) -> callAsync(method, instances, readRequest, readPathVariables, target, value, null)));
             } else if (body) {
-                spec = routes.handleAsync(declaration, (request, pathVariables, target) -> support.entityAsync(request, pathVariables,
+                spec = routes.handleAsync(declaration, (request, pathVariables, target, requestBody) -> support.entityAsync(request, pathVariables, requestBody,
                     (readRequest, readPathVariables, value) -> callAsync(method, instances, readRequest, readPathVariables, target,
                         entityForm ? support.entityForm(readRequest, value) : null, value)));
             } else {
-                spec = routes.handleAsync(declaration, (request, pathVariables, target) ->
+                // the body is not read
+                spec = routes.handleAsync(declaration, (request, pathVariables, target, requestBody) ->
                     callAsync(method, instances, request, pathVariables, target, null, null));
             }
         } else if (form) {
@@ -1001,8 +1003,8 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      */
     @FunctionalInterface
     private interface AsyncHandler<L> {
-        CompletionStage<? extends HttpResponse<?>> handle(AsyncServerHttpRequest<?> request, PathVariables pathVariables,
-                                                          @Nullable L target) throws Exception;
+        CompletionStage<? extends HttpResponse<?>> handle(HttpRequest<?> request, PathVariables pathVariables,
+                                                          @Nullable L target, AsyncRequestBody body) throws Exception;
     }
 
     /**
@@ -1082,7 +1084,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
 
         @Override
         public HttpRouteSpec handleAsync(RouteDeclaration route, AsyncHandler<@Nullable Void> handler) {
-            return routes.handleAsync(route, (request, pathVariables) -> handler.handle(request, pathVariables, null));
+            return routes.handleAsync(route, (AsyncBodyRequestHandler) (request, pathVariables, body) -> handler.handle(request, pathVariables, null, body));
         }
 
         @Override
@@ -1136,7 +1138,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
 
         @Override
         public HttpRouteSpec handleAsync(RouteDeclaration route, AsyncHandler<L> handler) {
-            return routes.handleAsync(route, (LocatedAsyncRequestHandler<L>) (request, pathVariables, target) -> handler.handle(request, pathVariables, target));
+            return routes.handleAsync(route, (LocatedAsyncBodyRequestHandler<L>) (request, pathVariables, target, body) -> handler.handle(request, pathVariables, target, body));
         }
 
         @Override
