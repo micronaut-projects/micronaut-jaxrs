@@ -1008,7 +1008,7 @@ public final class JaxRsRoutesGenerator {
                 TypeDef read = route.form ? types.form : TypeDef.of(byte[].class);
                 return types.type(ROUTER + handlerType).getLambda(Map.of()).implement((lambdaThis, lambdaParams) ->
                     aThis.field(supportField).invoke(route.form ? "formAsync" : "entityAsync", ClassTypeDef.of(COMPLETION_STAGE),
-                        lambdaParams.get(0), lambdaParams.get(1),
+                        lambdaParams.get(0), lambdaParams.get(1), lambdaParams.get(2),
                         types.type(ASYNC_HANDLER).getLambda(Map.of("T", read)).implement((valueThis, valueParams) ->
                             aThis.invoke(route.name, TypeDef.OBJECT, new ArrayList<ExpressionDef>(valueParams)).returning())
                     ).returning());
@@ -1020,7 +1020,8 @@ public final class JaxRsRoutesGenerator {
 
         private String handlerType(RouteModel route) {
             if (route.route.method.async) {
-                return "AsyncRequestHandler";
+                // the body is a parameter of the handler that reads it
+                return route.form || route.body ? "AsyncBodyRequestHandler" : "AsyncRequestHandler";
             } else if (route.form) {
                 return "FormRequestHandler";
             } else if (route.body) {
