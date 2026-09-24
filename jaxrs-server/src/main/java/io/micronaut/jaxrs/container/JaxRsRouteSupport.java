@@ -24,6 +24,7 @@ import io.micronaut.web.router.RouteInfo;
 import io.micronaut.web.router.MethodBasedRouteInfo;
 import io.micronaut.http.simple.SimpleHttpHeaders;
 import io.micronaut.jaxrs.common.JaxRsUtils;
+import io.micronaut.http.body.AsyncRequestBody;
 import io.micronaut.http.body.MessageBodyHandlerRegistry;
 import io.micronaut.http.body.MessageBodyReader;
 import io.micronaut.core.beans.BeanIntrospection;
@@ -35,7 +36,6 @@ import io.micronaut.core.convert.ConversionContext;
 import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.type.Argument;
 import io.micronaut.core.util.ExceptionUtils;
-import io.micronaut.http.AsyncServerHttpRequest;
 import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.inject.ExecutableMethod;
@@ -342,12 +342,13 @@ public final class JaxRsRouteSupport {
      *
      * @param request       The request
      * @param pathVariables The path variables
+     * @param body          The body of the request
      * @param handler       Calls the resource method with the bytes of the entity
      * @return The response
      */
-    public CompletionStage<? extends HttpResponse<?>> entityAsync(AsyncServerHttpRequest<?> request, PathVariables pathVariables,
-                                                                  JaxRsAsyncHandler<byte[]> handler) {
-        return request.body(ENTITY).thenCompose(body -> call(handler, request, pathVariables, body));
+    public CompletionStage<? extends HttpResponse<?>> entityAsync(HttpRequest<?> request, PathVariables pathVariables,
+                                                                  AsyncRequestBody body, JaxRsAsyncHandler<byte[]> handler) {
+        return body.body(ENTITY).thenCompose(entity -> call(handler, request, pathVariables, entity));
     }
 
     /**
@@ -355,12 +356,13 @@ public final class JaxRsRouteSupport {
      *
      * @param request       The request
      * @param pathVariables The path variables
+     * @param body          The body of the request
      * @param handler       Calls the resource method with the form
      * @return The response
      */
-    public CompletionStage<? extends HttpResponse<?>> formAsync(AsyncServerHttpRequest<?> request, PathVariables pathVariables,
-                                                                JaxRsAsyncHandler<FormData> handler) {
-        return request.form().thenCompose(form -> call(handler, request, pathVariables, form));
+    public CompletionStage<? extends HttpResponse<?>> formAsync(HttpRequest<?> request, PathVariables pathVariables,
+                                                                AsyncRequestBody body, JaxRsAsyncHandler<FormData> handler) {
+        return body.form().thenCompose(form -> call(handler, request, pathVariables, form));
     }
 
     @SuppressWarnings("unchecked")

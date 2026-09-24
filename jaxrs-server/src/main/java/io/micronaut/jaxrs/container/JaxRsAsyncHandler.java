@@ -39,9 +39,9 @@ public interface JaxRsAsyncHandler<T> {
     /**
      * @param readRequest       The request
      * @param readPathVariables The path variables
-     * @param body              The body, {@code null} for an empty entity
+     * @param readBody          The body, {@code null} for an empty entity
      * @return The response
      * @throws Exception If the resource method fails
      */
-    CompletionStage<? extends HttpResponse<?>> handle(HttpRequest<?> readRequest, PathVariables readPathVariables, @Nullable T body) throws Exception;
+    CompletionStage<? extends HttpResponse<?>> handle(HttpRequest<?> readRequest, PathVariables readPathVariables, @Nullable T readBody) throws Exception;
 }
