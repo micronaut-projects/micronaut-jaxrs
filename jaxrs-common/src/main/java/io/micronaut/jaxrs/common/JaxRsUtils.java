@@ -39,7 +39,7 @@ public final class JaxRsUtils {
     }
 
     public static <T> void sortRegistrationsByPriority(List<BeanRegistration<T>> values) {
-        sortByPriority(values, false);
+        sortRegistrationsByPriority(values, false);
     }
 
     public static <T> void sortByPriorityReversed(List<T> values) {
