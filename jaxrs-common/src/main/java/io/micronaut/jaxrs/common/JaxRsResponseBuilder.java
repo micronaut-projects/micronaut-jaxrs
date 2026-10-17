@@ -21,7 +21,6 @@ import io.micronaut.http.HttpResponse;
 import io.micronaut.http.HttpStatus;
 import io.micronaut.http.MutableHttpHeaders;
 import io.micronaut.http.MutableHttpResponse;
-import io.micronaut.http.cookie.Cookie;
 import org.jspecify.annotations.Nullable;
 import jakarta.ws.rs.core.CacheControl;
 import jakarta.ws.rs.core.EntityTag;
@@ -178,8 +177,9 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
         if (headers != null) {
             headers.forEach((s, objects) -> {
                 for (Object object : objects) {
+                    // through the header delegates, e.g. a date as an HTTP date
                     if (object != null) {
-                        response.getHeaders().add(s, object.toString());
+                        header(s, object);
                     }
                 }
             });
@@ -251,27 +251,10 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
             metadata.set(response.getHeaders(), HttpHeaders.SET_COOKIE, null);
             return this;
         }
+        RuntimeDelegate.HeaderDelegate<NewCookie> delegate = getInstance().createHeaderDelegate(NewCookie.class);
         for (NewCookie cookie : cookies) {
-            final Cookie c = Cookie.of(cookie.getName(), cookie.getValue());
-            final String domain = cookie.getDomain();
-            if (domain != null) {
-                c.domain(domain);
-            }
-            final String path = cookie.getPath();
-            if (path != null) {
-                c.path(path);
-            }
-            final Date expiry = cookie.getExpiry();
-            if (expiry != null) {
-                long maxAge = expiry.getTime() - new Date().getTime();
-                if (maxAge < 0) {
-                    throw new IllegalArgumentException("Expiry should not be in the past");
-                } else {
-                    c.maxAge(maxAge);
-                }
-
-            }
-            response.cookie(c);
+            // all the attributes of the cookie, e.g. its max age in seconds, an expiry in the past (a deletion), its version
+            response.getHeaders().add(HttpHeaders.SET_COOKIE, delegate.toString(cookie));
             // the metadata has the cookie, e.g. with its version
             metadata.add(response.getHeaders(), HttpHeaders.SET_COOKIE, cookie);
         }
@@ -319,8 +302,10 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
     }
 
     @Override
-    public Response.ResponseBuilder tag(EntityTag tag) {
-        if (tag != null) {
+    public Response.ResponseBuilder tag(@Nullable EntityTag tag) {
+        if (tag == null) {
+            response.getHeaders().remove(io.micronaut.http.HttpHeaders.ETAG);
+        } else {
             response.getHeaders().set(io.micronaut.http.HttpHeaders.ETAG,
                 getInstance().createHeaderDelegate(EntityTag.class).toString(tag));
         }
@@ -328,21 +313,53 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
     }
 
     @Override
-    public Response.ResponseBuilder tag(String tag) {
-        if (tag != null) {
+    public Response.ResponseBuilder tag(@Nullable String tag) {
+        if (tag == null) {
+            response.getHeaders().remove(io.micronaut.http.HttpHeaders.ETAG);
+        } else {
             response.getHeaders().set(io.micronaut.http.HttpHeaders.ETAG, tag);
         }
         return this;
     }
 
     @Override
-    public Response.ResponseBuilder variants(Variant... variants) {
-        return this;
+    public Response.ResponseBuilder variants(Variant @Nullable ... variants) {
+        return variants(variants == null ? null : Arrays.asList(variants));
     }
 
     @Override
-    public Response.ResponseBuilder variants(List<Variant> variants) {
+    public Response.ResponseBuilder variants(@Nullable List<Variant> variants) {
+        if (variants == null) {
+            response.getHeaders().remove(HttpHeaders.VARY);
+            return this;
+        }
+        // Vary names the request headers the variants differ in
+        StringBuilder vary = new StringBuilder();
+        appendVary(vary, variants.stream().map(Variant::getMediaType).toList(), HttpHeaders.ACCEPT);
+        appendVary(vary, variants.stream().map(Variant::getLanguage).toList(), HttpHeaders.ACCEPT_LANGUAGE);
+        appendVary(vary, variants.stream().map(Variant::getEncoding).toList(), HttpHeaders.ACCEPT_ENCODING);
+        if (!vary.isEmpty()) {
+            response.getHeaders().add(HttpHeaders.VARY, vary.toString());
+        }
         return this;
+    }
+
+    private static void appendVary(StringBuilder vary, List<?> values, String header) {
+        Object first = null;
+        for (Object value : values) {
+            if (value == null) {
+                continue;
+            }
+            if (first == null) {
+                first = value;
+            } else if (!first.equals(value)) {
+                if (!vary.isEmpty()) {
+                    vary.append(',');
+                }
+                vary.append(header);
+                return;
+            }
+        }
     }
 
     @Override

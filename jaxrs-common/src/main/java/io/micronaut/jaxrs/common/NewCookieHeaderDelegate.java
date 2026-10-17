@@ -21,11 +21,17 @@ import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.NewCookie;
 import jakarta.ws.rs.ext.RuntimeDelegate;
 
+import org.jspecify.annotations.Nullable;
+
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.Date;
 import java.util.Locale;
-import java.util.Map;
+import java.util.TimeZone;
 
 /**
  * Forked from RESTEasy.
@@ -36,6 +42,8 @@ import java.util.Map;
 @Internal
 class NewCookieHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Object> {
     private static final String OLD_COOKIE_PATTERN = "EEE, dd-MMM-yyyy HH:mm:ss z";
+    // RFC 1123 with a two-digit day, like Netty
+    private static final DateTimeFormatter EXPIRES_FORMAT = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss 'GMT'", Locale.US);
 
     @Override
     public Object fromString(String newCookie) throws IllegalArgumentException {
@@ -50,40 +58,44 @@ class NewCookieHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Object> 
         int version = Cookie.DEFAULT_VERSION;
         boolean httpOnly = false;
         Date expiry = null;
+        NewCookie.SameSite sameSite = null;
 
-        ParameterParser parser = new ParameterParser();
-        Map<String, String> map = parser.parse(newCookie, ';');
-
-        for (Map.Entry<String, String> entry : map.entrySet()) {
-            String name = entry.getKey();
-            String value = entry.getValue();
-            if (name.equalsIgnoreCase("Comment")) {
+        // the first name=value pair is the cookie, the others are its attributes
+        for (String part : newCookie.split(";")) {
+            String trimmed = part.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            int eq = trimmed.indexOf('=');
+            String name = eq < 0 ? trimmed : trimmed.substring(0, eq).trim();
+            String value = eq < 0 ? null : unquote(trimmed.substring(eq + 1).trim());
+            if (cookieName == null) {
+                cookieName = name;
+                cookieValue = value;
+            } else if (name.equalsIgnoreCase("Comment")) {
                 comment = value;
             } else if (name.equalsIgnoreCase("Domain")) {
                 domain = value;
-            } else if (name.equalsIgnoreCase("Max-Age")) {
+            } else if (name.equalsIgnoreCase("Max-Age") && value != null) {
                 maxAge = Integer.parseInt(value);
             } else if (name.equalsIgnoreCase("Path")) {
                 path = value;
             } else if (name.equalsIgnoreCase("Secure")) {
                 secure = true;
-            } else if (name.equalsIgnoreCase("Version")) {
+            } else if (name.equalsIgnoreCase("Version") && value != null) {
                 version = Integer.parseInt(value);
             } else if (name.equalsIgnoreCase("HttpOnly")) {
                 httpOnly = true;
-            } else if (name.equalsIgnoreCase("Expires")) {
-                try {
-                    expiry = new SimpleDateFormat(OLD_COOKIE_PATTERN, Locale.US).parse(value);
-                } catch (ParseException e) {
-                    // ignore
-                }
-            } else {
-                cookieName = name;
-                cookieValue = value;
+            } else if (name.equalsIgnoreCase("Expires") && value != null) {
+                expiry = parseExpires(value);
+            } else if (name.equalsIgnoreCase("SameSite") && value != null) {
+                sameSite = sameSite(value);
             }
-
+            // other attributes, e.g. Partitioned, are not part of NewCookie
         }
-
+        if (cookieName == null) {
+            throw new IllegalArgumentException("Invalid cookie: " + newCookie);
+        }
         if (cookieValue == null) {
             cookieValue = "";
         }
@@ -98,6 +110,7 @@ class NewCookieHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Object> 
             .expiry(expiry)
             .secure(secure)
             .httpOnly(httpOnly)
+            .sameSite(sameSite)
             .build();
     }
 
@@ -133,7 +146,7 @@ class NewCookieHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Object> 
         }
         if (cookie.getExpiry() != null) {
             b.append(";Expires=");
-            b.append(new SimpleDateFormat(OLD_COOKIE_PATTERN).format(cookie.getExpiry()));
+            b.append(EXPIRES_FORMAT.format(cookie.getExpiry().toInstant().atZone(ZoneOffset.UTC)));
         }
         if (cookie.isSecure()) {
             b.append(";Secure");
@@ -141,7 +154,44 @@ class NewCookieHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Object> 
         if (cookie.isHttpOnly()) {
             b.append(";HttpOnly");
         }
+        if (cookie.getSameSite() != null) {
+            b.append(";SameSite=");
+            String sameSite = cookie.getSameSite().name();
+            b.append(sameSite.charAt(0)).append(sameSite.substring(1).toLowerCase(Locale.ROOT));
+        }
         return b.toString();
+    }
+
+    private static @Nullable Date parseExpires(String value) {
+        // RFC 1123 (e.g. Netty's), then the old Netscape format
+        try {
+            return Date.from(ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant());
+        } catch (DateTimeParseException e) {
+            // try the old format
+        }
+        SimpleDateFormat format = new SimpleDateFormat(OLD_COOKIE_PATTERN, Locale.US);
+        format.setTimeZone(TimeZone.getTimeZone("GMT"));
+        try {
+            return format.parse(value);
+        } catch (ParseException e) {
+            return null;
+        }
+    }
+
+    private static NewCookie.@Nullable SameSite sameSite(String value) {
+        for (NewCookie.SameSite sameSite : NewCookie.SameSite.values()) {
+            if (sameSite.name().equalsIgnoreCase(value)) {
+                return sameSite;
+            }
+        }
+        return null;
+    }
+
+    private static String unquote(String value) {
+        if (value.length() >= 2 && value.charAt(0) == '"' && value.charAt(value.length() - 1) == '"') {
+            return value.substring(1, value.length() - 1);
+        }
+        return value;
     }
 
     private void quote(StringBuilder b, String value) {
