@@ -46,11 +46,13 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.function.ToIntFunction;
 
 /**
  * The container filters of JAX-RS (section 6): the pre-matching and post-matching request
@@ -197,12 +199,10 @@ final class JaxRsContainerFilters {
                 .orElseGet(() -> newContext(request.mutate(), false));
             requestContext.finished();
             JaxRsContainerResponseContext responseContext = new JaxRsContainerResponseContext(mutableHttpResponse, bodyArgument, entityAnnotations);
-            List<ContainerResponseFilter> filters = new ArrayList<>(containerResponseFilters.stream()
-                .filter(br -> nameBindingPredicate.test(br.getBeanDefinition()))
-                .map(BeanRegistration::getBean)
-                .toList());
-            // the ones the dynamic features registered for the resource method
-            filters.addAll(dynamic.responseFilters());
+            // with the ones the dynamic features registered for the resource method, in the
+            // reverse order of their priorities (JAX-RS 6.9)
+            List<ContainerResponseFilter> filters = filters(containerResponseFilters, dynamic.responseFilters(),
+                f -> dynamic.priority(f, ContainerResponseFilter.class), true);
             for (ContainerResponseFilter responseFilter : filters) {
                 responseFilter.filter(requestContext, responseContext);
             }
@@ -220,6 +220,31 @@ final class JaxRsContainerFilters {
             );
         }
         return mutableHttpResponse;
+    }
+
+    /**
+     * The filter beans bound to the resource method, merged with the filters the dynamic features
+     * registered for it by priority.
+     */
+    private <F> List<F> filters(List<BeanRegistration<F>> beans, List<F> dynamic, ToIntFunction<F> dynamicPriority, boolean reversed) {
+        List<BeanRegistration<F>> bound = beans.stream()
+            .filter(br -> nameBindingPredicate.test(br.getBeanDefinition()))
+            .toList();
+        if (dynamic.isEmpty()) {
+            return bound.stream().map(BeanRegistration::getBean).toList();
+        }
+        record Prioritized<F>(F filter, int priority) {
+        }
+        List<Prioritized<F>> all = new ArrayList<>();
+        for (BeanRegistration<F> registration : bound) {
+            all.add(new Prioritized<>(registration.getBean(), registration.getOrder()));
+        }
+        for (F filter : dynamic) {
+            all.add(new Prioritized<>(filter, dynamicPriority.applyAsInt(filter)));
+        }
+        Comparator<Prioritized<F>> comparator = Comparator.comparingInt(Prioritized::priority);
+        all.sort(reversed ? comparator.reversed() : comparator);
+        return all.stream().map(Prioritized::filter).toList();
     }
 
     /**
@@ -277,12 +302,10 @@ final class JaxRsContainerFilters {
             request.setAttribute(REQUEST_CONTEXT_KEY, requestContext);
         }
         request.setAttribute(HttpHeadersBinder.HEADERS_KEY, request.getHeaders());
-        List<ContainerRequestFilter> filters = new ArrayList<>(requestFilters.stream()
-            .filter(br -> nameBindingPredicate.test(br.getBeanDefinition()))
-            .map(BeanRegistration::getBean)
-            .toList());
-        // the ones the dynamic features registered for the resource method
-        filters.addAll(dynamic.requestFilters());
+        // with the ones the dynamic features registered for the resource method, in the order of
+        // their priorities (JAX-RS 6.9)
+        List<ContainerRequestFilter> filters = filters(requestFilters, dynamic.requestFilters(),
+            f -> dynamic.priority(f, ContainerRequestFilter.class), false);
         for (ContainerRequestFilter requestFilter : filters) {
             requestFilter.filter(requestContext);
             Response response = requestContext.getResponse();

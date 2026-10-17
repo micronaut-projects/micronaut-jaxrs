@@ -132,7 +132,8 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
      */
     private List<BeanRegistration<WriterInterceptor>> writerInterceptors() {
         return routeInterceptors.isPresent()
-            ? JaxRsRouteInterceptors.merge(writerInterceptorsRegistrations, routeInterceptors.get().writerInterceptors())
+            ? JaxRsRouteInterceptors.merge(writerInterceptorsRegistrations, routeInterceptors.get().writerInterceptors(),
+                interceptor -> routeInterceptors.get().priority(interceptor, WriterInterceptor.class))
             : writerInterceptorsRegistrations;
     }
 
