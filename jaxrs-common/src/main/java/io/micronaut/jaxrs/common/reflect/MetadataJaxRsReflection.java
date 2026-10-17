@@ -56,13 +56,13 @@ final class MetadataJaxRsReflection implements JaxRsReflection {
 
     private static final String MICRONAUT_ANNOTATIONS = "io.micronaut.";
 
+    // the annotations of the bean classes without an introspection, see annotationMetadata(Class)
+    private final Map<Class<?>, AnnotationMetadata> beanAnnotations = new ConcurrentHashMap<>();
+
     @Override
     public boolean isReflective() {
         return false;
     }
-
-    // the annotations of the bean classes without an introspection, see annotationMetadata(Class)
-    private final Map<Class<?>, AnnotationMetadata> beanAnnotations = new ConcurrentHashMap<>();
 
     /**
      * The annotations of the introspection of a class, else of its bean definition, e.g. of a
