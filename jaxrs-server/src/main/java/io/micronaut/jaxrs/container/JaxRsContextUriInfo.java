@@ -65,7 +65,7 @@ final class JaxRsContextUriInfo implements UriInfo {
 
     @Override
     public List<PathSegment> getPathSegments(boolean decode) {
-        return getUriInfo().getPathSegments();
+        return getUriInfo().getPathSegments(decode);
     }
 
     @Override

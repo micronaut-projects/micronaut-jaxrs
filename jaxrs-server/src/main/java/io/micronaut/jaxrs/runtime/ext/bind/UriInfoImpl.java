@@ -215,7 +215,11 @@ public final class UriInfoImpl implements UriInfo {
 
     public static Map<String, List<String>> getEncodedParameters(URI url) {
         final var map = new LinkedHashMap<String, List<String>>();
-        final String[] pairs = url.getRawQuery().split("&");
+        String query = url.getRawQuery();
+        if (query == null || query.isEmpty()) {
+            return map;
+        }
+        final String[] pairs = query.split("&");
         for (String pair : pairs) {
             final int idx = pair.indexOf("=");
             final String key = idx > 0 ? pair.substring(0, idx) : pair;

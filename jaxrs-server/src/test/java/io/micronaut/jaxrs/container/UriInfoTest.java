@@ -2,6 +2,7 @@ package io.micronaut.jaxrs.container;
 
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.client.HttpClient;
+import io.micronaut.http.context.ServerRequestContext;
 import io.micronaut.http.client.annotation.Client;
 import io.micronaut.jaxrs.runtime.ext.bind.UriInfoImpl;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
@@ -28,6 +29,22 @@ class UriInfoTest {
         //In the HTTP response body the endpoint prints the path from the injected UriInfo
         String respBody = client.toBlocking().retrieve(request, String.class);
         Assertions.assertEquals("test path: /uri-info", respBody);
+    }
+
+    @Inject
+    JaxRsContextUriInfo contextUriInfo;
+
+    @Test
+    void contextUriInfoKeepsTheEncodedPathSegments() {
+        List<String> segments = ServerRequestContext.with(HttpRequest.GET("/api/a%20b"),
+            (java.util.function.Supplier<List<String>>) () -> contextUriInfo.getPathSegments(false).stream().map(jakarta.ws.rs.core.PathSegment::getPath).toList());
+        Assertions.assertEquals("a%20b", segments.get(segments.size() - 1));
+    }
+
+    @Test
+    void encodedQueryParametersWithoutAQuery() {
+        UriInfo uriInfo = new UriInfoImpl(HttpRequest.GET("http://example.com/foo"));
+        Assertions.assertTrue(uriInfo.getQueryParameters(false).isEmpty());
     }
 
     @Test
