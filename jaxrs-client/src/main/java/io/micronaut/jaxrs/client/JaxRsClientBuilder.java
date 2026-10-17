@@ -169,7 +169,11 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
 
     @Override
     public ClientBuilder sslContext(SSLContext sslContext) {
+        // it resets the stores set before (JAX-RS, ClientBuilder#sslContext)
         this.sslContext = sslContext;
+        this.keyStore = null;
+        this.keyStorePassword = null;
+        this.trustStore = null;
         return this;
     }
 
@@ -177,12 +181,16 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
     public ClientBuilder keyStore(KeyStore keyStore, char[] password) {
         this.keyStore = keyStore;
         this.keyStorePassword = password;
+        // it resets the SSL context set before (JAX-RS, ClientBuilder#keyStore)
+        this.sslContext = null;
         return this;
     }
 
     @Override
     public ClientBuilder trustStore(KeyStore trustStore) {
         this.trustStore = trustStore;
+        // it resets the SSL context set before (JAX-RS, ClientBuilder#trustStore)
+        this.sslContext = null;
         return this;
     }
 

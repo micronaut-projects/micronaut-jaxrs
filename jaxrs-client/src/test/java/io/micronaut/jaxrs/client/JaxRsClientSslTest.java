@@ -22,6 +22,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -67,6 +68,21 @@ class JaxRsClientSslTest {
         try (Client client = ClientBuilder.newBuilder().trustStore(trustStore).hostnameVerifier(rejecting).build()) {
             assertSame(rejecting, client.getHostnameVerifier());
         }
+    }
+
+    @Test
+    void storesResetTheSslContextAndBack() throws Exception {
+        KeyStore emptyTrustStore = KeyStore.getInstance(KeyStore.getDefaultType());
+        emptyTrustStore.load(null, null);
+        SSLContext sslContext = trustAll();
+
+        // a trust store set after the SSL context replaces it: the server is not trusted
+        assertThrows(ProcessingException.class, () -> get(ClientBuilder.newBuilder().sslContext(sslContext).trustStore(emptyTrustStore)));
+        try (Client client = ClientBuilder.newBuilder().sslContext(sslContext).trustStore(emptyTrustStore).build()) {
+            assertNotSame(sslContext, client.getSslContext());
+        }
+        // and an SSL context set after the trust store replaces it
+        assertEquals("hello", get(ClientBuilder.newBuilder().trustStore(emptyTrustStore).sslContext(sslContext)));
     }
 
     private String get(ClientBuilder builder) {
