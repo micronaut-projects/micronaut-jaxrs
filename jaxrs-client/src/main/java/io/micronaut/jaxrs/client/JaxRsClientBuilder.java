@@ -121,21 +121,22 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
             }
 
         });
-        jaxRsConfiguration.register(httpClient.getHandlerRegistry().findReader(Argument.STRING, List.of(MediaType.ALL_TYPE)).get());
-        jaxRsConfiguration.register(httpClient.getHandlerRegistry().findReader(Argument.of(byte[].class), List.of(MediaType.ALL_TYPE)).get());
-        jaxRsConfiguration.register(httpClient.getHandlerRegistry().findWriter(Argument.STRING, List.of(MediaType.ALL_TYPE)).get());
-        jaxRsConfiguration.register(httpClient.getHandlerRegistry().findWriter(Argument.of(byte[].class), List.of(MediaType.ALL_TYPE)).get());
-        jaxRsConfiguration.register(new JaxRsReaderMessageBodyWriter<>());
-        jaxRsConfiguration.register(new JaxRsReaderMessageBodyReader());
-        jaxRsConfiguration.register(new JaxRsInputStreamMessageBodyWriter<>());
-        jaxRsConfiguration.register(new JaxRsInputStreamMessageBodyReader());
-        jaxRsConfiguration.register(new JaxRsStreamingOutputMessageBodyWriter<>());
-        jaxRsConfiguration.register(new JaxRsMultivaluedMapMessageBodyWriter());
-        jaxRsConfiguration.register(new JaxRsMultivaluedStringObjectMapMessageBodyReader());
-        jaxRsConfiguration.register(new JaxRsMultivaluedStringStringMapMessageBodyReader());
+        jaxRsConfiguration.setHandlerRegistry(httpClient.getHandlerRegistry());
+        jaxRsConfiguration.registerStandard(httpClient.getHandlerRegistry().findReader(Argument.STRING, List.of(MediaType.ALL_TYPE)).get());
+        jaxRsConfiguration.registerStandard(httpClient.getHandlerRegistry().findReader(Argument.of(byte[].class), List.of(MediaType.ALL_TYPE)).get());
+        jaxRsConfiguration.registerStandard(httpClient.getHandlerRegistry().findWriter(Argument.STRING, List.of(MediaType.ALL_TYPE)).get());
+        jaxRsConfiguration.registerStandard(httpClient.getHandlerRegistry().findWriter(Argument.of(byte[].class), List.of(MediaType.ALL_TYPE)).get());
+        jaxRsConfiguration.registerStandard(new JaxRsReaderMessageBodyWriter<>());
+        jaxRsConfiguration.registerStandard(new JaxRsReaderMessageBodyReader());
+        jaxRsConfiguration.registerStandard(new JaxRsInputStreamMessageBodyWriter<>());
+        jaxRsConfiguration.registerStandard(new JaxRsInputStreamMessageBodyReader());
+        jaxRsConfiguration.registerStandard(new JaxRsStreamingOutputMessageBodyWriter<>());
+        jaxRsConfiguration.registerStandard(new JaxRsMultivaluedMapMessageBodyWriter());
+        jaxRsConfiguration.registerStandard(new JaxRsMultivaluedStringObjectMapMessageBodyReader());
+        jaxRsConfiguration.registerStandard(new JaxRsMultivaluedStringStringMapMessageBodyReader());
         // the standard providers of other modules, e.g. File, DataSource, Source and JAXB
         for (JaxRsStandardProviders standardProviders : ServiceLoader.load(JaxRsStandardProviders.class, JaxRsClientBuilder.class.getClassLoader())) {
-            standardProviders.providers().forEach(jaxRsConfiguration::register);
+            standardProviders.providers().forEach(jaxRsConfiguration::registerStandard);
         }
 
         if (TESTING_MIN_CLIENTS > 0) {
@@ -148,7 +149,7 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
                 }
             }
         }
-        return new JaxRsClient(httpClient, httpClients, jaxRsConfiguration, executorService, clientSslContext, hostnameVerifier);
+        return new JaxRsClient(httpClient, httpClients, jaxRsConfiguration, executorService, scheduledExecutorService, clientSslContext, hostnameVerifier);
     }
 
     @Override
@@ -169,7 +170,11 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
 
     @Override
     public ClientBuilder sslContext(SSLContext sslContext) {
+        // it resets the stores set before (JAX-RS, ClientBuilder#sslContext)
         this.sslContext = sslContext;
+        this.keyStore = null;
+        this.keyStorePassword = null;
+        this.trustStore = null;
         return this;
     }
 
@@ -177,12 +182,16 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
     public ClientBuilder keyStore(KeyStore keyStore, char[] password) {
         this.keyStore = keyStore;
         this.keyStorePassword = password;
+        // it resets the SSL context set before (JAX-RS, ClientBuilder#keyStore)
+        this.sslContext = null;
         return this;
     }
 
     @Override
     public ClientBuilder trustStore(KeyStore trustStore) {
         this.trustStore = trustStore;
+        // it resets the SSL context set before (JAX-RS, ClientBuilder#trustStore)
+        this.sslContext = null;
         return this;
     }
 

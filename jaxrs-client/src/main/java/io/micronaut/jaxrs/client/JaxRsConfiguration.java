@@ -16,6 +16,7 @@
 package io.micronaut.jaxrs.client;
 
 import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
+import io.micronaut.context.BeanRegistration;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.Internal;
@@ -28,6 +29,7 @@ import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpMessage;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.MutableHttpMessage;
+import io.micronaut.http.body.MessageBodyHandlerRegistry;
 import io.micronaut.http.body.TypedMessageBodyReader;
 import io.micronaut.http.body.TypedMessageBodyWriter;
 import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
@@ -38,6 +40,7 @@ import io.micronaut.jaxrs.common.JaxRsInterceptedWrite;
 import io.micronaut.jaxrs.common.JaxRsMessageBodyReader;
 import io.micronaut.jaxrs.common.JaxRsMessageBodyReaderDefinition;
 import io.micronaut.jaxrs.common.JaxRsMessageBodyWriter;
+import io.micronaut.jaxrs.common.JaxRsRouteInterceptors;
 import io.micronaut.jaxrs.common.JaxRsUtils;
 import io.micronaut.jaxrs.common.JaxRsWriterInterceptorContextState;
 import jakarta.ws.rs.Consumes;
@@ -88,6 +91,12 @@ import java.util.stream.Stream;
 @Internal
 final class JaxRsConfiguration implements Configuration {
 
+    /**
+     * The priority of a component or contract registered without one: the one of its
+     * {@code @Priority} applies.
+     */
+    static final int NO_PRIORITY = Integer.MIN_VALUE;
+
     private static final Logger LOG = LoggerFactory.getLogger(JaxRsConfiguration.class);
     private final Providers providers = new ClientProviders();
 
@@ -98,12 +107,15 @@ final class JaxRsConfiguration implements Configuration {
     private final List<Feature> enabledFeatures;
 
     // the providers found among the components: built fully, then published unmodifiable
-    private volatile @Nullable List<ReaderInterceptor> readerInterceptors;
-    private volatile @Nullable List<WriterInterceptor> writerInterceptors;
+    private volatile @Nullable List<BeanRegistration<ReaderInterceptor>> readerInterceptors;
+    private volatile @Nullable List<BeanRegistration<WriterInterceptor>> writerInterceptors;
     private volatile @Nullable List<JaxRsMessageBodyReaderDefinition> readers;
     private volatile @Nullable List<JaxRsMessageBodyWriterDefinition> writers;
     private volatile @Nullable List<ClientRequestFilter> requestFilters;
     private volatile @Nullable List<ClientResponseFilter> responseFilters;
+
+    // the body handlers of the HTTP client, which write the entities no JAX-RS writer writes
+    private volatile @Nullable MessageBodyHandlerRegistry handlerRegistry;
 
     public JaxRsConfiguration() {
         this(new LinkedHashMap<>(), new ArrayList<>());
@@ -133,6 +145,7 @@ final class JaxRsConfiguration implements Configuration {
         copy.writers = writers;
         copy.requestFilters = requestFilters;
         copy.responseFilters = responseFilters;
+        copy.handlerRegistry = handlerRegistry;
         return copy;
     }
 
@@ -173,12 +186,24 @@ final class JaxRsConfiguration implements Configuration {
         }
     }
 
-    public void addProperty(String name, Object value) {
-        properties.put(name, value);
+    public void addProperty(String name, @Nullable Object value) {
+        // a null value removes the property (JAX-RS, Configurable#property)
+        if (value == null) {
+            properties.remove(name);
+        } else {
+            properties.put(name, value);
+        }
+    }
+
+    /**
+     * @param handlerRegistry The body handlers of the HTTP client
+     */
+    void setHandlerRegistry(MessageBodyHandlerRegistry handlerRegistry) {
+        this.handlerRegistry = handlerRegistry;
     }
 
     void register(Class<?> componentClass) {
-        register(componentClass, 0);
+        register(componentClass, NO_PRIORITY);
     }
 
     void register(Class<?> componentClass, int priority) {
@@ -189,11 +214,11 @@ final class JaxRsConfiguration implements Configuration {
         if (contracts == null || contracts.length == 0) {
             return;
         }
-        register(componentClass, 0, contracts);
+        register(componentClass, NO_PRIORITY, contracts);
     }
 
     private List<ComponentContract> toContracts(Class<?>[] contracts) {
-        return Arrays.stream(contracts).map(c -> new ComponentContract(c, 0)).toList();
+        return Arrays.stream(contracts).map(c -> new ComponentContract(c, NO_PRIORITY)).toList();
     }
 
     void register(Class<?> componentClass, int priority, Class<?>... contracts) {
@@ -206,7 +231,7 @@ final class JaxRsConfiguration implements Configuration {
     void register(Class<?> componentClass, Map<Class<?>, Integer> contracts) {
         List<ComponentContract> assignable = assignable(componentClass, toContracts(contracts));
         if (assignable != null) {
-            add(new ClassComponent(componentClass, 0, assignable));
+            add(new ClassComponent(componentClass, NO_PRIORITY, assignable));
         }
     }
 
@@ -235,7 +260,18 @@ final class JaxRsConfiguration implements Configuration {
     }
 
     void register(Object component) {
-        register(component, 0);
+        register(component, NO_PRIORITY);
+    }
+
+    /**
+     * Register a standard provider of the client: several of them may be of the same class, e.g.
+     * the readers of the HTTP client.
+     *
+     * @param component The provider
+     */
+    void registerStandard(Object component) {
+        components.add(new InstanceComponent(component, NO_PRIORITY, List.of()));
+        clearCaches();
     }
 
     void register(Object component, int priority) {
@@ -246,7 +282,7 @@ final class JaxRsConfiguration implements Configuration {
         if (contracts == null || contracts.length == 0) {
             return;
         }
-        register(component, 0, contracts);
+        register(component, NO_PRIORITY, contracts);
     }
 
     void register(Object component, int priority, Class<?>... contracts) {
@@ -259,15 +295,21 @@ final class JaxRsConfiguration implements Configuration {
     void register(Object component, Map<Class<?>, Integer> contracts) {
         List<ComponentContract> assignable = assignable(component.getClass(), toContracts(contracts));
         if (assignable != null) {
-            add(new InstanceComponent(component, 0, assignable));
+            add(new InstanceComponent(component, NO_PRIORITY, assignable));
         }
     }
 
     /**
      * Add a component: a feature is configured, and is enabled when it says so (JAX-RS,
-     * {@code Feature#configure}).
+     * {@code Feature#configure}). A component of a class that is registered already is ignored
+     * (JAX-RS, {@code Configurable}).
      */
     private void add(Component component) {
+        Class<?> componentClass = component.componentClass();
+        if (isRegistered(componentClass)) {
+            LOG.warn("The component {} is registered already: the registration is ignored", componentClass.getName());
+            return;
+        }
         components.add(component);
         clearCaches();
         List<ComponentContract> contracts = component.components();
@@ -351,19 +393,19 @@ final class JaxRsConfiguration implements Configuration {
             .collect(Collectors.toSet());
     }
 
-    private List<ReaderInterceptor> getReaderInterceptors() {
-        List<ReaderInterceptor> interceptors = readerInterceptors;
+    private List<BeanRegistration<ReaderInterceptor>> getReaderInterceptors() {
+        List<BeanRegistration<ReaderInterceptor>> interceptors = readerInterceptors;
         if (interceptors == null) {
-            interceptors = getComponentOfType(ReaderInterceptor.class);
+            interceptors = registrationsOfType(ReaderInterceptor.class);
             readerInterceptors = interceptors;
         }
         return interceptors;
     }
 
-    private List<WriterInterceptor> getWriterInterceptors() {
-        List<WriterInterceptor> interceptors = writerInterceptors;
+    private List<BeanRegistration<WriterInterceptor>> getWriterInterceptors() {
+        List<BeanRegistration<WriterInterceptor>> interceptors = writerInterceptors;
         if (interceptors == null) {
-            interceptors = getComponentOfType(WriterInterceptor.class);
+            interceptors = registrationsOfType(WriterInterceptor.class);
             writerInterceptors = interceptors;
         }
         return interceptors;
@@ -382,7 +424,7 @@ final class JaxRsConfiguration implements Configuration {
                     built.add(new JaxRsMessageBodyReaderDefinition(
                         providedType(reader, MessageBodyReader.class),
                         new JaxRsMessageBodyReader<>(reader),
-                        component.priority() == 0 ? JaxRsUtils.getPriorityOrder(reader) : component.priority()
+                        component.priority() == NO_PRIORITY ? JaxRsUtils.getPriorityOrder(reader) : component.priority()
                     ));
                 }
                 io.micronaut.http.body.MessageBodyReader<?> micronautReader = injected(component.tryGet(io.micronaut.http.body.MessageBodyReader.class));
@@ -398,13 +440,13 @@ final class JaxRsConfiguration implements Configuration {
                         built.add(new JaxRsMessageBodyReaderDefinition(
                             type,
                             micronautReader,
-                            component.priority() == 0 ? JaxRsUtils.getPriorityOrder(micronautReader) : component.priority()
+                            component.priority() == NO_PRIORITY ? JaxRsUtils.getPriorityOrder(micronautReader) : component.priority()
                         ));
                     } else {
                         built.add(new JaxRsMessageBodyReaderDefinition(
                             providedType(micronautReader, io.micronaut.http.body.MessageBodyReader.class),
                             micronautReader,
-                            component.priority() == 0 ? JaxRsUtils.getPriorityOrder(micronautReader) : component.priority()
+                            component.priority() == NO_PRIORITY ? JaxRsUtils.getPriorityOrder(micronautReader) : component.priority()
                         ));
                     }
                 }
@@ -444,7 +486,7 @@ final class JaxRsConfiguration implements Configuration {
                     built.add(new JaxRsMessageBodyWriterDefinition(
                         providedType(writer, MessageBodyWriter.class),
                         new JaxRsMessageBodyWriter<>(annotationMetadata, (MessageBodyWriter<Object>) writer),
-                        component.priority() == 0 ? JaxRsUtils.getPriorityOrder(writer) : component.priority()
+                        component.priority() == NO_PRIORITY ? JaxRsUtils.getPriorityOrder(writer) : component.priority()
                     ));
                 }
                 io.micronaut.http.body.MessageBodyWriter<?> micronautWriter = injected(component.tryGet(io.micronaut.http.body.MessageBodyWriter.class));
@@ -454,13 +496,13 @@ final class JaxRsConfiguration implements Configuration {
                         built.add(new JaxRsMessageBodyWriterDefinition(
                             type,
                             micronautWriter,
-                            component.priority() == 0 ? JaxRsUtils.getPriorityOrder(micronautWriter) : component.priority()
+                            component.priority() == NO_PRIORITY ? JaxRsUtils.getPriorityOrder(micronautWriter) : component.priority()
                         ));
                     } else {
                         built.add(new JaxRsMessageBodyWriterDefinition(
                             providedType(micronautWriter, io.micronaut.http.body.MessageBodyWriter.class),
                             micronautWriter,
-                            component.priority() == 0 ? JaxRsUtils.getPriorityOrder(micronautWriter) : component.priority()
+                            component.priority() == NO_PRIORITY ? JaxRsUtils.getPriorityOrder(micronautWriter) : component.priority()
                         ));
                     }
                 }
@@ -494,7 +536,7 @@ final class JaxRsConfiguration implements Configuration {
                     .or(() -> message.getBody(byte[].class).map(ByteArrayByteBuffer::new))
                     .orElse(null);
                 if (byteBuffer != null) {
-                    List<ReaderInterceptor> readerInterceptors = getReaderInterceptors();
+                    List<BeanRegistration<ReaderInterceptor>> readerInterceptors = getReaderInterceptors();
                     io.micronaut.http.MediaType mediaType = message.getContentType().orElse(MediaType.ALL_TYPE);
                     HttpHeaders headers = message.getHeaders();
                     if (readerInterceptors.isEmpty()) {
@@ -503,7 +545,7 @@ final class JaxRsConfiguration implements Configuration {
                             return reader.read(entityType, mediaType, headers, byteBuffer);
                         }
                     } else {
-                        return new JaxRsInterceptedRead<T>(readerInterceptors) {
+                        return new JaxRsInterceptedRead<T>(readerInterceptors, metadata -> true) {
 
                             @Override
                             protected @Nullable T readFromAfterInterception(Argument<Object> type, @Nullable MediaType mediaType, Headers httpHeaders, InputStream inputStream) {
@@ -551,35 +593,60 @@ final class JaxRsConfiguration implements Configuration {
         return null;
     }
 
-    @SuppressWarnings("unchecked")
     <T> void writeBody(MutableHttpMessage<?> mutableHttpMessage, Argument<T> bodyArgument, @Nullable T body) {
+        writeBody(mutableHttpMessage, bodyArgument, body, false);
+    }
+
+    /**
+     * Write an entity: with the JAX-RS writers, else the ones of the HTTP client, through the
+     * writer interceptors (JAX-RS 6.4). Without interceptors, an entity no JAX-RS writer writes
+     * is left to the HTTP client, unless its bytes are required.
+     *
+     * @param mutableHttpMessage The message
+     * @param bodyArgument       The type of the entity
+     * @param body               The entity
+     * @param bytes              Whether the entity must be written to bytes, e.g. to write them
+     *                           through the entity stream a filter replaced
+     * @param <T>                The type of the entity
+     */
+    @SuppressWarnings("unchecked")
+    <T> void writeBody(MutableHttpMessage<?> mutableHttpMessage, Argument<T> bodyArgument, @Nullable T body, boolean bytes) {
         if (body == null) {
             return;
         }
         if (body instanceof GenericEntity<?> genericEntity) {
             // the entity, written as its generic type
-            writeBody(mutableHttpMessage, (Argument<Object>) JaxRsArgumentUtil.from(genericEntity), genericEntity.getEntity());
+            writeBody(mutableHttpMessage, (Argument<Object>) JaxRsArgumentUtil.from(genericEntity), genericEntity.getEntity(), bytes);
             return;
         }
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         io.micronaut.http.MediaType mediaType = mutableHttpMessage.getContentType().orElse(MediaType.ALL_TYPE);
 
         final AtomicBoolean written = new AtomicBoolean(false);
-        List<WriterInterceptor> writerInterceptors = getWriterInterceptors();
+        List<BeanRegistration<WriterInterceptor>> writerInterceptors = getWriterInterceptors();
         if (writerInterceptors.isEmpty()) {
             io.micronaut.http.body.MessageBodyWriter<T> writer = findWriter(bodyArgument, mediaType);
+            if (writer == null && bytes) {
+                writer = findClientWriter(bodyArgument, mediaType);
+                mediaType = clientMediaType(mediaType);
+            }
             if (writer != null) {
                 writer.writeTo(bodyArgument, mediaType, body, mutableHttpMessage.getHeaders(), outputStream);
                 written.set(true);
             }
         } else {
-            new JaxRsInterceptedWrite<T, JaxRsWriterInterceptorContextState.ClassicState>(writerInterceptors) {
+            new JaxRsInterceptedWrite<T, JaxRsWriterInterceptorContextState.ClassicState>(writerInterceptors, metadata -> true) {
 
                 @Override
                 protected void writeToAfterInterception(Argument<Object> argument, MediaType mediaType, JaxRsWriterInterceptorContextState.ClassicState state) {
                     io.micronaut.http.body.MessageBodyWriter<Object> writer = findWriter(argument, mediaType);
+                    MediaType writtenType = mediaType;
+                    if (writer == null) {
+                        writer = findClientWriter(argument, mediaType);
+                        writtenType = clientMediaType(mediaType);
+                    }
                     if (writer != null) {
-                        writer.writeTo(argument, mediaType, state.getEntity(), mutableHttpMessage.getHeaders(), state.getOutputStream());
+                        writer.writeTo(argument, writtenType, state.getEntity(), mutableHttpMessage.getHeaders(), state.getOutputStream());
                         written.set(true);
                     }
                 }
@@ -594,6 +661,24 @@ final class JaxRsConfiguration implements Configuration {
         } else {
             mutableHttpMessage.body(body);
         }
+    }
+
+    /**
+     * The writer of the HTTP client of an entity no JAX-RS writer writes.
+     */
+    private <T> io.micronaut.http.body.@Nullable MessageBodyWriter<T> findClientWriter(Argument<T> argument, MediaType mediaType) {
+        MessageBodyHandlerRegistry registry = handlerRegistry;
+        if (registry == null) {
+            return null;
+        }
+        return registry.findWriter(argument, List.of(clientMediaType(mediaType))).orElse(null);
+    }
+
+    /**
+     * The media type the HTTP client writes an entity with: JSON when the request has none.
+     */
+    private static MediaType clientMediaType(MediaType mediaType) {
+        return mediaType.equals(MediaType.ALL_TYPE) ? MediaType.APPLICATION_JSON_TYPE : mediaType;
     }
 
     private <T> io.micronaut.http.body.@Nullable MessageBodyWriter<T> findWriter(Argument<T> argument,
@@ -651,7 +736,10 @@ final class JaxRsConfiguration implements Configuration {
     public List<ClientResponseFilter> getResponseFilters() {
         List<ClientResponseFilter> filters = responseFilters;
         if (filters == null) {
-            filters = getComponentOfType(ClientResponseFilter.class);
+            // in the reverse order of their priorities (JAX-RS 6.6)
+            filters = new ArrayList<>(getComponentOfType(ClientResponseFilter.class));
+            Collections.reverse(filters);
+            filters = Collections.unmodifiableList(filters);
             responseFilters = filters;
         }
         return filters;
@@ -667,6 +755,13 @@ final class JaxRsConfiguration implements Configuration {
     }
 
     private <T> List<T> getComponentOfType(Class<T> type) {
+        return registrationsOfType(type).stream().map(BeanRegistration::getBean).toList();
+    }
+
+    /**
+     * @return The registered providers of a type with their priorities, in the order of the priorities
+     */
+    private <T> List<BeanRegistration<T>> registrationsOfType(Class<T> type) {
         var valuesWithPriority = new ArrayList<Map.Entry<T, Integer>>();
         for (JaxRsConfiguration.Component component : components) {
             List<ComponentContract> contracts = component.components();
@@ -678,14 +773,16 @@ final class JaxRsConfiguration implements Configuration {
             T instance = injected(component.tryGet(type));
             if (instance != null) {
                 // the priority of the registration, else of the contract, else of @Priority
-                int priority = component.priority() != 0 ? component.priority()
-                    : contract != null && contract.priority() != 0 ? contract.priority()
+                int priority = component.priority() != NO_PRIORITY ? component.priority()
+                    : contract != null && contract.priority() != NO_PRIORITY ? contract.priority()
                     : JaxRsUtils.getPriorityOrder(instance);
                 valuesWithPriority.add(Map.entry(instance, priority));
             }
         }
         valuesWithPriority.sort(Comparator.comparingInt(Map.Entry::getValue));
-        return valuesWithPriority.stream().map(Map.Entry::getKey).toList();
+        return valuesWithPriority.stream()
+            .map(entry -> JaxRsRouteInterceptors.registration(entry.getKey(), entry.getValue()))
+            .toList();
     }
 
     /**
@@ -711,25 +808,43 @@ final class JaxRsConfiguration implements Configuration {
         @Override
         @SuppressWarnings("unchecked")
         public <T> @Nullable MessageBodyReader<T> getMessageBodyReader(Class<T> type, Type genericType, Annotation[] annotations, jakarta.ws.rs.core.MediaType mediaType) {
-            for (Component component : components) {
-                MessageBodyReader<T> reader = component.tryGet(MessageBodyReader.class);
-                if (reader != null && reader.isReadable(type, genericType, annotations, mediaType)) {
-                    return injected(reader);
+            // selected like the readers of the entities (JAX-RS 4.2.1)
+            MediaType micronautMediaType = JaxRsUtils.convert(mediaType);
+            MessageBodyReader<T> best = null;
+            long bestRank = Long.MAX_VALUE;
+            for (JaxRsMessageBodyReaderDefinition definition : getReaders()) {
+                if (definition.messageBodyReader() instanceof JaxRsMessageBodyReader<?> jaxRsReader
+                    && definition.type().isAssignableFrom(type)
+                    && jaxRsReader.delegate().isReadable(type, genericType, annotations, mediaType)) {
+                    long rank = rank(definition.type().getType(), jaxRsReader.delegate(), Consumes.class, type, micronautMediaType);
+                    if (rank < bestRank) {
+                        best = (MessageBodyReader<T>) jaxRsReader.delegate();
+                        bestRank = rank;
+                    }
                 }
             }
-            return null;
+            return best;
         }
 
         @Override
         @SuppressWarnings("unchecked")
         public <T> @Nullable MessageBodyWriter<T> getMessageBodyWriter(Class<T> type, Type genericType, Annotation[] annotations, jakarta.ws.rs.core.MediaType mediaType) {
-            for (Component component : components) {
-                MessageBodyWriter<T> writer = component.tryGet(MessageBodyWriter.class);
-                if (writer != null && writer.isWriteable(type, genericType, annotations, mediaType)) {
-                    return injected(writer);
+            // selected like the writers of the entities (JAX-RS 4.2.2)
+            MediaType micronautMediaType = JaxRsUtils.convert(mediaType);
+            MessageBodyWriter<T> best = null;
+            long bestRank = Long.MAX_VALUE;
+            for (JaxRsMessageBodyWriterDefinition definition : getWriters()) {
+                if (definition.messageBodyWriter() instanceof JaxRsMessageBodyWriter<?> jaxRsWriter
+                    && definition.type().isAssignableFrom(type)
+                    && jaxRsWriter.delegate().isWriteable(type, genericType, annotations, mediaType)) {
+                    long rank = rank(definition.type().getType(), jaxRsWriter.delegate(), Produces.class, type, micronautMediaType);
+                    if (rank < bestRank) {
+                        best = (MessageBodyWriter<T>) jaxRsWriter.delegate();
+                        bestRank = rank;
+                    }
                 }
             }
-            return null;
+            return best;
         }
 
         @Override
@@ -777,6 +892,8 @@ final class JaxRsConfiguration implements Configuration {
 
         boolean is(Class<?> type);
 
+        Class<?> componentClass();
+
         <T> @Nullable T tryGet(Class<T> type);
 
         int priority();
@@ -798,6 +915,11 @@ final class JaxRsConfiguration implements Configuration {
         @Override
         public boolean is(Class<?> type) {
             return type.equals(component.getClass());
+        }
+
+        @Override
+        public Class<?> componentClass() {
+            return component.getClass();
         }
     }
 
@@ -844,6 +966,11 @@ final class JaxRsConfiguration implements Configuration {
         @Override
         public boolean is(Class<?> type) {
             return type.equals(componentClass);
+        }
+
+        @Override
+        public Class<?> componentClass() {
+            return componentClass;
         }
 
         @Override

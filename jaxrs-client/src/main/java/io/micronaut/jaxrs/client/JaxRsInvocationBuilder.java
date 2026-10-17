@@ -159,7 +159,12 @@ final class JaxRsInvocationBuilder implements Invocation.Builder {
     }
 
     @Override
-    public Invocation.Builder header(String name, Object value) {
+    public Invocation.Builder header(String name, @Nullable Object value) {
+        if (value == null) {
+            // a null value removes the header (JAX-RS, Invocation.Builder#header)
+            mutableHttpHeaders.remove(name);
+            return this;
+        }
         // the optional whitespace around a value is not part of it (RFC 9110, section 5.5)
         mutableHttpHeaders.add(name, JaxRsHeaderUtil.headerToString(value).strip());
         return this;
@@ -171,7 +176,16 @@ final class JaxRsInvocationBuilder implements Invocation.Builder {
             mutableHttpHeaders.remove(header);
         }
         if (headers != null) {
-            headers.forEach((key, values) -> values.forEach(value -> mutableHttpHeaders.add(key, JaxRsHeaderUtil.headerToString(value).strip())));
+            headers.forEach((key, values) -> {
+                if (values != null) {
+                    for (Object value : values) {
+                        // a null value is no value
+                        if (value != null) {
+                            mutableHttpHeaders.add(key, JaxRsHeaderUtil.headerToString(value).strip());
+                        }
+                    }
+                }
+            });
         }
         return this;
     }
