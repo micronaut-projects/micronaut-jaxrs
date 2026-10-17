@@ -86,6 +86,7 @@ import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.NoContentException;
 import jakarta.ws.rs.core.PathSegment;
+import jakarta.ws.rs.core.SecurityContext;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ParamConverter;
 import jakarta.ws.rs.ext.ParamConverterProvider;
@@ -784,6 +785,13 @@ public final class JaxRsRouteSupport {
         }
         if (type == SseEventSink.class) {
             return sseEventSink(request);
+        }
+        if (type == SecurityContext.class) {
+            Optional<SecurityContext> replaced = request.getAttribute(JaxRsContainerRequestContext.SECURITY_CONTEXT, SecurityContext.class);
+            if (replaced.isPresent()) {
+                // set by a request filter
+                return replaced.get();
+            }
         }
         Optional<ArgumentBinder<Object, HttpRequest<?>>> binder = contextBinders.computeIfAbsent(argument,
             a -> (Optional) binderRegistry.findArgumentBinder((Argument) a));

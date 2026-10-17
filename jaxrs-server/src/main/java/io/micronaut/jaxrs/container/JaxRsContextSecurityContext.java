@@ -30,6 +30,7 @@ import jakarta.inject.Singleton;
 import jakarta.ws.rs.core.SecurityContext;
 
 import java.security.Principal;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 /**
@@ -56,6 +57,11 @@ final class JaxRsContextSecurityContext implements SecurityContext {
     private SecurityContext current() {
         HttpRequest<?> request = ServerRequestContext.currentRequest()
             .orElseThrow(() -> new IllegalStateException("The SecurityContext is only available while a request is handled"));
+        Optional<SecurityContext> replaced = request.getAttribute(JaxRsContainerRequestContext.SECURITY_CONTEXT, SecurityContext.class);
+        if (replaced.isPresent()) {
+            // set by a request filter
+            return replaced.get();
+        }
         ArgumentConversionContext<SecurityContext> context = ConversionContext.of(ARGUMENT);
         // e.g. before the security filter authenticated the request, for a pre-matching filter
         return binder.get().bind(context, request).getValue()

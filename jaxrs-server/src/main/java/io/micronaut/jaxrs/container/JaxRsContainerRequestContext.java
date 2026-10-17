@@ -61,6 +61,12 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
      */
     static final String ENTITY_STREAM = JaxRsContainerRequestContext.class.getName() + ".entityStream";
 
+    /**
+     * The attribute of the request that holds the security context a request filter set: the
+     * resource and the later filters see it.
+     */
+    static final String SECURITY_CONTEXT = JaxRsContainerRequestContext.class.getName() + ".securityContext";
+
     // the properties of the request, which all its contexts share, and the attributes of the stub
     // servlet request
     private static final String PROPERTIES = JaxRsContainerRequestContext.class.getName() + ".properties";
@@ -291,6 +297,8 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
     public void setSecurityContext(SecurityContext context) {
         checkRequestFilteringInProgress();
         this.securityContext = () -> context;
+        // the security context of the request, for the resource and the later filters
+        mutableHttpRequest.setAttribute(SECURITY_CONTEXT, context);
     }
 
     @Override
