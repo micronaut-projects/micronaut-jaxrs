@@ -30,7 +30,6 @@ import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
 import io.micronaut.jaxrs.common.JaxRsGenericEntity;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
-import io.micronaut.jaxrs.common.JaxRsResponse;
 import io.micronaut.jaxrs.common.JaxRsUtils;
 import io.micronaut.jaxrs.common.NameBindingPredicate;
 import io.micronaut.jaxrs.runtime.ext.bind.HttpHeadersBinder;
@@ -250,9 +249,8 @@ final class JaxRsContainerFilters {
             preMatchingRequestFilter.filter(requestContext);
             Response response = requestContext.getResponse();
             if (response != null) {
-                if (response instanceof JaxRsResponse jaxRsResponse) {
-                    return jaxRsResponse.getResponse();
-                }
+                // a response of the application too, not only of the runtime delegate
+                return JaxRsRouteSupport.toHttpResponse(response);
             }
         }
         requestContext.finished();
@@ -289,9 +287,8 @@ final class JaxRsContainerFilters {
             requestFilter.filter(requestContext);
             Response response = requestContext.getResponse();
             if (response != null) {
-                if (response instanceof JaxRsResponse jaxRsResponse) {
-                    return jaxRsResponse.getResponse();
-                }
+                // a response of the application too, not only of the runtime delegate
+                return JaxRsRouteSupport.toHttpResponse(response);
             }
         }
         requestContext.finished();
