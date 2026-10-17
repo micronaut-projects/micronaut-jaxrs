@@ -78,6 +78,7 @@ import org.slf4j.LoggerFactory;
 
 import java.lang.annotation.Annotation;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -245,7 +246,20 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      */
     private Map<Class<?>, Root<?>> rootResources() {
         Map<Class<?>, Root<?>> roots = new LinkedHashMap<>();
-        resources.forEach((type, resource) -> roots.put(type, root(resource)));
+        Application application = beanContext.findBean(Application.class).orElse(null);
+        Set<Class<?>> listed = new HashSet<>();
+        if (application != null) {
+            listed.addAll(application.getClasses());
+            for (Object singleton : application.getSingletons()) {
+                listed.add(singleton.getClass());
+            }
+        }
+        resources.forEach((type, resource) -> {
+            // a class without a @Path is a sub-resource, unless the application lists it
+            if (resource.definition().hasAnnotation(Path.class) || listed.contains(type)) {
+                roots.put(type, root(resource));
+            }
+        });
         // the resources the annotation processor did not describe, e.g. the instances of an
         // application the Java SE bootstrap registers as beans: routed from their introspection
         for (BeanDefinition<?> definition : beanContext.getBeanDefinitions(Qualifiers.byStereotype(Path.class))) {
@@ -257,7 +271,6 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 }
             }
         }
-        Application application = beanContext.findBean(Application.class).orElse(null);
         if (application != null) {
             for (Class<?> type : application.getClasses()) {
                 if (!roots.containsKey(type)) {
