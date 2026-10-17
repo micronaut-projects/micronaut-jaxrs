@@ -5,10 +5,6 @@ plugins {
 dependencies {
     implementation(mn.micronaut.http)
     implementation(mn.micronaut.core.processor)
-    implementation(libs.micronaut.sourcegen.generator)
-    // the generator registers the visitors of the sourcegen annotations
-    implementation(libs.micronaut.sourcegen.annotations)
-    implementation(libs.micronaut.sourcegen.generator.java)
     implementation(libs.managed.jaxrs.api)
 
     testAnnotationProcessor(mnValidation.micronaut.validation.processor)

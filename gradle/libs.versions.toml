@@ -19,8 +19,6 @@ errorprone-no-reflection = "1.0.1"
 error-prone-core = "2.50.0"
 nullaway = "0.13.8"
 jakarta-sigtest = "2.6"
-# the version of the sourcegen model micronaut-core-processor is built with
-micronaut-sourcegen = "2.1.0"
 
 [libraries]
 micronaut-core = { module = 'io.micronaut:micronaut-core-bom', version.ref = 'micronaut' }
@@ -29,10 +27,6 @@ micronaut-security = { module = "io.micronaut.security:micronaut-security-bom", 
 micronaut-serde = { module = "io.micronaut.serde:micronaut-serde-bom", version.ref = "micronaut-serde" }
 micronaut-servlet = { module = "io.micronaut.servlet:micronaut-servlet-bom", version.ref = "micronaut-servlet" }
 micronaut-validation = { module = "io.micronaut.validation:micronaut-validation-bom", version.ref = "micronaut-validation" }
-
-micronaut-sourcegen-annotations = { module = "io.micronaut.sourcegen:micronaut-sourcegen-annotations", version.ref = "micronaut-sourcegen" }
-micronaut-sourcegen-generator = { module = "io.micronaut.sourcegen:micronaut-sourcegen-generator", version.ref = "micronaut-sourcegen" }
-micronaut-sourcegen-generator-java = { module = "io.micronaut.sourcegen:micronaut-sourcegen-generator-java", version.ref = "micronaut-sourcegen" }
 
 managed-jaxrs-api = { module = "jakarta.ws.rs:jakarta.ws.rs-api", version.ref = "managed-jaxrs-api" }
 

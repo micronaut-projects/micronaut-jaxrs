@@ -36,7 +36,6 @@ import io.micronaut.core.convert.ArgumentConversionContext;
 import io.micronaut.core.convert.ConversionContext;
 import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.type.Argument;
-import io.micronaut.core.util.ExceptionUtils;
 import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.inject.ExecutableMethod;
@@ -119,10 +118,9 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
- * The runtime of the routes generated for JAX-RS resources: the generated handler functions read
- * the parameters of a resource method with it, and convert the result of the method to a response.
- * Everything that depends only on a parameter or a route is resolved once and cached by the
- * {@link Argument} constants of the generated code.
+ * The support of the runtime routes of JAX-RS resources, see {@link JaxRsRuntimeRoutes}: their
+ * handlers read the parameters of a resource method with it, and convert the result of the method
+ * to a response.
  *
  * @author Denis Stepanov
  * @since 5.2.0
@@ -175,8 +173,6 @@ public final class JaxRsRouteSupport {
 
     private volatile @Nullable JaxRsContainerFilters containerFilters;
 
-    private final Map<RouteMetadata, Argument<?>> entityArguments = new ConcurrentHashMap<>();
-
     private volatile @Nullable Set<Class<?>> registeredClasses;
 
     JaxRsRouteSupport(ApplicationProvider applicationProvider,
@@ -219,16 +215,6 @@ public final class JaxRsRouteSupport {
     }
 
     /**
-     * Declare the routes of a resource: with the templates of JAX-RS, selected by JAX-RS.
-     *
-     * @param routes   The builder
-     * @param resource The routes of the resource
-     */
-    public void routes(HttpRouteBuilder routes, JaxRsResourceRoutes resource) {
-        routes(routes, resource::declare);
-    }
-
-    /**
      * Declare routes: with the templates of JAX-RS, selected by JAX-RS.
      *
      * @param routes       The builder
@@ -240,16 +226,6 @@ public final class JaxRsRouteSupport {
             group.selectedBy(templates);
             declarations.accept(group);
         });
-    }
-
-    /**
-     * Declare the routes of a located target: with the templates of JAX-RS, selected by JAX-RS.
-     *
-     * @param routes  The builder
-     * @param located The routes of the class of the target
-     */
-    public void locatedRoutes(LocatedHttpRouteBuilder<Object> routes, JaxRsLocatedRoutes located) {
-        locatedRoutes(routes, located::declare);
     }
 
     /**
@@ -369,21 +345,6 @@ public final class JaxRsRouteSupport {
     }
 
     /**
-     * The entity of a resource method whose entity parameter is annotated: the readers see the
-     * annotations of the parameter.
-     *
-     * @param request  The request
-     * @param body     The entity, {@code null} for an empty body
-     * @param metadata The metadata of the resource method
-     * @param index    The index of the entity parameter
-     * @param argument The type of the entity, without the annotations
-     * @return The entity
-     */
-    public @Nullable Object entity(HttpRequest<?> request, byte @Nullable [] body, RouteMetadata metadata, int index, Argument<?> argument) {
-        return entity(request, body, entityArguments.computeIfAbsent(metadata, m -> entityArgument(m, index, argument)));
-    }
-
-    /**
      * Read the entity of an asynchronous resource method, then call it.
      *
      * @param request       The request
@@ -453,22 +414,6 @@ public final class JaxRsRouteSupport {
         } catch (Exception e) {
             return CompletableFuture.failedFuture(e);
         }
-    }
-
-    /**
-     * The type of the entity parameter of a resource method, with the annotations of the parameter,
-     * which the message body readers see.
-     *
-     * @param metadata The metadata of the resource method
-     * @param index    The index of the entity parameter
-     * @param fallback The argument without the annotations, for a method that is not executable
-     * @return The type of the entity
-     */
-    public Argument<?> entityArgument(RouteMetadata metadata, int index, Argument<?> fallback) {
-        return beanContext.findBeanDefinition(metadata.resourceClass)
-            .flatMap(definition -> definition.findMethod(metadata.methodName, metadata.parameterTypes))
-            .<Argument<?>>map(method -> method.getArguments()[index])
-            .orElse(fallback);
     }
 
     /**
@@ -1224,16 +1169,6 @@ public final class JaxRsRouteSupport {
         return beanContext.createBean(type, arguments);
     }
 
-    /**
-     * Rethrow what a resource method throws, unchanged, from a route handler.
-     *
-     * @param throwable What the resource method threw
-     * @return Never returns
-     */
-    public static RuntimeException rethrow(Throwable throwable) {
-        return ExceptionUtils.sneakyThrow(throwable);
-    }
-
     private static String encode(String value) {
         return java.net.URLEncoder.encode(value, java.nio.charset.StandardCharsets.UTF_8).replace("+", "%20");
     }
@@ -1385,7 +1320,7 @@ public final class JaxRsRouteSupport {
     }
 
     /**
-     * What the generated code knows about a resource method at compile time.
+     * What the runtime routes know about a resource method.
      */
     public static final class RouteMetadata {
         private final Class<?> resourceClass;
