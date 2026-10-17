@@ -8,6 +8,15 @@ dependencies {
     implementation(projects.micronautJaxrsCommon)
     implementation(mn.micronaut.http.client)
     implementation(mn.micronaut.buffer.netty)
+
+    testAnnotationProcessor(mn.micronaut.inject.java)
+    testImplementation(mn.micronaut.http.server.netty)
+    testImplementation(mnTest.micronaut.test.junit5)
+    testImplementation(mnSerde.micronaut.serde.jackson)
+    // the reflection of the providers the tests register, see JaxRsReflection
+    testRuntimeOnly(mn.micronaut.reflection)
+    testRuntimeOnly(mnLogging.logback.classic)
+    testRuntimeOnly(mnTest.junit.jupiter.engine)
 }
 
 noReflection {
@@ -15,6 +24,4 @@ noReflection {
     allowIn("io.micronaut.jaxrs.client.JaxRsClientBuilder", "SERVICE_LOADING")
     // ClientRequestContext.getEntityAnnotations() returns Annotation[]
     allowIn("io.micronaut.jaxrs.client.JaxRsClientRequestContext", "ANNOTATION_SYNTHESIS")
-    // the HTTP method of a request is looked up by its name
-    allowIn("io.micronaut.jaxrs.client.JaxRsInvocation", "ENUM_CONSTANTS")
 }
