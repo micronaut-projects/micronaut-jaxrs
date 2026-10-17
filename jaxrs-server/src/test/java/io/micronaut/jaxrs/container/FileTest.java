@@ -6,6 +6,7 @@ import io.micronaut.http.client.HttpClient;
 import io.micronaut.http.client.annotation.Client;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
@@ -39,6 +40,8 @@ class FileTest {
     }
 
     @Requires(property = "spec.name", value = "FileTest")
+    // the instance the test sets the file of: a resource is created per request by default
+    @Singleton
     @Path("/file")
     static class MyController {
         File file;

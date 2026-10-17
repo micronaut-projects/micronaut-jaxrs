@@ -190,22 +190,21 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         if (!element.isAbstract() && !element.isInterface() && !element.hasStereotype(Controller.class)
             && (element.hasAnnotation(Path.class) || !element.getEnclosedElements(ElementQuery.ALL_METHODS.onlyInstance()
                 .annotated(metadata -> metadata.hasStereotype(HttpMethod.class))).isEmpty())) {
-            // a resource: a bean whose methods are routed by generated handler functions. A class
-            // without @Path is routed from the root, like the controllers did
+            // a resource or a sub-resource: a bean whose methods are routed at runtime. JAX-RS
+            // creates a resource for every request, unless it has a scope, e.g. a singleton
             ConstructorElement requestConstructor = JaxRsRoutesGenerator.requestConstructor(element);
-            if (JaxRsRoutesGenerator.isPerRequest(element)) {
-                // values of the request in the constructor, fields or setters: created for every
-                // request, with those values passed as @Parameters by the generated route
-                if (!element.hasStereotype(AnnotationUtil.SCOPE)) {
-                    element.annotate(Prototype.class);
-                }
-            } else if (!element.hasStereotype(AnnotationUtil.SCOPE)) {
-                element.annotate(Singleton.class);
+            boolean shared = JaxRsRoutesGenerator.isShared(element);
+            if (!element.hasStereotype(AnnotationUtil.SCOPE)) {
+                element.annotate(Prototype.class);
+            }
+            if (shared && !JaxRsRoutesGenerator.requestMembers(element).stream().allMatch(member -> member.hasAnnotation(Context.class))) {
+                context.warn("The values of the request in the fields and setters of a singleton resource are not injected: only its @Context ones are, with proxies of the current request", element);
             }
             if (requestConstructor != null) {
                 requestConstructor.annotate(Inject.class);
                 for (ParameterElement parameter : requestConstructor.getParameters()) {
-                    if (JaxRsRoutesGenerator.isRequestAnnotated(parameter)) {
+                    // a singleton gets proxies of the current request as its @Context values
+                    if (JaxRsRoutesGenerator.isRequestAnnotated(parameter) && !(shared && parameter.hasAnnotation(Context.class))) {
                         parameter.annotate(Parameter.class);
                         if (!parameter.isPrimitive()) {
                             parameter.annotate(Nullable.class);

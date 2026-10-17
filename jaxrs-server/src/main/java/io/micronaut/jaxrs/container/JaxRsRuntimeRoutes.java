@@ -199,7 +199,8 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         // of it is marked in the templates, for the JAX-RS route template engine, also when empty:
         // the templates of located targets have no mark
         String prefix = strip(rootPath) + JaxRsRouteTemplateEngine.ROOT_MARK;
-        RequestType<B> requestType = requestType(root.type(), root.definition());
+        // a singleton is not created per request: its @Context members are proxies of the current request
+        RequestType<B> requestType = root.shared() ? null : requestType(root.type(), root.definition());
         int rootSegments = segments(rootPath);
         Supplier<B> instances = root.instances();
         Instances<@Nullable Void, B> instance = requestType == null
@@ -249,15 +250,25 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         Map<Class<?>, Root<?>> roots = new LinkedHashMap<>();
         Application application = beanContext.findBean(Application.class).orElse(null);
         Set<Class<?>> listed = new HashSet<>();
+        Map<Class<?>, Object> singletons = new LinkedHashMap<>();
         if (application != null) {
             listed.addAll(application.getClasses());
             for (Object singleton : application.getSingletons()) {
                 listed.add(singleton.getClass());
+                singletons.put(singleton.getClass(), singleton);
             }
         }
+        // the instances of the application are its resources (JAX-RS 2.3), also when it is not
+        // started by the Java SE bootstrap, which registers them as beans
+        singletons.forEach((type, singleton) -> {
+            Root<?> root = singletonRoot(singleton);
+            if (root != null) {
+                roots.put(type, root);
+            }
+        });
         resources.forEach((type, resource) -> {
             // a class without a @Path is a sub-resource, unless the application lists it
-            if (resource.definition().hasAnnotation(Path.class) || listed.contains(type)) {
+            if (!roots.containsKey(type) && (resource.definition().hasAnnotation(Path.class) || listed.contains(type))) {
                 roots.put(type, root(resource));
             }
         });
@@ -304,7 +315,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             methods.add(new JaxRsMethod<>(method.getMethodName(), method.getArguments(), method.getReturnType().asArgument(),
                 methodMetadata(method.getAnnotationMetadata()), method));
         }
-        return new Root<>(definition.getBeanType(), definition, definition.getAnnotationMetadata(), methods, instances(definition));
+        return new Root<>(definition.getBeanType(), definition, definition.getAnnotationMetadata(), methods, instances(definition), definition.isSingleton());
     }
 
     private <B> @Nullable Root<B> beanRoot(BeanDefinition<B> definition) {
@@ -315,7 +326,23 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         }
         List<JaxRsMethod<B>> methods = methods(introspection);
         return methods.isEmpty() ? null
-            : new Root<>(type, definition, definition.getAnnotationMetadata(), methods, instances(definition));
+            : new Root<>(type, definition, definition.getAnnotationMetadata(), methods, instances(definition), definition.isSingleton());
+    }
+
+    /**
+     * The root resource of an instance of the application: a singleton, whose {@code @Context}
+     * fields are injected once, with proxies of the current request.
+     */
+    @SuppressWarnings("unchecked")
+    private <T> @Nullable Root<T> singletonRoot(T singleton) {
+        Class<T> type = (Class<T>) singleton.getClass();
+        List<JaxRsMethod<T>> methods = methods(type);
+        if (methods.isEmpty()) {
+            // e.g. a provider
+            return null;
+        }
+        JaxRsReflection.get().injectFields(singleton, Context.class, contextType -> beanContext.findBean(contextType).orElse(null));
+        return new Root<>(type, null, classMetadata(type), methods, () -> singleton, true);
     }
 
     /**
@@ -328,7 +355,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             return null;
         }
         return new Root<>(type, null, introspection.getAnnotationMetadata(), methods(introspection),
-            () -> beanContext.inject(introspection.instantiate()));
+            () -> beanContext.inject(introspection.instantiate()), false);
     }
 
     private static boolean isRootResource(BeanIntrospection<?> introspection) {
@@ -555,7 +582,12 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      * How to create an instance of a class a locator returned, for a request.
      */
     private <T> Creator<T> creator(Class<T> type) {
-        RequestType<T> created = requestType(type, beanContext.findBeanDefinition(type).orElse(null));
+        BeanDefinition<T> definition = beanContext.findBeanDefinition(type).orElse(null);
+        if (definition != null && definition.isSingleton()) {
+            Supplier<T> singleton = instances(definition);
+            return (request, pathVariables, form) -> singleton.get();
+        }
+        RequestType<T> created = requestType(type, definition);
         if (created != null) {
             return (request, pathVariables, form) -> create(created, request, pathVariables, form);
         }
@@ -1239,10 +1271,11 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      * @param metadata   The annotations of its class
      * @param methods    Its resource methods and locators
      * @param instances  Gets its instance
+     * @param shared     Whether it is a singleton, not created per request
      * @param <B>        Its type
      */
     private record Root<B>(Class<B> type, @Nullable BeanDefinition<B> definition, AnnotationMetadata metadata,
-                           List<JaxRsMethod<B>> methods, Supplier<B> instances) {
+                           List<JaxRsMethod<B>> methods, Supplier<B> instances, boolean shared) {
     }
 
     /**

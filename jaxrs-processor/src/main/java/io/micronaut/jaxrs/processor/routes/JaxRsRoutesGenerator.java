@@ -252,15 +252,25 @@ public final class JaxRsRoutesGenerator {
      * @param type A class
      * @return Whether the generated routes create it for every request and fill its members: a
      * resource or sub-resource, with values of the request in its constructor, fields or setters.
-     * Other classes with {@code @Context} members, an {@code Application} or a provider, are beans
-     * whose members are injected with proxies of the current request.
+     * Other classes with {@code @Context} members, an {@code Application}, a provider or a
+     * singleton resource, are beans whose members are injected with proxies of the current request.
      */
     public static boolean isCreatedPerRequest(ClassElement type) {
-        if (!isPerRequest(type)) {
+        if (!isPerRequest(type) || isShared(type)) {
             return false;
         }
         return type.hasAnnotation(Path.class) || !type.getEnclosedElements(ElementQuery.ALL_METHODS.onlyInstance()
             .annotated(metadata -> metadata.hasStereotype(HttpMethod.class) || metadata.hasDeclaredAnnotation(Path.class))).isEmpty();
+    }
+
+    /**
+     * @param type A class
+     * @return Whether it is a singleton, e.g. a resource annotated {@code @Singleton}: it is not
+     * created per request, and its {@code @Context} members are injected once, with proxies of the
+     * current request
+     */
+    public static boolean isShared(ClassElement type) {
+        return type.hasStereotype("jakarta.inject.Singleton");
     }
 
     /**
