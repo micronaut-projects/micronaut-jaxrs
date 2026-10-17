@@ -255,6 +255,18 @@ public final class JaxRsRouteSupport {
     }
 
     /**
+     * Whether JAX-RS commits to the root resource class of a sub-resource locator route (section
+     * 3.7.2, step 1): no root resource class with a more specific {@code @Path} matches the path.
+     *
+     * @param request The request
+     * @param prefix  The prefix of the locator route, see {@link #prefix}
+     * @return Whether the locator is invoked
+     */
+    public boolean commitsToLocator(HttpRequest<?> request, String prefix) {
+        return templates.commitsToLocator(request, prefix);
+    }
+
+    /**
      * The template of a route, in the language of JAX-RS, under the {@code @ApplicationPath} of
      * the application. The context path is applied by the router.
      *

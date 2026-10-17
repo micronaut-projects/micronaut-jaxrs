@@ -1270,7 +1270,10 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
 
         @Override
         public void locate(String prefix, Locator<@Nullable Void> locator) {
-            routes.<Object>locate(prefix, (request, pathVariables) -> locator.locate(request, pathVariables, null), support.locatedRoutes());
+            // the router does not select a locator route as JAX-RS does: a root resource class with a more
+            // specific @Path that matches the path, but none of whose routes does, answers 404
+            routes.<Object>locate(prefix, (request, pathVariables) -> support.commitsToLocator(request, prefix)
+                ? locator.locate(request, pathVariables, null) : null, support.locatedRoutes());
         }
     }
 

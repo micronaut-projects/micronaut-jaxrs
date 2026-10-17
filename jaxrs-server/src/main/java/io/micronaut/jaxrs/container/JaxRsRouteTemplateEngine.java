@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -108,6 +109,11 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
      */
     private volatile List<Root> roots = List.of();
 
+    /**
+     * The templates of the root resource classes mounted by the router, by the template they mount.
+     */
+    private final Map<String, Parsed> mountedRoots = new ConcurrentHashMap<>();
+
     @Override
     public RouteTemplate parse(String expression) {
         Parsed parsed = parsed(this, expression, "");
@@ -143,7 +149,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
                 candidates.add(match);
             }
         }
-        if (best instanceof Parsed parsed && parsed.rootPart != null && !committed(request, parsed)) {
+        if (best instanceof Parsed parsed && parsed.rootPart != null && !committed(request, parsed.root())) {
             return List.of();
         }
         MediaType contentType = request.getContentType().orElse(null);
@@ -187,8 +193,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
      * step 1): no root resource class with a more specific {@code @Path} matches the path. When
      * one does, the request is not found, even if a route of a less specific class matches.
      */
-    private boolean committed(HttpRequest<?> request, Parsed route) {
-        RouteTemplate root = route.root();
+    private boolean committed(HttpRequest<?> request, RouteTemplate root) {
         String path = null;
         for (Root candidate : roots) {
             if (SPECIFICITY.compare(candidate.template, root) >= 0) {
@@ -202,6 +207,27 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
             }
         }
         return true;
+    }
+
+    /**
+     * Whether JAX-RS commits to the root resource class of a sub-resource locator route, see
+     * {@link #committed}: the router never gives a locator route to {@link #select}, it locates
+     * the target of the most specific one first.
+     *
+     * @param request The request
+     * @param prefix  The prefix the locator route was declared with, with the mark of its root resource class
+     * @return Whether the root resource class of the locator is the one JAX-RS commits to
+     */
+    boolean commitsToLocator(HttpRequest<?> request, String prefix) {
+        Parsed root = parsed(null, prefix, "").rootPart;
+        if (root == null) {
+            return true;
+        }
+        // the template the router matches, mounted under the context path
+        for (Parsed mounted = mountedRoots.get(root.expression); mounted != null; mounted = mountedRoots.get(root.expression)) {
+            root = mounted;
+        }
+        return committed(request, root);
     }
 
     /**
@@ -697,6 +723,9 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
             if (engine != null && mounted.rootPart != null) {
                 // the root resource class is matched under the prefix
                 engine.addRoot(mounted.rootPart, rootPart);
+                if (rootPart != null && !rootPart.expression.equals(mounted.rootPart.expression)) {
+                    engine.mountedRoots.put(rootPart.expression, mounted.rootPart);
+                }
             }
             return mounted;
         }
