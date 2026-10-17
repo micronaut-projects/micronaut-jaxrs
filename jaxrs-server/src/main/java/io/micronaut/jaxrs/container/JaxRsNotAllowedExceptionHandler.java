@@ -26,7 +26,6 @@ import io.micronaut.http.server.exceptions.ExceptionHandler;
 import io.micronaut.http.server.exceptions.NotAllowedException;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
-import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Providers;
 
@@ -70,13 +69,10 @@ final class JaxRsNotAllowedExceptionHandler implements ExceptionHandler<NotAllow
             allowedMethods.subList(1, allowedMethods.size()).toArray(String[]::new)
         );
         ExceptionMapper exceptionMapper = providers.getExceptionMapper(notAllowedException.getClass());
-        Response response;
         if (exceptionMapper != null) {
-            response = exceptionMapper.toResponse(notAllowedException);
-        } else {
-            response = notAllowedException.getResponse();
+            return JaxRsGlobalExceptionHandler.map(request, exceptionMapper, notAllowedException);
         }
-        return JaxRsRouteSupport.toHttpResponse(response);
+        return JaxRsRouteSupport.toHttpResponse(notAllowedException.getResponse());
     }
 
 }

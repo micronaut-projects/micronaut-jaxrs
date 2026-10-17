@@ -20,6 +20,7 @@ import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.MutableHttpRequest;
 import io.micronaut.http.ServerHttpRequest;
+import io.micronaut.http.body.ByteBody;
 import io.micronaut.jaxrs.common.JaxRsHttpHeaders;
 import io.micronaut.jaxrs.common.JaxRsRequestProperties;
 import io.micronaut.jaxrs.common.JaxRsMutableHeadersMultivaluedMap;
@@ -274,8 +275,8 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
             return new ByteArrayInputStream(buffered);
         }
         if (bodyRequest instanceof ServerHttpRequest<?> serverHttpRequest) {
-            // a copy: the resource method still reads the entity
-            return serverHttpRequest.byteBody().split().toInputStream();
+            // a copy: the resource method still reads the entity, later, so the copy pulls the body
+            return serverHttpRequest.byteBody().split(ByteBody.SplitBackpressureMode.FASTEST).toInputStream();
         }
         return bodyRequest.getBody(byte[].class)
             .<InputStream>map(ByteArrayInputStream::new)

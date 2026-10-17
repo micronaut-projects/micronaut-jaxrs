@@ -239,6 +239,55 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
     }
 
     /**
+     * The JAX-RS reader of the application that reads a type as a media type, for
+     * {@code Providers#getMessageBodyReader}: the registered readers, in the order of JAX-RS
+     * (4.2.1), the first one that reads it.
+     *
+     * @param type        The type
+     * @param genericType The generic type
+     * @param annotations The annotations
+     * @param mediaType   The media type
+     * @param <T>         The type
+     * @return The reader, {@code null} if none reads it
+     */
+    public <T> @Nullable MessageBodyReader<T> findJaxRsReader(Class<T> type, Type genericType, Annotation[] annotations,
+                                                             jakarta.ws.rs.core.MediaType mediaType) {
+        for (MessageBodyReader<T> candidate : findJaxRsReaders(Argument.of(type), List.of(convertNonNull(mediaType)))) {
+            if (candidate.isReadable(type, genericType, annotations, mediaType)) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The JAX-RS writer of the application that writes a type as a media type, for
+     * {@code Providers#getMessageBodyWriter}: the registered writers, in the order of JAX-RS
+     * (4.2.2), the first one that writes it.
+     *
+     * @param type        The type
+     * @param genericType The generic type
+     * @param annotations The annotations
+     * @param mediaType   The media type
+     * @param <T>         The type
+     * @return The writer, {@code null} if none writes it
+     */
+    public <T> @Nullable MessageBodyWriter<T> findJaxRsWriter(Class<T> type, Type genericType, Annotation[] annotations,
+                                                             jakarta.ws.rs.core.MediaType mediaType) {
+        for (BeanRegistration<MessageBodyWriter<T>> candidate : findJaxRsBodyWriters(Argument.of(type), List.of(convertNonNull(mediaType)))) {
+            if (candidate.getBean().isWriteable(type, genericType, annotations, mediaType)) {
+                return candidate.getBean();
+            }
+        }
+        return null;
+    }
+
+    private static MediaType convertNonNull(jakarta.ws.rs.core.@Nullable MediaType mediaType) {
+        MediaType converted = JaxRsUtils.convert(mediaType);
+        return converted == null ? MediaType.ALL_TYPE : converted;
+    }
+
+    /**
      * The media types the JAX-RS writers of the application write a type as: the types they
      * produce, for the writers that write it (JAX-RS 3.8, step 2).
      *

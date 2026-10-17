@@ -76,7 +76,7 @@ final class JaxRsExceptionHandler implements ExceptionHandler<WebApplicationExce
             return JaxRsRouteSupport.toHttpResponse(response);
         }
         if (exceptionMapper != null) {
-            return JaxRsRouteSupport.toHttpResponse(exceptionMapper.toResponse(exception));
+            return JaxRsGlobalExceptionHandler.map(request, exceptionMapper, exception);
         }
         return responseProcessor.processResponse(ErrorContext.builder(request)
             .errorMessage(Objects.requireNonNullElse(exception.getMessage(), "Unknown error"))

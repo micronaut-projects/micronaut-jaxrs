@@ -26,6 +26,8 @@ import jakarta.ws.rs.core.Feature;
 import org.jspecify.annotations.Nullable;
 
 import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -58,7 +60,17 @@ final class JaxRsContextConfiguration implements Configuration {
     @Override
     public Map<String, Object> getProperties() {
         Application app = application.get();
-        return app == null ? Map.of() : app.getProperties();
+        Map<String, Object> set = features.get().properties();
+        if (set.isEmpty()) {
+            return app == null ? Map.of() : app.getProperties();
+        }
+        // the ones of the application, and the ones the features set (FeatureContext#property)
+        Map<String, Object> properties = new LinkedHashMap<>();
+        if (app != null) {
+            properties.putAll(app.getProperties());
+        }
+        properties.putAll(set);
+        return Collections.unmodifiableMap(properties);
     }
 
     @Override
@@ -102,7 +114,7 @@ final class JaxRsContextConfiguration implements Configuration {
 
     @Override
     public Map<Class<?>, Integer> getContracts(Class<?> componentClass) {
-        return Map.of();
+        return features.get().contracts(componentClass);
     }
 
     @Override

@@ -32,7 +32,6 @@ import io.micronaut.http.server.exceptions.response.ErrorResponseProcessor;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.WebApplicationException;
-import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Providers;
 
@@ -72,13 +71,10 @@ final class JaxRsHttpStatusExceptionHandler implements ExceptionHandler<HttpStat
         WebApplicationException webApplicationException = remap(exception);
         if (webApplicationException != null && isInApplication(request)) {
             ExceptionMapper exceptionMapper = providers.getExceptionMapper(webApplicationException.getClass());
-            Response response;
             if (exceptionMapper != null) {
-                response = exceptionMapper.toResponse(webApplicationException);
-            } else {
-                response = webApplicationException.getResponse();
+                return JaxRsGlobalExceptionHandler.map(request, exceptionMapper, webApplicationException);
             }
-            return JaxRsRouteSupport.toHttpResponse(response);
+            return JaxRsRouteSupport.toHttpResponse(webApplicationException.getResponse());
         }
         return responseProcessor.processResponse(ErrorContext.builder(request)
             .errorMessage(Objects.requireNonNullElse(exception.getMessage(), "Unknown error"))

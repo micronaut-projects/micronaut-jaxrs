@@ -42,6 +42,7 @@ import io.micronaut.http.HttpRequest;
 import io.micronaut.inject.ExecutableMethod;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.MutableHttpResponse;
+import io.micronaut.http.codec.CodecException;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.form.FileUpload;
 import io.micronaut.jaxrs.common.multipart.JaxRsEntityPart;
@@ -51,6 +52,9 @@ import io.micronaut.jaxrs.common.JaxRsGenericEntity;
 import jakarta.ws.rs.core.GenericEntity;
 import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
 import io.micronaut.jaxrs.common.JaxRsContainerMessageBodyHandlerRegistry;
+import io.micronaut.context.BeanRegistration;
+import io.micronaut.core.util.SupplierUtil;
+import java.util.function.Supplier;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import io.micronaut.http.form.FormData;
 import io.micronaut.web.router.builder.HttpRouteBuilder;
@@ -142,6 +146,13 @@ public final class JaxRsRouteSupport {
      */
     static final String SSE_EVENT_SINK = SseEventSink.class.getName();
 
+    // the types of header values with a header delegate, a subtype first (NewCookie of Cookie)
+    private static final List<Class<?>> HEADER_TYPES = List.of(
+        jakarta.ws.rs.core.MediaType.class, jakarta.ws.rs.core.NewCookie.class, jakarta.ws.rs.core.Cookie.class,
+        jakarta.ws.rs.core.EntityTag.class, jakarta.ws.rs.core.Link.class, jakarta.ws.rs.core.CacheControl.class);
+    private static final java.time.format.DateTimeFormatter HTTP_DATE =
+        java.time.format.DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss 'GMT'", java.util.Locale.US);
+
     // the servlet request types of a @Context value, bound to a stub when the server is not a
     // servlet container
     private static final Set<String> SERVLET_REQUEST_TYPES = Set.of("jakarta.servlet.ServletRequest", "jakarta.servlet.http.HttpServletRequest");
@@ -155,7 +166,7 @@ public final class JaxRsRouteSupport {
 
     private final ConversionService conversionService;
 
-    private final List<ParamConverterProvider> paramConverterProviders;
+    private final Supplier<List<ParamConverterProvider>> paramConverterProviders;
 
     private final RequestBinderRegistry binderRegistry;
 
@@ -177,7 +188,6 @@ public final class JaxRsRouteSupport {
 
     JaxRsRouteSupport(ApplicationProvider applicationProvider,
                       ConversionService conversionService,
-                      List<ParamConverterProvider> paramConverterProviders,
                       RequestBinderRegistry binderRegistry,
                       BeanContext beanContext) {
         this.applicationProvider = applicationProvider;
@@ -185,7 +195,15 @@ public final class JaxRsRouteSupport {
             .map(path -> java.net.URLDecoder.decode(path, java.nio.charset.StandardCharsets.UTF_8))
             .orElse("");
         this.conversionService = conversionService;
-        this.paramConverterProviders = paramConverterProviders;
+        // the registered ones (JAX-RS 2.3), resolved when first used: after the instances of the
+        // application replaced the beans of their classes, see JaxRsApplicationSingletons
+        this.paramConverterProviders = SupplierUtil.memoized(() -> {
+            JaxRsContainerMessageBodyHandlerRegistry registry = beanContext.getBean(JaxRsContainerMessageBodyHandlerRegistry.class);
+            return beanContext.getBeanRegistrations(ParamConverterProvider.class).stream()
+                .filter(registration -> registry.isRegistered(registration.getBeanDefinition().getBeanType()))
+                .map(BeanRegistration::getBean)
+                .toList();
+        });
         this.binderRegistry = binderRegistry;
         this.beanContext = beanContext;
     }
@@ -654,6 +672,16 @@ public final class JaxRsRouteSupport {
      * @return The entity
      */
     public @Nullable Object entity(HttpRequest<?> request, byte @Nullable [] body, Argument<?> argument) {
+        try {
+            return readEntity(request, body, argument);
+        } catch (CodecException e) {
+            // unmapped, the failure to read the entity is the client's
+            JaxRsGlobalExceptionHandler.entityFailed(request, e);
+            throw e;
+        }
+    }
+
+    private @Nullable Object readEntity(HttpRequest<?> request, byte @Nullable [] body, Argument<?> argument) {
         InputStream replaced = request.getAttribute(JaxRsContainerRequestContext.ENTITY_STREAM, InputStream.class).orElse(null);
         if (replaced != null) {
             // the entity stream a request filter set
@@ -832,13 +860,37 @@ public final class JaxRsRouteSupport {
         MutableHttpResponse<Object> httpResponse = HttpResponse.status(response.getStatus(), response.getStatusInfo().getReasonPhrase());
         response.getMetadata().forEach((name, values) -> {
             for (Object value : values) {
-                httpResponse.getHeaders().add(name, String.valueOf(value));
+                if (value != null) {
+                    httpResponse.getHeaders().add(name, headerValue(value));
+                }
             }
         });
         if (response.hasEntity()) {
             httpResponse.body(response.getEntity());
         }
         return httpResponse;
+    }
+
+    /**
+     * A header value of a response as a string: with the header delegate of its type, e.g. of a
+     * subclass of {@code Link} or {@code NewCookie}, a date as an HTTP date, else its
+     * {@code toString()} (JAX-RS, {@code Response#getStringHeaders}).
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static String headerValue(Object value) {
+        if (value instanceof String string) {
+            return string;
+        }
+        if (value instanceof java.util.Date date) {
+            return HTTP_DATE.format(date.toInstant().atZone(java.time.ZoneOffset.UTC));
+        }
+        for (Class<?> type : HEADER_TYPES) {
+            if (type.isInstance(value)) {
+                return ((jakarta.ws.rs.ext.RuntimeDelegate.HeaderDelegate) jakarta.ws.rs.ext.RuntimeDelegate.getInstance()
+                    .createHeaderDelegate(type)).toString(value);
+            }
+        }
+        return value.toString();
     }
 
     /**
@@ -1318,7 +1370,7 @@ public final class JaxRsRouteSupport {
     private StringConverter converter(Argument<?> argument) {
         Class<?> type = argument.getType();
         Annotation[] annotations = argument.synthesizeAll();
-        for (ParamConverterProvider provider : paramConverterProviders) {
+        for (ParamConverterProvider provider : paramConverterProviders.get()) {
             ParamConverter paramConverter = provider.getConverter(type, argument.asType(), annotations);
             if (paramConverter != null) {
                 return paramConverter::fromString;

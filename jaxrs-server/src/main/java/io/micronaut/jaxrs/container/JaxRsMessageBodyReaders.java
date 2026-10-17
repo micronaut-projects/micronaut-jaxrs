@@ -86,7 +86,7 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
      * The reader interceptor beans, and the ones of the resource method of the current request.
      */
     private List<BeanRegistration<ReaderInterceptor>> readerInterceptors() {
-        return JaxRsRouteInterceptors.merge(readerInterceptorsRegsRegistrations, features.readerInterceptors(),
+        return JaxRsRouteInterceptors.merge(features.registered(readerInterceptorsRegsRegistrations, ReaderInterceptor.class), features.readerInterceptors(),
             interceptor -> features.priority(interceptor, ReaderInterceptor.class));
     }
 

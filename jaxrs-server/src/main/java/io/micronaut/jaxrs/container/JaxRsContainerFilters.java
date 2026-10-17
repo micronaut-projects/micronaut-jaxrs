@@ -30,6 +30,7 @@ import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
 import io.micronaut.core.propagation.PropagatedContext;
 import io.micronaut.http.ServerHttpRequest;
+import io.micronaut.http.body.ByteBody;
 import io.micronaut.jaxrs.common.JaxRsContainerMessageBodyHandlerRegistry;
 import io.micronaut.jaxrs.common.JaxRsGenericEntity;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
@@ -93,15 +94,19 @@ final class JaxRsContainerFilters {
         // the filters the features register are beans too
         features.configure();
         // the ones registered with the application, like the other providers (JAX-RS 2.3)
-        List<BeanRegistration<ContainerRequestFilter>> requestFilters = new ArrayList<>(beanContext.getBeanRegistrations(ContainerRequestFilter.class));
+        // for the contracts, with the priorities, a feature registered them with
+        List<BeanRegistration<ContainerRequestFilter>> requestFilters = new ArrayList<>(
+            features.registered(beanContext.getBeanRegistrations(ContainerRequestFilter.class).stream().toList(), ContainerRequestFilter.class));
         requestFilters.removeIf(br -> !registry.isRegistered(br.getBeanDefinition().getBeanType()));
-        List<BeanRegistration<ContainerResponseFilter>> containerResponseFilters = new ArrayList<>(beanContext.getBeanRegistrations(ContainerResponseFilter.class));
+        List<BeanRegistration<ContainerResponseFilter>> containerResponseFilters = new ArrayList<>(
+            features.registered(beanContext.getBeanRegistrations(ContainerResponseFilter.class).stream().toList(), ContainerResponseFilter.class));
         containerResponseFilters.removeIf(br -> !registry.isRegistered(br.getBeanDefinition().getBeanType()));
         this.nameBindingPredicate = nameBindingPredicate;
         Map<Boolean, List<BeanRegistration<ContainerRequestFilter>>> matching = requestFilters.stream().collect(Collectors.groupingBy(br -> br.getBeanDefinition().hasAnnotation(PreMatching.class)));
-        this.preMatchingRequestFilters = new ArrayList<>(matching.getOrDefault(true, List.of()).stream().map(BeanRegistration::getBean).toList());
+        List<BeanRegistration<ContainerRequestFilter>> preMatching = new ArrayList<>(matching.getOrDefault(true, List.of()));
+        JaxRsUtils.sortRegistrationsByPriority(preMatching);
+        this.preMatchingRequestFilters = preMatching.stream().map(BeanRegistration::getBean).toList();
         this.requestFilters = new ArrayList<>(matching.getOrDefault(false, List.of()));
-        JaxRsUtils.sortByPriority(this.preMatchingRequestFilters);
         JaxRsUtils.sortRegistrationsByPriority(this.requestFilters);
         this.containerResponseFilters = containerResponseFilters;
         JaxRsUtils.sortRegistrationsByPriorityReversed(this.containerResponseFilters);
@@ -113,7 +118,7 @@ final class JaxRsContainerFilters {
      */
     private JaxRsContainerRequestContext newContext(MutableHttpRequest<?> request, boolean preMatching) {
         return new JaxRsContainerRequestContext(request, applicationProvider, preMatching)
-            .withSecurityContext(() -> beanContext.getBean(JaxRsContextSecurityContext.class))
+            .withSecurityContext(() -> beanContext.getBean(JaxRsContextSecurityContext.class).resolve(request))
             .withRequest(() -> beanContext.getBean(JaxRsContextRequest.class));
     }
 
@@ -246,7 +251,7 @@ final class JaxRsContainerFilters {
         }
         List<Prioritized<F>> all = new ArrayList<>();
         for (BeanRegistration<F> registration : bound) {
-            all.add(new Prioritized<>(registration.getBean(), registration.getOrder()));
+            all.add(new Prioritized<>(registration.getBean(), JaxRsUtils.getPriorityOrder(registration)));
         }
         for (F filter : dynamic) {
             all.add(new Prioritized<>(filter, dynamicPriority.applyAsInt(filter)));
@@ -298,7 +303,11 @@ final class JaxRsContainerFilters {
      * Run request filters once the entity of the request is buffered: a filter reads it with
      * {@link ContainerRequestContext#getEntityStream()}, which must not block, e.g. the event
      * loop, while it streams. A copy of the body is buffered, the resource method still reads
-     * the body, and it is consumed here, so nothing is left to release.
+     * the body, and it is consumed here, so nothing is left to release. The copy is split with
+     * {@code FASTEST} backpressure: the resource method only reads its body once the filters ran,
+     * so demand of the copy alone must pull the body, else a body larger than what the server
+     * reads ahead, or one sent after {@code 100 Continue}, never completes. The original body
+     * keeps what the copy read, bounded by the maximum request size of the server.
      */
     private <M> CompletionStage<@Nullable M> withBufferedEntity(MutableHttpRequest<?> request, Filtering<M> filtering) {
         if (!(request instanceof ServerHttpRequest<?> serverHttpRequest)
@@ -307,7 +316,7 @@ final class JaxRsContainerFilters {
             return run(filtering);
         }
         PropagatedContext propagatedContext = PropagatedContext.getOrEmpty();
-        return serverHttpRequest.byteBody().split().buffer().thenCompose(body -> {
+        return serverHttpRequest.byteBody().split(ByteBody.SplitBackpressureMode.FASTEST).buffer().thenCompose(body -> {
             request.setAttribute(JaxRsContainerRequestContext.BUFFERED_ENTITY, body.toByteArray());
             // the filters run in the context of the request, also when the body completes later
             try (PropagatedContext.Scope ignore = propagatedContext.propagate()) {
