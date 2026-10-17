@@ -29,6 +29,8 @@ import io.micronaut.http.body.AsyncRequestBody;
 import io.micronaut.http.body.MessageBodyHandlerRegistry;
 import io.micronaut.http.body.MessageBodyReader;
 import io.micronaut.core.beans.BeanIntrospection;
+import io.micronaut.core.beans.BeanMethod;
+import io.micronaut.inject.annotation.AnnotationMetadataHierarchy;
 import io.micronaut.core.beans.BeanProperty;
 import io.micronaut.core.bind.ArgumentBinder;
 import io.micronaut.core.convert.ArgumentConversionContext;
@@ -347,14 +349,30 @@ public final class JaxRsRouteSupport {
         if (method.isPresent()) {
             route.annotationMetadata(method.get());
         } else {
-            // a sub-resource that is not a bean: the route has the annotations of the root resource
-            AnnotationMetadata root = beanContext.findBeanDefinition(metadata.rootClass)
-                .map(definition -> definition.getAnnotationMetadata())
-                .orElse(AnnotationMetadata.EMPTY_METADATA);
-            route.annotationMetadata(new SubResourceMethod(metadata, root));
+            // a sub-resource that is not a bean: the route has the annotations of its method and class
+            route.annotationMetadata(new SubResourceMethod(metadata, subResourceAnnotations(metadata)));
         }
         // the post-matching request filters of the resource method (JAX-RS 6.7.2)
         return route.beforeReplacing(request -> containerFilters().filterRequest(RouteAttributes.getRouteInfo(request).orElseThrow(), request)).and();
+    }
+
+    /**
+     * The annotations of the resource method of a sub-resource that is not a bean, with the ones
+     * of its class, e.g. its name bindings, from its introspection.
+     */
+    private static AnnotationMetadata subResourceAnnotations(RouteMetadata metadata) {
+        BeanIntrospection<?> introspection = JaxRsReflection.get().introspection(metadata.resourceClass);
+        if (introspection == null) {
+            return AnnotationMetadata.EMPTY_METADATA;
+        }
+        for (BeanMethod<?, Object> method : introspection.getBeanMethods()) {
+            if (method.getName().equals(metadata.methodName) && Arrays.equals(Argument.toClassArray(method.getArguments()), metadata.parameterTypes)) {
+                AnnotationMetadata annotations = method.getAnnotationMetadata();
+                return annotations instanceof AnnotationMetadataHierarchy ? annotations
+                    : new AnnotationMetadataHierarchy(introspection.getAnnotationMetadata(), annotations);
+            }
+        }
+        return introspection.getAnnotationMetadata();
     }
 
     private JaxRsContainerFilters containerFilters() {
@@ -1429,10 +1447,10 @@ public final class JaxRsRouteSupport {
 
     /**
      * The resource method of a sub-resource that is not a bean, given to its route: with the
-     * annotations of the root resource.
+     * annotations of the method and its class.
      *
      * @param metadata           The metadata of the resource method
-     * @param annotationMetadata The annotations of the root resource
+     * @param annotationMetadata The annotations of the method and its class
      */
     private record SubResourceMethod(RouteMetadata metadata, AnnotationMetadata annotationMetadata) implements AnnotationMetadataProvider {
         @Override
