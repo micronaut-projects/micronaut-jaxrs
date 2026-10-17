@@ -29,7 +29,6 @@ import io.micronaut.http.body.AsyncRequestBody;
 import io.micronaut.http.body.MessageBodyHandlerRegistry;
 import io.micronaut.http.body.MessageBodyReader;
 import io.micronaut.core.beans.BeanIntrospection;
-import io.micronaut.core.beans.BeanIntrospector;
 import io.micronaut.core.beans.BeanProperty;
 import io.micronaut.core.bind.ArgumentBinder;
 import io.micronaut.core.convert.ArgumentConversionContext;
@@ -164,8 +163,6 @@ public final class JaxRsRouteSupport {
     private final BeanContext beanContext;
 
     private final Map<Argument<?>, StringConverter> converters = new ConcurrentHashMap<>();
-
-    private final Map<String, java.lang.reflect.Field> fields = new ConcurrentHashMap<>();
 
     private final Map<Class<?>, BeanParamBinder> beanParams = new ConcurrentHashMap<>();
 
@@ -1136,7 +1133,7 @@ public final class JaxRsRouteSupport {
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     private BeanParamBinder beanParamBinder(Class<?> type) {
-        BeanIntrospection<Object> introspection = (BeanIntrospection<Object>) BeanIntrospector.SHARED.findIntrospection(type)
+        BeanIntrospection<Object> introspection = (BeanIntrospection<Object>) Optional.ofNullable(JaxRsReflection.get().introspection(type))
             .orElseThrow(() -> new IllegalStateException("The @BeanParam type " + type.getName() + " is not introspected"));
         boolean encoded = introspection.hasAnnotation(Encoded.class);
         Argument<?>[] constructorArguments = introspection.getConstructorArguments();
