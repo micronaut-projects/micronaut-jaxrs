@@ -21,6 +21,7 @@ import io.micronaut.context.ApplicationContext;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.context.ServerRequestContext;
 import io.micronaut.jaxrs.common.JaxRsRouteInterceptors;
+import io.micronaut.jaxrs.common.JaxRsUtils;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.RouteInfo;
 import jakarta.inject.Singleton;
@@ -39,6 +40,8 @@ import org.jspecify.annotations.Nullable;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -203,6 +206,11 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
         return currentComponents().writerInterceptors();
     }
 
+    @Override
+    public int priority(Object interceptor, Class<?> contract) {
+        return currentComponents().priority(interceptor, contract);
+    }
+
     /**
      * @param route The route of a request
      * @return The components the dynamic features registered for its resource method
@@ -233,15 +241,37 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
      * @param responseFilters    The container response filters
      * @param readerInterceptors The reader interceptors
      * @param writerInterceptors The writer interceptors
+     * @param priorities         The priorities the components were registered with, by contract,
+     *                           {@code null} for all of their contracts
      */
     record Components(List<ContainerRequestFilter> requestFilters,
                       List<ContainerResponseFilter> responseFilters,
                       List<ReaderInterceptor> readerInterceptors,
-                      List<WriterInterceptor> writerInterceptors) {
-        static final Components EMPTY = new Components(List.of(), List.of(), List.of(), List.of());
+                      List<WriterInterceptor> writerInterceptors,
+                      Map<Object, Map<@Nullable Class<?>, Integer>> priorities) {
+        static final Components EMPTY = new Components(List.of(), List.of(), List.of(), List.of(), Map.of());
 
         boolean isEmpty() {
             return requestFilters.isEmpty() && responseFilters.isEmpty() && readerInterceptors.isEmpty() && writerInterceptors.isEmpty();
+        }
+
+        /**
+         * @param component A component
+         * @param contract  The contract it is used as, e.g. {@link ContainerRequestFilter}
+         * @return The priority it was registered with for the contract, else its {@code @Priority}
+         */
+        int priority(Object component, Class<?> contract) {
+            Map<@Nullable Class<?>, Integer> byContract = priorities.get(component);
+            if (byContract != null) {
+                Integer priority = byContract.get(contract);
+                if (priority == null) {
+                    priority = byContract.get(null);
+                }
+                if (priority != null) {
+                    return priority;
+                }
+            }
+            return JaxRsUtils.getPriorityOrder(component);
         }
     }
 
@@ -252,6 +282,7 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
         private final boolean global;
         private final Map<String, Object> properties = new LinkedHashMap<>();
         private final Set<Object> instances = new LinkedHashSet<>();
+        private final Map<Object, Map<@Nullable Class<?>, Integer>> priorities = new HashMap<>();
 
         Context(boolean global) {
             this.global = global;
@@ -276,7 +307,35 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
                     writerInterceptors.add(i);
                 }
             }
-            return new Components(requestFilters, responseFilters, readerInterceptors, writerInterceptors);
+            var components = new Components(requestFilters, responseFilters, readerInterceptors, writerInterceptors, Map.copyOf(priorities));
+            // the explicit priorities, else @Priority, order them; the response filters run in
+            // the reverse order (JAX-RS 6.9)
+            requestFilters.sort(Comparator.comparingInt(c -> components.priority(c, ContainerRequestFilter.class)));
+            responseFilters.sort(Comparator.<ContainerResponseFilter>comparingInt(c -> components.priority(c, ContainerResponseFilter.class)).reversed());
+            readerInterceptors.sort(Comparator.comparingInt(c -> components.priority(c, ReaderInterceptor.class)));
+            writerInterceptors.sort(Comparator.comparingInt(c -> components.priority(c, WriterInterceptor.class)));
+            return components;
+        }
+
+        private FeatureContext registerClass(Class<?> componentClass, Map<@Nullable Class<?>, Integer> priorities) {
+            if (!global) {
+                Object instance = instance(componentClass);
+                if (instances.add(instance) && !priorities.isEmpty()) {
+                    this.priorities.put(instance, priorities);
+                }
+                return this;
+            }
+            return registerClass(componentClass);
+        }
+
+        private FeatureContext registerInstance(Object component, Map<@Nullable Class<?>, Integer> priorities) {
+            if (!global) {
+                if (instances.add(component) && !priorities.isEmpty()) {
+                    this.priorities.put(component, priorities);
+                }
+                return this;
+            }
+            return registerInstance(component);
         }
 
         @SuppressWarnings({"unchecked", "rawtypes"})
@@ -309,6 +368,12 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
             return this;
         }
 
+        private static Map<@Nullable Class<?>, Integer> allContracts(int priority) {
+            Map<@Nullable Class<?>, Integer> priorities = new HashMap<>();
+            priorities.put(null, priority);
+            return priorities;
+        }
+
         @Override
         public Configuration getConfiguration() {
             return context.getBean(Configuration.class);
@@ -327,7 +392,7 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
 
         @Override
         public FeatureContext register(Class<?> componentClass, int priority) {
-            return registerClass(componentClass);
+            return registerClass(componentClass, allContracts(priority));
         }
 
         @Override
@@ -337,7 +402,7 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
 
         @Override
         public FeatureContext register(Class<?> componentClass, Map<Class<?>, Integer> contracts) {
-            return registerClass(componentClass);
+            return registerClass(componentClass, Map.copyOf(contracts));
         }
 
         @Override
@@ -347,7 +412,7 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
 
         @Override
         public FeatureContext register(Object component, int priority) {
-            return registerInstance(component);
+            return registerInstance(component, allContracts(priority));
         }
 
         @Override
@@ -357,7 +422,7 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
 
         @Override
         public FeatureContext register(Object component, Map<Class<?>, Integer> contracts) {
-            return registerInstance(component);
+            return registerInstance(component, Map.copyOf(contracts));
         }
     }
 }

@@ -82,6 +82,14 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
     }
 
     /**
+     * The reader interceptor beans, and the ones of the resource method of the current request.
+     */
+    private List<BeanRegistration<ReaderInterceptor>> readerInterceptors() {
+        return JaxRsRouteInterceptors.merge(readerInterceptorsRegsRegistrations, features.readerInterceptors(),
+            interceptor -> features.priority(interceptor, ReaderInterceptor.class));
+    }
+
+    /**
      * An entity without a content type is read as {@code application/octet-stream} (JAX-RS 4.2.1).
      */
     private static MediaType mediaType(@Nullable MediaType mediaType) {
@@ -102,7 +110,7 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
     @SuppressWarnings({"unchecked", "rawtypes"})
     public @Nullable Object readEntity(Argument<?> type, @Nullable MediaType contentType, Headers httpHeaders, InputStream entity) {
         MediaType mediaType = mediaType(contentType);
-        List<BeanRegistration<ReaderInterceptor>> interceptors = JaxRsRouteInterceptors.merge(readerInterceptorsRegsRegistrations, features.readerInterceptors());
+        List<BeanRegistration<ReaderInterceptor>> interceptors = readerInterceptors();
         if (interceptors.isEmpty()) {
             return entityReader((Argument) type, mediaType).read((Argument) type, mediaType, httpHeaders, entity);
         }
@@ -131,7 +139,7 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
     @Override
     public @Nullable T read(@NonNull Argument<T> type, @Nullable MediaType contentType, @NonNull Headers httpHeaders, @NonNull ByteBuffer<?> byteBuffer) throws CodecException {
         MediaType mediaType = mediaType(contentType);
-        List<BeanRegistration<ReaderInterceptor>> interceptors = JaxRsRouteInterceptors.merge(readerInterceptorsRegsRegistrations, features.readerInterceptors());
+        List<BeanRegistration<ReaderInterceptor>> interceptors = readerInterceptors();
         if (interceptors.isEmpty()) {
             Optional<MessageBodyReader<T>> reader = registry.findSelectingReader(type, getMediaTypes(mediaType));
             if (reader.isPresent()) {
@@ -157,7 +165,7 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
     @Override
     public @Nullable T read(@NonNull Argument<T> type, @Nullable MediaType contentType, @NonNull Headers httpHeaders, @NonNull InputStream inputStream) throws CodecException {
         MediaType mediaType = mediaType(contentType);
-        List<BeanRegistration<ReaderInterceptor>> interceptors = JaxRsRouteInterceptors.merge(readerInterceptorsRegsRegistrations, features.readerInterceptors());
+        List<BeanRegistration<ReaderInterceptor>> interceptors = readerInterceptors();
         if (interceptors.isEmpty()) {
             Optional<MessageBodyReader<T>> reader = registry.findSelectingReader(type, getMediaTypes(mediaType));
             if (reader.isPresent()) {

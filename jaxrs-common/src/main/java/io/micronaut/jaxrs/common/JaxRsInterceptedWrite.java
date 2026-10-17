@@ -51,7 +51,7 @@ public abstract class JaxRsInterceptedWrite<T, S extends JaxRsWriterInterceptorC
             throw new IllegalStateException("No WriterInterceptor found");
         }
         this.writerInterceptorsRegistrations = new ArrayList<>(writerInterceptorsRegistrations);
-        JaxRsUtils.sortByPriority(this.writerInterceptorsRegistrations);
+        JaxRsUtils.sortRegistrationsByPriority(this.writerInterceptorsRegistrations);
     }
 
     public JaxRsInterceptedWrite(List<WriterInterceptor> writerInterceptors) {

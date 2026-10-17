@@ -165,7 +165,7 @@ public final class JaxRsRouteSupport {
 
     private final BeanContext beanContext;
 
-    private final Map<Argument<?>, StringConverter> converters = new ConcurrentHashMap<>();
+    private final Map<ConverterKey, StringConverter> converters = new ConcurrentHashMap<>();
 
     private final Map<Class<?>, BeanParamBinder> beanParams = new ConcurrentHashMap<>();
 
@@ -352,8 +352,9 @@ public final class JaxRsRouteSupport {
             // a sub-resource that is not a bean: the route has the annotations of its method and class
             route.annotationMetadata(new SubResourceMethod(metadata, subResourceAnnotations(metadata)));
         }
-        // the post-matching request filters of the resource method (JAX-RS 6.7.2)
-        return route.beforeReplacing(request -> containerFilters().filterRequest(RouteAttributes.getRouteInfo(request).orElseThrow(), request)).and();
+        // the post-matching request filters of the resource method (JAX-RS 6.7.2), once the entity
+        // they may read is buffered
+        return route.beforeReplacingAsync(request -> containerFilters().filterRequestAsync(RouteAttributes.getRouteInfo(request).orElseThrow(), request)).and();
     }
 
     /**
@@ -853,6 +854,16 @@ public final class JaxRsRouteSupport {
      * @return The response
      */
     public HttpResponse<?> jaxRsResponse(@Nullable Response response) {
+        return toHttpResponse(response);
+    }
+
+    /**
+     * Converts a JAX-RS response, e.g. of a resource method or an exception mapper.
+     *
+     * @param response The JAX-RS response, null for no content
+     * @return The response
+     */
+    static MutableHttpResponse<?> toHttpResponse(@Nullable Response response) {
         if (response == null) {
             return HttpResponse.noContent();
         }
@@ -1322,7 +1333,10 @@ public final class JaxRsRouteSupport {
     }
 
     private @Nullable Object convertOne(String value, Argument<?> argument, boolean notFound) {
-        StringConverter converter = converters.computeIfAbsent(argument, this::converter);
+        // the annotations are part of the key: a ParamConverterProvider sees them, and arguments
+        // are equal without them
+        StringConverter converter = converters.computeIfAbsent(new ConverterKey(argument, argument.getAnnotationMetadata()),
+            key -> converter(key.argument()));
         Object converted;
         try {
             converted = converter.convert(value);
@@ -1457,5 +1471,14 @@ public final class JaxRsRouteSupport {
         public AnnotationMetadata getAnnotationMetadata() {
             return annotationMetadata;
         }
+    }
+
+    /**
+     * The key of the converter of a parameter: its type, and its annotations.
+     *
+     * @param argument    The parameter
+     * @param annotations The annotations of the parameter
+     */
+    private record ConverterKey(Argument<?> argument, AnnotationMetadata annotations) {
     }
 }

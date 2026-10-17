@@ -28,9 +28,11 @@ import io.micronaut.http.MutableHttpRequest;
 import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
+import io.micronaut.core.propagation.PropagatedContext;
+import io.micronaut.http.ServerHttpRequest;
+import io.micronaut.jaxrs.common.JaxRsContainerMessageBodyHandlerRegistry;
 import io.micronaut.jaxrs.common.JaxRsGenericEntity;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
-import io.micronaut.jaxrs.common.JaxRsResponse;
 import io.micronaut.jaxrs.common.JaxRsUtils;
 import io.micronaut.jaxrs.common.NameBindingPredicate;
 import io.micronaut.jaxrs.runtime.ext.bind.HttpHeadersBinder;
@@ -47,11 +49,15 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.stream.Collectors;
+import java.util.function.ToIntFunction;
 
 /**
  * The container filters of JAX-RS (section 6): the pre-matching and post-matching request
@@ -79,14 +85,18 @@ final class JaxRsContainerFilters {
     JaxRsContainerFilters(ApplicationProvider applicationProvider,
                  BeanContext beanContext,
                  NameBindingPredicate nameBindingPredicate,
-                 JaxRsFeatures features) {
+                 JaxRsFeatures features,
+                 JaxRsContainerMessageBodyHandlerRegistry registry) {
         this.applicationProvider = applicationProvider;
         this.beanContext = beanContext;
         this.features = features;
         // the filters the features register are beans too
         features.configure();
+        // the ones registered with the application, like the other providers (JAX-RS 2.3)
         List<BeanRegistration<ContainerRequestFilter>> requestFilters = new ArrayList<>(beanContext.getBeanRegistrations(ContainerRequestFilter.class));
+        requestFilters.removeIf(br -> !registry.isRegistered(br.getBeanDefinition().getBeanType()));
         List<BeanRegistration<ContainerResponseFilter>> containerResponseFilters = new ArrayList<>(beanContext.getBeanRegistrations(ContainerResponseFilter.class));
+        containerResponseFilters.removeIf(br -> !registry.isRegistered(br.getBeanDefinition().getBeanType()));
         this.nameBindingPredicate = nameBindingPredicate;
         Map<Boolean, List<BeanRegistration<ContainerRequestFilter>>> matching = requestFilters.stream().collect(Collectors.groupingBy(br -> br.getBeanDefinition().hasAnnotation(PreMatching.class)));
         this.preMatchingRequestFilters = new ArrayList<>(matching.getOrDefault(true, List.of()).stream().map(BeanRegistration::getBean).toList());
@@ -198,12 +208,10 @@ final class JaxRsContainerFilters {
                 .orElseGet(() -> newContext(request.mutate(), false));
             requestContext.finished();
             JaxRsContainerResponseContext responseContext = new JaxRsContainerResponseContext(mutableHttpResponse, bodyArgument, entityAnnotations);
-            List<ContainerResponseFilter> filters = new ArrayList<>(containerResponseFilters.stream()
-                .filter(br -> nameBindingPredicate.test(br.getBeanDefinition()))
-                .map(BeanRegistration::getBean)
-                .toList());
-            // the ones the dynamic features registered for the resource method
-            filters.addAll(dynamic.responseFilters());
+            // with the ones the dynamic features registered for the resource method, in the
+            // reverse order of their priorities (JAX-RS 6.9)
+            List<ContainerResponseFilter> filters = filters(containerResponseFilters, dynamic.responseFilters(),
+                f -> dynamic.priority(f, ContainerResponseFilter.class), true);
             for (ContainerResponseFilter responseFilter : filters) {
                 responseFilter.filter(requestContext, responseContext);
             }
@@ -224,11 +232,101 @@ final class JaxRsContainerFilters {
     }
 
     /**
+     * The filter beans bound to the resource method, merged with the filters the dynamic features
+     * registered for it by priority.
+     */
+    private <F> List<F> filters(List<BeanRegistration<F>> beans, List<F> dynamic, ToIntFunction<F> dynamicPriority, boolean reversed) {
+        List<BeanRegistration<F>> bound = beans.stream()
+            .filter(br -> nameBindingPredicate.test(br.getBeanDefinition()))
+            .toList();
+        if (dynamic.isEmpty()) {
+            return bound.stream().map(BeanRegistration::getBean).toList();
+        }
+        record Prioritized<F>(F filter, int priority) {
+        }
+        List<Prioritized<F>> all = new ArrayList<>();
+        for (BeanRegistration<F> registration : bound) {
+            all.add(new Prioritized<>(registration.getBean(), registration.getOrder()));
+        }
+        for (F filter : dynamic) {
+            all.add(new Prioritized<>(filter, dynamicPriority.applyAsInt(filter)));
+        }
+        Comparator<Prioritized<F>> comparator = Comparator.comparingInt(Prioritized::priority);
+        all.sort(reversed ? comparator.reversed() : comparator);
+        return all.stream().map(Prioritized::filter).toList();
+    }
+
+    /**
      * The filters and interceptors the dynamic features registered for the resource method of a
      * route.
      */
     private JaxRsFeatures.Components dynamicComponents(@Nullable RouteInfo<?> routeInfo) {
         return features.components(routeInfo);
+    }
+
+    /**
+     * Run the pre-matching request filters, once the entity is buffered, see
+     * {@link #withBufferedEntity}.
+     *
+     * @param request The request
+     * @return The stage of the response a filter aborted with, the request with the method a
+     * filter changed, or {@code null}
+     */
+    CompletionStage<@Nullable HttpMessage<?>> filterPreMatchingRequestAsync(MutableHttpRequest<?> request) {
+        if (preMatchingRequestFilters.isEmpty()) {
+            return CompletableFuture.completedFuture(null);
+        }
+        return withBufferedEntity(request, () -> filterPreMatchingRequest(request));
+    }
+
+    /**
+     * Run the post-matching request filters of a resource method, once the entity is buffered,
+     * see {@link #withBufferedEntity}.
+     *
+     * @param routeInfo The route of the resource method
+     * @param request   The request
+     * @return The stage of the response a filter aborted with, or {@code null}
+     */
+    CompletionStage<@Nullable HttpResponse<?>> filterRequestAsync(RouteInfo<?> routeInfo, MutableHttpRequest<?> request) {
+        if (requestFilters.isEmpty() && dynamicComponents(routeInfo).requestFilters().isEmpty()) {
+            return CompletableFuture.completedFuture(null);
+        }
+        return withBufferedEntity(request, () -> filterRequest(routeInfo, request));
+    }
+
+    /**
+     * Run request filters once the entity of the request is buffered: a filter reads it with
+     * {@link ContainerRequestContext#getEntityStream()}, which must not block, e.g. the event
+     * loop, while it streams. A copy of the body is buffered, the resource method still reads
+     * the body, and it is consumed here, so nothing is left to release.
+     */
+    private <M> CompletionStage<@Nullable M> withBufferedEntity(MutableHttpRequest<?> request, Filtering<M> filtering) {
+        if (!(request instanceof ServerHttpRequest<?> serverHttpRequest)
+            || request.getAttribute(JaxRsContainerRequestContext.BUFFERED_ENTITY).isPresent()
+            || !hasEntity(request)) {
+            return run(filtering);
+        }
+        PropagatedContext propagatedContext = PropagatedContext.getOrEmpty();
+        return serverHttpRequest.byteBody().split().buffer().thenCompose(body -> {
+            request.setAttribute(JaxRsContainerRequestContext.BUFFERED_ENTITY, body.toByteArray());
+            // the filters run in the context of the request, also when the body completes later
+            try (PropagatedContext.Scope ignore = propagatedContext.propagate()) {
+                return run(filtering);
+            }
+        });
+    }
+
+    private static boolean hasEntity(HttpRequest<?> request) {
+        return request.getMethod().permitsRequestBody()
+            && (request.getContentLength() > 0 || request.getHeaders().contains(io.micronaut.http.HttpHeaders.TRANSFER_ENCODING));
+    }
+
+    private static <M> CompletionStage<@Nullable M> run(Filtering<M> filtering) {
+        try {
+            return CompletableFuture.completedFuture(filtering.filter());
+        } catch (Exception e) {
+            return CompletableFuture.failedFuture(e);
+        }
     }
 
     /**
@@ -250,9 +348,8 @@ final class JaxRsContainerFilters {
             preMatchingRequestFilter.filter(requestContext);
             Response response = requestContext.getResponse();
             if (response != null) {
-                if (response instanceof JaxRsResponse jaxRsResponse) {
-                    return jaxRsResponse.getResponse();
-                }
+                // a response of the application too, not only of the runtime delegate
+                return JaxRsRouteSupport.toHttpResponse(response);
             }
         }
         requestContext.finished();
@@ -279,23 +376,29 @@ final class JaxRsContainerFilters {
             request.setAttribute(REQUEST_CONTEXT_KEY, requestContext);
         }
         request.setAttribute(HttpHeadersBinder.HEADERS_KEY, request.getHeaders());
-        List<ContainerRequestFilter> filters = new ArrayList<>(requestFilters.stream()
-            .filter(br -> nameBindingPredicate.test(br.getBeanDefinition()))
-            .map(BeanRegistration::getBean)
-            .toList());
-        // the ones the dynamic features registered for the resource method
-        filters.addAll(dynamic.requestFilters());
+        // with the ones the dynamic features registered for the resource method, in the order of
+        // their priorities (JAX-RS 6.9)
+        List<ContainerRequestFilter> filters = filters(requestFilters, dynamic.requestFilters(),
+            f -> dynamic.priority(f, ContainerRequestFilter.class), false);
         for (ContainerRequestFilter requestFilter : filters) {
             requestFilter.filter(requestContext);
             Response response = requestContext.getResponse();
             if (response != null) {
-                if (response instanceof JaxRsResponse jaxRsResponse) {
-                    return jaxRsResponse.getResponse();
-                }
+                // a response of the application too, not only of the runtime delegate
+                return JaxRsRouteSupport.toHttpResponse(response);
             }
         }
         requestContext.finished();
         return null;
     }
 
+    /**
+     * Runs request filters.
+     *
+     * @param <M> The type of message they answer with
+     */
+    @FunctionalInterface
+    private interface Filtering<M> {
+        @Nullable M filter() throws IOException;
+    }
 }

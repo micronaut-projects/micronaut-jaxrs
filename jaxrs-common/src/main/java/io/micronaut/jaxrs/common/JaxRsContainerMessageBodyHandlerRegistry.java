@@ -38,6 +38,7 @@ import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.RuntimeType;
 import jakarta.ws.rs.core.Application;
+import jakarta.ws.rs.core.Configuration;
 import jakarta.ws.rs.ext.MessageBodyReader;
 import jakarta.ws.rs.ext.MessageBodyWriter;
 
@@ -272,8 +273,9 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
 
     /**
      * Whether a provider is registered with the application: the {@code Application} that lists
-     * its classes or singletons registers only those (JAX-RS 2.3), and one that lists none, all.
-     * The providers of this module are always registered.
+     * its classes or singletons registers only those and the ones its features register (JAX-RS
+     * 2.3, 4.1.3), and one that lists none, all. The providers of this module are always
+     * registered.
      *
      * @param providerClass The class of the provider
      * @return Whether it is registered
@@ -291,7 +293,16 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
             registered = classes;
             registeredClasses = registered;
         }
-        return registered.isEmpty() || registered.contains(providerClass) || providerClass.getName().startsWith("io.micronaut.");
+        if (registered.isEmpty() || registered.contains(providerClass) || providerClass.getName().startsWith("io.micronaut.")) {
+            return true;
+        }
+        // registered by a feature: the configuration of the server knows it
+        for (Configuration configuration : beanLocator.getBeansOfType(Configuration.class)) {
+            if (configuration.getRuntimeType() == RuntimeType.SERVER && configuration.isRegistered(providerClass)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

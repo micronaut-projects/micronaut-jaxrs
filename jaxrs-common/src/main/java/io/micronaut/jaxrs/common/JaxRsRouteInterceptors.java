@@ -22,6 +22,7 @@ import jakarta.ws.rs.ext.WriterInterceptor;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.ToIntFunction;
 
 /**
  * The reader and writer interceptors registered for the resource method of the current request,
@@ -44,20 +45,34 @@ public interface JaxRsRouteInterceptors {
     List<WriterInterceptor> writerInterceptors();
 
     /**
-     * The interceptor beans followed by the interceptors of a resource method.
+     * The priority of an interceptor of the resource method: the one it was registered with, else
+     * its {@code @Priority}.
+     *
+     * @param interceptor The interceptor
+     * @param contract    The contract, {@link ReaderInterceptor} or {@link WriterInterceptor}
+     * @return The priority
+     */
+    default int priority(Object interceptor, Class<?> contract) {
+        return JaxRsUtils.getPriorityOrder(interceptor);
+    }
+
+    /**
+     * The interceptor beans followed by the interceptors of a resource method, each with its
+     * priority, which orders them.
      *
      * @param beans     The interceptor beans
      * @param forRoute  The interceptors of the resource method
+     * @param priority  The priority of an interceptor of the resource method
      * @param <I>       The type of interceptor
      * @return The interceptors
      */
-    static <I> List<BeanRegistration<I>> merge(List<BeanRegistration<I>> beans, List<I> forRoute) {
+    static <I> List<BeanRegistration<I>> merge(List<BeanRegistration<I>> beans, List<I> forRoute, ToIntFunction<I> priority) {
         if (forRoute.isEmpty()) {
             return beans;
         }
         List<BeanRegistration<I>> all = new ArrayList<>(beans);
         for (I interceptor : forRoute) {
-            all.add(registration(interceptor));
+            all.add(registration(interceptor, priority.applyAsInt(interceptor)));
         }
         return all;
     }
@@ -72,7 +87,25 @@ public interface JaxRsRouteInterceptors {
      */
     @SuppressWarnings("NullAway") // BeanRegistration has no way to register an instance without a bean definition
     static <I> BeanRegistration<I> registration(I interceptor) {
-        return new BeanRegistration<>(null, null, interceptor);
+        return registration(interceptor, JaxRsUtils.getPriorityOrder(interceptor));
+    }
+
+    /**
+     * The registration of an interceptor that is not a bean, with its priority.
+     *
+     * @param interceptor The interceptor
+     * @param priority    The priority
+     * @param <I>         The type of interceptor
+     * @return The registration
+     */
+    @SuppressWarnings("NullAway") // BeanRegistration has no way to register an instance without a bean definition
+    static <I> BeanRegistration<I> registration(I interceptor, int priority) {
+        return new BeanRegistration<>(null, null, interceptor) {
+            @Override
+            public int getOrder() {
+                return priority;
+            }
+        };
     }
 
     /**

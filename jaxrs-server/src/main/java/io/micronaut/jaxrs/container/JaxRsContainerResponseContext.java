@@ -15,6 +15,7 @@
  */
 package io.micronaut.jaxrs.container;
 
+import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.MutableHttpResponse;
@@ -24,6 +25,7 @@ import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import io.micronaut.jaxrs.common.JaxRsUtils;
 import jakarta.ws.rs.container.ContainerResponseContext;
 import jakarta.ws.rs.core.EntityTag;
+import jakarta.ws.rs.core.GenericEntity;
 import jakarta.ws.rs.core.Link;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
@@ -213,17 +215,30 @@ final class JaxRsContainerResponseContext implements ContainerResponseContext {
 
     @Override
     public void setEntity(Object entity) {
-        mutableHttpResponse.body(entity);
+        // the annotations are kept, the type is the one of the new entity: a GenericEntity gives
+        // its generic type
+        setEntity(entity, bodyArgument.getAnnotationMetadata());
     }
 
     @Override
     public void setEntity(Object entity, Annotation[] annotations, MediaType mediaType) {
-        mutableHttpResponse.body(entity);
+        setEntity(entity, JaxRsArgumentUtil.createAnnotationMetadata(annotations));
         if (mediaType != null) {
             mutableHttpResponse.contentType(Objects.requireNonNull(JaxRsUtils.convert(mediaType)));
         }
-        bodyArgument = Argument.of(entity == null ? (Class) Object.class : entity.getClass(), JaxRsArgumentUtil.createAnnotationMetadata(annotations));
         entityAnnotations = annotations;
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private void setEntity(@Nullable Object entity, AnnotationMetadata annotationMetadata) {
+        if (entity instanceof GenericEntity<?> genericEntity) {
+            Argument<?> argument = JaxRsArgumentUtil.from(genericEntity);
+            mutableHttpResponse.body(genericEntity.getEntity());
+            bodyArgument = Argument.of(argument.getType(), annotationMetadata, argument.getTypeParameters());
+        } else {
+            mutableHttpResponse.body(entity);
+            bodyArgument = Argument.of(entity == null ? (Class) Object.class : entity.getClass(), annotationMetadata);
+        }
     }
 
     @Override

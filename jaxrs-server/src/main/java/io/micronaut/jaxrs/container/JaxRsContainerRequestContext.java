@@ -60,6 +60,11 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
      * reads its entity from.
      */
     static final String ENTITY_STREAM = JaxRsContainerRequestContext.class.getName() + ".entityStream";
+    /**
+     * The bytes of the entity, buffered before the request filters run, see
+     * {@link JaxRsContainerFilters}.
+     */
+    static final String BUFFERED_ENTITY = JaxRsContainerRequestContext.class.getName() + ".bufferedEntity";
 
     /**
      * The attribute of the request that holds the security context a request filter set: the
@@ -272,6 +277,11 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
         InputStream replaced = mutableHttpRequest.getAttribute(ENTITY_STREAM, InputStream.class).orElse(null);
         if (replaced != null) {
             return replaced;
+        }
+        byte[] buffered = mutableHttpRequest.getAttribute(BUFFERED_ENTITY, byte[].class).orElse(null);
+        if (buffered != null) {
+            // a copy: the resource method still reads the entity
+            return new ByteArrayInputStream(buffered);
         }
         if (bodyRequest instanceof ServerHttpRequest<?> serverHttpRequest) {
             // a copy: the resource method still reads the entity

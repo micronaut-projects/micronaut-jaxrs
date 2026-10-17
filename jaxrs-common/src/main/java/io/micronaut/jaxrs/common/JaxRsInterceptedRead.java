@@ -53,7 +53,7 @@ public abstract class JaxRsInterceptedRead<T> {
             throw new IllegalStateException("No ReaderInterceptor found");
         }
         this.readerInterceptorsRegistrations = new ArrayList<>(readerInterceptorsRegistrations);
-        JaxRsUtils.sortByPriority(this.readerInterceptorsRegistrations);
+        JaxRsUtils.sortRegistrationsByPriority(this.readerInterceptorsRegistrations);
     }
 
     public JaxRsInterceptedRead(List<ReaderInterceptor> readerInterceptor) {

@@ -22,10 +22,10 @@ import io.micronaut.http.annotation.Produces;
 import io.micronaut.http.server.exceptions.ExceptionHandler;
 import io.micronaut.http.server.exceptions.response.ErrorContext;
 import io.micronaut.http.server.exceptions.response.ErrorResponseProcessor;
-import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.WebApplicationException;
+import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Providers;
 import org.jspecify.annotations.Nullable;
@@ -71,16 +71,16 @@ final class JaxRsExceptionHandler implements ExceptionHandler<WebApplicationExce
     @Override
     public HttpResponse<?> handle(HttpRequest request, WebApplicationException exception) {
         ExceptionMapper exceptionMapper = providers == null ? null : providers.getExceptionMapper(exception.getClass());
-        JaxRsMutableResponse response = (JaxRsMutableResponse) exception.getResponse();
-        if (response.hasEntity()) {
-            return response.getResponse();
+        Response response = exception.getResponse();
+        if (response != null && response.hasEntity()) {
+            return JaxRsRouteSupport.toHttpResponse(response);
         }
         if (exceptionMapper != null) {
-            return ((JaxRsMutableResponse) exceptionMapper.toResponse(exception)).getResponse();
+            return JaxRsRouteSupport.toHttpResponse(exceptionMapper.toResponse(exception));
         }
         return responseProcessor.processResponse(ErrorContext.builder(request)
             .errorMessage(Objects.requireNonNullElse(exception.getMessage(), "Unknown error"))
             .cause(exception)
-            .build(), response.getResponse());
+            .build(), response == null ? HttpResponse.serverError() : JaxRsRouteSupport.toHttpResponse(response));
     }
 }
