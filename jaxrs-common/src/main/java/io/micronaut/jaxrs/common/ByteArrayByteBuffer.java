@@ -85,7 +85,8 @@ public final class ByteArrayByteBuffer<T> implements ByteBuffer<T> {
 
     @Override
     public ByteBuffer readerIndex(int readPosition) {
-        this.readerIndex = Math.min(readPosition, this.underlyingBytes.length - 1);
+        // up to the length, all read
+        this.readerIndex = Math.min(readPosition, this.underlyingBytes.length);
         return this;
     }
 
@@ -96,7 +97,7 @@ public final class ByteArrayByteBuffer<T> implements ByteBuffer<T> {
 
     @Override
     public ByteBuffer writerIndex(int position) {
-        this.writerIndex = Math.min(position, this.underlyingBytes.length - 1);
+        this.writerIndex = Math.min(position, this.underlyingBytes.length);
         return this;
     }
 
@@ -209,7 +210,7 @@ public final class ByteArrayByteBuffer<T> implements ByteBuffer<T> {
 
     @Override
     public byte[] toByteArray() {
-        return Arrays.copyOfRange(this.underlyingBytes, this.readerIndex, this.readableBytes());
+        return Arrays.copyOfRange(this.underlyingBytes, this.readerIndex, this.readerIndex + this.readableBytes());
     }
 
     @Override
