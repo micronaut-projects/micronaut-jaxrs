@@ -134,6 +134,17 @@ public interface JaxRsRouteInterceptors {
     }
 
     /**
+     * The name binding predicate for merged interceptors: the ones of a resource method have no
+     * bean definition and are always bound.
+     *
+     * @param predicate The predicate of the beans
+     * @return The predicate
+     */
+    static NameBindingPredicate predicate(NameBindingPredicate predicate) {
+        return metadata -> metadata == null || predicate.test(metadata);
+    }
+
+    /**
      * A registration with an explicit priority, see {@link JaxRsUtils#getPriorityOrder(BeanRegistration)}.
      *
      * @param <I> The type of the bean
@@ -151,16 +162,5 @@ public interface JaxRsRouteInterceptors {
         public int getOrder() {
             return priority;
         }
-    }
-
-    /**
-     * The name binding predicate for merged interceptors: the ones of a resource method have no
-     * bean definition and are always bound.
-     *
-     * @param predicate The predicate of the beans
-     * @return The predicate
-     */
-    static NameBindingPredicate predicate(NameBindingPredicate predicate) {
-        return metadata -> metadata == null || predicate.test(metadata);
     }
 }
