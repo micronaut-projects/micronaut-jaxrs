@@ -893,7 +893,7 @@ public final class JaxRsRouteSupport {
         if (entity == null) {
             return HttpResponse.noContent();
         }
-        Argument<?> type = Argument.of(entity.getType());
+        Argument<?> type = JaxRsReflection.get().argument(entity.getType());
         Argument<Object> argument = (Argument<Object>) Argument.of(type.getType(), routeAnnotations(request), type.getTypeParameters());
         return HttpResponse.ok(new JaxRsGenericEntity<>(entity.getEntity(), argument, null, null));
     }

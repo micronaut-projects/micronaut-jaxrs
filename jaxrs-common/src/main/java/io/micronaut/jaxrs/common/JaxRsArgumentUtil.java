@@ -55,22 +55,22 @@ public final class JaxRsArgumentUtil {
 
     public static <T> Argument<T> from(GenericType<T> entityType, Annotation[] annotations) {
         AnnotationMetadata annotationMetadata = createAnnotationMetadata(annotations);
-        Argument<T> argument = (Argument<T>) Argument.of(entityType.getType());
+        Argument<T> argument = (Argument<T>) JaxRsReflection.get().argument(entityType.getType());
         return Argument.of(argument.getType(), annotationMetadata, argument.getTypeParameters());
     }
 
     public static <T> Argument<T> from(GenericType<T> entityType) {
-        return (Argument<T>) Argument.of(entityType.getType());
+        return (Argument<T>) JaxRsReflection.get().argument(entityType.getType());
     }
 
     public static <T> Argument<T> from(GenericEntity<T> genericEntity) {
-        Argument<T> argument = (Argument<T>) Argument.of(genericEntity.getType());
+        Argument<T> argument = (Argument<T>) JaxRsReflection.get().argument(genericEntity.getType());
         return Argument.of(argument.getType(), AnnotationMetadata.EMPTY_METADATA, argument.getTypeParameters());
     }
 
     public static <T> Argument<T> from(GenericEntity<T> genericEntity, Annotation[] annotations) {
         AnnotationMetadata annotationMetadata = createAnnotationMetadata(annotations);
-        Argument<T> argument = (Argument<T>) Argument.of(genericEntity.getType());
+        Argument<T> argument = (Argument<T>) JaxRsReflection.get().argument(genericEntity.getType());
         return Argument.of(argument.getType(), annotationMetadata, argument.getTypeParameters());
     }
 

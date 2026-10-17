@@ -27,6 +27,7 @@ import org.jspecify.annotations.Nullable;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
+import java.lang.reflect.Type;
 import java.util.function.Function;
 
 /**
@@ -146,6 +147,17 @@ public interface JaxRsReflection {
      * @return The type, {@code null} when it is not known
      */
     @Nullable Argument<?> resolveGeneric(Class<?> type, Class<?> genericType);
+
+    /**
+     * The argument of a type the JAX-RS API gives, e.g. the generic type of a reader, a writer or
+     * a {@code GenericType}: with reflection, any type, a wildcard, a type variable and a generic
+     * array included; without it, a class or a parameterized type, a wildcard or a type variable
+     * among its type arguments making it raw.
+     *
+     * @param type The type
+     * @return The argument
+     */
+    Argument<?> argument(Type type);
 
     /**
      * @param type A class

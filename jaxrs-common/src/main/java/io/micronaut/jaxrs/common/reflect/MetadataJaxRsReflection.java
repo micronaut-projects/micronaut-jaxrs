@@ -34,6 +34,7 @@ import org.jspecify.annotations.Nullable;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -162,6 +163,11 @@ final class MetadataJaxRsReflection implements JaxRsReflection {
                 .filter(superType -> superType.getType() == genericType)
                 .findFirst())
             .orElse(null);
+    }
+
+    @Override
+    public Argument<?> argument(Type type) {
+        return Argument.of(type);
     }
 
     @Override

@@ -15,6 +15,7 @@
  */
 package io.micronaut.jaxrs.common;
 
+import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.type.Argument;
@@ -59,14 +60,14 @@ abstract sealed class AbstractJaxRsInterceptorContext implements InterceptorCont
         }
         AnnotationMetadata annotationMetadata = annotations == null ? argument.getAnnotationMetadata() : JaxRsArgumentUtil.createAnnotationMetadata(annotations);
         if (type != null && genericType != null) {
-            return Argument.of(
-                type,
-                annotationMetadata,
-                Argument.of(genericType)
-            );
+            // the class, with the type arguments of the generic type
+            Argument<?> generic = JaxRsReflection.get().argument(genericType);
+            return generic.getType() == type
+                ? Argument.of(type, annotationMetadata, generic.getTypeParameters())
+                : Argument.of(type, annotationMetadata);
         }
         if (genericType != null) {
-            return Argument.of(genericType).withAnnotationMetadata(annotationMetadata);
+            return JaxRsReflection.get().argument(genericType).withAnnotationMetadata(annotationMetadata);
         }
         if (type != null) {
             return Argument.of(type, annotationMetadata);

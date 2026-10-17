@@ -15,6 +15,8 @@
  */
 package io.micronaut.jaxrs.providers;
 
+import io.micronaut.core.type.Argument;
+import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.context.BeanProvider;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.Order;
@@ -49,7 +51,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.annotation.Annotation;
-import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -151,16 +152,7 @@ public final class JaxRsJaxbMessageBodyReaderWriter implements MessageBodyReader
     }
 
     private static Class<?> typeArgument(Type genericType) {
-        if (genericType instanceof ParameterizedType parameterized) {
-            Type argument = parameterized.getActualTypeArguments()[0];
-            if (argument instanceof Class<?> type) {
-                return type;
-            }
-            if (argument instanceof ParameterizedType parameterizedArgument) {
-                return (Class<?>) parameterizedArgument.getRawType();
-            }
-        }
-        return Object.class;
+        return JaxRsReflection.get().argument(genericType).getFirstTypeVariable().<Class<?>>map(Argument::getType).orElse(Object.class);
     }
 
     private Unmarshaller unmarshaller(Class<?> type, @Nullable MediaType mediaType) throws JAXBException {

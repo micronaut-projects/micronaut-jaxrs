@@ -15,6 +15,7 @@
  */
 package io.micronaut.jaxrs.common.multipart;
 
+import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.core.type.Argument;
 import jakarta.ws.rs.core.EntityPart;
 import org.jspecify.annotations.Nullable;
@@ -38,7 +39,7 @@ final class Multipart {
      */
     static boolean isEntityPartList(Class<?> type, @Nullable Type genericType) {
         return type == List.class && genericType != null
-            && Argument.of(genericType).getFirstTypeVariable().map(Argument::getType).orElse(null) == EntityPart.class;
+            && JaxRsReflection.get().argument(genericType).getFirstTypeVariable().map(Argument::getType).orElse(null) == EntityPart.class;
     }
 
     /**
