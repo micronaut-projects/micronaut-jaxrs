@@ -194,8 +194,9 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     private <B> void route(Routes<@Nullable Void> routes, Class<?> type, Root<B> root) {
         String rootPath = root.metadata().stringValue(Path.class).orElse("");
         // the root resource class is selected first by the specificity of its @Path: the end
-        // of it is marked in the templates, for the JAX-RS route template engine
-        String prefix = strip(rootPath).isEmpty() ? rootPath : strip(rootPath) + JaxRsRouteTemplateEngine.ROOT_MARK;
+        // of it is marked in the templates, for the JAX-RS route template engine, also when empty:
+        // the templates of located targets have no mark
+        String prefix = strip(rootPath) + JaxRsRouteTemplateEngine.ROOT_MARK;
         RequestType<B> requestType = requestType(root.type(), root.definition());
         int rootSegments = segments(rootPath);
         Supplier<B> instances = root.instances();
@@ -934,6 +935,10 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 depth++;
             } else if (c == '}') {
                 depth--;
+            }
+            if (c == JaxRsRouteTemplateEngine.ROOT_MARK || c == JaxRsRouteTemplateEngine.LOCATOR_MARK) {
+                // not a character of the path
+                continue;
             }
             if (c == '/' && depth == 0) {
                 inSegment = false;

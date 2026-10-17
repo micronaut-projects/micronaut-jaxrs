@@ -142,7 +142,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
                 candidates.add(match);
             }
         }
-        if (best instanceof Parsed parsed && !committed(request, parsed)) {
+        if (best instanceof Parsed parsed && parsed.rootPart != null && !committed(request, parsed)) {
             return List.of();
         }
         MediaType contentType = request.getContentType().orElse(null);
@@ -306,21 +306,20 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
     private static Parsed parsed(@Nullable JaxRsRouteTemplateEngine engine, String expression, String prefix) {
         int rootMark = expression.indexOf(ROOT_MARK);
         int locators = 0;
-        StringBuilder clean = new StringBuilder(expression.length());
         for (int i = 0; i < expression.length(); i++) {
-            char c = expression.charAt(i);
-            if (c == LOCATOR_MARK) {
+            if (expression.charAt(i) == LOCATOR_MARK) {
                 locators++;
-            } else if (c != ROOT_MARK) {
-                clean.append(c);
             }
         }
+        String clean = withoutMarks(expression);
         @Nullable Parsed root = null;
         if (rootMark >= 0) {
-            String rootExpression = expression.substring(0, rootMark);
+            // the root resource class of a root route, also one with an empty @Path: a template
+            // without the mark is one of a located target, matched with the rest of the path
+            String rootExpression = strip(expression.substring(0, rootMark));
             root = new Parsed(null, rootExpression, parts(rootExpression), null, 0);
         }
-        List<Part> parts = parts(clean.toString());
+        List<Part> parts = parts(clean);
         if (!prefix.isEmpty()) {
             // the prefix is literal: a brace in it is not a variable
             List<Part> literalPrefix = new ArrayList<>();
@@ -354,11 +353,17 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
         StringBuilder clean = new StringBuilder(expression.length());
         for (int i = 0; i < expression.length(); i++) {
             char c = expression.charAt(i);
-            if (c != ROOT_MARK && c != LOCATOR_MARK) {
+            if (c == ROOT_MARK) {
+                // the mark of an empty root @Path is a segment of its own: /{mark}/path is /path
+                boolean ownSegment = i + 1 == expression.length() || expression.charAt(i + 1) == '/';
+                if (ownSegment && !clean.isEmpty() && clean.charAt(clean.length() - 1) == '/') {
+                    clean.setLength(clean.length() - 1);
+                }
+            } else if (c != LOCATOR_MARK) {
                 clean.append(c);
             }
         }
-        return clean.toString();
+        return clean.isEmpty() ? "/" : clean.toString();
     }
 
     /**
