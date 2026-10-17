@@ -35,6 +35,7 @@ import jakarta.ws.rs.core.UriBuilder;
 import jakarta.ws.rs.core.Variant;
 import jakarta.ws.rs.ext.RuntimeDelegate;
 
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import io.micronaut.core.io.service.SoftServiceLoader;
@@ -87,7 +88,12 @@ public final class MicronautRuntimeDelegate extends RuntimeDelegate {
     @Override
     public <T> HeaderDelegate<T> createHeaderDelegate(Class<T> type) throws IllegalArgumentException {
         JaxRsUtils.requireNonNull("type", type);
-        return (HeaderDelegate<T>) HEADER_DELEGATES.getOrDefault(type, ObjectToStringDelegate.INSTANCE);
+        HeaderDelegate<?> delegate = HEADER_DELEGATES.get(type);
+        if (delegate == null) {
+            // a date, or one of its subclasses, as an HTTP date
+            delegate = Date.class.isAssignableFrom(type) ? DateHeaderDelegate.INSTANCE : ObjectToStringDelegate.INSTANCE;
+        }
+        return (HeaderDelegate<T>) delegate;
     }
 
     @Override
