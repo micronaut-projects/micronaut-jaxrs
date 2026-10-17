@@ -36,6 +36,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -100,7 +101,12 @@ class JaxRsClientTest {
         assertEquals("text/plain|body|filter|filter|writer", result);
     }
 
-
+    @Test
+    void relativeLinksAreResolvedAgainstTheRequestUri() {
+        Response response = target("links").request().get();
+        assertEquals(target("first").getUri(), response.getLink("first").getUri());
+        assertEquals(URI.create("http://other/last"), response.getLink("last").getUri());
+    }
 
     @Test
     void registeredFeatureIsConfigured() {

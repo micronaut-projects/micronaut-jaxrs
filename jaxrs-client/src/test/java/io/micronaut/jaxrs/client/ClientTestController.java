@@ -36,6 +36,12 @@ class ClientTestController {
             + (body == null ? "" : new String(body, StandardCharsets.UTF_8));
     }
 
+    @Get(value = "/links")
+    HttpResponse<?> links() {
+        // a relative link and an absolute one, in one header
+        return HttpResponse.ok().header("Link", "<first>; rel=\"first\", <http://other/last>; rel=\"last\"");
+    }
+
     @CustomHttpMethod(method = "PURGE", value = "/method", produces = MediaType.TEXT_PLAIN)
     String purge(HttpRequest<?> request) {
         return request.getMethodName();

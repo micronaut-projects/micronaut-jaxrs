@@ -23,6 +23,7 @@ import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.ext.RuntimeDelegate;
 import org.jspecify.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -37,9 +38,34 @@ final class LinkDelegate implements RuntimeDelegate.HeaderDelegate<Link> {
     @Override
     public Link fromString(String value) throws IllegalArgumentException {
         ArgumentUtils.requireNonNull("value", value);
-        Parser parser = new Parser(value);
+        Parser parser = new Parser(value, 0);
         parser.parse();
+        if (parser.curr < value.length()) {
+            throw new IllegalArgumentException("Unable to parse Link header. Too many links in declaration: " + value);
+        }
         return parser.getLink();
+    }
+
+    /**
+     * The links of a header value, which has one link or several separated by commas
+     * (RFC 8288, 3).
+     *
+     * @param value The value of a Link header
+     * @return The links
+     */
+    static List<Link> parseAll(String value) {
+        ArgumentUtils.requireNonNull("value", value);
+        List<Link> links = new ArrayList<>();
+        int start = 0;
+        while (start < value.length()) {
+            Parser parser = new Parser(value, start);
+            if (parser.skipSeparators()) {
+                parser.parse();
+                links.add(parser.getLink());
+            }
+            start = parser.curr;
+        }
+        return links;
     }
 
     @Override
@@ -65,9 +91,22 @@ final class LinkDelegate implements RuntimeDelegate.HeaderDelegate<Link> {
         private final Link.Builder builder;
         private int curr;
 
-        Parser(final String value) {
+        Parser(final String value, int start) {
             this.value = value;
+            this.curr = start;
             builder = new LinkBuilderImpl();
+        }
+
+        /**
+         * Skip the separators before a link.
+         *
+         * @return Whether there is a link
+         */
+        boolean skipSeparators() {
+            while (curr < value.length() && (value.charAt(curr) == ',' || Character.isWhitespace(value.charAt(curr)))) {
+                curr++;
+            }
+            return curr < value.length();
         }
 
         public Link getLink() {
@@ -87,6 +126,10 @@ final class LinkDelegate implements RuntimeDelegate.HeaderDelegate<Link> {
                     href = parseLink();
                 } else if (c == ';' || c == ' ') {
                     curr++;
+                } else if (c == ',') {
+                    // the end of this link, another one follows
+                    curr++;
+                    break;
                 } else {
                     parseAttribute(attributes);
                 }

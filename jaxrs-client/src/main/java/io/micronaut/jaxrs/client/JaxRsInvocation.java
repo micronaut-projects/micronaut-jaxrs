@@ -298,6 +298,8 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
                 }
             }
             request = changed(request, requestContext);
+            // the relative links of the response are resolved against the URI of the request
+            URI requestUri = request.getUri();
             client.getHttpClient().exchange(request)
                 .subscribe(new Subscriber<>() {
                     @Override
@@ -307,7 +309,8 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
 
                     @Override
                     public void onNext(HttpResponse<ByteBuffer> response) {
-                        future.complete(new Exchanged(new JaxRsMutableResponse(response.toMutableResponse()), requestContext));
+                        future.complete(new Exchanged(new JaxRsMutableResponse(response.toMutableResponse()
+                            .attribute(JaxRsResponse.REQUEST_URI, requestUri)), requestContext));
                     }
 
                     @Override
@@ -315,7 +318,8 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
                         if (throwable instanceof HttpClientResponseException httpClientResponseException) {
                             // a response that is not successful is filtered like any other
                             HttpResponse<?> response = httpClientResponseException.getResponse();
-                            future.complete(new Exchanged(new JaxRsMutableResponse(errorResponse(response)), requestContext));
+                            future.complete(new Exchanged(new JaxRsMutableResponse(errorResponse(response)
+                                .attribute(JaxRsResponse.REQUEST_URI, requestUri)), requestContext));
                         } else {
                             future.completeExceptionally(new ProcessingException(throwable));
                         }

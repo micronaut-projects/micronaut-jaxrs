@@ -56,6 +56,12 @@ import static jakarta.ws.rs.ext.RuntimeDelegate.getInstance;
 @Internal
 public sealed class JaxRsResponse extends Response implements HttpResponseProvider permits JaxRsMutableResponse {
 
+    /**
+     * The attribute of a response with the URI of the request that produced it, which its relative
+     * links are resolved against.
+     */
+    public static final String REQUEST_URI = JaxRsResponse.class.getName() + ".requestUri";
+
     private final HttpResponse<?> response;
     private final HttpMessageEntityReader entityReader;
     private final JaxRsHttpHeaders jaxRsHttpHeaders;
@@ -284,10 +290,13 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
 
     @Override
     public Set<Link> getLinks() {
+        // a relative link is resolved against the URI of the request, when it is known
+        URI requestUri = response.getAttribute(REQUEST_URI, URI.class).orElse(null);
         return response.getHeaders()
             .getAll(HttpHeaders.LINK)
             .stream()
-            .map(Link::valueOf)
+            .flatMap(value -> LinkDelegate.parseAll(value).stream())
+            .map(link -> requestUri == null || link.getUri().isAbsolute() ? link : new LinkImpl(requestUri.resolve(link.getUri()), link.getParams()))
             .collect(Collectors.toSet());
     }
 
