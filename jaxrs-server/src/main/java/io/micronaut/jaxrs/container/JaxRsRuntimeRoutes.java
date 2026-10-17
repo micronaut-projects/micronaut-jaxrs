@@ -466,7 +466,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         boolean known = !target.isPrimitive() && target != Object.class && !Response.class.isAssignableFrom(target)
             && occurrences < MAX_LOCATOR_REPEAT;
         if (known && follow(routes, rootClass, method, readers, prefix, instances, target, rootUsesForm, visited, usesForm)) {
-            if (!classReturn && !Modifier.isFinal(target.getModifiers()) && !(usesForm && !chainUsesForm)) {
+            if (!classReturn && !Modifier.isFinal(target.getModifiers()) && !usesForm && !rootUsesForm) {
                 // the locator may return a subclass with more routes: the paths the routes of the
                 // declared class do not match are located at runtime
                 locate(routes, method, readers, prefix, instances);
@@ -478,8 +478,11 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             LOG.info("The JAX-RS sub-resource locator {} returns a class known only at runtime: it is not routed", method.name());
             return;
         }
-        if (usesForm && !chainUsesForm) {
-            LOG.info("The JAX-RS sub-resource locator {} known only at runtime has a form parameter: it is not routed", method.name());
+        if (usesForm || rootUsesForm) {
+            // a locator located at runtime reads no body: the resources up to it would read the
+            // form fields from the query
+            LOG.warn("The JAX-RS sub-resource locator {} known only at runtime, or a resource that leads to it, reads a form parameter: it is not routed",
+                method.name());
             return;
         }
         locate(routes, method, readers, prefix, instances);
