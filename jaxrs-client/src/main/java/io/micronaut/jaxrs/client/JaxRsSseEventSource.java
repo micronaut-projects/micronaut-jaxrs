@@ -22,18 +22,21 @@ import io.micronaut.http.HttpStatus;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.MutableHttpRequest;
 import io.micronaut.http.client.exceptions.HttpClientResponseException;
-import io.micronaut.http.client.DefaultHttpClientConfiguration;
 import io.micronaut.http.client.netty.DefaultHttpClient;
 import io.micronaut.http.sse.Event;
+import jakarta.ws.rs.ProcessingException;
+import jakarta.ws.rs.client.ClientRequestFilter;
+import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.sse.InboundSseEvent;
 import jakarta.ws.rs.sse.SseEventSource;
 import org.jspecify.annotations.Nullable;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
-import java.net.URI;
+import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -132,9 +135,13 @@ final class JaxRsSseEventSource implements SseEventSource {
         if (id != null) {
             request.header("Last-Event-ID", id);
         }
+        if (!filtered(request)) {
+            return;
+        }
         DefaultHttpClient client = httpClient;
         if (client == null) {
-            client = new DefaultHttpClient((URI) null, new DefaultHttpClientConfiguration());
+            // configured like the HTTP client of the JAX-RS client: its timeouts and SSL
+            client = target.client().newHttpClient();
             httpClient = client;
         }
         client.eventStream(request, Argument.STRING).subscribe(new Subscriber<Event<String>>() {
@@ -160,6 +167,36 @@ final class JaxRsSseEventSource implements SseEventSource {
                 reconnect(reconnectDelay);
             }
         });
+    }
+
+    /**
+     * Run the request filters of the target, e.g. one adding credentials.
+     *
+     * @return Whether the request is sent, else a filter aborted it
+     */
+    private boolean filtered(MutableHttpRequest<Object> request) {
+        JaxRsConfiguration configuration = target.getConfiguration();
+        var requestContext = new JaxRsClientRequestContext(target.client(), configuration, request, null, Argument.OBJECT_ARGUMENT, Map.of());
+        try {
+            for (ClientRequestFilter filter : configuration.getRequestFilters()) {
+                filter.filter(requestContext);
+                Response response = requestContext.getResponse();
+                if (response != null) {
+                    if (response.getStatusInfo().getFamily() == Response.Status.Family.SUCCESSFUL) {
+                        // nothing to receive
+                        open = false;
+                        reconnect(0);
+                    } else {
+                        failed(JaxRsInvocation.exception(response));
+                    }
+                    return false;
+                }
+            }
+        } catch (IOException | RuntimeException e) {
+            failed(new ProcessingException(e));
+            return false;
+        }
+        return true;
     }
 
     private void received(Event<String> event) {
