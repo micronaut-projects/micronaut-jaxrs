@@ -27,9 +27,11 @@ import jakarta.ws.rs.core.UriBuilder;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 import java.net.URI;
+import java.security.NoSuchAlgorithmException;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
+import java.util.function.Supplier;
 
 /**
  * The implementation of {@link Client}.
@@ -41,14 +43,43 @@ import java.util.concurrent.ForkJoinPool;
 public final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
 
     private final DefaultHttpClient httpClient;
+    private final Supplier<DefaultHttpClient> httpClients;
     private final JaxRsConfiguration config;
     private final @Nullable ExecutorService executorService;
+    private final @Nullable SSLContext sslContext;
+    private final @Nullable HostnameVerifier hostnameVerifier;
     private volatile boolean closed;
 
-    JaxRsClient(DefaultHttpClient httpClient, JaxRsConfiguration config, @Nullable ExecutorService executorService) {
+    /**
+     * @param httpClient       The HTTP client
+     * @param httpClients      Creates the other HTTP clients of the client, configured like its own
+     * @param config           The configuration
+     * @param executorService  The executor service of the builder
+     * @param sslContext       The SSL context of the builder, {@code null} for the default one
+     * @param hostnameVerifier The host name verifier of the builder
+     */
+    JaxRsClient(DefaultHttpClient httpClient,
+                Supplier<DefaultHttpClient> httpClients,
+                JaxRsConfiguration config,
+                @Nullable ExecutorService executorService,
+                @Nullable SSLContext sslContext,
+                @Nullable HostnameVerifier hostnameVerifier) {
         this.httpClient = httpClient;
+        this.httpClients = httpClients;
         this.config = config;
         this.executorService = executorService;
+        this.sslContext = sslContext;
+        this.hostnameVerifier = hostnameVerifier;
+    }
+
+    /**
+     * An HTTP client configured like the one of this client, e.g. for an event source, which
+     * disconnects by closing it.
+     *
+     * @return A new HTTP client
+     */
+    DefaultHttpClient newHttpClient() {
+        return httpClients.get();
     }
 
     /**
@@ -130,11 +161,19 @@ public final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
 
     @Override
     public SSLContext getSslContext() {
-        throw new UnsupportedOperationException();
+        if (sslContext != null) {
+            return sslContext;
+        }
+        try {
+            return SSLContext.getDefault();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     @Override
+    @SuppressWarnings("NullAway") // no host name verifier means the default verification
     public HostnameVerifier getHostnameVerifier() {
-        throw new UnsupportedOperationException();
+        return hostnameVerifier;
     }
 }

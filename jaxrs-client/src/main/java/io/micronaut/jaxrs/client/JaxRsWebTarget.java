@@ -38,6 +38,12 @@ public final class JaxRsWebTarget implements WebTarget, JaxRsConfigurable<WebTar
     private final UriBuilder uriBuilder;
     private final JaxRsConfiguration configuration;
 
+    /**
+     * @param client        The client
+     * @param uriBuilder    The URI of the target
+     * @param configuration The configuration, which the target owns: a derived target is given a
+     *                      copy (JAX-RS, {@code WebTarget})
+     */
     JaxRsWebTarget(JaxRsClient client, UriBuilder uriBuilder, JaxRsConfiguration configuration) {
         this.client = client;
         this.uriBuilder = uriBuilder;
@@ -81,7 +87,7 @@ public final class JaxRsWebTarget implements WebTarget, JaxRsConfigurable<WebTar
         return new JaxRsWebTarget(
             client,
             uriBuilder.clone().path(path),
-            configuration
+            configuration.copy()
         );
     }
 
@@ -93,7 +99,7 @@ public final class JaxRsWebTarget implements WebTarget, JaxRsConfigurable<WebTar
         return new JaxRsWebTarget(
             client,
             uriBuilder.clone().resolveTemplate(name, value),
-            configuration
+            configuration.copy()
         );
     }
 
@@ -105,7 +111,7 @@ public final class JaxRsWebTarget implements WebTarget, JaxRsConfigurable<WebTar
         return new JaxRsWebTarget(
             client,
             uriBuilder.clone().resolveTemplate(name, value, encodeSlashInPath),
-            configuration
+            configuration.copy()
         );
     }
 
@@ -117,7 +123,7 @@ public final class JaxRsWebTarget implements WebTarget, JaxRsConfigurable<WebTar
         return new JaxRsWebTarget(
             client,
             uriBuilder.clone().resolveTemplateFromEncoded(name, value),
-            configuration
+            configuration.copy()
         );
     }
 
@@ -132,7 +138,7 @@ public final class JaxRsWebTarget implements WebTarget, JaxRsConfigurable<WebTar
         return new JaxRsWebTarget(
             client,
             uriBuilder.clone().resolveTemplates(templateValues),
-            configuration
+            configuration.copy()
         );
     }
 
@@ -147,7 +153,7 @@ public final class JaxRsWebTarget implements WebTarget, JaxRsConfigurable<WebTar
         return new JaxRsWebTarget(
             client,
             uriBuilder.clone().resolveTemplates(templateValues, encodeSlashInPath),
-            configuration
+            configuration.copy()
         );
     }
 
@@ -162,7 +168,7 @@ public final class JaxRsWebTarget implements WebTarget, JaxRsConfigurable<WebTar
         return new JaxRsWebTarget(
             client,
             uriBuilder.clone().resolveTemplatesFromEncoded(templateValues),
-            configuration
+            configuration.copy()
         );
     }
 
@@ -176,13 +182,13 @@ public final class JaxRsWebTarget implements WebTarget, JaxRsConfigurable<WebTar
             return new JaxRsWebTarget(
                 client,
                 uriBuilder.clone().replaceMatrixParam(name),
-                configuration
+                configuration.copy()
             );
         }
         return new JaxRsWebTarget(
             client,
             uriBuilder.clone().matrixParam(name, values),
-            configuration
+            configuration.copy()
         );
     }
 
@@ -194,7 +200,7 @@ public final class JaxRsWebTarget implements WebTarget, JaxRsConfigurable<WebTar
         return new JaxRsWebTarget(
             client,
             uriBuilder.clone().queryParam(name, values),
-            configuration
+            configuration.copy()
         );
     }
 

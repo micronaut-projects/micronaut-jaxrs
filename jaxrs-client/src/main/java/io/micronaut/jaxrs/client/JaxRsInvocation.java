@@ -63,15 +63,18 @@ import org.reactivestreams.Subscription;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.function.BiConsumer;
-import java.util.function.Function;
+import java.util.function.Consumer;
 
 /**
  * The implementation of {@link Invocation}, {@link CompletionStageRxInvoker} and {@link AsyncInvoker}.
@@ -95,34 +98,44 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
 
     private final JaxRsConfiguration configuration;
 
+    // the properties of the request, which its filters see
+    private final Map<String, Object> properties;
+
     JaxRsInvocation(JaxRsClient client,
                     @NonNull URI uri,
                     @Nullable String method,
                     @Nullable Entity<?> entity,
                     MutableHttpHeaders mutableHttpHeaders,
-                    JaxRsConfiguration configuration) {
+                    JaxRsConfiguration configuration,
+                    Map<String, Object> properties) {
         this.client = client;
         this.uri = uri;
         this.method = method;
         this.entity = entity;
         this.mutableHttpHeaders = mutableHttpHeaders;
         this.configuration = configuration.copy();
+        this.properties = new LinkedHashMap<>(properties);
     }
 
     @Override
-    public Invocation property(String name, Object value) {
-        configuration.addProperty(name, value);
+    public Invocation property(String name, @Nullable Object value) {
+        // a null value removes the property
+        if (value == null) {
+            properties.remove(name);
+        } else {
+            properties.put(name, value);
+        }
         return this;
     }
 
     @Override
     public Response invoke() {
-        return asyncBlock(exchange(null, Argument.of(Response.class), null));
+        return invoke(Argument.of(Response.class));
     }
 
     @Override
     public <T> T invoke(Class<T> aClass) {
-        return asyncBlock(exchange(null, Argument.of(aClass), null));
+        return invoke(Argument.of(aClass));
     }
 
     @Override
@@ -132,109 +145,156 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
 
     @Override
     public Future<Response> submit() {
-        return async(Argument.of(Response.class));
+        return async(null, Argument.of(Response.class), null, null);
     }
 
     @Override
     public <T> Future<T> submit(Class<T> aClass) {
-        return async(Argument.of(aClass));
+        return async(null, Argument.of(aClass), null, null);
     }
 
     @Override
     public <T> Future<T> submit(GenericType<T> genericType) {
-        return async(JaxRsArgumentUtil.from(genericType));
+        return async(null, JaxRsArgumentUtil.from(genericType), null, null);
     }
 
     @Override
     public <T> Future<T> submit(InvocationCallback<T> invocationCallback) {
-        return async(JaxRsArgumentUtil.from(invocationCallback)).whenComplete(withCallback(invocationCallback));
+        return async(null, JaxRsArgumentUtil.from(invocationCallback), null, invocationCallback);
     }
 
     private <T> T invoke(Argument<T> type) {
-        return asyncBlock(exchange(null, type, null));
+        return invoke(null, type, null);
     }
 
-    private <T> T asyncBlock(CompletableFuture<T> future) {
+    <T> T invokeExchange(Argument<T> type, @Nullable Entity<?> entity) {
+        return invoke(method, type, entity);
+    }
+
+    /**
+     * A synchronous invocation: the response is filtered and read on the calling thread.
+     */
+    private <T> T invoke(@Nullable String method, Argument<T> type, @Nullable Entity<?> entity) {
+        Exchanged exchanged;
         try {
-            return future.get();
+            exchanged = send(method, entity).get();
         } catch (InterruptedException e) {
-            throw new RuntimeException(e);
+            Thread.currentThread().interrupt();
+            throw new ProcessingException(e);
         } catch (ExecutionException e) {
             if (e.getCause() instanceof RuntimeException runtimeException) {
                 throw runtimeException;
             }
-            throw new ProcessingException(e);
+            throw new ProcessingException(e.getCause());
         }
-    }
-
-    <T> T invokeExchange(Argument<T> type, @Nullable Entity<?> entity) {
-        return asyncBlock(exchange(method, type, entity));
-    }
-
-    private <T> CompletableFuture<T> async(Argument<T> type) {
-        return async((String) null, type, null);
+        return result(exchanged, type);
     }
 
     private <T> CompletableFuture<T> async(HttpMethod method, Argument<T> type) {
-        return async(method.name(), type, null);
-    }
-
-    private <T> CompletableFuture<T> async(String method, Argument<T> type) {
-        return async(method, type, null);
+        return async(method.name(), type, null, null);
     }
 
     private <T> CompletableFuture<T> async(HttpMethod method, Argument<T> type, @Nullable Entity<?> entity) {
-        return async(method.name(), type, entity);
+        return async(method.name(), type, entity, null);
     }
 
     /**
      * An asynchronous invocation: it runs, from its request filters on, on the executor service of
-     * the client (JAX-RS, {@code ClientBuilder#executorService}).
+     * the client (JAX-RS, {@code ClientBuilder#executorService}), and so do its response filters,
+     * the reading of its entity, its callback and the continuations of the returned stage, never
+     * on the event loop of the HTTP client. The future fails with the exception itself, not with
+     * a {@link java.util.concurrent.CompletionException}.
      */
-    private <T> CompletableFuture<T> async(@Nullable String method, Argument<T> type, @Nullable Entity<?> entity) {
+    private <T> CompletableFuture<T> async(@Nullable String method, Argument<T> type, @Nullable Entity<?> entity,
+                                           @Nullable InvocationCallback<T> callback) {
+        var result = new CompletableFuture<T>();
+        Executor executor = client.getExecutorService();
+        Runnable invocation = () -> {
+            var _ = send(method, entity).whenComplete((exchanged, throwable) -> execute(executor, () -> {
+                T value = null;
+                Throwable failure = throwable;
+                if (failure == null) {
+                    try {
+                        value = result(exchanged, type);
+                    } catch (RuntimeException e) {
+                        failure = e;
+                    }
+                }
+                complete(result, value, failure, callback);
+            }, failure -> complete(result, null, failure, callback)));
+        };
+        execute(executor, invocation, failure -> complete(result, null, failure, callback));
+        return result;
+    }
+
+    private static void execute(Executor executor, Runnable task, Consumer<Throwable> rejected) {
         try {
-            return CompletableFuture.supplyAsync(() -> exchange(method, type, entity), client.getExecutorService())
-                .thenCompose(Function.identity());
+            executor.execute(task);
         } catch (RejectedExecutionException e) {
-            return CompletableFuture.failedFuture(new ProcessingException(e));
+            rejected.accept(new ProcessingException(e));
         }
     }
 
-    private <T> CompletableFuture<T> exchange(@Nullable String method, Argument<T> type, @Nullable Entity<?> entity) {
-        var future = new CompletableFuture<T>();
+    /**
+     * Complete an asynchronous invocation: its callback, then its future.
+     */
+    private static <T> void complete(CompletableFuture<T> result, @Nullable T value, @Nullable Throwable failure,
+                                     @Nullable InvocationCallback<T> callback) {
+        Throwable cause = unwrap(failure);
         try {
-            var requestBodyType = Argument.of(Object.class);
-            if (entity == null) {
-                entity = this.entity;
-            }
-            MutableHttpRequest<Object> request = createRequest(method, entity);
-            if (entity != null) {
-                Object entityValue = entity.getEntity();
-                if (entityValue instanceof GenericEntity<?> genericEntity) {
-                    requestBodyType = (Argument<Object>) JaxRsArgumentUtil.from(genericEntity);
+            if (callback != null) {
+                if (cause == null) {
+                    callback.completed(value);
                 } else {
-                    requestBodyType = (Argument<Object>) Argument.of(entityValue.getClass(), JaxRsArgumentUtil.createAnnotationMetadata(entity.getAnnotations()));
+                    callback.failed(cause);
                 }
             }
-            List<ClientRequestFilter> requestFilters = configuration.getRequestFilters();
-            JaxRsClientRequestContext requestContext = new JaxRsClientRequestContext(client, configuration, request, requestBodyType);
-            if (!requestFilters.isEmpty()) {
-                for (ClientRequestFilter requestFilter : requestFilters) {
-                    requestFilter.filter(requestContext);
-                    Response response = requestContext.getResponse();
-                    if (response != null) {
-                        response = filterResponse(written(response), requestContext);
-                        if (type.getType().equals(Response.class)) {
-                            future.complete((T) response);
-                        } else {
-                            if (response.getStatusInfo().getFamily() == Response.Status.Family.SUCCESSFUL) {
-                                future.complete(response.readEntity(type.getType()));
-                            } else {
-                                future.completeExceptionally(exception(response));
-                            }
-                        }
-                        return future;
-                    }
+        } finally {
+            if (cause == null) {
+                result.complete(value);
+            } else {
+                result.completeExceptionally(cause);
+            }
+        }
+    }
+
+    private static @Nullable Throwable unwrap(@Nullable Throwable throwable) {
+        Throwable cause = throwable;
+        while ((cause instanceof CompletionException || cause instanceof ExecutionException) && cause.getCause() != null) {
+            cause = cause.getCause();
+        }
+        return cause;
+    }
+
+    /**
+     * Send a request: its request filters run first, then its entity is written, through the
+     * writers and the writer interceptors (JAX-RS 6.4).
+     */
+    private CompletableFuture<Exchanged> send(@Nullable String method, @Nullable Entity<?> entity) {
+        var future = new CompletableFuture<Exchanged>();
+        try {
+            Entity<?> requestEntity = entity == null ? this.entity : entity;
+            MutableHttpRequest<Object> request = createRequest(method, requestEntity);
+            Object entityValue = null;
+            Argument<?> requestBodyType = Argument.OBJECT_ARGUMENT;
+            if (requestEntity != null) {
+                // a null entity is no entity
+                entityValue = requestEntity.getEntity();
+                if (entityValue instanceof GenericEntity<?> genericEntity) {
+                    requestBodyType = JaxRsArgumentUtil.from(genericEntity, requestEntity.getAnnotations());
+                    entityValue = genericEntity.getEntity();
+                } else if (entityValue != null) {
+                    requestBodyType = JaxRsArgumentUtil.from(requestEntity);
+                }
+            }
+            JaxRsClientRequestContext requestContext = new JaxRsClientRequestContext(client, configuration, request,
+                entityValue, requestBodyType, properties);
+            for (ClientRequestFilter requestFilter : configuration.getRequestFilters()) {
+                requestFilter.filter(requestContext);
+                Response response = requestContext.getResponse();
+                if (response != null) {
+                    future.complete(new Exchanged(written(response), requestContext));
+                    return future;
                 }
             }
             request = changed(request, requestContext);
@@ -247,29 +307,15 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
 
                     @Override
                     public void onNext(HttpResponse<ByteBuffer> response) {
-                        try {
-                            JaxRsMutableResponse jaxRsMutableResponse = filterResponse(response.toMutableResponse(), requestContext);
-                            complete(jaxRsMutableResponse);
-                        } catch (Exception e) {
-                            future.completeExceptionally(new ProcessingException(e));
-                        }
+                        future.complete(new Exchanged(new JaxRsMutableResponse(response.toMutableResponse()), requestContext));
                     }
 
                     @Override
                     public void onError(Throwable throwable) {
                         if (throwable instanceof HttpClientResponseException httpClientResponseException) {
+                            // a response that is not successful is filtered like any other
                             HttpResponse<?> response = httpClientResponseException.getResponse();
-                            if (isResponseReturn()) {
-                                try {
-                                    MutableHttpResponse<?> mutableResponse = response.toMutableResponse();
-                                    JaxRsMutableResponse jaxRsMutableResponse = filterResponse(mutableResponse, requestContext);
-                                    complete(jaxRsMutableResponse);
-                                } catch (Exception e) {
-                                    future.completeExceptionally(new ProcessingException(e));
-                                }
-                            } else {
-                                future.completeExceptionally(exception(new JaxRsResponse(response)));
-                            }
+                            future.complete(new Exchanged(new JaxRsMutableResponse(errorResponse(response)), requestContext));
                         } else {
                             future.completeExceptionally(new ProcessingException(throwable));
                         }
@@ -281,20 +327,6 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
                             future.completeExceptionally(new ProcessingException("Expected a response"));
                         }
                     }
-
-                    private void complete(JaxRsMutableResponse jaxRsMutableResponse) {
-                        if (isResponseReturn()) {
-                            future.complete((T) jaxRsMutableResponse);
-                        } else if (jaxRsMutableResponse.getStatusInfo().getFamily() != Response.Status.Family.SUCCESSFUL) {
-                            future.completeExceptionally(exception(jaxRsMutableResponse));
-                        } else {
-                            future.complete(jaxRsMutableResponse.readEntity(type));
-                        }
-                    }
-
-                    private boolean isResponseReturn() {
-                        return type.getType().equals(Response.class);
-                    }
                 });
         } catch (JaxRsIOException e) {
             future.completeExceptionally(new ProcessingException(e.getCause()));
@@ -302,6 +334,44 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
             future.completeExceptionally(new ProcessingException(e));
         }
         return future;
+    }
+
+    /**
+     * A response that is not successful, with its entity: the HTTP client did not convert it, so
+     * it is the bytes of the response.
+     */
+    @SuppressWarnings("unchecked")
+    private static MutableHttpResponse<?> errorResponse(HttpResponse<?> response) {
+        MutableHttpResponse<?> mutableResponse = response.toMutableResponse();
+        if (mutableResponse.getBody().isEmpty()) {
+            response.getBody(byte[].class).ifPresent(((MutableHttpResponse<Object>) mutableResponse)::body);
+        }
+        return mutableResponse;
+    }
+
+    /**
+     * The result of an invocation: the response, filtered by the response filters, or its entity,
+     * or the exception of its status when it is not successful (JAX-RS, {@code SyncInvoker}).
+     */
+    @SuppressWarnings({"unchecked", "NullAway"}) // a response may have no entity
+    private <T> T result(Exchanged exchanged, Argument<T> type) {
+        Response response;
+        try {
+            response = filterResponse(exchanged.response(), exchanged.requestContext());
+        } catch (Exception e) {
+            throw new ProcessingException(e);
+        }
+        if (type.getType().equals(Response.class)) {
+            return (T) response;
+        }
+        if (response.getStatusInfo().getFamily() != Response.Status.Family.SUCCESSFUL) {
+            throw exception(response);
+        }
+        try {
+            return response instanceof JaxRsResponse jaxRsResponse ? jaxRsResponse.readEntity(type) : response.readEntity(type.getType());
+        } catch (Exception e) {
+            throw new ProcessingException(e);
+        }
     }
 
     /**
@@ -317,12 +387,16 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
                 ? HttpRequest.create(HttpMethod.CUSTOM, request.getUri().toString(), changedMethod)
                 : HttpRequest.create(httpMethod, request.getUri().toString());
             request.getHeaders().forEachValue(copy::header);
-            request.getBody().ifPresent(copy::body);
             request = copy;
         }
-        Object body = request.getBody().orElse(null);
-        if (body instanceof byte[] bytes) {
-            request.body(requestContext.writeThroughEntityStream(bytes));
+        Object entity = requestContext.getEntity();
+        if (entity != null) {
+            // the entity as the filters left it, with the media type they left
+            configuration.writeBody(request, requestContext.getEntityArgument(), entity);
+            Object body = request.getBody().orElse(null);
+            if (body instanceof byte[] bytes) {
+                request.body(requestContext.writeThroughEntityStream(bytes));
+            }
         }
         return request;
     }
@@ -331,7 +405,7 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
      * The exception of a response that is not successful: the most specific one of its status
      * (JAX-RS, {@code SyncInvoker}).
      */
-    private static WebApplicationException exception(Response response) {
+    static WebApplicationException exception(Response response) {
         int status = response.getStatus();
         return switch (status) {
             case 400 -> new BadRequestException(response);
@@ -384,12 +458,6 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
         return response;
     }
 
-    private JaxRsMutableResponse filterResponse(@NonNull MutableHttpResponse<?> mutableHttpResponse, @Nullable JaxRsClientRequestContext requestContext) {
-        JaxRsMutableResponse response = new JaxRsMutableResponse(mutableHttpResponse, configuration.createHttpMessageEntityReader());
-        filterResponse(response, requestContext);
-        return response;
-    }
-
     private void filterResponse(@NonNull JaxRsMutableResponse jaxRsMutableResponse, @Nullable JaxRsClientRequestContext requestContext) {
         try {
             List<ClientResponseFilter> filters = configuration.getResponseFilters();
@@ -404,16 +472,22 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
         }
     }
 
+    /**
+     * The request, without its entity: it is written after the request filters ran.
+     */
     private MutableHttpRequest<Object> createRequest(@Nullable String method, @Nullable Entity<?> entity) {
         if (method == null) {
             method = this.method;
         }
-        HttpMethod httpMethod = HttpMethod.valueOf(Objects.requireNonNull(method));
+        Objects.requireNonNull(method, "method");
+        // a method that is not a standard one, e.g. PURGE, is a custom one
+        HttpMethod httpMethod = HttpMethod.parse(method);
         MutableHttpRequest<Object> mutableHttpRequest = httpMethod ==
             HttpMethod.CUSTOM ? HttpRequest.create(HttpMethod.CUSTOM, uri.toString(), method) : HttpRequest.create(httpMethod, uri.toString());
         if (entity != null) {
-            mutableHttpRequest = mutableHttpRequest.contentType(MediaType.of(entity.getMediaType().toString()));
-            mutableHttpRequest = mutableHttpRequest.body(entity.getEntity());
+            if (entity.getMediaType() != null) {
+                mutableHttpRequest = mutableHttpRequest.contentType(MediaType.of(entity.getMediaType().toString()));
+            }
             Locale language = entity.getLanguage();
             if (language != null) {
                 mutableHttpRequest.getHeaders().set(HttpHeaders.CONTENT_LANGUAGE, language.toLanguageTag());
@@ -421,22 +495,6 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
         }
         if (mutableHttpHeaders != null) {
             mutableHttpHeaders.forEachValue(mutableHttpRequest::header);
-        }
-        @Nullable Argument<Object> bodyArgument;
-        @Nullable Object body;
-        if (entity != null) {
-            bodyArgument = (Argument<Object>) JaxRsArgumentUtil.from(entity);
-            body = entity.getEntity();
-        } else {
-            body = mutableHttpRequest.getBody().orElse(null);
-            if (body != null) {
-                bodyArgument = (Argument<Object>) Argument.of(body.getClass());
-            } else {
-                bodyArgument = null;
-            }
-        }
-        if (bodyArgument != null) {
-            configuration.writeBody(mutableHttpRequest, bodyArgument, body);
         }
         return mutableHttpRequest;
     }
@@ -458,7 +516,7 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
 
     @Override
     public <T> Future<T> get(InvocationCallback<T> callback) {
-        return async(HttpMethod.GET, JaxRsArgumentUtil.from(callback)).whenComplete(withCallback(callback));
+        return asyncCallback(HttpMethod.GET, JaxRsArgumentUtil.from(callback), callback);
     }
 
     @Override
@@ -478,7 +536,7 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
 
     @Override
     public <T> Future<T> put(Entity<?> entity, InvocationCallback<T> callback) {
-        return async(HttpMethod.PUT, JaxRsArgumentUtil.from(callback), entity).whenComplete(withCallback(callback));
+        return asyncCallback(HttpMethod.PUT, JaxRsArgumentUtil.from(callback), entity, callback);
     }
 
     @Override
@@ -498,17 +556,23 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
 
     @Override
     public <T> Future<T> post(Entity<?> entity, InvocationCallback<T> callback) {
-        return async(HttpMethod.POST, JaxRsArgumentUtil.from(callback), entity).whenComplete(withCallback(callback));
+        return asyncCallback(HttpMethod.POST, JaxRsArgumentUtil.from(callback), entity, callback);
     }
 
-    private <T> BiConsumer<T, Throwable> withCallback(InvocationCallback<T> callback) {
-        return (response, throwable) -> {
-            if (throwable != null) {
-                callback.failed(throwable);
-            } else {
-                callback.completed(response);
-            }
-        };
+    private <T> Future<T> asyncCallback(HttpMethod method, Argument<T> type, InvocationCallback<T> callback) {
+        return async(method.name(), type, null, callback);
+    }
+
+    private <T> Future<T> asyncCallback(HttpMethod method, Argument<T> type, @Nullable Entity<?> entity, InvocationCallback<T> callback) {
+        return async(method.name(), type, entity, callback);
+    }
+
+    private <T> Future<T> asyncCallback(String method, Argument<T> type, InvocationCallback<T> callback) {
+        return async(method, type, null, callback);
+    }
+
+    private <T> Future<T> asyncCallback(String method, Argument<T> type, @Nullable Entity<?> entity, InvocationCallback<T> callback) {
+        return async(method, type, entity, callback);
     }
 
     @Override
@@ -528,7 +592,7 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
 
     @Override
     public <T> Future<T> delete(InvocationCallback<T> callback) {
-        return async(HttpMethod.DELETE, JaxRsArgumentUtil.from(callback)).whenComplete(withCallback(callback));
+        return asyncCallback(HttpMethod.DELETE, JaxRsArgumentUtil.from(callback), callback);
     }
 
     @Override
@@ -538,7 +602,7 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
 
     @Override
     public Future<Response> head(InvocationCallback<Response> callback) {
-        return async(HttpMethod.HEAD, JaxRsArgumentUtil.from(callback)).whenComplete(withCallback(callback));
+        return asyncCallback(HttpMethod.HEAD, JaxRsArgumentUtil.from(callback), callback);
     }
 
     @Override
@@ -558,7 +622,7 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
 
     @Override
     public <T> Future<T> options(InvocationCallback<T> callback) {
-        return async(HttpMethod.OPTIONS, JaxRsArgumentUtil.from(callback)).whenComplete(withCallback(callback));
+        return asyncCallback(HttpMethod.OPTIONS, JaxRsArgumentUtil.from(callback), callback);
     }
 
     @Override
@@ -578,46 +642,55 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
 
     @Override
     public <T> Future<T> trace(InvocationCallback<T> callback) {
-        return async(HttpMethod.TRACE, JaxRsArgumentUtil.from(callback)).whenComplete(withCallback(callback));
+        return asyncCallback(HttpMethod.TRACE, JaxRsArgumentUtil.from(callback), callback);
     }
 
     @Override
     public CompletableFuture<Response> method(String name) {
-        return async(name, Argument.of(Response.class));
+        return async(name, Argument.of(Response.class), null, null);
     }
 
     @Override
     public <T> CompletableFuture<T> method(String name, Class<T> responseType) {
-        return async(name, Argument.of(responseType));
+        return async(name, Argument.of(responseType), null, null);
     }
 
     @Override
     public <T> CompletableFuture<T> method(String name, GenericType<T> responseType) {
-        return async(name, JaxRsArgumentUtil.from(responseType));
+        return async(name, JaxRsArgumentUtil.from(responseType), null, null);
     }
 
     @Override
     public <T> Future<T> method(String name, InvocationCallback<T> callback) {
-        return async(name, JaxRsArgumentUtil.from(callback)).whenComplete(withCallback(callback));
+        return asyncCallback(name, JaxRsArgumentUtil.from(callback), callback);
     }
 
     @Override
     public CompletableFuture<Response> method(String name, Entity<?> entity) {
-        return async(name, Argument.of(Response.class), entity);
+        return async(name, Argument.of(Response.class), entity, null);
     }
 
     @Override
     public <T> CompletableFuture<T> method(String name, Entity<?> entity, Class<T> responseType) {
-        return async(name, Argument.of(responseType), entity);
+        return async(name, Argument.of(responseType), entity, null);
     }
 
     @Override
     public <T> CompletableFuture<T> method(String name, Entity<?> entity, GenericType<T> responseType) {
-        return async(name, JaxRsArgumentUtil.from(responseType), entity);
+        return async(name, JaxRsArgumentUtil.from(responseType), entity, null);
     }
 
     @Override
     public <T> Future<T> method(String name, Entity<?> entity, InvocationCallback<T> callback) {
-        return async(name, JaxRsArgumentUtil.from(callback), entity).whenComplete(withCallback(callback));
+        return asyncCallback(name, JaxRsArgumentUtil.from(callback), entity, callback);
+    }
+
+    /**
+     * The response of a request, not filtered yet, with the context of the request.
+     *
+     * @param response       The response
+     * @param requestContext The context of the request
+     */
+    private record Exchanged(Response response, JaxRsClientRequestContext requestContext) {
     }
 }

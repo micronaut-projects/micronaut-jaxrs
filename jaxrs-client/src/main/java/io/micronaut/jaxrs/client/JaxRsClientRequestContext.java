@@ -15,6 +15,7 @@
  */
 package io.micronaut.jaxrs.client;
 
+import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.MutableHttpRequest;
@@ -27,6 +28,7 @@ import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.client.ClientRequestContext;
 import jakarta.ws.rs.core.Configuration;
 import jakarta.ws.rs.core.Cookie;
+import jakarta.ws.rs.core.GenericEntity;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
@@ -59,11 +61,13 @@ final class JaxRsClientRequestContext implements ClientRequestContext {
 
     private final Client client;
     private final Configuration configuration;
-    private final Map<String, Object> properties = new LinkedHashMap<>();
+    private final Map<String, Object> properties;
     private final MutableHttpRequest<?> mutableHttpRequest;
     private final JaxRsHttpHeaders jaxRsHttpHeaders;
     @Nullable
     private Response response;
+    // the entity, written after the filters ran (JAX-RS 6.4)
+    private @Nullable Object entity;
     private Argument<?> bodyType;
     private Annotation @Nullable [] annotations;
     // the method a filter changed the request to
@@ -72,15 +76,27 @@ final class JaxRsClientRequestContext implements ClientRequestContext {
     private @Nullable OutputStream entityStream;
     private @Nullable ByteArrayOutputStream entitySink;
 
+    /**
+     * @param client             The client
+     * @param configuration      The configuration
+     * @param mutableHttpRequest The request, without its entity
+     * @param entity             The entity, not written yet
+     * @param bodyType           The type of the entity
+     * @param properties         The properties of the request
+     */
     public JaxRsClientRequestContext(Client client,
                                      Configuration configuration,
                                      MutableHttpRequest<?> mutableHttpRequest,
-                                     Argument<?> bodyType) {
+                                     @Nullable Object entity,
+                                     Argument<?> bodyType,
+                                     Map<String, Object> properties) {
         this.client = client;
         this.configuration = configuration;
         this.mutableHttpRequest = mutableHttpRequest;
         this.jaxRsHttpHeaders = JaxRsMutableHttpHeaders.forRequest(mutableHttpRequest.getHeaders());
+        this.entity = entity;
         this.bodyType = bodyType;
+        this.properties = new LinkedHashMap<>(properties);
     }
 
     @Override
@@ -192,18 +208,40 @@ final class JaxRsClientRequestContext implements ClientRequestContext {
 
     @Override
     public boolean hasEntity() {
-        return mutableHttpRequest.getBody(bodyType).isPresent();
+        return entity != null;
     }
 
     @Override
     public @Nullable Object getEntity() {
-        return mutableHttpRequest.getBody(bodyType).orElse(null);
+        return entity;
+    }
+
+    /**
+     * @return The type of the entity, as the filters left it
+     */
+    @SuppressWarnings("unchecked")
+    Argument<Object> getEntityArgument() {
+        return (Argument<Object>) bodyType;
     }
 
     @Override
-    public void setEntity(Object entity) {
-        mutableHttpRequest.body(entity);
-        bodyType = Argument.of(entity.getClass());
+    public void setEntity(@Nullable Object entity) {
+        // the annotations are kept, a null entity removes it
+        replaceEntity(entity, bodyType.getAnnotationMetadata());
+    }
+
+    private void replaceEntity(@Nullable Object entity, AnnotationMetadata annotationMetadata) {
+        if (entity instanceof GenericEntity<?> genericEntity) {
+            Argument<?> argument = JaxRsArgumentUtil.from(genericEntity);
+            this.entity = genericEntity.getEntity();
+            this.bodyType = Argument.of(argument.getType(), annotationMetadata, argument.getTypeParameters());
+        } else if (entity == null) {
+            this.entity = null;
+            this.bodyType = Argument.of(Object.class, annotationMetadata);
+        } else {
+            this.entity = entity;
+            this.bodyType = Argument.of(entity.getClass(), annotationMetadata);
+        }
     }
 
     @Override
@@ -217,16 +255,12 @@ final class JaxRsClientRequestContext implements ClientRequestContext {
     }
 
     @Override
-    public void setEntity(Object entity, Annotation[] annotations, MediaType mediaType) {
-        mutableHttpRequest.body(entity);
+    public void setEntity(@Nullable Object entity, Annotation @Nullable [] annotations, @Nullable MediaType mediaType) {
         if (mediaType != null) {
             mutableHttpRequest.contentType(Objects.requireNonNull(JaxRsUtils.convert(mediaType)));
         }
-        bodyType = Argument.of(entity.getClass());
-        if (annotations != null) {
-            this.annotations = annotations;
-            bodyType = Argument.of(bodyType.getType(), JaxRsArgumentUtil.createAnnotationMetadata(annotations), bodyType.getTypeParameters());
-        }
+        this.annotations = annotations;
+        replaceEntity(entity, annotations == null ? AnnotationMetadata.EMPTY_METADATA : JaxRsArgumentUtil.createAnnotationMetadata(annotations));
     }
 
     @Override

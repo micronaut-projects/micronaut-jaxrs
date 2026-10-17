@@ -26,6 +26,7 @@ import io.micronaut.http.body.MessageBodyReader;
 import io.micronaut.http.body.MessageBodyWriter;
 import io.micronaut.http.client.DefaultHttpClientConfiguration;
 import io.micronaut.http.client.netty.DefaultHttpClient;
+import io.micronaut.http.client.netty.DefaultHttpClientBuilder;
 import io.micronaut.jaxrs.common.JaxRsStandardProviders;
 import io.micronaut.jaxrs.common.body.standard.JaxRsInputStreamMessageBodyReader;
 import io.micronaut.jaxrs.common.body.standard.JaxRsInputStreamMessageBodyWriter;
@@ -43,18 +44,16 @@ import jakarta.ws.rs.core.Configuration;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 import java.lang.ref.WeakReference;
-import java.net.URI;
 import java.security.KeyStore;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 /**
  * The implementation of {@link ClientBuilder}.
@@ -72,7 +71,9 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
     private final JaxRsConfiguration config = new JaxRsConfiguration();
     @Nullable
     private SSLContext sslContext;
-    private Map<KeyStore, char[]> keyStores = new HashMap<>();
+    @Nullable
+    private KeyStore keyStore;
+    private char @Nullable [] keyStorePassword;
     @Nullable
     private KeyStore trustStore;
     @Nullable
@@ -91,7 +92,16 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
         DefaultHttpClientConfiguration configuration = new DefaultHttpClientConfiguration();
         configuration.setConnectTimeout(connectTimeout);
         configuration.setReadTimeout(readTimeout);
-        DefaultHttpClient httpClient = new DefaultHttpClient((URI) null, configuration);
+        // the SSL of this builder, else the one of the HTTP client
+        SSLContext clientSslContext = JaxRsClientSsl.sslContext(sslContext, keyStore, keyStorePassword, trustStore, hostnameVerifier);
+        Supplier<DefaultHttpClient> httpClients = () -> {
+            DefaultHttpClientBuilder builder = DefaultHttpClient.builder().configuration(configuration);
+            if (clientSslContext != null) {
+                builder.nettyClientSslBuilder(new JaxRsClientSsl(clientSslContext));
+            }
+            return builder.build();
+        };
+        DefaultHttpClient httpClient = httpClients.get();
         ContextlessMessageBodyHandlerRegistry handlerRegistry = (ContextlessMessageBodyHandlerRegistry) httpClient.getHandlerRegistry();
         // the properties and components registered on this builder, then the standard ones
         JaxRsConfiguration jaxRsConfiguration = config.copy();
@@ -138,7 +148,7 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
                 }
             }
         }
-        return new JaxRsClient(httpClient, jaxRsConfiguration, executorService);
+        return new JaxRsClient(httpClient, httpClients, jaxRsConfiguration, executorService, clientSslContext, hostnameVerifier);
     }
 
     @Override
@@ -165,7 +175,8 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
 
     @Override
     public ClientBuilder keyStore(KeyStore keyStore, char[] password) {
-        keyStores.put(keyStore, password);
+        this.keyStore = keyStore;
+        this.keyStorePassword = password;
         return this;
     }
 

@@ -49,7 +49,9 @@ public final class JaxRsArgumentUtil {
     }
 
     public static <T> Argument<T> from(Entity<T> entityType) {
-        Argument<T> argument = (Argument<T>) Argument.of(entityType.getEntity().getClass());
+        // a null entity is of any type
+        T entity = entityType.getEntity();
+        Argument<T> argument = (Argument<T>) (entity == null ? Argument.OBJECT_ARGUMENT : Argument.of(entity.getClass()));
         return Argument.of(argument.getType(), createAnnotationMetadata(entityType.getAnnotations()), argument.getTypeParameters());
     }
 
