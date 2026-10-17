@@ -125,6 +125,7 @@ public final class JaxRsRoutesGenerator {
 
     private static final String ROUTER = "io.micronaut.web.router.builder.";
 
+    private static final String ASYNC_BODY = "io.micronaut.http.body.AsyncRequestBody";
     private static final String ASYNC_HANDLER = "io.micronaut.jaxrs.container.JaxRsAsyncHandler";
 
     private static final ClassTypeDef ARGUMENT = ClassTypeDef.of(Argument.class);
@@ -150,6 +151,7 @@ public final class JaxRsRoutesGenerator {
     private static final String GENERIC_ENTITY = "jakarta.ws.rs.core.GenericEntity";
 
     private static final String LOCATED_ROUTES = "io.micronaut.jaxrs.container.JaxRsLocatedRoutes";
+    private static final String RESOURCE_ROUTES = "io.micronaut.jaxrs.container.JaxRsResourceRoutes";
 
     private static final Map<String, String> BUILT_IN_ARGUMENTS = Map.ofEntries(
         Map.entry("java.lang.String", "STRING"),
@@ -425,7 +427,7 @@ public final class JaxRsRoutesGenerator {
         ClassDef.ClassDefBuilder router = ClassDef.builder(routerType.getName())
             .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
             .addAnnotation(ClassTypeDef.of("jakarta.inject.Singleton"))
-            .addSuperinterface(model.located ? types.type(LOCATED_ROUTES) : types.type(ROUTER + "HttpRoutes"))
+            .addSuperinterface(model.located ? types.type(LOCATED_ROUTES) : types.type(RESOURCE_ROUTES))
             .addJavadoc(model.located
                 ? "Implements the routes of {@link " + resource.getCanonicalName() + "} as the target of a sub-resource locator, relative to its prefix."
                 : "Implements the routes of the JAX-RS resource {@link " + resource.getCanonicalName() + "} with handler functions.");
@@ -475,55 +477,66 @@ public final class JaxRsRoutesGenerator {
         for (int i = 0; i < model.runtimeLocators.size(); i++) {
             router.addMethod(generator.locateMethod(model.runtimeLocators.get(i), "locate" + i, root));
         }
-        router.addMethod(MethodDef.builder("routes")
-            .addModifiers(Modifier.PUBLIC)
-            .addAnnotation(Override.class)
-            .addParameter("routes", types.routeBuilder)
+        // the routes are declared in a group with the templates and the route selection of JAX-RS
+        TypeDef groupType = model.located ? types.locatedRouteGroup : types.routeGroup;
+        MethodDef.MethodDefBuilder declare = MethodDef.builder("declare")
+            .addParameter("group", groupType);
+        declare.addModifiers(Modifier.PUBLIC).addAnnotation(Override.class);
+        router.addMethod(declare
             .returns(TypeDef.VOID)
             .build((aThis, params) -> {
                 VariableDef support = aThis.field(supportField);
+                VariableDef group = params.get(0);
                 List<StatementDef> statements = new ArrayList<>();
                 for (RouteModel route : routes) {
                     ResourceMethod method = route.route.method;
-                    List<ExpressionDef> handle = new ArrayList<>();
                     // declared by the name of the HTTP method, custom or not, with the template in the language of JAX-RS
-                    handle.add(support.invoke(model.located ? "locatedDeclaration" : "declaration", types.routeDeclaration,
-                        ExpressionDef.constant(method.httpMethod), ExpressionDef.constant(method.template)));
-                    String builderMethod;
-                    if (method.async) {
+                    ExpressionDef spec = support.invoke("configure", types.routeSpec,
+                        group.invoke("route", types.routeSpec, ExpressionDef.constant(method.httpMethod),
+                            support.invoke(model.located ? "locatedTemplate" : "template", types.routeTemplate, ExpressionDef.constant(method.template))),
+                        route.metadata);
+                    ExpressionDef handler = generator.handlerLambda(aThis, route);
+                    if (method.async && (route.form || route.body)) {
                         // the handler reads the entity or the form, see handlerLambda
-                        builderMethod = "handleAsync";
+                        statements.add(spec.invoke("body", types.routeSpec).invoke("handleAsync", TypeDef.VOID, handler));
+                    } else if (method.async) {
+                        statements.add(spec.invoke("handleAsync", TypeDef.VOID, handler));
                     } else if (route.form) {
-                        builderMethod = "handleForm";
+                        statements.add(spec.invoke("form", types.routeSpec).invoke("handle", TypeDef.VOID, handler));
                     } else if (route.body) {
-                        builderMethod = "handle";
-                        handle.add(route.entityArgument);
+                        statements.add(spec.invoke("body", types.routeSpec, Objects.requireNonNull(route.entityArgument)).invoke("handle", TypeDef.VOID, handler));
                     } else {
-                        builderMethod = "handle";
+                        statements.add(spec.invoke("handle", TypeDef.VOID, handler));
                     }
-                    handle.add(generator.handlerLambda(aThis, route));
-                    statements.add(support.invoke("configure", TypeDef.VOID,
-                        params.get(0).invoke(builderMethod, types.routeSpec, handle),
-                        route.metadata));
                 }
                 for (int i = 0; i < model.runtimeLocators.size(); i++) {
                     RuntimeLocator locator = model.runtimeLocators.get(i);
                     String locateMethod = "locate" + i;
                     // the router locates the target, then matches the rest of the path with the routes of its class
-                    statements.add(params.get(0).invoke("locate", TypeDef.VOID,
-                        support.invoke(model.located ? "locatedPrefix" : "prefix", types.routeTemplate, ExpressionDef.constant(locator.prefix)),
+                    statements.add(group.invoke("locate", TypeDef.VOID,
+                        model.located ? ExpressionDef.constant(locator.prefix) : support.invoke("prefix", TypeDef.STRING, ExpressionDef.constant(locator.prefix)),
                         types.type(ROUTER + "LocatorHandler").getLambda(Map.of()).implement((lambdaThis, lambdaParams) ->
                             aThis.invoke(locateMethod, TypeDef.OBJECT, new ArrayList<ExpressionDef>(lambdaParams)).returning()),
-                        support.invoke("locatedTables", TypeDef.OBJECT)));
+                        support.invoke("locatedRoutes", ClassTypeDef.of(Function.class))));
                 }
+                return StatementDef.multi(statements);
+            }));
+        router.addMethod(MethodDef.builder("routes")
+            .addModifiers(Modifier.PUBLIC)
+            .addAnnotation(Override.class)
+            .addParameter("routes", model.located ? types.locatedRouteBuilder : types.routeBuilder)
+            .returns(TypeDef.VOID)
+            .build((aThis, params) -> {
+                VariableDef support = aThis.field(supportField);
                 if (model.located) {
-                    return StatementDef.multi(statements);
+                    return support.invoke("locatedRoutes", TypeDef.VOID, params.get(0), aThis);
                 }
+                StatementDef statements = support.invoke("routes", TypeDef.VOID, params.get(0), aThis);
                 // the resource is not a bean in this context, e.g. disabled by @Requires, or the
                 // Application lists its classes without it
                 return aThis.field(resourceField).invoke("isPresent", TypeDef.Primitive.BOOLEAN).ifTrue(
                     support.invoke("isRegistered", TypeDef.Primitive.BOOLEAN, ExpressionDef.constant(ClassTypeDef.erasure(model.resource)))
-                        .ifTrue(StatementDef.multi(statements)));
+                        .ifTrue(statements));
             }));
         return router.build();
     }
@@ -848,8 +861,10 @@ public final class JaxRsRoutesGenerator {
         final ClassTypeDef support;
         final ClassTypeDef metadata;
         final ClassTypeDef routeBuilder;
+        final TypeDef locatedRouteBuilder;
+        final ClassTypeDef routeGroup;
+        final TypeDef locatedRouteGroup;
         final ClassTypeDef routeSpec;
-        final ClassTypeDef routeDeclaration;
         final ClassTypeDef routeTemplate;
         final TypeDef request = TypeDef.parameterized(ClassTypeDef.of("io.micronaut.http.HttpRequest"), TypeDef.wildcard());
         final TypeDef response = TypeDef.parameterized(ClassTypeDef.of(HTTP_RESPONSE), TypeDef.wildcard());
@@ -861,10 +876,12 @@ public final class JaxRsRoutesGenerator {
             support = type(SUPPORT);
             metadata = type(SUPPORT + ".RouteMetadata");
             routeBuilder = type(ROUTER + "HttpRouteBuilder");
+            locatedRouteBuilder = TypeDef.parameterized(type(ROUTER + "LocatedHttpRouteBuilder"), TypeDef.OBJECT);
+            routeGroup = type(ROUTER + "HttpRouteGroup");
+            locatedRouteGroup = TypeDef.parameterized(type(ROUTER + "LocatedHttpRouteGroup"), TypeDef.OBJECT);
             routeSpec = type(ROUTER + "HttpRouteSpec");
-            routeDeclaration = type(ROUTER + "RouteDeclaration");
             routeTemplate = type("io.micronaut.http.uri.RouteTemplate");
-            pathVariables = type(ROUTER + "PathVariables");
+            pathVariables = type("io.micronaut.http.PathVariables");
             form = type("io.micronaut.http.form.FormData");
         }
 
@@ -1006,14 +1023,14 @@ public final class JaxRsRoutesGenerator {
             if (route.route.method.async && (route.form || route.body)) {
                 // read the form or the entity from the request, then call the method of the route
                 TypeDef read = route.form ? types.form : TypeDef.of(byte[].class);
-                return types.type(ROUTER + handlerType).getLambda(Map.of()).implement((lambdaThis, lambdaParams) ->
+                return types.type(ROUTER + handlerType).getLambda(Map.of("B", types.type(ASYNC_BODY))).implement((lambdaThis, lambdaParams) ->
                     aThis.field(supportField).invoke(route.form ? "formAsync" : "entityAsync", ClassTypeDef.of(COMPLETION_STAGE),
                         lambdaParams.get(0), lambdaParams.get(1), lambdaParams.get(2),
                         types.type(ASYNC_HANDLER).getLambda(Map.of("T", read)).implement((valueThis, valueParams) ->
                             aThis.invoke(route.name, TypeDef.OBJECT, new ArrayList<ExpressionDef>(valueParams)).returning())
                     ).returning());
             }
-            Map<String, TypeDef> typeVariables = handlerType.endsWith("BodyRequestHandler") ? Map.of("B", TypeDef.OBJECT) : Map.of();
+            Map<String, TypeDef> typeVariables = handlerType.endsWith("BodyRequestHandler") ? Map.of("B", route.form ? types.form : TypeDef.OBJECT) : Map.of();
             return types.type(ROUTER + handlerType).getLambda(typeVariables).implement((lambdaThis, lambdaParams) ->
                 aThis.invoke(route.name, TypeDef.OBJECT, new ArrayList<ExpressionDef>(lambdaParams)).returning());
         }
@@ -1023,7 +1040,7 @@ public final class JaxRsRoutesGenerator {
                 // the body is a parameter of the handler that reads it
                 return route.form || route.body ? "AsyncBodyRequestHandler" : "AsyncRequestHandler";
             } else if (route.form) {
-                return "FormRequestHandler";
+                return "BodyRequestHandler";
             } else if (route.body) {
                 return "BodyRequestHandler";
             }
@@ -1106,7 +1123,7 @@ public final class JaxRsRoutesGenerator {
             ExpressionDef instance;
             if (model.located) {
                 // located at runtime, and already matched by its locator
-                instance = pathVariables.invoke("locatedTarget", TypeDef.OBJECT, ExpressionDef.constant(resourceType)).cast(resourceType);
+                instance = ClassTypeDef.of(ROUTER + "LocatedRoutes").invokeStatic("locatedTarget", TypeDef.OBJECT, pathVariables, ExpressionDef.constant(resourceType)).cast(resourceType);
             } else {
                 instance = root == null
                     ? aThis.field(resourceField).invoke("get", TypeDef.OBJECT).cast(resourceType)

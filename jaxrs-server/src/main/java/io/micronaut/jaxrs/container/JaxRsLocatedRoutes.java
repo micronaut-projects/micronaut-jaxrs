@@ -16,7 +16,10 @@
 package io.micronaut.jaxrs.container;
 
 import io.micronaut.core.annotation.Internal;
-import io.micronaut.web.router.builder.HttpRouteBuilder;
+import io.micronaut.core.type.Argument;
+import io.micronaut.web.router.builder.LocatedHttpRouteBuilder;
+import io.micronaut.web.router.builder.LocatedHttpRouteGroup;
+import io.micronaut.web.router.builder.LocatedRoutes;
 
 /**
  * The routes of a class as the target of a sub-resource locator known only at runtime, relative
@@ -26,7 +29,27 @@ import io.micronaut.web.router.builder.HttpRouteBuilder;
  * @since 5.2.0
  */
 @Internal
-public interface JaxRsLocatedRoutes {
+public interface JaxRsLocatedRoutes extends LocatedRoutes<Object> {
+
+    /**
+     * The routes of a class without routes.
+     */
+    JaxRsLocatedRoutes NONE = new JaxRsLocatedRoutes() {
+        @Override
+        public Class<?> type() {
+            return Object.class;
+        }
+
+        @Override
+        public void routes(LocatedHttpRouteBuilder<Object> routes) {
+            // no routes: the request is not found
+        }
+
+        @Override
+        public void declare(LocatedHttpRouteGroup<Object> group) {
+            // no routes
+        }
+    };
 
     /**
      * @return The class whose instances the routes are for
@@ -34,9 +57,16 @@ public interface JaxRsLocatedRoutes {
     Class<?> type();
 
     /**
-     * Declare the routes, relative to the prefix of the locator.
+     * Declare the routes in the group of the templates and the route selection of JAX-RS, see
+     * {@link JaxRsRouteSupport#locatedRoutes(LocatedHttpRouteBuilder, JaxRsLocatedRoutes)}.
      *
-     * @param routes The builder
+     * @param group The group
      */
-    void routes(HttpRouteBuilder routes);
+    void declare(LocatedHttpRouteGroup<Object> group);
+
+    @Override
+    default Argument<Object> targetType() {
+        // a located target of any class: the routes are chosen by its class, see JaxRsRouteSupport#locatedRoutes
+        return Argument.OBJECT_ARGUMENT;
+    }
 }

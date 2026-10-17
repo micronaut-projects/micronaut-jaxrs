@@ -18,7 +18,7 @@ package io.micronaut.jaxrs.container;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
-import io.micronaut.web.router.builder.PathVariables;
+import io.micronaut.http.PathVariables;
 import org.jspecify.annotations.Nullable;
 
 import java.util.concurrent.CompletionStage;
