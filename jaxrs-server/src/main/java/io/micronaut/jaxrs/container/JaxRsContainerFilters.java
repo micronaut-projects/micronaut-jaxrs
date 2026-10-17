@@ -35,7 +35,6 @@ import io.micronaut.jaxrs.common.JaxRsUtils;
 import io.micronaut.jaxrs.common.NameBindingPredicate;
 import io.micronaut.jaxrs.runtime.ext.bind.HttpHeadersBinder;
 import io.micronaut.web.router.RouteAttributes;
-import io.micronaut.web.router.MethodBasedRouteInfo;
 import io.micronaut.web.router.RouteInfo;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.container.ContainerRequestFilter;
@@ -167,10 +166,11 @@ final class JaxRsContainerFilters {
         }
 
         Argument<?> returnType = routeInfo == null ? Argument.VOID : routeInfo.getReturnType().asArgument();
-        if (routeInfo instanceof MethodBasedRouteInfo<?, ?> methodRoute) {
+        java.lang.reflect.Method resourceMethod = JaxRsRouteSupport.resourceMethod(routeInfo);
+        if (resourceMethod != null) {
             // the writers see the annotations given with the entity, then the Java annotations of
             // the resource method, like JAX-RS passes them
-            Annotation[] methodAnnotations = methodRoute.getTargetMethod().getTargetMethod().getAnnotations();
+            Annotation[] methodAnnotations = resourceMethod.getAnnotations();
             if (entityAnnotations == null) {
                 entityAnnotations = methodAnnotations;
             } else {

@@ -20,7 +20,6 @@ import org.jspecify.annotations.Nullable;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.runtime.http.scope.RequestAware;
 import io.micronaut.runtime.http.scope.RequestScope;
-import io.micronaut.web.router.MethodBasedRouteInfo;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.RouteInfo;
 import io.micronaut.web.router.RouteMatch;
@@ -50,15 +49,12 @@ public class JaxRsResourceInfo implements RequestAware, ResourceInfo {
     @Nullable
     @Override
     public Method getResourceMethod() {
-        if (routeInfo instanceof MethodBasedRouteInfo<?, ?> methodBasedRouteInfo) {
-            return methodBasedRouteInfo.getTargetMethod().getTargetMethod();
-        }
-        return null;
+        return JaxRsRouteSupport.resourceMethod(routeInfo);
     }
 
     @Nullable
     @Override
     public Class<?> getResourceClass() {
-        return routeInfo == null ? null : routeInfo.getDeclaringType();
+        return JaxRsRouteSupport.resourceClass(routeInfo);
     }
 }

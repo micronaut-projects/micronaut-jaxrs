@@ -20,7 +20,6 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.reflect.InstantiationUtils;
 import io.micronaut.http.context.ServerRequestContext;
 import io.micronaut.jaxrs.common.JaxRsRouteInterceptors;
-import io.micronaut.web.router.MethodBasedRouteInfo;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.RouteInfo;
 import io.micronaut.reflection.ReflectionBeanDefinition;
@@ -210,10 +209,12 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
      * @return The components the dynamic features registered for its resource method
      */
     Components components(@Nullable RouteInfo<?> route) {
-        if (route instanceof MethodBasedRouteInfo<?, ?> methodRoute) {
-            return components(methodRoute.getDeclaringType(), methodRoute.getTargetMethod().getTargetMethod());
+        Method method = JaxRsRouteSupport.resourceMethod(route);
+        Class<?> resourceClass = JaxRsRouteSupport.resourceClass(route);
+        if (method == null || resourceClass == null) {
+            return Components.EMPTY;
         }
-        return Components.EMPTY;
+        return components(resourceClass, method);
     }
 
     private Components currentComponents() {

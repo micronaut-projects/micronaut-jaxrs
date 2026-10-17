@@ -57,8 +57,8 @@ final class JaxRsServerFilters implements HttpRoutes {
     @Override
     @SuppressWarnings({"unchecked", "rawtypes"})
     public void routes(HttpRouteBuilder routes) {
-        routes.filter("/**").preMatching()
-            .beforeReplacing(filters::filterPreMatchingRequest)
+        routes.serverFilter("/**").preMatching()
+            .beforeReplacing(filters::filterPreMatchingRequest).and()
             .after((request, response) -> {
                 RouteInfo<?> route = RouteAttributes.getRouteInfo(request).orElse(null);
                 if (route != null && !isJaxRs(route)) {
