@@ -51,6 +51,9 @@ import io.micronaut.jaxrs.common.JaxRsGenericEntity;
 import jakarta.ws.rs.core.GenericEntity;
 import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
 import io.micronaut.jaxrs.common.JaxRsContainerMessageBodyHandlerRegistry;
+import io.micronaut.context.BeanRegistration;
+import io.micronaut.core.util.SupplierUtil;
+import java.util.function.Supplier;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import io.micronaut.http.form.FormData;
 import io.micronaut.web.router.builder.HttpRouteBuilder;
@@ -155,7 +158,7 @@ public final class JaxRsRouteSupport {
 
     private final ConversionService conversionService;
 
-    private final List<ParamConverterProvider> paramConverterProviders;
+    private final Supplier<List<ParamConverterProvider>> paramConverterProviders;
 
     private final RequestBinderRegistry binderRegistry;
 
@@ -177,7 +180,6 @@ public final class JaxRsRouteSupport {
 
     JaxRsRouteSupport(ApplicationProvider applicationProvider,
                       ConversionService conversionService,
-                      List<ParamConverterProvider> paramConverterProviders,
                       RequestBinderRegistry binderRegistry,
                       BeanContext beanContext) {
         this.applicationProvider = applicationProvider;
@@ -185,7 +187,15 @@ public final class JaxRsRouteSupport {
             .map(path -> java.net.URLDecoder.decode(path, java.nio.charset.StandardCharsets.UTF_8))
             .orElse("");
         this.conversionService = conversionService;
-        this.paramConverterProviders = paramConverterProviders;
+        // the registered ones (JAX-RS 2.3), resolved when first used: after the instances of the
+        // application replaced the beans of their classes, see JaxRsApplicationSingletons
+        this.paramConverterProviders = SupplierUtil.memoized(() -> {
+            JaxRsContainerMessageBodyHandlerRegistry registry = beanContext.getBean(JaxRsContainerMessageBodyHandlerRegistry.class);
+            return beanContext.getBeanRegistrations(ParamConverterProvider.class).stream()
+                .filter(registration -> registry.isRegistered(registration.getBeanDefinition().getBeanType()))
+                .map(BeanRegistration::getBean)
+                .toList();
+        });
         this.binderRegistry = binderRegistry;
         this.beanContext = beanContext;
     }
@@ -1297,7 +1307,7 @@ public final class JaxRsRouteSupport {
     private StringConverter converter(Argument<?> argument) {
         Class<?> type = argument.getType();
         Annotation[] annotations = argument.synthesizeAll();
-        for (ParamConverterProvider provider : paramConverterProviders) {
+        for (ParamConverterProvider provider : paramConverterProviders.get()) {
             ParamConverter paramConverter = provider.getConverter(type, argument.asType(), annotations);
             if (paramConverter != null) {
                 return paramConverter::fromString;

@@ -42,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -162,8 +163,16 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
      */
     private <T> List<T> collect(Class<T> type, Collection<T> beans, @Nullable Application application) {
         Map<Class<?>, T> instances = new LinkedHashMap<>();
+        Set<Class<?>> listed = new HashSet<>();
+        if (application != null) {
+            listed.addAll(application.getClasses());
+            application.getSingletons().forEach(singleton -> listed.add(singleton.getClass()));
+        }
         for (T bean : beans) {
-            instances.putIfAbsent(bean.getClass(), bean);
+            // an application that lists its classes or instances registers only those (JAX-RS 2.3)
+            if (listed.isEmpty() || listed.contains(bean.getClass())) {
+                instances.putIfAbsent(bean.getClass(), bean);
+            }
         }
         if (application != null) {
             for (Class<?> c : application.getClasses()) {
