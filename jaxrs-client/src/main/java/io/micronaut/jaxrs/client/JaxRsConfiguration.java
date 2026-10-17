@@ -53,6 +53,7 @@ import jakarta.ws.rs.client.ClientRequestFilter;
 import jakarta.ws.rs.client.ClientResponseFilter;
 import jakarta.ws.rs.core.Configuration;
 import jakarta.ws.rs.core.Feature;
+import jakarta.ws.rs.core.FeatureContext;
 import jakarta.ws.rs.ext.MessageBodyReader;
 import jakarta.ws.rs.ext.MessageBodyWriter;
 import jakarta.ws.rs.ext.ReaderInterceptor;
@@ -93,30 +94,46 @@ final class JaxRsConfiguration implements Configuration {
     private final Map<String, Object> properties;
     private final List<Component> components;
 
-    @Nullable
-    private List<ReaderInterceptor> readerInterceptors;
-    @Nullable
-    private List<WriterInterceptor> writerInterceptors;
-    @Nullable
-    private List<JaxRsMessageBodyReaderDefinition> readers;
-    @Nullable
-    private List<JaxRsMessageBodyWriterDefinition> writers;
-    @Nullable
-    private List<ClientRequestFilter> requestFilters;
-    @Nullable
-    private List<ClientResponseFilter> responseFilters;
+    // the features whose configure returned true
+    private final List<Feature> enabledFeatures;
+
+    // the providers found among the components: built fully, then published unmodifiable
+    private volatile @Nullable List<ReaderInterceptor> readerInterceptors;
+    private volatile @Nullable List<WriterInterceptor> writerInterceptors;
+    private volatile @Nullable List<JaxRsMessageBodyReaderDefinition> readers;
+    private volatile @Nullable List<JaxRsMessageBodyWriterDefinition> writers;
+    private volatile @Nullable List<ClientRequestFilter> requestFilters;
+    private volatile @Nullable List<ClientResponseFilter> responseFilters;
 
     public JaxRsConfiguration() {
         this(new LinkedHashMap<>(), new ArrayList<>());
     }
 
     public JaxRsConfiguration(Map<String, Object> properties, List<Component> components) {
-        this.properties = properties;
-        this.components = components;
+        this(properties, components, new ArrayList<>());
     }
 
+    private JaxRsConfiguration(Map<String, Object> properties, List<Component> components, List<Feature> enabledFeatures) {
+        this.properties = properties;
+        this.components = components;
+        this.enabledFeatures = enabledFeatures;
+    }
+
+    /**
+     * A copy of the configuration: the components keep their instances, and the providers found
+     * among them.
+     *
+     * @return The copy
+     */
     JaxRsConfiguration copy() {
-        return new JaxRsConfiguration(new LinkedHashMap<>(properties), new ArrayList<>(components));
+        JaxRsConfiguration copy = new JaxRsConfiguration(new LinkedHashMap<>(properties), new ArrayList<>(components), new ArrayList<>(enabledFeatures));
+        copy.readerInterceptors = readerInterceptors;
+        copy.writerInterceptors = writerInterceptors;
+        copy.readers = readers;
+        copy.writers = writers;
+        copy.requestFilters = requestFilters;
+        copy.responseFilters = responseFilters;
+        return copy;
     }
 
     /**
@@ -139,10 +156,12 @@ final class JaxRsConfiguration implements Configuration {
     void replaceWith(Configuration configuration) {
         properties.clear();
         components.clear();
+        enabledFeatures.clear();
         clearCaches();
         if (configuration instanceof JaxRsConfiguration jaxRsConfiguration) {
             properties.putAll(jaxRsConfiguration.properties);
             components.addAll(jaxRsConfiguration.components);
+            enabledFeatures.addAll(jaxRsConfiguration.enabledFeatures);
             return;
         }
         properties.putAll(configuration.getProperties());
@@ -180,14 +199,14 @@ final class JaxRsConfiguration implements Configuration {
     void register(Class<?> componentClass, int priority, Class<?>... contracts) {
         List<ComponentContract> assignable = assignable(componentClass, toContracts(contracts));
         if (assignable != null) {
-            components.add(new ClassComponent(componentClass, priority, assignable));
+            add(new ClassComponent(componentClass, priority, assignable));
         }
     }
 
     void register(Class<?> componentClass, Map<Class<?>, Integer> contracts) {
         List<ComponentContract> assignable = assignable(componentClass, toContracts(contracts));
         if (assignable != null) {
-            components.add(new ClassComponent(componentClass, 0, assignable));
+            add(new ClassComponent(componentClass, 0, assignable));
         }
     }
 
@@ -233,14 +252,30 @@ final class JaxRsConfiguration implements Configuration {
     void register(Object component, int priority, Class<?>... contracts) {
         List<ComponentContract> assignable = assignable(component.getClass(), toContracts(contracts));
         if (assignable != null) {
-            components.add(new InstanceComponent(component, priority, assignable));
+            add(new InstanceComponent(component, priority, assignable));
         }
     }
 
     void register(Object component, Map<Class<?>, Integer> contracts) {
         List<ComponentContract> assignable = assignable(component.getClass(), toContracts(contracts));
         if (assignable != null) {
-            components.add(new InstanceComponent(component, 0, assignable));
+            add(new InstanceComponent(component, 0, assignable));
+        }
+    }
+
+    /**
+     * Add a component: a feature is configured, and is enabled when it says so (JAX-RS,
+     * {@code Feature#configure}).
+     */
+    private void add(Component component) {
+        components.add(component);
+        clearCaches();
+        List<ComponentContract> contracts = component.components();
+        if (contracts.isEmpty() || contracts.stream().anyMatch(c -> c.contract() == Feature.class)) {
+            Feature feature = injected(component.tryGet(Feature.class));
+            if (feature != null && feature.configure(new ClientFeatureContext())) {
+                enabledFeatures.add(feature);
+            }
         }
     }
 
@@ -266,12 +301,12 @@ final class JaxRsConfiguration implements Configuration {
 
     @Override
     public boolean isEnabled(Feature feature) {
-        return false;
+        return enabledFeatures.contains(feature);
     }
 
     @Override
     public boolean isEnabled(Class<? extends Feature> featureClass) {
-        return false;
+        return enabledFeatures.stream().anyMatch(feature -> feature.getClass() == featureClass);
     }
 
     @Override
@@ -317,29 +352,34 @@ final class JaxRsConfiguration implements Configuration {
     }
 
     private List<ReaderInterceptor> getReaderInterceptors() {
-        if (readerInterceptors == null) {
-            readerInterceptors = getComponentOfType(ReaderInterceptor.class);
+        List<ReaderInterceptor> interceptors = readerInterceptors;
+        if (interceptors == null) {
+            interceptors = getComponentOfType(ReaderInterceptor.class);
+            readerInterceptors = interceptors;
         }
-        return readerInterceptors;
+        return interceptors;
     }
 
     private List<WriterInterceptor> getWriterInterceptors() {
-        if (writerInterceptors == null) {
-            writerInterceptors = getComponentOfType(WriterInterceptor.class);
+        List<WriterInterceptor> interceptors = writerInterceptors;
+        if (interceptors == null) {
+            interceptors = getComponentOfType(WriterInterceptor.class);
+            writerInterceptors = interceptors;
         }
-        return writerInterceptors;
+        return interceptors;
     }
 
     private List<JaxRsMessageBodyReaderDefinition> getReaders() {
-        if (readers == null) {
-            readers = new ArrayList<>();
+        List<JaxRsMessageBodyReaderDefinition> found = readers;
+        if (found == null) {
+            List<JaxRsMessageBodyReaderDefinition> built = new ArrayList<>();
             for (JaxRsConfiguration.Component component : components) {
                 MessageBodyReader<?> reader = injected(component.tryGet(MessageBodyReader.class));
                 if (reader != null) {
                     if (isNotConstrainedToClient(reader.getClass())) {
                         continue;
                     }
-                    readers.add(new JaxRsMessageBodyReaderDefinition(
+                    built.add(new JaxRsMessageBodyReaderDefinition(
                         providedType(reader, MessageBodyReader.class),
                         new JaxRsMessageBodyReader<>(reader),
                         component.priority() == 0 ? JaxRsUtils.getPriorityOrder(reader) : component.priority()
@@ -355,13 +395,13 @@ final class JaxRsConfiguration implements Configuration {
                         if (isNotConstrainedToClient(typedMessageBodyReader.getClass())) {
                             continue;
                         }
-                        readers.add(new JaxRsMessageBodyReaderDefinition(
+                        built.add(new JaxRsMessageBodyReaderDefinition(
                             type,
                             micronautReader,
                             component.priority() == 0 ? JaxRsUtils.getPriorityOrder(micronautReader) : component.priority()
                         ));
                     } else {
-                        readers.add(new JaxRsMessageBodyReaderDefinition(
+                        built.add(new JaxRsMessageBodyReaderDefinition(
                             providedType(micronautReader, io.micronaut.http.body.MessageBodyReader.class),
                             micronautReader,
                             component.priority() == 0 ? JaxRsUtils.getPriorityOrder(micronautReader) : component.priority()
@@ -369,9 +409,11 @@ final class JaxRsConfiguration implements Configuration {
                     }
                 }
             }
-            OrderUtil.sortOrdered(readers);
+            OrderUtil.sortOrdered(built);
+            found = Collections.unmodifiableList(built);
+            this.readers = found;
         }
-        return readers;
+        return found;
     }
 
     private boolean isNotConstrainedToClient(Class<?> bodyHandler) {
@@ -389,8 +431,9 @@ final class JaxRsConfiguration implements Configuration {
     }
 
     private List<JaxRsMessageBodyWriterDefinition> getWriters() {
-        if (writers == null) {
-            writers = new ArrayList<>();
+        List<JaxRsMessageBodyWriterDefinition> found = writers;
+        if (found == null) {
+            List<JaxRsMessageBodyWriterDefinition> built = new ArrayList<>();
             for (JaxRsConfiguration.Component component : components) {
                 MessageBodyWriter<?> writer = injected(component.tryGet(MessageBodyWriter.class));
                 if (writer != null) {
@@ -398,7 +441,7 @@ final class JaxRsConfiguration implements Configuration {
                     if (isNotConstrainedToClient(annotationMetadata)) {
                         continue;
                     }
-                    writers.add(new JaxRsMessageBodyWriterDefinition(
+                    built.add(new JaxRsMessageBodyWriterDefinition(
                         providedType(writer, MessageBodyWriter.class),
                         new JaxRsMessageBodyWriter<>(annotationMetadata, (MessageBodyWriter<Object>) writer),
                         component.priority() == 0 ? JaxRsUtils.getPriorityOrder(writer) : component.priority()
@@ -408,13 +451,13 @@ final class JaxRsConfiguration implements Configuration {
                 if (micronautWriter != null) {
                     if (micronautWriter instanceof TypedMessageBodyWriter<?> typedMessageBodyWriter) {
                         Argument<?> type = typedMessageBodyWriter.getType();
-                        writers.add(new JaxRsMessageBodyWriterDefinition(
+                        built.add(new JaxRsMessageBodyWriterDefinition(
                             type,
                             micronautWriter,
                             component.priority() == 0 ? JaxRsUtils.getPriorityOrder(micronautWriter) : component.priority()
                         ));
                     } else {
-                        writers.add(new JaxRsMessageBodyWriterDefinition(
+                        built.add(new JaxRsMessageBodyWriterDefinition(
                             providedType(micronautWriter, io.micronaut.http.body.MessageBodyWriter.class),
                             micronautWriter,
                             component.priority() == 0 ? JaxRsUtils.getPriorityOrder(micronautWriter) : component.priority()
@@ -422,9 +465,11 @@ final class JaxRsConfiguration implements Configuration {
                     }
                 }
             }
-            OrderUtil.sortOrdered(writers);
+            OrderUtil.sortOrdered(built);
+            found = Collections.unmodifiableList(built);
+            this.writers = found;
         }
-        return writers;
+        return found;
     }
 
     private static AnnotationMetadata annotationMetadataOf(Class<?> type) {
@@ -595,17 +640,21 @@ final class JaxRsConfiguration implements Configuration {
     }
 
     public List<ClientRequestFilter> getRequestFilters() {
-        if (requestFilters == null) {
-            requestFilters = getComponentOfType(ClientRequestFilter.class);
+        List<ClientRequestFilter> filters = requestFilters;
+        if (filters == null) {
+            filters = getComponentOfType(ClientRequestFilter.class);
+            requestFilters = filters;
         }
-        return requestFilters;
+        return filters;
     }
 
     public List<ClientResponseFilter> getResponseFilters() {
-        if (responseFilters == null) {
-            responseFilters = getComponentOfType(ClientResponseFilter.class);
+        List<ClientResponseFilter> filters = responseFilters;
+        if (filters == null) {
+            filters = getComponentOfType(ClientResponseFilter.class);
+            responseFilters = filters;
         }
-        return responseFilters;
+        return filters;
     }
 
     /**
@@ -636,7 +685,7 @@ final class JaxRsConfiguration implements Configuration {
             }
         }
         valuesWithPriority.sort(Comparator.comparingInt(Map.Entry::getValue));
-        return valuesWithPriority.stream().map(Map.Entry::getKey).collect(Collectors.toList());
+        return valuesWithPriority.stream().map(Map.Entry::getKey).toList();
     }
 
     /**
@@ -752,15 +801,44 @@ final class JaxRsConfiguration implements Configuration {
         }
     }
 
-    record ClassComponent(Class<?> componentClass, int priority,
-                          List<ComponentContract> components) implements Component {
+    /**
+     * A component registered as a class: it is instantiated once, when it is first used, and the
+     * copies of the configuration share the instance.
+     */
+    static final class ClassComponent implements Component {
+
+        private final Class<?> componentClass;
+        private final int priority;
+        private final List<ComponentContract> components;
+        private volatile @Nullable Object instance;
+
+        ClassComponent(Class<?> componentClass, int priority, List<ComponentContract> components) {
+            this.componentClass = componentClass;
+            this.priority = priority;
+            this.components = components;
+        }
 
         @Override
+        @SuppressWarnings("unchecked")
         public <T> @Nullable T tryGet(Class<T> type) {
             if (type.isAssignableFrom(componentClass)) {
-                return initialize(componentClass);
+                return (T) instance();
             }
             return null;
+        }
+
+        private Object instance() {
+            Object current = instance;
+            if (current == null) {
+                synchronized (this) {
+                    current = instance;
+                    if (current == null) {
+                        current = JaxRsReflection.get().instantiate(componentClass);
+                        instance = current;
+                    }
+                }
+            }
+            return current;
         }
 
         @Override
@@ -768,9 +846,79 @@ final class JaxRsConfiguration implements Configuration {
             return type.equals(componentClass);
         }
 
-        @SuppressWarnings("unchecked")
-        private <T> T initialize(Class<?> clazz) {
-            return (T) JaxRsReflection.get().instantiate(clazz);
+        @Override
+        public int priority() {
+            return priority;
+        }
+
+        @Override
+        public List<ComponentContract> components() {
+            return components;
+        }
+    }
+
+    /**
+     * The context a feature registers its components in: the configuration.
+     */
+    private final class ClientFeatureContext implements FeatureContext {
+
+        @Override
+        public Configuration getConfiguration() {
+            return JaxRsConfiguration.this;
+        }
+
+        @Override
+        public FeatureContext property(String name, Object value) {
+            addProperty(name, value);
+            return this;
+        }
+
+        @Override
+        public FeatureContext register(Class<?> componentClass) {
+            JaxRsConfiguration.this.register(componentClass);
+            return this;
+        }
+
+        @Override
+        public FeatureContext register(Class<?> componentClass, int priority) {
+            JaxRsConfiguration.this.register(componentClass, priority);
+            return this;
+        }
+
+        @Override
+        public FeatureContext register(Class<?> componentClass, Class<?>... contracts) {
+            JaxRsConfiguration.this.register(componentClass, contracts);
+            return this;
+        }
+
+        @Override
+        public FeatureContext register(Class<?> componentClass, Map<Class<?>, Integer> contracts) {
+            JaxRsConfiguration.this.register(componentClass, contracts);
+            return this;
+        }
+
+        @Override
+        public FeatureContext register(Object component) {
+            JaxRsConfiguration.this.register(component);
+            return this;
+        }
+
+        @Override
+        public FeatureContext register(Object component, int priority) {
+            JaxRsConfiguration.this.register(component, priority);
+            return this;
+        }
+
+        @Override
+        public FeatureContext register(Object component, Class<?>... contracts) {
+            JaxRsConfiguration.this.register(component, contracts);
+            return this;
+        }
+
+        @Override
+        public FeatureContext register(Object component, Map<Class<?>, Integer> contracts) {
+            JaxRsConfiguration.this.register(component, contracts);
+            return this;
         }
     }
 
