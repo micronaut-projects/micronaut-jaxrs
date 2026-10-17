@@ -45,7 +45,8 @@ import java.util.Objects;
 @Internal
 final class JaxRsGlobalExceptionHandler implements ExceptionHandler<Throwable, HttpResponse<?>> {
     private static final Logger LOG = LoggerFactory.getLogger(JaxRsGlobalExceptionHandler.class);
-    private static final String USED_EXCEPTION_MAPPER = "INTERNAL_MICRONAUT_JAXRS_USED_EXCEPTION_MAPPER";
+    private static final String MAPPED = JaxRsGlobalExceptionHandler.class.getName() + ".mapped";
+    private static final String ENTITY_FAILURE = JaxRsGlobalExceptionHandler.class.getName() + ".entityFailure";
     private final ErrorResponseProcessor<?> responseProcessor;
     private final Providers providers;
 
@@ -69,25 +70,50 @@ final class JaxRsGlobalExceptionHandler implements ExceptionHandler<Throwable, H
         // an unmapped exception of reading the request body is the client's, any other one, e.g. an
         // unchecked exception of a resource method, is a server error (JAX-RS 3.3.4); the parameter
         // conversions throw a WebApplicationException with their status (JAX-RS 3.2)
+        // the phase decides, not the type: e.g. a CodecException of a resource method, or of a
+        // writer that fails to serialize the response, is a server error
         boolean clientError = exception instanceof CodecException
-            && !(exception instanceof JaxRsIOException ioException && ioException.isWriting());
+            && request.getAttribute(ENTITY_FAILURE).orElse(null) == exception;
         if (exception instanceof JaxRsIOException && exception.getCause() != null) {
             // the IOException a provider threw, wrapped to cross Micronaut's reader and writer API
             exception = exception.getCause();
         }
         ExceptionMapper exceptionMapper = providers.getExceptionMapper(exception.getClass());
         if (exceptionMapper != null) {
-            String exceptionMapperName = exceptionMapper.getClass().getName();
-            Object previousMapper = request.getAttributes().get(USED_EXCEPTION_MAPPER, String.class).orElse(null);
-            if (exceptionMapperName.equals(previousMapper)) {
-                return HttpResponse.status(HttpStatus.INTERNAL_SERVER_ERROR);
-            }
-            request.getAttributes().put(USED_EXCEPTION_MAPPER, exceptionMapperName);
-            return JaxRsRouteSupport.toHttpResponse(exceptionMapper.toResponse(exception));
+            return map(request, exceptionMapper, exception);
         }
         return responseProcessor.processResponse(ErrorContext.builder(request)
             .errorMessage(Objects.requireNonNullElse(exception.getMessage(), "Unknown error"))
             .cause(exception)
             .build(), clientError ? HttpResponse.badRequest() : HttpResponse.serverError());
+    }
+
+    /**
+     * Mark the exception of reading the entity of a request: unmapped, it is the client's.
+     *
+     * @param request   The request
+     * @param exception The exception
+     */
+    static void entityFailed(HttpRequest<?> request, CodecException exception) {
+        request.setAttribute(ENTITY_FAILURE, exception);
+    }
+
+    /**
+     * Map an exception with an exception mapper, once per request: an exception thrown while the
+     * response mapped from an exception is processed is not mapped again, whichever mapper would
+     * map it, the response is a server error (JAX-RS 4.4).
+     *
+     * @param request   The request
+     * @param mapper    The exception mapper
+     * @param exception The exception
+     * @return The response
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    static HttpResponse<?> map(HttpRequest<?> request, ExceptionMapper mapper, Throwable exception) {
+        if (request.getAttribute(MAPPED).isPresent()) {
+            return HttpResponse.status(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+        request.setAttribute(MAPPED, true);
+        return JaxRsRouteSupport.toHttpResponse(mapper.toResponse(exception));
     }
 }

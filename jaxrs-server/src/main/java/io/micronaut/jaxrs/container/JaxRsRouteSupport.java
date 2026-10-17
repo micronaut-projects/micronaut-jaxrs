@@ -42,6 +42,7 @@ import io.micronaut.http.HttpRequest;
 import io.micronaut.inject.ExecutableMethod;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.MutableHttpResponse;
+import io.micronaut.http.codec.CodecException;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.form.FileUpload;
 import io.micronaut.jaxrs.common.multipart.JaxRsEntityPart;
@@ -652,6 +653,16 @@ public final class JaxRsRouteSupport {
      * @return The entity
      */
     public @Nullable Object entity(HttpRequest<?> request, byte @Nullable [] body, Argument<?> argument) {
+        try {
+            return readEntity(request, body, argument);
+        } catch (CodecException e) {
+            // unmapped, the failure to read the entity is the client's
+            JaxRsGlobalExceptionHandler.entityFailed(request, e);
+            throw e;
+        }
+    }
+
+    private @Nullable Object readEntity(HttpRequest<?> request, byte @Nullable [] body, Argument<?> argument) {
         InputStream replaced = request.getAttribute(JaxRsContainerRequestContext.ENTITY_STREAM, InputStream.class).orElse(null);
         if (replaced != null) {
             // the entity stream a request filter set
