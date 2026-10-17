@@ -118,12 +118,16 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
             }.intercept(argument, mediaType, new JaxRsWriterInterceptorContextState.ClassicState(outgoingHeaders, entity, outputStream));
         }
 
-        if (delegateEntityStream != null) {
-            try {
-                originalOutputStream.write(delegateEntityStream.toByteArray());
-            } catch (IOException e) {
-                throw JaxRsIOException.writing(e);
+        try {
+            if (outputStream != originalOutputStream) {
+                // the stream of a response filter, e.g. to finish a compression
+                outputStream.close();
             }
+            if (delegateEntityStream != null) {
+                originalOutputStream.write(delegateEntityStream.toByteArray());
+            }
+        } catch (IOException e) {
+            throw JaxRsIOException.writing(e);
         }
     }
 
@@ -171,6 +175,7 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
                 if (innerResponse != null) {
                     body = innerResponse.byteBody().move();
                     innerResponse.close();
+                    innerResponse = null;
                 }
             }
 
@@ -249,6 +254,11 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
         @Nullable
         CloseableByteBody body;
 
+        /**
+         * Whether the stream of the interceptors was closed, see {@link #finish()}.
+         */
+        boolean finished;
+
         ByteBodyState(ByteBodyFactory bodyFactory, HttpRequest<?> request, HttpResponse<?> response, MediaType mediaType, GenericEntity<T> genericEntity) {
             this.bodyFactory = bodyFactory;
             this.request = request;
@@ -292,6 +302,8 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
                 bufferStream = new ByteArrayOutputStream();
                 outputStream = bufferStream;
                 outputIntercepted = true;
+                // e.g. an interceptor appending to the entity after proceed()
+                transferWritten();
             }
             return Objects.requireNonNull(outputStream);
         }
@@ -302,9 +314,37 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
                 // this will probably remain empty, but that's what the caller wants if they didn't
                 // call getOutputStream first
                 bufferStream = new ByteArrayOutputStream();
+                this.outputStream = bufferStream;
                 outputIntercepted = true;
+                transferWritten();
             }
             this.outputStream = outputStream;
+        }
+
+        @Override
+        public void finish() throws IOException {
+            if (outputIntercepted && !finished) {
+                finished = true;
+                transferWritten();
+                // e.g. finishes a GZIPOutputStream, the buffer is the end of the chain
+                Objects.requireNonNull(outputStream).close();
+            }
+        }
+
+        /**
+         * Writes the body written so far to the output stream of the interceptors.
+         */
+        private void transferWritten() {
+            finishIntercepted();
+            CloseableByteBody written = body;
+            if (written != null) {
+                body = null;
+                try (InputStream is = written.toInputStream()) {
+                    is.transferTo(Objects.requireNonNull(outputStream));
+                } catch (IOException e) {
+                    throw JaxRsIOException.writing(e);
+                }
+            }
         }
 
         @Override
@@ -327,6 +367,10 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
                             ByteBodyState.this.argument = (Argument<T>) argument;
                             ByteBodyState.this.mediaType = mediaType;
                             writeInner();
+                            if (outputIntercepted) {
+                                // within proceed(), so that the interceptors' streams have the entity
+                                transferWritten();
+                            }
                         }
                     }.intercept(argument, mediaType, this);
                 } catch (RuntimeException e) {
@@ -339,11 +383,10 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
                 }
             }
             if (outputIntercepted) {
-                finishIntercepted();
-                try (InputStream is = Objects.requireNonNull(body).toInputStream()) {
-                    is.transferTo(Objects.requireNonNull(outputStream));
+                try {
+                    finish();
                 } catch (IOException e) {
-                    throw new CodecException("Failed to buffer wrapped body", e);
+                    throw JaxRsIOException.writing(e);
                 }
                 body = bodyFactory.adapt(Objects.requireNonNull(bufferStream).toByteArray());
             }

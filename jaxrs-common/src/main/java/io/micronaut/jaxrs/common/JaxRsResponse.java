@@ -36,7 +36,9 @@ import jakarta.ws.rs.ext.RuntimeDelegate;
 
 import java.lang.annotation.Annotation;
 import java.net.URI;
+import java.util.Collections;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -249,7 +251,10 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
         return response.getHeaders().getAll(jakarta.ws.rs.core.HttpHeaders.SET_COOKIE)
             .stream()
             .map(newCookieHeaderDelegate::fromString)
-            .collect(Collectors.toUnmodifiableMap(Cookie::getName, c -> c));
+            // the last cookie of a name wins, like a user agent replaces it
+            .collect(Collectors.collectingAndThen(
+                Collectors.toMap(Cookie::getName, c -> c, (first, last) -> last, LinkedHashMap::new),
+                Collections::unmodifiableMap));
     }
 
     @Override

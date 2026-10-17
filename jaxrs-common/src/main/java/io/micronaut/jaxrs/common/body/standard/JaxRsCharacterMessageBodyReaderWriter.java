@@ -64,7 +64,8 @@ final class JaxRsCharacterMessageBodyReaderWriter implements jakarta.ws.rs.ext.M
     @Override
     public void writeTo(Character character, Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType, MultivaluedMap<String, Object> httpHeaders, OutputStream entityStream) throws IOException, WebApplicationException {
         try {
-            entityStream.write(character);
+            // the character in the charset of the media type
+            entityStream.write(character.toString().getBytes(JaxRsStringMessageBodyReaderWriter.getCharset(mediaType)));
         } catch (IOException e) {
             throw new JaxRsIOException(e);
         }

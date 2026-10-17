@@ -89,6 +89,7 @@ public abstract class JaxRsInterceptedWrite<T, S extends JaxRsWriterInterceptorC
                     state
                 );
                 iterator.next().aroundWriteTo(context);
+                state.finish();
             } else {
                 writeToAfterInterception(
                     (Argument<Object>) type,

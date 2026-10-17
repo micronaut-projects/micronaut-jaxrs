@@ -25,6 +25,7 @@ import io.micronaut.core.type.Headers;
 import io.micronaut.core.type.MutableHeaders;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.codec.CodecException;
+import io.micronaut.http.simple.SimpleHttpHeaders;
 import jakarta.ws.rs.ext.ReaderInterceptor;
 
 import java.io.IOException;
@@ -73,19 +74,27 @@ public abstract class JaxRsInterceptedRead<T> {
                 .toList();
             Iterator<ReaderInterceptor> iterator = readerInterceptors.iterator();
             if (iterator.hasNext()) {
+                // the interceptors can change the headers the reader sees, e.g. immutable servlet request headers
+                MutableHeaders headers = httpHeaders instanceof MutableHeaders mutableHeaders
+                    ? mutableHeaders
+                    : copy(httpHeaders);
                 JaxRsReaderInterceptorContext context = new JaxRsReaderInterceptorContext(iterator,
                     ctx -> readFromAfterInterception(
                         (Argument<Object>) ctx.asArgument(),
                         JaxRsUtils.convert(ctx.getMediaType()),
-                        httpHeaders,
+                        headers,
                         ctx.getInputStream()
                     ),
                     type,
                     JaxRsUtils.convert(mediaType),
-                    new JaxRsMutableHeadersMultivaluedMap((MutableHeaders) httpHeaders),
+                    new JaxRsMutableHeadersMultivaluedMap(headers),
                     inputStream
                 );
                 Object value = iterator.next().aroundReadFrom(context);
+                if (value == null) {
+                    // e.g. a reader of an empty entity
+                    return null;
+                }
                 if (!type.isInstance(value)) {
                     return ConversionService.SHARED.convertRequired(value, type);
                 }
@@ -96,6 +105,16 @@ public abstract class JaxRsInterceptedRead<T> {
         } catch (IOException e) {
             throw new JaxRsIOException("Failed to read", e);
         }
+    }
+
+    private static MutableHeaders copy(Headers headers) {
+        SimpleHttpHeaders copy = new SimpleHttpHeaders();
+        for (String name : headers.names()) {
+            for (String value : headers.getAll(name)) {
+                copy.add(name, value);
+            }
+        }
+        return copy;
     }
 
     /**

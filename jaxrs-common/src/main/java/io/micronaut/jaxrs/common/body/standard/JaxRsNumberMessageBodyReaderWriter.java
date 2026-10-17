@@ -74,7 +74,7 @@ final class JaxRsNumberMessageBodyReaderWriter<T extends Number> implements jaka
             return Byte.valueOf(text);
         }
         if (genType == Short.class) {
-            return Integer.valueOf(text);
+            return Short.valueOf(text);
         }
         if (genType == Integer.class) {
             return Integer.valueOf(text);

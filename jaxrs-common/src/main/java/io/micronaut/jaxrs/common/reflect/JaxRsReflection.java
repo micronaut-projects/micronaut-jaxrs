@@ -65,6 +65,9 @@ public interface JaxRsReflection {
     boolean isReflective();
 
     /**
+     * The annotations of a class: without reflection, the ones of its introspection, else of its
+     * bean definition, and none for a class the annotation processors never saw.
+     *
      * @param type A class
      * @return The annotations of the class
      */
@@ -80,6 +83,8 @@ public interface JaxRsReflection {
 
     /**
      * The metadata of annotations the JAX-RS API hands over as objects, e.g. the ones of an entity.
+     * Without reflection, the members of an annotation Micronaut did not synthesize are not known:
+     * reading them calls the methods of the annotation interface, which needs reflection.
      *
      * @param annotations The annotations
      * @return The metadata
@@ -127,6 +132,8 @@ public interface JaxRsReflection {
      * @param name           The name of the method
      * @param parameterTypes The parameter types of the method
      * @return The annotations
+     * @throws UnsupportedOperationException without reflection, for a method of a class without
+     * an introspection, like the reflective implementation for a method it cannot find
      */
     AnnotationMetadata methodAnnotations(Class<?> type, String name, Class<?>... parameterTypes);
 
@@ -177,7 +184,9 @@ public interface JaxRsReflection {
 
     /**
      * How JAX-RS converts a string to a class without a converter: its static {@code valueOf} or
-     * {@code fromString} method, or its constructor with a string.
+     * {@code fromString} method, or its constructor with a string. Without reflection, the
+     * constructor with a string of its introspection, or its static factory method annotated with
+     * {@code @Creator}: an introspection has no other static methods.
      *
      * @param type The class
      * @return The conversion, {@code null} when the class has none

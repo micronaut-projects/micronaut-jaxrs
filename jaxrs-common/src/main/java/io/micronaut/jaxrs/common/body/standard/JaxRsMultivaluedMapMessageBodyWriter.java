@@ -55,8 +55,9 @@ public final class JaxRsMultivaluedMapMessageBodyWriter implements MessageBodyWr
                         MediaType mediaType, MultivaluedMap<String, Object> httpHeaders,
                         OutputStream entityStream) throws IOException {
         QueryStringEncoder encoder = new QueryStringEncoder("", FormMaps.charset(mediaType));
-        for (Map.Entry<String, List<String>> e : map.entrySet()) {
-            e.getValue().forEach(value -> encoder.addParam(e.getKey(), value));
+        // any multivalued map, e.g. MultivaluedMap<String, Object>: the values as strings
+        for (Map.Entry<String, ? extends List<?>> e : ((Map<String, ? extends List<?>>) map).entrySet()) {
+            e.getValue().forEach(value -> encoder.addParam(e.getKey(), String.valueOf(value)));
         }
         // the encoder builds a query: the form is without its leading '?'
         String form = encoder.toString();

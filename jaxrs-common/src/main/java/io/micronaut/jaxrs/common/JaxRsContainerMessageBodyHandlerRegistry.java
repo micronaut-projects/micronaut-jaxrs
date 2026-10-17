@@ -386,11 +386,6 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
             return order;
         }
 
-        private static boolean isInvalidType(List<Argument<?>> consumedType, Argument<?> requiredType) {
-            Argument<?> argument = consumedType.get(0);
-            return !(argument.isTypeVariable() || argument.isAssignableFrom(requiredType.getType()));
-        }
-
         @Override
         public boolean equals(Object o) {
             if (this == o) {
