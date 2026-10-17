@@ -25,8 +25,10 @@ import io.micronaut.core.beans.BeanIntrospection;
 import io.micronaut.core.beans.BeanIntrospector;
 import io.micronaut.core.beans.BeanMethod;
 import io.micronaut.core.beans.BeanProperty;
+import io.micronaut.core.io.service.MicronautMetaServiceLoaderUtils;
 import io.micronaut.core.type.Argument;
 import io.micronaut.core.type.TypeHierarchies;
+import io.micronaut.inject.BeanDefinitionReference;
 import io.micronaut.inject.ExecutableMethod;
 import io.micronaut.inject.annotation.AnnotationMetadataHierarchy;
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
@@ -39,6 +41,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 /**
@@ -58,11 +61,33 @@ final class MetadataJaxRsReflection implements JaxRsReflection {
         return false;
     }
 
+    // the annotations of the bean classes without an introspection, see annotationMetadata(Class)
+    private final Map<Class<?>, AnnotationMetadata> beanAnnotations = new ConcurrentHashMap<>();
+
+    /**
+     * The annotations of the introspection of a class, else of its bean definition, e.g. of a
+     * client provider registered by class without {@code @Provider}. The annotations of a class
+     * the annotation processors never saw need reflection: they are empty.
+     */
     @Override
     public AnnotationMetadata annotationMetadata(Class<?> type) {
         return BeanIntrospector.SHARED.findIntrospection(type)
             .<AnnotationMetadata>map(AnnotationMetadataProvider::getAnnotationMetadata)
-            .orElse(AnnotationMetadata.EMPTY_METADATA);
+            .orElseGet(() -> beanAnnotations.computeIfAbsent(type, MetadataJaxRsReflection::beanAnnotationMetadata));
+    }
+
+    @SuppressWarnings("rawtypes")
+    private static AnnotationMetadata beanAnnotationMetadata(Class<?> type) {
+        ClassLoader classLoader = type.getClassLoader();
+        if (classLoader == null) {
+            return AnnotationMetadata.EMPTY_METADATA;
+        }
+        List<BeanDefinitionReference> references = MicronautMetaServiceLoaderUtils.findMetaMicronautServiceEntries(
+            classLoader,
+            BeanDefinitionReference.class,
+            reference -> reference.isPresent() && reference.getBeanType() == type
+        );
+        return references.isEmpty() ? AnnotationMetadata.EMPTY_METADATA : references.get(0).getAnnotationMetadata();
     }
 
     @Override
@@ -120,7 +145,9 @@ final class MetadataJaxRsReflection implements JaxRsReflection {
                 }
             }
         }
-        return AnnotationMetadata.EMPTY_METADATA;
+        // like the reflective implementation, which fails for a method it cannot find: the method
+        // of a class the processors did not introspect needs reflection
+        throw new UnsupportedOperationException(unsupported("The annotations of the method " + type.getName() + "#" + name));
     }
 
     @Override
