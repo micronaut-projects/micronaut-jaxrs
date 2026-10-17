@@ -17,9 +17,12 @@ package io.micronaut.jaxrs.common;
 
 import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.context.BeanRegistration;
+import io.micronaut.core.annotation.Order;
+import io.micronaut.inject.BeanDefinition;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.MediaType;
 import jakarta.annotation.Priority;
+import jakarta.ws.rs.Priorities;
 import org.jspecify.annotations.Nullable;
 
 import java.util.Comparator;
@@ -51,7 +54,7 @@ public final class JaxRsUtils {
     }
 
     private static <T> void sortRegistrationsByPriority(List<BeanRegistration<T>> values, boolean reverse) {
-        Comparator<BeanRegistration<T>> comparator = Comparator.comparingInt(BeanRegistration::getOrder);
+        Comparator<BeanRegistration<T>> comparator = Comparator.comparingInt(JaxRsUtils::getPriorityOrder);
         if (reverse) {
             comparator = comparator.reversed();
         }
@@ -66,8 +69,32 @@ public final class JaxRsUtils {
         values.sort(comparator);
     }
 
+    /**
+     * The priority of a provider: its {@code @Priority}, else {@link Priorities#USER}, the default
+     * of the providers without one (JAX-RS 4.1.3, {@link Priorities}).
+     *
+     * @param o1 The provider
+     * @return The priority
+     */
     public static int getPriorityOrder(Object o1) {
-        return JaxRsReflection.get().annotationMetadata(o1.getClass()).intValue(Priority.class).orElse(0);
+        return JaxRsReflection.get().annotationMetadata(o1.getClass()).intValue(Priority.class).orElse(Priorities.USER);
+    }
+
+    /**
+     * The priority of a provider bean: its {@code @Priority}, else its {@code @Order}, else
+     * {@link Priorities#USER}. A registration without a bean definition, of a provider that is
+     * not a bean, has the priority of its order.
+     *
+     * @param registration The registration
+     * @return The priority
+     */
+    public static int getPriorityOrder(BeanRegistration<?> registration) {
+        BeanDefinition<?> definition = registration.getBeanDefinition();
+        if (definition == null) {
+            return registration.getOrder();
+        }
+        return definition.intValue(Priority.class)
+            .orElseGet(() -> definition.intValue(Order.class).orElse(Priorities.USER));
     }
 
     public static <T> T requireNonNull(String name, @Nullable T value) {

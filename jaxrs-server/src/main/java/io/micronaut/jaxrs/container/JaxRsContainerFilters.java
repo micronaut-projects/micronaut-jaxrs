@@ -247,7 +247,7 @@ final class JaxRsContainerFilters {
         }
         List<Prioritized<F>> all = new ArrayList<>();
         for (BeanRegistration<F> registration : bound) {
-            all.add(new Prioritized<>(registration.getBean(), registration.getOrder()));
+            all.add(new Prioritized<>(registration.getBean(), JaxRsUtils.getPriorityOrder(registration)));
         }
         for (F filter : dynamic) {
             all.add(new Prioritized<>(filter, dynamicPriority.applyAsInt(filter)));
