@@ -15,6 +15,7 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.core.Application;
 import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.UriInfo;
 import org.junit.jupiter.api.Test;
 
@@ -42,6 +43,11 @@ class ApplicationSingletonTest {
     @Test
     void instanceOfTheApplicationIsTheResource() {
         assertEquals("the instance", client.toBlocking().retrieve(HttpRequest.GET("/value")));
+    }
+
+    @Test
+    void contextSetterOfTheInstanceIsInjected() {
+        assertEquals("from the header", client.toBlocking().retrieve(HttpRequest.GET("/header").header("X-Value", "from the header")));
     }
 
     @Test
@@ -84,6 +90,9 @@ class ApplicationSingletonTest {
         @Context
         UriInfo uriInfo;
 
+        // no field named after the setter: a property of the setter alone
+        private HttpHeaders requestHeaders;
+
         Resource(String value) {
             this.value = value;
         }
@@ -92,6 +101,17 @@ class ApplicationSingletonTest {
         @Path("value")
         public String value() {
             return value;
+        }
+
+        @Context
+        public void setHeaders(HttpHeaders headers) {
+            this.requestHeaders = headers;
+        }
+
+        @GET
+        @Path("header")
+        public String header() {
+            return requestHeaders.getHeaderString("X-Value");
         }
 
         @GET
