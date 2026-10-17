@@ -1226,7 +1226,7 @@ public final class JaxRsRouteSupport {
     private @Nullable Object convert(List<String> values, Argument<?> argument, @Nullable String defaultValue, boolean notFound) {
         Class<?> type = argument.getType();
         if (type == List.class || type == Set.class || type == SortedSet.class || type == Collection.class) {
-            Argument<?> elementType = argument.getFirstTypeVariable().orElse(Argument.STRING);
+            Argument<?> elementType = element(argument.getFirstTypeVariable().orElse(Argument.STRING), argument);
             List<String> elements = values.isEmpty() && defaultValue != null ? List.of(defaultValue) : values;
             Collection<Object> result = type == Set.class ? new LinkedHashSet<>() : type == SortedSet.class ? new TreeSet<>() : new ArrayList<>();
             for (String element : elements) {
@@ -1235,7 +1235,7 @@ public final class JaxRsRouteSupport {
             return type == List.class || type == Collection.class ? List.copyOf(result) : result;
         }
         if (type.isArray()) {
-            Argument<?> componentType = Argument.of(type.getComponentType());
+            Argument<?> componentType = element(Argument.of(type.getComponentType()), argument);
             List<String> elements = values.isEmpty() && defaultValue != null ? List.of(defaultValue) : values;
             List<Object> converted = new ArrayList<>(elements.size());
             for (String element : elements) {
@@ -1248,6 +1248,14 @@ public final class JaxRsRouteSupport {
             return missing(argument);
         }
         return convertOne(value, argument, notFound);
+    }
+
+    /**
+     * The type of the elements of a collection or array parameter, carrying the annotations of the
+     * parameter: a {@link ParamConverterProvider} converting an element sees them.
+     */
+    private static Argument<?> element(Argument<?> element, Argument<?> parameter) {
+        return Argument.of(element.getType(), parameter.getName(), parameter.getAnnotationMetadata(), element.getTypeParameters());
     }
 
     private @Nullable Object missing(Argument<?> argument) {
