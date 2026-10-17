@@ -96,7 +96,7 @@ public abstract class JaxRsInterceptedWrite<T, S extends JaxRsWriterInterceptorC
                     state);
             }
         } catch (IOException e) {
-            throw new JaxRsIOException(e);
+            throw JaxRsIOException.writing(e);
         }
     }
 

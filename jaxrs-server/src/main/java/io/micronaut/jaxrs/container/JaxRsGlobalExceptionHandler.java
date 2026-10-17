@@ -66,6 +66,7 @@ final class JaxRsGlobalExceptionHandler implements ExceptionHandler<Throwable, H
         if (LOG.isDebugEnabled()) {
             LOG.debug(exception.getMessage(), exception);
         }
+        boolean writing = exception instanceof JaxRsIOException ioException && ioException.isWriting();
         if (exception instanceof JaxRsIOException && exception.getCause() != null) {
             // the IOException a provider threw, wrapped to cross Micronaut's reader and writer API
             exception = exception.getCause();
@@ -83,6 +84,6 @@ final class JaxRsGlobalExceptionHandler implements ExceptionHandler<Throwable, H
         return responseProcessor.processResponse(ErrorContext.builder(request)
             .errorMessage(Objects.requireNonNullElse(exception.getMessage(), "Unknown error"))
             .cause(exception)
-            .build(), HttpResponse.badRequest());
+            .build(), writing ? HttpResponse.serverError() : HttpResponse.badRequest());
     }
 }
