@@ -30,6 +30,7 @@ import java.net.URI;
 import java.security.NoSuchAlgorithmException;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.Supplier;
 
@@ -46,6 +47,7 @@ public final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
     private final Supplier<DefaultHttpClient> httpClients;
     private final JaxRsConfiguration config;
     private final @Nullable ExecutorService executorService;
+    private final @Nullable ScheduledExecutorService scheduledExecutorService;
     private final @Nullable SSLContext sslContext;
     private final @Nullable HostnameVerifier hostnameVerifier;
     private volatile boolean closed;
@@ -55,6 +57,7 @@ public final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
      * @param httpClients      Creates the other HTTP clients of the client, configured like its own
      * @param config           The configuration
      * @param executorService  The executor service of the builder
+     * @param scheduledExecutorService The scheduled executor service of the builder
      * @param sslContext       The SSL context of the builder, {@code null} for the default one
      * @param hostnameVerifier The host name verifier of the builder
      */
@@ -62,12 +65,14 @@ public final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
                 Supplier<DefaultHttpClient> httpClients,
                 JaxRsConfiguration config,
                 @Nullable ExecutorService executorService,
+                @Nullable ScheduledExecutorService scheduledExecutorService,
                 @Nullable SSLContext sslContext,
                 @Nullable HostnameVerifier hostnameVerifier) {
         this.httpClient = httpClient;
         this.httpClients = httpClients;
         this.config = config;
         this.executorService = executorService;
+        this.scheduledExecutorService = scheduledExecutorService;
         this.sslContext = sslContext;
         this.hostnameVerifier = hostnameVerifier;
     }
@@ -88,6 +93,14 @@ public final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
      */
     ExecutorService getExecutorService() {
         return executorService != null ? executorService : ForkJoinPool.commonPool();
+    }
+
+    /**
+     * @return The scheduled executor service of the builder, which schedules e.g. the reconnects of
+     * an event source, {@code null} for the default one
+     */
+    @Nullable ScheduledExecutorService getScheduledExecutorService() {
+        return scheduledExecutorService;
     }
 
     public HttpClient getHttpClient() {

@@ -149,7 +149,7 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
                 }
             }
         }
-        return new JaxRsClient(httpClient, httpClients, jaxRsConfiguration, executorService, clientSslContext, hostnameVerifier);
+        return new JaxRsClient(httpClient, httpClients, jaxRsConfiguration, executorService, scheduledExecutorService, clientSslContext, hostnameVerifier);
     }
 
     @Override
