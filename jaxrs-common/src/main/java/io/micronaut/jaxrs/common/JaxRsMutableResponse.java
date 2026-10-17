@@ -21,10 +21,12 @@ import io.micronaut.http.HttpResponseProvider;
 import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.MutableHttpResponse;
 import jakarta.ws.rs.ProcessingException;
+import jakarta.ws.rs.core.GenericEntity;
 import jakarta.ws.rs.core.MultivaluedMap;
 import org.jspecify.annotations.Nullable;
 
 import java.io.ByteArrayInputStream;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -142,13 +144,21 @@ public final class JaxRsMutableResponse extends JaxRsResponse implements HttpRes
 
     @Override
     public void close() {
-        if (entityStream != null) {
-            try {
+        try {
+            if (entityStream != null) {
                 entityStream.close();
                 entityStream = null;
-            } catch (IOException e) {
-                throw new ProcessingException(e);
             }
+            // an entity that holds a resource, e.g. Response.ok(new FileInputStream(file))
+            Object body = mutableHttpResponse.body();
+            if (body instanceof GenericEntity<?> genericEntity) {
+                body = genericEntity.getEntity();
+            }
+            if (body instanceof Closeable closeable) {
+                closeable.close();
+            }
+        } catch (IOException e) {
+            throw new ProcessingException(e);
         }
         super.close();
     }
