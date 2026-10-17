@@ -1038,6 +1038,13 @@ final class JaxRsUriBuilder extends UriBuilder {
         if (name == null) {
             throw new IllegalArgumentException("Name parameter is null");
         }
+        if (values == null) {
+            throw new IllegalArgumentException("Values parameter is null");
+        }
+        if (values.length == 0) {
+            // no parameter to add
+            return this;
+        }
 
         StringBuilder sb = new StringBuilder();
         String prefix = "";
@@ -1046,34 +1053,32 @@ final class JaxRsUriBuilder extends UriBuilder {
         } else {
             sb.append(query).append("&");
         }
-        if (values != null) {
-            String queryParamName = encode ? Encode.encodeQueryParam(name) : name;
-            if (queryParamMode == MultiQueryParamMode.COMMA_SEPARATED) {
-                sb.append(queryParamName).append("=");
+        String queryParamName = encode ? Encode.encodeQueryParam(name) : name;
+        if (queryParamMode == MultiQueryParamMode.COMMA_SEPARATED) {
+            sb.append(queryParamName).append("=");
+        }
+        for (Object value : values) {
+            if (value == null) {
+                throw new IllegalArgumentException("Value is null");
             }
-            for (Object value : values) {
-                if (value == null) {
-                    throw new IllegalArgumentException("Value is null");
-                }
 
-                sb.append(prefix);
-                String queryParamValue = encode ? Encode.encodeQueryParam(value.toString()) : value.toString();
-                switch (queryParamMode) {
-                    case MULTI_PAIRS -> {
-                        prefix = "&";
-                        sb.append(queryParamName).append("=").append(queryParamValue);
-                    }
-                    case COMMA_SEPARATED -> {
-                        prefix = ",";
-                        sb.append(queryParamValue);
-                    }
-                    case ARRAY_PAIRS -> {
-                        prefix = "&";
-                        String queryParamConnector = arrayPairsConnector(values);
-                        sb.append(queryParamName).append(queryParamConnector).append(queryParamValue);
-                    }
-                    default -> throw new IllegalStateException("Unexpected value: " + queryParamMode);
+            sb.append(prefix);
+            String queryParamValue = encode ? Encode.encodeQueryParam(value.toString()) : value.toString();
+            switch (queryParamMode) {
+                case MULTI_PAIRS -> {
+                    prefix = "&";
+                    sb.append(queryParamName).append("=").append(queryParamValue);
                 }
+                case COMMA_SEPARATED -> {
+                    prefix = ",";
+                    sb.append(queryParamValue);
+                }
+                case ARRAY_PAIRS -> {
+                    prefix = "&";
+                    String queryParamConnector = arrayPairsConnector(values);
+                    sb.append(queryParamName).append(queryParamConnector).append(queryParamValue);
+                }
+                default -> throw new IllegalStateException("Unexpected value: " + queryParamMode);
             }
         }
 
@@ -1091,7 +1096,8 @@ final class JaxRsUriBuilder extends UriBuilder {
             throw new IllegalArgumentException("Name parameter is null");
         }
         if (query == null || query.isEmpty()) {
-            return queryParam(name, values);
+            // nothing to remove
+            return values == null || values.length == 0 ? this : queryParam(name, values);
         }
 
         String[] params = query.split("&");

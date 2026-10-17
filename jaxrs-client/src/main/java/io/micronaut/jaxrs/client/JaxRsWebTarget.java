@@ -197,6 +197,14 @@ public final class JaxRsWebTarget implements WebTarget, JaxRsConfigurable<WebTar
         client.checkOpen();
         Objects.requireNonNull(name, "Name cannot be null");
         checkForNullValues(values);
+        if (values == null || values.length == 1 && values[0] == null) {
+            // a single null value removes the parameters of the name (JAX-RS, WebTarget#queryParam)
+            return new JaxRsWebTarget(
+                client,
+                uriBuilder.clone().replaceQueryParam(name),
+                configuration.copy()
+            );
+        }
         return new JaxRsWebTarget(
             client,
             uriBuilder.clone().queryParam(name, values),
