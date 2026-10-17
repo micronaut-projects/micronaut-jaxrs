@@ -32,6 +32,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -267,21 +268,36 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
     private static @Nullable Negotiated negotiate(List<MediaType> accepted, List<MediaType> produces) {
         Negotiated best = null;
         for (MediaType accept : accepted) {
+            double quality = accept.getQualityAsNumber().doubleValue();
+            if (quality <= 0) {
+                // q=0: not acceptable (RFC 9110, 12.4.2)
+                continue;
+            }
             for (MediaType produce : produces) {
                 if (!accept.matches(produce) && !produce.matches(accept)) {
                     continue;
                 }
-                // the more specific of the two, without the q and qs parameters
+                // the more specific of the two, with its parameters but q and qs (JAX-RS 3.8)
                 MediaType type = specificity(produce) >= specificity(accept) ? produce : accept;
                 int distance = (specificity(produce) == specificity(accept) ? 0 : 1);
-                Negotiated negotiated = new Negotiated(new MediaType(type.getType() + "/" + type.getSubtype()),
-                    accept.getQualityAsNumber().doubleValue(), qs(produce), distance);
+                Negotiated negotiated = new Negotiated(withoutQuality(type), quality, qs(produce), distance);
                 if (best == null || negotiated.compareTo(best) > 0) {
                     best = negotiated;
                 }
             }
         }
         return best;
+    }
+
+    private static MediaType withoutQuality(MediaType type) {
+        Map<String, String> parameters = new LinkedHashMap<>();
+        type.getParameters().forEach((name, value) -> {
+            String key = name.toString();
+            if (!MediaType.Q_PARAMETER.equals(key) && !QS.equals(key)) {
+                parameters.put(key, value);
+            }
+        });
+        return new MediaType(type.getType() + "/" + type.getSubtype(), parameters);
     }
 
     private static int specificity(MediaType type) {
