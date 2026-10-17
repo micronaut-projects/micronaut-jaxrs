@@ -85,6 +85,8 @@ final class JaxRsGlobalExceptionHandler implements ExceptionHandler<Throwable, H
             request.getAttributes().put(USED_EXCEPTION_MAPPER, exceptionMapperName);
             return JaxRsRouteSupport.toHttpResponse(exceptionMapper.toResponse(exception));
         }
+        // the completion callbacks of an asynchronous response receive an unmapped exception
+        request.setAttribute(JaxRsAsyncResponse.UNMAPPED_EXCEPTION, exception);
         return responseProcessor.processResponse(ErrorContext.builder(request)
             .errorMessage(Objects.requireNonNullElse(exception.getMessage(), "Unknown error"))
             .cause(exception)

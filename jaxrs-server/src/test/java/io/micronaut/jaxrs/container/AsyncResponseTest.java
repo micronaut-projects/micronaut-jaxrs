@@ -11,17 +11,27 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.container.AsyncResponse;
 import jakarta.ws.rs.container.ConnectionCallback;
+import jakarta.ws.rs.container.ContainerRequestContext;
+import jakarta.ws.rs.container.ContainerResponseContext;
+import jakarta.ws.rs.container.ContainerResponseFilter;
 import jakarta.ws.rs.container.Suspended;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.ext.MessageBodyWriter;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.io.OutputStream;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Type;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
@@ -121,8 +131,78 @@ class AsyncResponseTest {
         COMPLETED.clear();
         assertEquals("completed", get("callback").body());
         assertEquals("none", COMPLETED.poll(5, TimeUnit.SECONDS));
+        // a mapped exception completes with a response
         assertEquals(418, get("callback-failure").statusCode());
-        assertInstanceOf(MappedException.class, COMPLETED.poll(5, TimeUnit.SECONDS));
+        assertEquals("none", COMPLETED.poll(5, TimeUnit.SECONDS));
+        assertEquals(500, get("callback-unmapped").statusCode());
+        assertInstanceOf(IllegalStateException.class, COMPLETED.poll(5, TimeUnit.SECONDS));
+    }
+
+    @Test
+    void completionCallbackIsCalledAfterTheResponseFilters() throws Exception {
+        COMPLETED.clear();
+        assertEquals("ordered", get("callback-order").body());
+        assertEquals("filtered", COMPLETED.poll(5, TimeUnit.SECONDS));
+        assertEquals("none", COMPLETED.poll(5, TimeUnit.SECONDS));
+    }
+
+    @Test
+    void timeoutHandlerSuspendsIndefinitely() throws Exception {
+        HttpResponse<String> response = get("timeout-extended");
+        assertEquals(200, response.statusCode());
+        assertEquals("extended", response.body());
+    }
+
+    @Test
+    void resumedValueIsNegotiated() throws Exception {
+        HttpRequest request = HttpRequest.newBuilder(URI.create(server.getURL() + "/api/async-negotiated"))
+            .header("Accept", "application/*").build();
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, response.statusCode(), response.body());
+            assertEquals("custom:value", response.body());
+            assertEquals("application/x-custom", response.headers().firstValue("Content-Type").orElse(null));
+        }
+    }
+
+    public record CustomEntity(String value) {
+    }
+
+    @Requires(property = "spec.name", value = "AsyncResponseTest")
+    @Provider
+    @Produces("application/x-custom")
+    public static class CustomEntityWriter implements MessageBodyWriter<CustomEntity> {
+        @Override
+        public boolean isWriteable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+            return type == CustomEntity.class;
+        }
+
+        @Override
+        public void writeTo(CustomEntity entity, Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType,
+                            MultivaluedMap<String, Object> httpHeaders, OutputStream entityStream) throws IOException {
+            entityStream.write(("custom:" + entity.value()).getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    @Requires(property = "spec.name", value = "AsyncResponseTest")
+    @Provider
+    public static class OrderFilter implements ContainerResponseFilter {
+        @Override
+        public void filter(ContainerRequestContext requestContext, ContainerResponseContext responseContext) {
+            if (requestContext.getUriInfo().getPath().endsWith("callback-order")) {
+                COMPLETED.add("filtered");
+            }
+        }
+    }
+
+    @Requires(property = "spec.name", value = "AsyncResponseTest")
+    @Path("/async-negotiated")
+    public static class NegotiatedResource {
+
+        @GET
+        public void negotiated(@Suspended AsyncResponse response) {
+            CompletableFuture.runAsync(() -> response.resume(new CustomEntity("value")));
+        }
     }
 
     public static final class MappedException extends RuntimeException {
@@ -217,6 +297,31 @@ class AsyncResponseTest {
             assertFalse(response.isDone());
             response.resume(new MappedException("callback"));
             assertFalse(response.resume("too late"));
+        }
+
+        @GET
+        @Path("callback-unmapped")
+        public void callbackUnmapped(@Suspended AsyncResponse response) {
+            response.register(new CompletionCallbackImpl());
+            response.resume(new IllegalStateException("unmapped"));
+        }
+
+        @GET
+        @Path("callback-order")
+        public void callbackOrder(@Suspended AsyncResponse response) {
+            response.register(new CompletionCallbackImpl());
+            CompletableFuture.runAsync(() -> response.resume("ordered"));
+        }
+
+        @GET
+        @Path("timeout-extended")
+        public void timeoutExtended(@Suspended AsyncResponse response) {
+            response.setTimeoutHandler(timedOut -> {
+                // no timeout anymore: resumed later, not answered with a 503
+                timedOut.setTimeout(AsyncResponse.NO_TIMEOUT, TimeUnit.MILLISECONDS);
+                CompletableFuture.runAsync(() -> timedOut.resume("extended"), CompletableFuture.delayedExecutor(200, TimeUnit.MILLISECONDS));
+            });
+            response.setTimeout(100, TimeUnit.MILLISECONDS);
         }
     }
 

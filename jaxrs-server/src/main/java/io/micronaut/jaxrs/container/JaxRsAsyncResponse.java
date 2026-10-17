@@ -17,6 +17,7 @@ package io.micronaut.jaxrs.container;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.beans.BeanIntrospection;
+import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.scheduling.TaskScheduler;
@@ -49,7 +50,8 @@ import java.util.function.Supplier;
  * The {@link AsyncResponse} of a resource method with a {@code @Suspended} parameter (JAX-RS 8.2),
  * backed by the stage of the response of its asynchronous route. A resumed value is converted to the
  * response like the result of a resource method, a resumed exception fails the stage, which the
- * exception handlers answer like an exception a resource method throws.
+ * exception handlers answer like an exception a resource method throws. The completion callbacks
+ * are called once the response was processed, see {@link #completed(HttpRequest)}.
  *
  * <p>{@link jakarta.ws.rs.container.ConnectionCallback} is not supported: the routes are not
  * notified when the client closes the connection.</p>
@@ -60,6 +62,12 @@ import java.util.function.Supplier;
 @Internal
 final class JaxRsAsyncResponse implements AsyncResponse {
 
+    /**
+     * The request attribute of the exception no exception mapper answered: the completion
+     * callbacks receive it.
+     */
+    static final String UNMAPPED_EXCEPTION = "io.micronaut.jaxrs.unmappedException";
+
     private static final Logger LOG = LoggerFactory.getLogger(JaxRsAsyncResponse.class);
 
     private final CompletableFuture<HttpResponse<?>> response = new CompletableFuture<>();
@@ -68,8 +76,12 @@ final class JaxRsAsyncResponse implements AsyncResponse {
     private final List<CompletionCallback> completionCallbacks = new ArrayList<>();
     private @Nullable TimeoutHandler timeoutHandler;
     private @Nullable ScheduledFuture<?> timeout;
-    private boolean done;
-    private boolean cancelled;
+    // the generation of the timeout, a timeout of a previous one is ignored
+    private long timeoutGeneration;
+    // whether the timeout was set while the timeout handler ran
+    private boolean timeoutUpdated;
+    private State state = State.SUSPENDED;
+    private boolean callbacksCalled;
 
     /**
      * @param converter Converts a resumed value to the response
@@ -89,35 +101,32 @@ final class JaxRsAsyncResponse implements AsyncResponse {
 
     @Override
     public boolean resume(@Nullable Object value) {
-        if (!finish()) {
+        if (!finish(State.RESUMED)) {
             return false;
         }
-        HttpResponse<?> converted;
-        try {
-            converted = converter.apply(value);
-        } catch (Throwable e) {
-            fail(e);
-            return true;
-        }
-        response.complete(converted);
-        completed(null);
+        complete(value);
         return true;
     }
 
     @Override
     public boolean resume(Throwable throwable) {
         Objects.requireNonNull(throwable, "throwable");
-        if (!finish()) {
+        if (!finish(State.RESUMED)) {
             return false;
         }
-        fail(throwable);
+        response.completeExceptionally(throwable);
         return true;
     }
 
-    private void fail(Throwable throwable) {
-        response.completeExceptionally(throwable);
-        // the exception mappers answer it, which is not known here: it is passed to the callbacks
-        completed(throwable);
+    private void complete(@Nullable Object value) {
+        HttpResponse<?> converted;
+        try {
+            converted = converter.apply(value);
+        } catch (Throwable e) {
+            response.completeExceptionally(e);
+            return;
+        }
+        response.complete(converted);
     }
 
     @Override
@@ -137,34 +146,31 @@ final class JaxRsAsyncResponse implements AsyncResponse {
 
     private boolean cancel(Response.ResponseBuilder builder) {
         synchronized (this) {
-            if (cancelled) {
+            if (state == State.CANCELLED) {
                 return true;
             }
-            if (done) {
-                return false;
-            }
-            cancelled = true;
         }
-        if (!finish()) {
-            return true;
+        if (!finish(State.CANCELLED)) {
+            // resumed, or cancelled concurrently
+            return isCancelled();
         }
-        response.complete(converter.apply(builder.build()));
-        completed(null);
+        complete(builder.build());
         return true;
     }
 
     /**
-     * Mark the response done.
+     * Resume or cancel the response: only one of them wins.
      *
-     * @return Whether it was not done
+     * @param finished The state of the response
+     * @return Whether the response was suspended
      */
-    private boolean finish() {
+    private boolean finish(State finished) {
         ScheduledFuture<?> scheduled;
         synchronized (this) {
-            if (done) {
+            if (state != State.SUSPENDED) {
                 return false;
             }
-            done = true;
+            state = finished;
             scheduled = timeout;
             timeout = null;
         }
@@ -174,9 +180,27 @@ final class JaxRsAsyncResponse implements AsyncResponse {
         return true;
     }
 
+    /**
+     * Call the completion callbacks of the asynchronous response of a request once its response
+     * was processed: after the exception mappers and the response filters.
+     *
+     * @param request The request
+     */
+    static void completed(HttpRequest<?> request) {
+        JaxRsAsyncResponse asyncResponse = request.getAttribute(JaxRsRuntimeRoutes.ASYNC_RESPONSE, JaxRsAsyncResponse.class).orElse(null);
+        if (asyncResponse != null) {
+            // a mapped exception completes with a response: the callbacks receive no exception
+            asyncResponse.completed(request.getAttribute(UNMAPPED_EXCEPTION, Throwable.class).orElse(null));
+        }
+    }
+
     private void completed(@Nullable Throwable throwable) {
         List<CompletionCallback> callbacks;
         synchronized (this) {
+            if (state == State.SUSPENDED || callbacksCalled) {
+                return;
+            }
+            callbacksCalled = true;
             callbacks = new ArrayList<>(completionCallbacks);
         }
         for (CompletionCallback callback : callbacks) {
@@ -190,17 +214,17 @@ final class JaxRsAsyncResponse implements AsyncResponse {
 
     @Override
     public synchronized boolean isSuspended() {
-        return !done;
+        return state == State.SUSPENDED;
     }
 
     @Override
     public synchronized boolean isCancelled() {
-        return cancelled;
+        return state == State.CANCELLED;
     }
 
     @Override
     public synchronized boolean isDone() {
-        return done;
+        return state != State.SUSPENDED;
     }
 
     @Override
@@ -208,17 +232,19 @@ final class JaxRsAsyncResponse implements AsyncResponse {
         Objects.requireNonNull(unit, "unit");
         ScheduledFuture<?> previous;
         synchronized (this) {
-            if (done) {
+            if (state != State.SUSPENDED) {
                 return false;
             }
             previous = timeout;
             timeout = null;
+            timeoutUpdated = true;
+            long generation = ++timeoutGeneration;
             if (time > 0) {
                 TaskScheduler taskScheduler = scheduler.get();
                 if (taskScheduler == null) {
                     throw new IllegalStateException("No task scheduler to time out the asynchronous response");
                 }
-                timeout = taskScheduler.schedule(Duration.ofNanos(unit.toNanos(time)), this::timedOut);
+                timeout = taskScheduler.schedule(Duration.ofNanos(unit.toNanos(time)), () -> timedOut(generation));
             }
             // a time of zero or less suspends the response indefinitely
         }
@@ -228,13 +254,15 @@ final class JaxRsAsyncResponse implements AsyncResponse {
         return true;
     }
 
-    private void timedOut() {
+    private void timedOut(long generation) {
         TimeoutHandler handler;
         synchronized (this) {
-            if (done) {
+            if (state != State.SUSPENDED || generation != timeoutGeneration) {
+                // resumed, or the timeout was set again
                 return;
             }
             timeout = null;
+            timeoutUpdated = false;
             handler = timeoutHandler;
         }
         if (handler != null) {
@@ -245,8 +273,8 @@ final class JaxRsAsyncResponse implements AsyncResponse {
                 return;
             }
             synchronized (this) {
-                // the handler resumed, cancelled or extended the timeout
-                if (done || timeout != null) {
+                // the handler resumed, cancelled or set the timeout again, also to no timeout
+                if (state != State.SUSPENDED || timeoutUpdated) {
                     return;
                 }
             }
@@ -305,5 +333,14 @@ final class JaxRsAsyncResponse implements AsyncResponse {
             registered.put(other.getClass(), register(other));
         }
         return registered;
+    }
+
+    /**
+     * The state of an asynchronous response.
+     */
+    private enum State {
+        SUSPENDED,
+        RESUMED,
+        CANCELLED
     }
 }

@@ -1029,7 +1029,8 @@ public final class JaxRsRouteSupport {
         if (body instanceof GenericEntity<?> entity) {
             Argument<?> generic = JaxRsArgumentUtil.from(entity);
             type = Argument.of(generic.getType(), annotations, generic.getTypeParameters());
-        } else if (returnType.getType().isInstance(body)) {
+        } else if (returnType.getType() != Object.class && returnType.getType().isInstance(body)) {
+            // a declared type that is not known only at runtime
             type = Argument.of(returnType.getType(), annotations, returnType.getTypeParameters());
         } else {
             type = Argument.of(body.getClass(), annotations);

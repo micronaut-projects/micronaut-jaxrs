@@ -111,6 +111,9 @@ import java.util.function.Supplier;
 @Singleton
 final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<JaxRsResourceMethod> {
 
+    // the request attribute of the asynchronous response of a call
+    static final String ASYNC_RESPONSE = "io.micronaut.jaxrs.asyncResponse";
+
     private static final Logger LOG = LoggerFactory.getLogger(JaxRsRuntimeRoutes.class);
 
     private static final Set<String> NO_BODY_METHODS = Set.of("GET", "HEAD", "OPTIONS", "TRACE");
@@ -144,9 +147,6 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         "jakarta.servlet.http.HttpServletResponse",
         "jakarta.servlet.ServletConfig"
     );
-
-    // the request attribute of the asynchronous response of a call
-    private static final String ASYNC_RESPONSE = "io.micronaut.jaxrs.asyncResponse";
 
     private static final List<Class<? extends Annotation>> REQUEST_ANNOTATIONS = List.of(
         PathParam.class, QueryParam.class, MatrixParam.class, HeaderParam.class, CookieParam.class,
@@ -665,7 +665,10 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                                                                  PathVariables pathVariables, @Nullable L target, @Nullable FormData form,
                                                                  byte @Nullable [] body) {
         Converter converter = method.converter();
-        JaxRsAsyncResponse asyncResponse = new JaxRsAsyncResponse(value -> converter.convert(request, value), scheduler);
+        Completion completion = method.completion();
+        // the resumed value is negotiated like the result of a method that is not asynchronous
+        JaxRsAsyncResponse asyncResponse = new JaxRsAsyncResponse(
+            value -> completion.complete(request, pathVariables, converter.convert(request, value)), scheduler);
         request.setAttribute(ASYNC_RESPONSE, asyncResponse);
         try {
             invoke(method, instances, request, pathVariables, target, form, body);

@@ -30,6 +30,7 @@ import io.micronaut.web.router.builder.HttpRoutes;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.Path;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 
@@ -55,33 +56,45 @@ final class JaxRsServerFilters implements HttpRoutes {
     }
 
     @Override
-    @SuppressWarnings({"unchecked", "rawtypes"})
     public void routes(HttpRouteBuilder routes) {
         routes.serverFilter("/**").preMatching()
             .beforeReplacingAsync(filters::filterPreMatchingRequestAsync).and()
             .after((request, response) -> {
-                RouteInfo<?> route = RouteAttributes.getRouteInfo(request).orElse(null);
-                if (route != null && !isJaxRs(route)) {
-                    // a route that is not one of a resource method, e.g. of a controller
-                    return;
+                try {
+                    filterResponse(request, response);
+                } finally {
+                    // the response is processed: the completion callbacks of an asynchronous response
+                    JaxRsAsyncResponse.completed(request);
                 }
-                resolveLocation(request, response);
-                MutableHttpResponse<?> filtered = filters.filterResponse(route, request, response);
-                if (filtered != response) {
-                    // the response of a JAX-RS Response entity: the filters run on it
-                    replace(response, filtered);
-                }
-                request.getAttribute(JaxRsRouteSupport.SSE_EVENT_SINK, JaxRsSseEventSink.class).ifPresent(sink -> {
-                    if (response.getStatus().getCode() >= 300) {
-                        // the resource method failed, e.g. with a 503: the error is the response
-                        sink.close();
-                        return;
-                    }
-                    // the events a resource method sends to its sink (JAX-RS 9.3)
-                    ((MutableHttpResponse) response).status(HttpStatus.OK).body(sink.publisher());
-                    response.getHeaders().set(HttpHeaders.CONTENT_TYPE, MediaType.TEXT_EVENT_STREAM);
-                });
             });
+    }
+
+    /**
+     * Filter the response of a resource method with the JAX-RS response filters.
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private void filterResponse(HttpRequest<?> request, MutableHttpResponse<?> response) throws IOException {
+        RouteInfo<?> route = RouteAttributes.getRouteInfo(request).orElse(null);
+        if (route != null && !isJaxRs(route)) {
+            // a route that is not one of a resource method, e.g. of a controller
+            return;
+        }
+        resolveLocation(request, response);
+        MutableHttpResponse<?> filtered = filters.filterResponse(route, request, response);
+        if (filtered != response) {
+            // the response of a JAX-RS Response entity: the filters run on it
+            replace(response, filtered);
+        }
+        request.getAttribute(JaxRsRouteSupport.SSE_EVENT_SINK, JaxRsSseEventSink.class).ifPresent(sink -> {
+            if (response.getStatus().getCode() >= 300) {
+                // the resource method failed, e.g. with a 503: the error is the response
+                sink.close();
+                return;
+            }
+            // the events a resource method sends to its sink (JAX-RS 9.3)
+            ((MutableHttpResponse) response).status(HttpStatus.OK).body(sink.publisher());
+            response.getHeaders().set(HttpHeaders.CONTENT_TYPE, MediaType.TEXT_EVENT_STREAM);
+        });
     }
 
     /**
