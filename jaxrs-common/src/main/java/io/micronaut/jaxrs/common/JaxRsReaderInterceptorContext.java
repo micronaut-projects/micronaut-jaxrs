@@ -27,6 +27,7 @@ import org.jspecify.annotations.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Iterator;
+import java.util.Map;
 
 /**
  * The implementation of {@link ReaderInterceptorContext}.
@@ -47,8 +48,9 @@ public final class JaxRsReaderInterceptorContext extends AbstractJaxRsIntercepto
                                          Argument<?> argument,
                                          @Nullable MediaType mediaType,
                                          MultivaluedMap<String, String> headers,
-                                         InputStream inputStream) {
-        super(argument, mediaType);
+                                         InputStream inputStream,
+                                         Map<String, Object> properties) {
+        super(argument, mediaType, properties);
         this.interceptors = interceptors;
         this.interceptedSupplier = interceptedSupplier;
         this.headers = headers;

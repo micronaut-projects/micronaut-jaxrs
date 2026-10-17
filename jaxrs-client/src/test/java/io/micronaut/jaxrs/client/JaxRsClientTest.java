@@ -21,12 +21,17 @@ import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.MessageBodyReader;
 import jakarta.ws.rs.ext.MessageBodyWriter;
+import jakarta.ws.rs.ext.ReaderInterceptor;
+import jakarta.ws.rs.ext.ReaderInterceptorContext;
+import jakarta.ws.rs.ext.WriterInterceptor;
+import jakarta.ws.rs.ext.WriterInterceptorContext;
 import jakarta.ws.rs.sse.InboundSseEvent;
 import jakarta.ws.rs.sse.SseEventSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.annotation.Annotation;
@@ -71,6 +76,31 @@ class JaxRsClientTest {
     private WebTarget target(String path) {
         return client.target(server.getURI()).path("client").path(path);
     }
+
+    @Test
+    void interceptorContextsShareTheRequestProperties() {
+        String result = target("echo")
+            .register((ClientRequestFilter) requestContext -> requestContext.setProperty("filter", "filter"))
+            .register(new WriterInterceptor() {
+                @Override
+                public void aroundWriteTo(WriterInterceptorContext context) throws IOException {
+                    context.setEntity(context.getEntity() + "|" + context.getProperty("filter"));
+                    context.setProperty("writer", "writer");
+                    context.proceed();
+                }
+            })
+            .register(new ReaderInterceptor() {
+                @Override
+                public Object aroundReadFrom(ReaderInterceptorContext context) throws IOException {
+                    return context.proceed() + "|" + context.getProperty("filter") + "|" + context.getProperty("writer");
+                }
+            })
+            .request()
+            .post(Entity.text("body"), String.class);
+        assertEquals("text/plain|body|filter|filter|writer", result);
+    }
+
+
 
     @Test
     void registeredFeatureIsConfigured() {

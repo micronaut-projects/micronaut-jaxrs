@@ -30,6 +30,7 @@ import io.micronaut.http.body.MessageBodyReader;
 import io.micronaut.http.codec.CodecException;
 import io.micronaut.jaxrs.common.JaxRsInterceptedRead;
 import io.micronaut.jaxrs.common.JaxRsContainerMessageBodyHandlerRegistry;
+import io.micronaut.jaxrs.common.JaxRsRequestProperties;
 import io.micronaut.jaxrs.common.JaxRsRouteInterceptors;
 import io.micronaut.jaxrs.common.NameBindingPredicate;
 import jakarta.inject.Singleton;
@@ -122,7 +123,7 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
                 return entityReader(type, Objects.requireNonNull(mediaType)).read(type, mediaType, httpHeaders, inputStream);
             }
 
-        }.intercept((Argument) type, mediaType, httpHeaders, entity);
+        }.intercept((Argument) type, mediaType, httpHeaders, entity, JaxRsRequestProperties.current());
     }
 
     private MessageBodyReader<Object> entityReader(Argument<Object> type, MediaType mediaType) {
@@ -159,7 +160,7 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
                 throw new CodecException("No reader found for " + mediaType + " and type " + type);
             }
 
-        }.intercept(type, mediaType, httpHeaders, byteBuffer.toInputStream());
+        }.intercept(type, mediaType, httpHeaders, byteBuffer.toInputStream(), JaxRsRequestProperties.current());
     }
 
     @Override
@@ -184,6 +185,6 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
                 throw new CodecException("No reader found for " + mediaType + " and type " + type);
             }
 
-        }.intercept(type, mediaType, httpHeaders, inputStream);
+        }.intercept(type, mediaType, httpHeaders, inputStream, JaxRsRequestProperties.current());
     }
 }

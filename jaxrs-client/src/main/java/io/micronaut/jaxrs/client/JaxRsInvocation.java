@@ -392,7 +392,7 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
         Object entity = requestContext.getEntity();
         if (entity != null) {
             // the entity as the filters left it, with the media type they left
-            configuration.writeBody(request, requestContext.getEntityArgument(), entity);
+            configuration.writeBody(request, requestContext.getEntityArgument(), entity, requestContext.properties());
             Object body = request.getBody().orElse(null);
             if (body instanceof byte[] bytes) {
                 request.body(requestContext.writeThroughEntityStream(bytes));
@@ -444,18 +444,24 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
 
     private Response filterResponse(Response response, JaxRsClientRequestContext requestContext) {
         if (response instanceof JaxRsMutableResponse jaxRsMutableResponse) {
-            jaxRsMutableResponse = jaxRsMutableResponse.withEntityReader(configuration.createHttpMessageEntityReader());
+            jaxRsMutableResponse = jaxRsMutableResponse.withEntityReader(configuration.createHttpMessageEntityReader(properties(requestContext)));
             filterResponse(jaxRsMutableResponse, requestContext);
             return jaxRsMutableResponse;
         }
         if (response instanceof JaxRsResponse jaxRsResponse) {
-            jaxRsResponse = jaxRsResponse.withEntityReader(configuration.createHttpMessageEntityReader());
             MutableHttpResponse<?> mutableResponse = jaxRsResponse.getResponse().toMutableResponse();
-            JaxRsMutableResponse jaxRsMutableResponse = new JaxRsMutableResponse(mutableResponse, configuration.createHttpMessageEntityReader());
+            JaxRsMutableResponse jaxRsMutableResponse = new JaxRsMutableResponse(mutableResponse, configuration.createHttpMessageEntityReader(properties(requestContext)));
             filterResponse(jaxRsMutableResponse, requestContext);
             return jaxRsMutableResponse;
         }
         return response;
+    }
+
+    /**
+     * The properties of the request, which the interceptor contexts of its response share.
+     */
+    private static Map<String, Object> properties(@Nullable JaxRsClientRequestContext requestContext) {
+        return requestContext == null ? new LinkedHashMap<>() : requestContext.properties();
     }
 
     private void filterResponse(@NonNull JaxRsMutableResponse jaxRsMutableResponse, @Nullable JaxRsClientRequestContext requestContext) {

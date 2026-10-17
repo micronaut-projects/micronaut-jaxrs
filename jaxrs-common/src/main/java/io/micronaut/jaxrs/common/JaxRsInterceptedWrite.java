@@ -27,7 +27,9 @@ import jakarta.ws.rs.ext.WriterInterceptor;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -64,6 +66,23 @@ public abstract class JaxRsInterceptedWrite<T, S extends JaxRsWriterInterceptorC
     public final void intercept(@NonNull Argument<T> type,
                                 @NonNull MediaType mediaType,
                                 S state) throws CodecException {
+        intercept(type, mediaType, state, new LinkedHashMap<>());
+    }
+
+    /**
+     * Write through the interceptors.
+     *
+     * @param type       The type
+     * @param mediaType  The media type
+     * @param state      The state
+     * @param properties The properties of the request or response the entity is written to, which
+     *                   the interceptor contexts share with its filter contexts
+     * @throws CodecException If the entity cannot be written
+     */
+    public final void intercept(@NonNull Argument<T> type,
+                                @NonNull MediaType mediaType,
+                                S state,
+                                @NonNull Map<String, Object> properties) throws CodecException {
         try {
             List<WriterInterceptor> writerInterceptors = writerInterceptorsRegistrations.stream()
                 .filter(br -> nameBindingPredicate.test(br.getBeanDefinition()))
@@ -86,7 +105,8 @@ public abstract class JaxRsInterceptedWrite<T, S extends JaxRsWriterInterceptorC
                     },
                     type,
                     Objects.requireNonNull(JaxRsUtils.convert(mediaType)),
-                    state
+                    state,
+                    properties
                 );
                 iterator.next().aroundWriteTo(context);
                 state.finish();

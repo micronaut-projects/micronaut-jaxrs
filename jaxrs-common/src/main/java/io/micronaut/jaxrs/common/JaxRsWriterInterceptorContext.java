@@ -26,6 +26,7 @@ import jakarta.ws.rs.ext.WriterInterceptorContext;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Iterator;
+import java.util.Map;
 
 /**
  * The implementation of {@link WriterInterceptorContext}.
@@ -44,8 +45,9 @@ final class JaxRsWriterInterceptorContext extends AbstractJaxRsInterceptorContex
                                   IOProceedCallback interceptedCallback,
                                   Argument<?> argument,
                                   MediaType mediaType,
-                                  JaxRsWriterInterceptorContextState state) {
-        super(argument, mediaType);
+                                  JaxRsWriterInterceptorContextState state,
+                                  Map<String, Object> properties) {
+        super(argument, mediaType, properties);
         this.interceptors = interceptors;
         this.interceptedSupplier = interceptedCallback;
         this.state = state;

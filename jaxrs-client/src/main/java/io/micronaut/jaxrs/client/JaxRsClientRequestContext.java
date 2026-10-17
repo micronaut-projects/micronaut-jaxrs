@@ -99,6 +99,13 @@ final class JaxRsClientRequestContext implements ClientRequestContext {
         this.properties = new LinkedHashMap<>(properties);
     }
 
+    /**
+     * @return The properties of the request, which its interceptor contexts share
+     */
+    Map<String, Object> properties() {
+        return properties;
+    }
+
     @Override
     public @Nullable Object getProperty(String name) {
         return properties.get(name);

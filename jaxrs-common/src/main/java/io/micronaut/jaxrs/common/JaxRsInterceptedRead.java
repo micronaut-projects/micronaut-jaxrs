@@ -32,7 +32,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * The JAX-RS body read interceptor.
@@ -67,6 +69,26 @@ public abstract class JaxRsInterceptedRead<T> {
                              @Nullable MediaType mediaType,
                              @NonNull Headers httpHeaders,
                              @NonNull InputStream inputStream) throws CodecException {
+        return intercept(type, mediaType, httpHeaders, inputStream, new LinkedHashMap<>());
+    }
+
+    /**
+     * Read through the interceptors.
+     *
+     * @param type        The type
+     * @param mediaType   The media type
+     * @param httpHeaders The headers
+     * @param inputStream The entity
+     * @param properties  The properties of the request or response the entity is read of, which
+     *                    the interceptor contexts share with its filter contexts
+     * @return The value
+     * @throws CodecException If the entity cannot be read
+     */
+    public final @Nullable T intercept(@NonNull Argument<T> type,
+                             @Nullable MediaType mediaType,
+                             @NonNull Headers httpHeaders,
+                             @NonNull InputStream inputStream,
+                             @NonNull Map<String, Object> properties) throws CodecException {
         try {
             List<ReaderInterceptor> readerInterceptors = readerInterceptorsRegistrations.stream()
                 .filter(br -> nameBindingPredicate.test(br.getBeanDefinition()))
@@ -88,7 +110,8 @@ public abstract class JaxRsInterceptedRead<T> {
                     type,
                     JaxRsUtils.convert(mediaType),
                     new JaxRsMutableHeadersMultivaluedMap(headers),
-                    inputStream
+                    inputStream,
+                    properties
                 );
                 Object value = iterator.next().aroundReadFrom(context);
                 if (value == null) {
