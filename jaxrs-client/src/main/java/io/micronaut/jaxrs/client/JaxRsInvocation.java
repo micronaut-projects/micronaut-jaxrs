@@ -24,12 +24,14 @@ import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpMethod;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
+import io.micronaut.http.HttpResponseFactory;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.MutableHttpHeaders;
 import io.micronaut.http.MutableHttpRequest;
 import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.http.client.exceptions.HttpClientResponseException;
 import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
+import io.micronaut.jaxrs.common.JaxRsHeaderUtil;
 import io.micronaut.jaxrs.common.JaxRsIOException;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import io.micronaut.jaxrs.common.JaxRsResponse;
@@ -53,9 +55,11 @@ import jakarta.ws.rs.client.ClientResponseFilter;
 import jakarta.ws.rs.client.CompletionStageRxInvoker;
 import jakarta.ws.rs.client.Entity;
 import jakarta.ws.rs.client.Invocation;
+import jakarta.ws.rs.client.ResponseProcessingException;
 import jakarta.ws.rs.client.InvocationCallback;
 import jakarta.ws.rs.core.GenericEntity;
 import jakarta.ws.rs.core.GenericType;
+import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -358,8 +362,11 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
         Response response;
         try {
             response = filterResponse(exchanged.response(), exchanged.requestContext());
+        } catch (ResponseProcessingException e) {
+            throw e;
         } catch (Exception e) {
-            throw new ProcessingException(e);
+            // the response was received: its processing failed (JAX-RS, SyncInvoker)
+            throw new ResponseProcessingException(exchanged.response(), e instanceof UncheckedIOException u ? u.getCause() : e);
         }
         if (type.getType().equals(Response.class)) {
             return (T) response;
@@ -369,8 +376,10 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
         }
         try {
             return response instanceof JaxRsResponse jaxRsResponse ? jaxRsResponse.readEntity(type) : response.readEntity(type.getType());
+        } catch (ResponseProcessingException e) {
+            throw e;
         } catch (Exception e) {
-            throw new ProcessingException(e);
+            throw new ResponseProcessingException(response, e);
         }
     }
 
@@ -392,7 +401,8 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
         Object entity = requestContext.getEntity();
         if (entity != null) {
             // the entity as the filters left it, with the media type they left
-            configuration.writeBody(request, requestContext.getEntityArgument(), entity);
+            // written to bytes when a filter replaced the entity stream, which writes them
+            configuration.writeBody(request, requestContext.getEntityArgument(), entity, requestContext.isEntityStreamReplaced());
             Object body = request.getBody().orElse(null);
             if (body instanceof byte[] bytes) {
                 request.body(requestContext.writeThroughEntityStream(bytes));
@@ -432,6 +442,10 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
     private Response written(Response response) {
+        if (!(response instanceof JaxRsResponse)) {
+            // a response of the application: the response filters see it as any other
+            response = toMutableResponse(response);
+        }
         if (response instanceof JaxRsMutableResponse jaxRsMutableResponse) {
             MutableHttpResponse<?> httpResponse = jaxRsMutableResponse.getResponse();
             Object entity = httpResponse.getBody().orElse(null);
@@ -440,6 +454,32 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
             }
         }
         return response;
+    }
+
+    /**
+     * A response of another implementation of {@link Response}, e.g. a subclass of the
+     * application: its status, headers and entity.
+     */
+    @SuppressWarnings("unchecked")
+    private static JaxRsMutableResponse toMutableResponse(Response response) {
+        Response.StatusType statusInfo = response.getStatusInfo();
+        String reason = statusInfo == null ? null : statusInfo.getReasonPhrase();
+        MutableHttpResponse<Object> httpResponse = HttpResponseFactory.INSTANCE.status(response.getStatus(), reason);
+        MultivaluedMap<String, Object> headers = response.getMetadata();
+        if (headers != null) {
+            headers.forEach((name, values) -> {
+                for (Object value : values) {
+                    if (value != null) {
+                        httpResponse.getHeaders().add(name, JaxRsHeaderUtil.headerToString(value));
+                    }
+                }
+            });
+        }
+        Object entity = response.getEntity();
+        if (entity != null) {
+            httpResponse.body(entity);
+        }
+        return new JaxRsMutableResponse(httpResponse);
     }
 
     private Response filterResponse(Response response, JaxRsClientRequestContext requestContext) {

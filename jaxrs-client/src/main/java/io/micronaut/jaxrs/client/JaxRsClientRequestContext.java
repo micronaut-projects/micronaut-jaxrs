@@ -289,6 +289,13 @@ final class JaxRsClientRequestContext implements ClientRequestContext {
     }
 
     /**
+     * @return Whether a filter replaced the entity stream
+     */
+    boolean isEntityStreamReplaced() {
+        return entityStream != null;
+    }
+
+    /**
      * Write the entity through the entity stream a filter replaced.
      *
      * @param entity The written entity

@@ -17,6 +17,7 @@ package io.micronaut.jaxrs.client;
 
 import io.micronaut.core.annotation.Internal;
 import jakarta.ws.rs.core.Configurable;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Map;
 
@@ -36,7 +37,7 @@ public sealed interface JaxRsConfigurable<C extends Configurable<C>> extends Con
     JaxRsConfiguration getConfiguration();
 
     @Override
-    default C property(String name, Object value) {
+    default C property(String name, @Nullable Object value) {
         getConfiguration().addProperty(name, value);
         return self();
     }
