@@ -30,6 +30,7 @@ import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
 import io.micronaut.core.propagation.PropagatedContext;
 import io.micronaut.http.ServerHttpRequest;
+import io.micronaut.http.body.ByteBody;
 import io.micronaut.jaxrs.common.JaxRsContainerMessageBodyHandlerRegistry;
 import io.micronaut.jaxrs.common.JaxRsGenericEntity;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
@@ -298,7 +299,11 @@ final class JaxRsContainerFilters {
      * Run request filters once the entity of the request is buffered: a filter reads it with
      * {@link ContainerRequestContext#getEntityStream()}, which must not block, e.g. the event
      * loop, while it streams. A copy of the body is buffered, the resource method still reads
-     * the body, and it is consumed here, so nothing is left to release.
+     * the body, and it is consumed here, so nothing is left to release. The copy is split with
+     * {@code FASTEST} backpressure: the resource method only reads its body once the filters ran,
+     * so demand of the copy alone must pull the body, else a body larger than what the server
+     * reads ahead, or one sent after {@code 100 Continue}, never completes. The original body
+     * keeps what the copy read, bounded by the maximum request size of the server.
      */
     private <M> CompletionStage<@Nullable M> withBufferedEntity(MutableHttpRequest<?> request, Filtering<M> filtering) {
         if (!(request instanceof ServerHttpRequest<?> serverHttpRequest)
@@ -307,7 +312,7 @@ final class JaxRsContainerFilters {
             return run(filtering);
         }
         PropagatedContext propagatedContext = PropagatedContext.getOrEmpty();
-        return serverHttpRequest.byteBody().split().buffer().thenCompose(body -> {
+        return serverHttpRequest.byteBody().split(ByteBody.SplitBackpressureMode.FASTEST).buffer().thenCompose(body -> {
             request.setAttribute(JaxRsContainerRequestContext.BUFFERED_ENTITY, body.toByteArray());
             // the filters run in the context of the request, also when the body completes later
             try (PropagatedContext.Scope ignore = propagatedContext.propagate()) {
