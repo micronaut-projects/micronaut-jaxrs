@@ -83,14 +83,14 @@ public final class JaxRsUtils {
     /**
      * The priority of a provider bean: its {@code @Priority}, else its {@code @Order}, else
      * {@link Priorities#USER}. A registration without a bean definition, of a provider that is
-     * not a bean, has the priority of its order.
+     * not a bean, and one with the priority it was registered with, has the priority of its order.
      *
      * @param registration The registration
      * @return The priority
      */
     public static int getPriorityOrder(BeanRegistration<?> registration) {
         BeanDefinition<?> definition = registration.getBeanDefinition();
-        if (definition == null) {
+        if (definition == null || registration instanceof JaxRsRouteInterceptors.Prioritized<?>) {
             return registration.getOrder();
         }
         return definition.intValue(Priority.class)

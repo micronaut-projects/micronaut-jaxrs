@@ -16,9 +16,12 @@
 package io.micronaut.jaxrs.common;
 
 import io.micronaut.context.BeanRegistration;
+import io.micronaut.inject.BeanDefinition;
+import io.micronaut.inject.BeanIdentifier;
 import io.micronaut.core.annotation.Internal;
 import jakarta.ws.rs.ext.ReaderInterceptor;
 import jakarta.ws.rs.ext.WriterInterceptor;
+import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -54,6 +57,20 @@ public interface JaxRsRouteInterceptors {
      */
     default int priority(Object interceptor, Class<?> contract) {
         return JaxRsUtils.getPriorityOrder(interceptor);
+    }
+
+    /**
+     * The beans of a contract that are registered for it, with the priorities they were
+     * registered with: a component a feature registered for other contracts only is not one of
+     * them, see {@code FeatureContext#register(Class, Class[])}.
+     *
+     * @param beans    The beans
+     * @param contract The contract, e.g. {@link WriterInterceptor}
+     * @param <I>      The type of the contract
+     * @return The beans registered for the contract
+     */
+    default <I> List<BeanRegistration<I>> registered(List<BeanRegistration<I>> beans, Class<I> contract) {
+        return beans;
     }
 
     /**
@@ -100,12 +117,40 @@ public interface JaxRsRouteInterceptors {
      */
     @SuppressWarnings("NullAway") // BeanRegistration has no way to register an instance without a bean definition
     static <I> BeanRegistration<I> registration(I interceptor, int priority) {
-        return new BeanRegistration<>(null, null, interceptor) {
-            @Override
-            public int getOrder() {
-                return priority;
-            }
-        };
+        return new Prioritized<>(null, null, interceptor, priority);
+    }
+
+    /**
+     * The registration of a bean with the priority it was registered with, e.g. by a feature,
+     * instead of its {@code @Priority}.
+     *
+     * @param registration The registration of the bean
+     * @param priority     The priority
+     * @param <I>          The type of the bean
+     * @return The registration
+     */
+    static <I> BeanRegistration<I> registration(BeanRegistration<I> registration, int priority) {
+        return new Prioritized<>(registration.getIdentifier(), registration.getBeanDefinition(), registration.getBean(), priority);
+    }
+
+    /**
+     * A registration with an explicit priority, see {@link JaxRsUtils#getPriorityOrder(BeanRegistration)}.
+     *
+     * @param <I> The type of the bean
+     */
+    final class Prioritized<I> extends BeanRegistration<I> {
+        private final int priority;
+
+        @SuppressWarnings("NullAway") // the registration of an instance that is not a bean has no bean definition
+        Prioritized(@Nullable BeanIdentifier identifier, @Nullable BeanDefinition<I> definition, I bean, int priority) {
+            super(identifier, definition, bean);
+            this.priority = priority;
+        }
+
+        @Override
+        public int getOrder() {
+            return priority;
+        }
     }
 
     /**

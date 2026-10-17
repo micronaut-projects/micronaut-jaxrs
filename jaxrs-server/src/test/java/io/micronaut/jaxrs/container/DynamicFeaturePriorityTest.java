@@ -61,16 +61,17 @@ class DynamicFeaturePriorityTest {
         @Override
         public void configure(ResourceInfo resourceInfo, FeatureContext context) {
             if (resourceInfo.getResourceClass() == PriorityResource.class) {
-                context.register(new OrderFilter("b"), 200);
-                context.register(new OrderFilter("a"), 100);
-                context.register(new OrderInterceptor("y"), 200);
-                context.register(new OrderInterceptor("x"), 100);
+                // instances of distinct classes: a second registration of a class is rejected
+                context.register(new OrderFilter("b") { }, 200);
+                context.register(new OrderFilter("a") { }, 100);
+                context.register(new OrderInterceptor("y") { }, 200);
+                context.register(new OrderInterceptor("x") { }, 100);
                 context.register(new PriorityInterceptor());
             }
         }
     }
 
-    static final class OrderFilter implements ContainerRequestFilter {
+    static class OrderFilter implements ContainerRequestFilter {
         private final String name;
 
         OrderFilter(String name) {
@@ -97,6 +98,8 @@ class DynamicFeaturePriorityTest {
         }
     }
 
+    // introspected: its @Priority is known without reflection
+    @io.micronaut.core.annotation.Introspected
     @Priority(50)
     static final class PriorityInterceptor extends OrderInterceptor {
         PriorityInterceptor() {

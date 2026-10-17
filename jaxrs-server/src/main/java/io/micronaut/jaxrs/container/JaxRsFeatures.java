@@ -16,6 +16,7 @@
 package io.micronaut.jaxrs.container;
 
 import io.micronaut.context.RuntimeBeanDefinition;
+import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.context.ApplicationContext;
 import io.micronaut.core.annotation.Internal;
@@ -38,6 +39,11 @@ import jakarta.ws.rs.ext.WriterInterceptor;
 import org.jspecify.annotations.Nullable;
 
 import java.lang.reflect.Method;
+import java.util.Arrays;
+import io.micronaut.context.BeanRegistration;
+import jakarta.ws.rs.Priorities;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -70,12 +76,18 @@ import java.util.function.Supplier;
 @Singleton
 public final class JaxRsFeatures implements JaxRsRouteInterceptors {
 
+    private static final Logger LOG = LoggerFactory.getLogger(JaxRsFeatures.class);
+
     private final ApplicationContext context;
     private final List<Feature> features;
     private final List<DynamicFeature> dynamicFeatures;
     private final Set<Class<?>> registeredClasses = ConcurrentHashMap.newKeySet();
     private final Set<Object> registeredInstances = ConcurrentHashMap.newKeySet();
     private final Map<Object, Components> components = new ConcurrentHashMap<>();
+    // the contracts and priorities of the components the features registered globally, by class
+    private final Map<Class<?>, Registration> registrations = new ConcurrentHashMap<>();
+    // the properties the features set, see Configuration#getProperty
+    private final Map<String, Object> properties = new ConcurrentHashMap<>();
     private volatile boolean configured;
 
     JaxRsFeatures(ApplicationContext context, Collection<Feature> features, Collection<DynamicFeature> dynamicFeatures) {
@@ -123,6 +135,49 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
      */
     public boolean isRegistered(Object instance) {
         return registeredInstances.contains(instance);
+    }
+
+    /**
+     * @return The properties the features set
+     */
+    Map<String, Object> properties() {
+        return properties;
+    }
+
+    /**
+     * @param componentClass A component class
+     * @return The contracts a feature registered it for, with their priorities, empty if it
+     * registered it for all of the contracts it implements
+     */
+    Map<Class<?>, Integer> contracts(Class<?> componentClass) {
+        Registration registration = registrations.get(componentClass);
+        if (registration == null || registration.contracts() == null) {
+            return Map.of();
+        }
+        Map<Class<?>, Integer> contracts = new LinkedHashMap<>();
+        for (Class<?> contract : registration.contracts()) {
+            Integer priority = registration.priority(contract);
+            contracts.put(contract, priority == null ? Priorities.USER : priority);
+        }
+        return contracts;
+    }
+
+    @Override
+    public <I> List<BeanRegistration<I>> registered(List<BeanRegistration<I>> beans, Class<I> contract) {
+        if (registrations.isEmpty()) {
+            return beans;
+        }
+        List<BeanRegistration<I>> registered = new ArrayList<>(beans.size());
+        for (BeanRegistration<I> bean : beans) {
+            Registration registration = registrations.get(bean.getBeanDefinition().getBeanType());
+            if (registration == null) {
+                registered.add(bean);
+            } else if (registration.isFor(contract)) {
+                Integer priority = registration.priority(contract);
+                registered.add(priority == null ? bean : JaxRsRouteInterceptors.registration(bean, priority));
+            }
+        }
+        return registered;
     }
 
     /**
@@ -285,6 +340,24 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
     }
 
     /**
+     * How a component is registered: for which contracts, with which priorities.
+     *
+     * @param contracts  The contracts, {@code null} for all of the ones it implements
+     * @param priorities The priorities, by contract, {@code null} for all of its contracts
+     */
+    private record Registration(@Nullable Set<Class<?>> contracts, Map<@Nullable Class<?>, Integer> priorities) {
+
+        boolean isFor(Class<?> contract) {
+            return contracts == null || contracts.contains(contract);
+        }
+
+        @Nullable Integer priority(Class<?> contract) {
+            Integer priority = priorities.get(contract);
+            return priority == null ? priorities.get(null) : priority;
+        }
+    }
+
+    /**
      * The context a feature registers its components with.
      */
     private final class Context implements FeatureContext {
@@ -292,6 +365,8 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
         private final Map<String, Object> properties = new LinkedHashMap<>();
         private final Set<Object> instances = new LinkedHashSet<>();
         private final Map<Object, Map<@Nullable Class<?>, Integer>> priorities = new HashMap<>();
+        private final Map<Object, Set<Class<?>>> contracts = new HashMap<>();
+        private final Set<Class<?>> classes = new HashSet<>();
 
         Context(boolean global) {
             this.global = global;
@@ -303,16 +378,16 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
             List<ReaderInterceptor> readerInterceptors = new ArrayList<>();
             List<WriterInterceptor> writerInterceptors = new ArrayList<>();
             for (Object instance : instances) {
-                if (instance instanceof ContainerRequestFilter f) {
+                if (instance instanceof ContainerRequestFilter f && isFor(instance, ContainerRequestFilter.class)) {
                     requestFilters.add(f);
                 }
-                if (instance instanceof ContainerResponseFilter f) {
+                if (instance instanceof ContainerResponseFilter f && isFor(instance, ContainerResponseFilter.class)) {
                     responseFilters.add(f);
                 }
-                if (instance instanceof ReaderInterceptor i) {
+                if (instance instanceof ReaderInterceptor i && isFor(instance, ReaderInterceptor.class)) {
                     readerInterceptors.add(i);
                 }
-                if (instance instanceof WriterInterceptor i) {
+                if (instance instanceof WriterInterceptor i && isFor(instance, WriterInterceptor.class)) {
                     writerInterceptors.add(i);
                 }
             }
@@ -326,55 +401,112 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
             return components;
         }
 
-        private FeatureContext registerClass(Class<?> componentClass, Map<@Nullable Class<?>, Integer> priorities) {
-            if (!global) {
-                Object instance = instance(componentClass);
-                if (instances.add(instance) && !priorities.isEmpty()) {
-                    this.priorities.put(instance, priorities);
-                }
-                return this;
-            }
-            return registerClass(componentClass);
+        private boolean isFor(Object instance, Class<?> contract) {
+            Set<Class<?>> registered = contracts.get(instance);
+            return registered == null || registered.contains(contract);
         }
 
-        private FeatureContext registerInstance(Object component, Map<@Nullable Class<?>, Integer> priorities) {
-            if (!global) {
-                if (instances.add(component) && !priorities.isEmpty()) {
-                    this.priorities.put(component, priorities);
+        /**
+         * Whether a component class was registered already: a registration of the class or of
+         * an instance of it, which is rejected (Configurable).
+         */
+        private boolean rejected(Class<?> componentClass) {
+            boolean registered = global
+                ? registeredClasses.contains(componentClass) || registrations.containsKey(componentClass)
+                    || registeredInstances.stream().anyMatch(i -> i.getClass() == componentClass)
+                : !classes.add(componentClass);
+            if (registered) {
+                LOG.warn("The component {} is already registered, the registration is ignored", componentClass.getName());
+            }
+            return registered;
+        }
+
+        /**
+         * The contracts a component is registered for: the ones it implements, without the
+         * others, which are ignored (Configurable), {@code null} if none of them.
+         */
+        private @Nullable Set<Class<?>> contracts(Class<?> componentClass, Collection<Class<?>> contracts) {
+            Set<Class<?>> implemented = new LinkedHashSet<>();
+            for (Class<?> contract : contracts) {
+                if (contract != null && contract.isAssignableFrom(componentClass)) {
+                    implemented.add(contract);
+                } else {
+                    LOG.warn("The component {} does not implement the contract {}, the contract is ignored",
+                        componentClass.getName(), contract == null ? null : contract.getName());
+                }
+            }
+            if (implemented.isEmpty()) {
+                LOG.warn("The component {} implements none of its contracts, the registration is ignored", componentClass.getName());
+                return null;
+            }
+            return implemented;
+        }
+
+        private FeatureContext register(Class<?> componentClass, @Nullable Object component,
+                                        @Nullable Set<Class<?>> contracts, Map<@Nullable Class<?>, Integer> priorities) {
+            if (rejected(componentClass)) {
+                return this;
+            }
+            if (global) {
+                if (contracts != null || !priorities.isEmpty()) {
+                    registrations.put(componentClass, new Registration(contracts, new HashMap<>(priorities)));
+                }
+                if (component != null) {
+                    registerInstance(component);
+                } else {
+                    registerClass(componentClass);
                 }
                 return this;
             }
-            return registerInstance(component);
+            Object instance = component != null ? component : instance(componentClass);
+            if (instances.add(instance)) {
+                if (!priorities.isEmpty()) {
+                    this.priorities.put(instance, priorities);
+                }
+                if (contracts != null) {
+                    this.contracts.put(instance, contracts);
+                }
+            }
+            return this;
         }
 
         @SuppressWarnings({"unchecked", "rawtypes"})
-        private FeatureContext registerClass(Class<?> componentClass) {
-            if (global) {
-                registeredClasses.add(componentClass);
-                RuntimeBeanDefinition<?> definition = context.containsBean(componentClass) ? null
-                    : JaxRsReflection.get().beanDefinition(componentClass);
-                if (definition != null) {
-                    // a class the annotation processors never saw becomes a bean
-                    context.registerBeanDefinition(definition);
-                }
-            } else {
-                instances.add(instance(componentClass));
+        private void registerClass(Class<?> componentClass) {
+            registeredClasses.add(componentClass);
+            if (Feature.class.isAssignableFrom(componentClass)) {
+                // a feature registered by another one is configured too
+                Feature feature = (Feature) instance(componentClass);
+                registeredInstances.add(feature);
+                feature.configure(this);
+                return;
             }
-            return this;
+            RuntimeBeanDefinition<?> definition = context.containsBean(componentClass) ? null
+                : JaxRsReflection.get().beanDefinition(componentClass);
+            if (definition != null) {
+                // a class the annotation processors never saw becomes a bean
+                context.registerBeanDefinition(definition);
+            }
         }
 
-        private FeatureContext registerInstance(Object component) {
-            if (global) {
-                registeredInstances.add(component);
-                if (component instanceof Feature feature) {
-                    feature.configure(this);
-                } else {
-                    context.registerSingleton(component);
-                }
+        private void registerInstance(Object component) {
+            registeredInstances.add(component);
+            if (component instanceof Feature feature) {
+                feature.configure(this);
+            } else if (context.containsBean(component.getClass())) {
+                context.registerSingleton(component);
             } else {
-                instances.add(component);
+                // with the annotations of its class, e.g. its @Priority
+                registerSingleton(component);
             }
-            return this;
+        }
+
+        @SuppressWarnings("unchecked")
+        private <T> void registerSingleton(T component) {
+            Class<T> type = (Class<T>) component.getClass();
+            context.registerBeanDefinition(RuntimeBeanDefinition.builder(type, () -> component)
+                .singleton(true)
+                .annotationMetadata(MutableAnnotationMetadata.of(JaxRsReflection.get().annotationMetadata(type)))
+                .build());
         }
 
         private static Map<@Nullable Class<?>, Integer> allContracts(int priority) {
@@ -389,49 +521,67 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
         }
 
         @Override
-        public FeatureContext property(String name, Object value) {
-            properties.put(name, value);
+        public FeatureContext property(String name, @Nullable Object value) {
+            // the ones of a global feature are the ones of the configuration
+            Map<String, Object> target = global ? JaxRsFeatures.this.properties : properties;
+            if (value == null) {
+                target.remove(name);
+            } else {
+                target.put(name, value);
+            }
             return this;
         }
 
         @Override
         public FeatureContext register(Class<?> componentClass) {
-            return registerClass(componentClass);
+            return register(componentClass, null, null, Map.of());
         }
 
         @Override
         public FeatureContext register(Class<?> componentClass, int priority) {
-            return registerClass(componentClass, allContracts(priority));
+            return register(componentClass, null, null, allContracts(priority));
         }
 
         @Override
         public FeatureContext register(Class<?> componentClass, Class<?>... contracts) {
-            return registerClass(componentClass);
+            Set<Class<?>> registered = contracts(componentClass, Arrays.asList(contracts));
+            return registered == null ? this : register(componentClass, null, registered, Map.of());
         }
 
         @Override
         public FeatureContext register(Class<?> componentClass, Map<Class<?>, Integer> contracts) {
-            return registerClass(componentClass, Map.copyOf(contracts));
+            Set<Class<?>> registered = contracts(componentClass, contracts.keySet());
+            return registered == null ? this : register(componentClass, null, registered, priorities(registered, contracts));
         }
 
         @Override
         public FeatureContext register(Object component) {
-            return registerInstance(component);
+            return register(component.getClass(), component, null, Map.of());
         }
 
         @Override
         public FeatureContext register(Object component, int priority) {
-            return registerInstance(component, allContracts(priority));
+            return register(component.getClass(), component, null, allContracts(priority));
         }
 
         @Override
         public FeatureContext register(Object component, Class<?>... contracts) {
-            return registerInstance(component);
+            Set<Class<?>> registered = contracts(component.getClass(), Arrays.asList(contracts));
+            return registered == null ? this : register(component.getClass(), component, registered, Map.of());
         }
 
         @Override
         public FeatureContext register(Object component, Map<Class<?>, Integer> contracts) {
-            return registerInstance(component, Map.copyOf(contracts));
+            Set<Class<?>> registered = contracts(component.getClass(), contracts.keySet());
+            return registered == null ? this : register(component.getClass(), component, registered, priorities(registered, contracts));
+        }
+
+        private static Map<@Nullable Class<?>, Integer> priorities(Set<Class<?>> registered, Map<Class<?>, Integer> contracts) {
+            Map<@Nullable Class<?>, Integer> priorities = new HashMap<>();
+            for (Class<?> contract : registered) {
+                priorities.put(contract, contracts.get(contract));
+            }
+            return priorities;
         }
     }
 }

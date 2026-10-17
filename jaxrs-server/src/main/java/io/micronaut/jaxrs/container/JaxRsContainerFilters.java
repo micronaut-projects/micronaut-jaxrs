@@ -94,15 +94,19 @@ final class JaxRsContainerFilters {
         // the filters the features register are beans too
         features.configure();
         // the ones registered with the application, like the other providers (JAX-RS 2.3)
-        List<BeanRegistration<ContainerRequestFilter>> requestFilters = new ArrayList<>(beanContext.getBeanRegistrations(ContainerRequestFilter.class));
+        // for the contracts, with the priorities, a feature registered them with
+        List<BeanRegistration<ContainerRequestFilter>> requestFilters = new ArrayList<>(
+            features.registered(beanContext.getBeanRegistrations(ContainerRequestFilter.class).stream().toList(), ContainerRequestFilter.class));
         requestFilters.removeIf(br -> !registry.isRegistered(br.getBeanDefinition().getBeanType()));
-        List<BeanRegistration<ContainerResponseFilter>> containerResponseFilters = new ArrayList<>(beanContext.getBeanRegistrations(ContainerResponseFilter.class));
+        List<BeanRegistration<ContainerResponseFilter>> containerResponseFilters = new ArrayList<>(
+            features.registered(beanContext.getBeanRegistrations(ContainerResponseFilter.class).stream().toList(), ContainerResponseFilter.class));
         containerResponseFilters.removeIf(br -> !registry.isRegistered(br.getBeanDefinition().getBeanType()));
         this.nameBindingPredicate = nameBindingPredicate;
         Map<Boolean, List<BeanRegistration<ContainerRequestFilter>>> matching = requestFilters.stream().collect(Collectors.groupingBy(br -> br.getBeanDefinition().hasAnnotation(PreMatching.class)));
-        this.preMatchingRequestFilters = new ArrayList<>(matching.getOrDefault(true, List.of()).stream().map(BeanRegistration::getBean).toList());
+        List<BeanRegistration<ContainerRequestFilter>> preMatching = new ArrayList<>(matching.getOrDefault(true, List.of()));
+        JaxRsUtils.sortRegistrationsByPriority(preMatching);
+        this.preMatchingRequestFilters = preMatching.stream().map(BeanRegistration::getBean).toList();
         this.requestFilters = new ArrayList<>(matching.getOrDefault(false, List.of()));
-        JaxRsUtils.sortByPriority(this.preMatchingRequestFilters);
         JaxRsUtils.sortRegistrationsByPriority(this.requestFilters);
         this.containerResponseFilters = containerResponseFilters;
         JaxRsUtils.sortRegistrationsByPriorityReversed(this.containerResponseFilters);
