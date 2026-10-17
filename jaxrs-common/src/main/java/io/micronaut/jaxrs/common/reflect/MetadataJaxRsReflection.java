@@ -26,6 +26,7 @@ import io.micronaut.core.beans.BeanIntrospector;
 import io.micronaut.core.beans.BeanMethod;
 import io.micronaut.core.beans.BeanProperty;
 import io.micronaut.core.type.Argument;
+import io.micronaut.core.type.TypeHierarchies;
 import io.micronaut.inject.ExecutableMethod;
 import io.micronaut.inject.annotation.AnnotationMetadataHierarchy;
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
@@ -65,6 +66,17 @@ final class MetadataJaxRsReflection implements JaxRsReflection {
 
     @Override
     public AnnotationMetadata annotationMetadata(Method method) {
+        // the method of an introspected class, e.g. of a resource: its annotations were recorded
+        // at compile time, a Method given by the application is matched by name and parameter types
+        BeanIntrospection<?> introspection = introspection(method.getDeclaringClass());
+        if (introspection != null) {
+            Class<?>[] parameterTypes = method.getParameterTypes();
+            for (BeanMethod<?, Object> beanMethod : introspection.getBeanMethods()) {
+                if (beanMethod.getName().equals(method.getName()) && Arrays.equals(Argument.toClassArray(beanMethod.getArguments()), parameterTypes)) {
+                    return beanMethod.getAnnotationMetadata();
+                }
+            }
+        }
         throw new UnsupportedOperationException(unsupported("The annotations of the method " + method));
     }
 
@@ -144,7 +156,12 @@ final class MetadataJaxRsReflection implements JaxRsReflection {
 
     @Override
     public @Nullable Argument<?> resolveGeneric(Class<?> type, Class<?> genericType) {
-        return null;
+        // the generic hierarchy the processor recorded, e.g. of a provider
+        return TypeHierarchies.find(type)
+            .flatMap(hierarchy -> hierarchy.getTypeClosure(hierarchy.getDeclaration()).stream()
+                .filter(superType -> superType.getType() == genericType)
+                .findFirst())
+            .orElse(null);
     }
 
     @Override

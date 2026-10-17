@@ -141,6 +141,11 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
                 // its annotations, e.g. @Priority, without reflection
                 element.annotate(Introspected.class);
             }
+            if (!element.isAbstract()) {
+                // the type arguments of the provider interfaces it implements, e.g. the T of a
+                // ContextResolver<T>, without reflection
+                context.importTypeHierarchy(element, element);
+            }
             return;
         }
         if (element.isAssignable(Application.class) && !element.isAbstract() && !element.hasAnnotation(Introspected.class)) {
