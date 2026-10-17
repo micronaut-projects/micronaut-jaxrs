@@ -245,7 +245,19 @@ final class ServerCookie implements Serializable {
      * @param value   value
      */
     @SuppressWarnings("java:S1871")
-    private static void maybeQuote2(int version, StringBuffer buf, String value) {
+    /**
+     * A value of a cookie, quoted when it is not a token.
+     *
+     * @param value The value
+     * @return The value, quoted if needed
+     */
+    static String quoted(@Nullable String value) {
+        StringBuffer buf = new StringBuffer();
+        maybeQuote2(0, buf, value);
+        return buf.toString();
+    }
+
+    private static void maybeQuote2(int version, StringBuffer buf, @Nullable String value) {
         if (value == null || value.isEmpty()) {
             buf.append("\"\"");
         } else if (containsCTL(value)) {

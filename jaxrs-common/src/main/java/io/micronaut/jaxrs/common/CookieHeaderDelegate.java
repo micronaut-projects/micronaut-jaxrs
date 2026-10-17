@@ -99,8 +99,22 @@ public final class CookieHeaderDelegate implements RuntimeDelegate.HeaderDelegat
 
     @Override
     public String toString(Cookie value) {
+        JaxRsUtils.requireNonNull("value", value);
+        // the value of a Cookie request header: its path and domain are the attributes of
+        // RFC 2109, which a server does not read as other cookies
+        String path = value.getPath();
+        String domain = value.getDomain();
         StringBuilder buf = new StringBuilder();
-        ServerCookie.appendCookieValue(buf, 0, value.getName(), value.getValue(), value.getPath(), value.getDomain(), null, -1, false);
+        if (path != null || domain != null) {
+            buf.append("$Version=").append(value.getVersion()).append("; ");
+        }
+        buf.append(value.getName()).append('=').append(ServerCookie.quoted(value.getValue()));
+        if (path != null) {
+            buf.append("; $Path=").append(ServerCookie.quoted(path));
+        }
+        if (domain != null) {
+            buf.append("; $Domain=").append(ServerCookie.quoted(domain));
+        }
         return buf.toString();
     }
 }
