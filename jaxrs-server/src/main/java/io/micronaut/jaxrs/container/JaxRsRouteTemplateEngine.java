@@ -99,17 +99,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
         return SPECIFICITY.compare(a, b);
     };
 
-    private static final Comparator<UriRouteInfo<?, ?>> ROUTE_ORDER = (a, b) -> {
-        RouteTemplate prefixA = RouteMatchSelector.locatorPrefix(a);
-        RouteTemplate prefixB = RouteMatchSelector.locatorPrefix(b);
-        int result = ORDER.compare(prefixA == null ? a.getRouteTemplate() : prefixA, prefixB == null ? b.getRouteTemplate() : prefixB);
-        if (result == 0) {
-            // a resource method before a locator located at runtime that matches as specifically,
-            // e.g. the routes of the declared class of a locator before the locator of a subclass
-            result = Boolean.compare(prefixA != null, prefixB != null);
-        }
-        return result;
-    };
+    private static final Comparator<UriRouteInfo<?, ?>> ROUTE_ORDER = (a, b) -> ORDER.compare(a.getRouteTemplate(), b.getRouteTemplate());
 
     private static final Parsed EMPTY = new Parsed(null, "", List.of(), null, 0);
 
