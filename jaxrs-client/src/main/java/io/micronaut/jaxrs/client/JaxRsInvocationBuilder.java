@@ -37,9 +37,12 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.RuntimeDelegate;
+import org.jspecify.annotations.Nullable;
 
 import java.net.URI;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * The implementation of {@link Invocation.Builder}.
@@ -54,6 +57,8 @@ final class JaxRsInvocationBuilder implements Invocation.Builder {
     private final URI uri;
     private final MutableHttpHeaders mutableHttpHeaders = new SimpleHttpHeaders(ConversionService.SHARED);
     private final JaxRsConfiguration configuration;
+    // the properties of the request, which its filters see
+    private final Map<String, Object> properties = new LinkedHashMap<>();
 
     JaxRsInvocationBuilder(JaxRsClient client, URI uri, JaxRsConfiguration configuration) {
         this.client = client;
@@ -63,37 +68,37 @@ final class JaxRsInvocationBuilder implements Invocation.Builder {
 
     @Override
     public JaxRsInvocation build(String method) {
-        return new JaxRsInvocation(client, uri, method, null, mutableHttpHeaders, configuration);
+        return new JaxRsInvocation(client, uri, method, null, mutableHttpHeaders, configuration, properties);
     }
 
     @Override
     public JaxRsInvocation build(String method, Entity<?> entity) {
-        return new JaxRsInvocation(client, uri, method, entity, mutableHttpHeaders, configuration);
+        return new JaxRsInvocation(client, uri, method, entity, mutableHttpHeaders, configuration, properties);
     }
 
     @Override
     public JaxRsInvocation buildGet() {
-        return new JaxRsInvocation(client, uri, HttpMethod.GET.name(), null, mutableHttpHeaders, configuration);
+        return new JaxRsInvocation(client, uri, HttpMethod.GET.name(), null, mutableHttpHeaders, configuration, properties);
     }
 
     @Override
     public JaxRsInvocation buildDelete() {
-        return new JaxRsInvocation(client, uri, HttpMethod.DELETE.name(), null, mutableHttpHeaders, configuration);
+        return new JaxRsInvocation(client, uri, HttpMethod.DELETE.name(), null, mutableHttpHeaders, configuration, properties);
     }
 
     @Override
     public JaxRsInvocation buildPost(Entity<?> entity) {
-        return new JaxRsInvocation(client, uri, HttpMethod.POST.name(), entity, mutableHttpHeaders, configuration);
+        return new JaxRsInvocation(client, uri, HttpMethod.POST.name(), entity, mutableHttpHeaders, configuration, properties);
     }
 
     @Override
     public JaxRsInvocation buildPut(Entity<?> entity) {
-        return new JaxRsInvocation(client, uri, HttpMethod.PUT.name(), entity, mutableHttpHeaders, configuration);
+        return new JaxRsInvocation(client, uri, HttpMethod.PUT.name(), entity, mutableHttpHeaders, configuration, properties);
     }
 
     @Override
     public AsyncInvoker async() {
-        return new JaxRsInvocation(client, uri, HttpMethod.PUT.name(), null, mutableHttpHeaders, configuration);
+        return new JaxRsInvocation(client, uri, HttpMethod.PUT.name(), null, mutableHttpHeaders, configuration, properties);
     }
 
     @Override
@@ -172,13 +177,19 @@ final class JaxRsInvocationBuilder implements Invocation.Builder {
     }
 
     @Override
-    public Invocation.Builder property(String name, Object value) {
+    public Invocation.Builder property(String name, @Nullable Object value) {
+        // a null value removes the property
+        if (value == null) {
+            properties.remove(name);
+        } else {
+            properties.put(name, value);
+        }
         return this;
     }
 
     @Override
     public CompletionStageRxInvoker rx() {
-        return new JaxRsInvocation(client, uri, null, null, mutableHttpHeaders, configuration);
+        return new JaxRsInvocation(client, uri, null, null, mutableHttpHeaders, configuration, properties);
     }
 
     @Override
