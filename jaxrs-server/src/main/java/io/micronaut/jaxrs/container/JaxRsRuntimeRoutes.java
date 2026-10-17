@@ -77,6 +77,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -465,6 +466,11 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         boolean known = !target.isPrimitive() && target != Object.class && !Response.class.isAssignableFrom(target)
             && occurrences < MAX_LOCATOR_REPEAT;
         if (known && follow(routes, rootClass, method, readers, prefix, instances, target, rootUsesForm, visited, usesForm)) {
+            if (!classReturn && !Modifier.isFinal(target.getModifiers()) && !(usesForm && !chainUsesForm)) {
+                // the locator may return a subclass with more routes: the paths the routes of the
+                // declared class do not match are located at runtime
+                locate(routes, method, readers, prefix, instances);
+            }
             return;
         }
         // known only at runtime, or recursive: the paths cannot be enumerated
@@ -476,6 +482,14 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             LOG.info("The JAX-RS sub-resource locator {} known only at runtime has a form parameter: it is not routed", method.name());
             return;
         }
+        locate(routes, method, readers, prefix, instances);
+    }
+
+    /**
+     * Route a locator whose target is located at runtime: the router routes the rest of the path
+     * with the routes of the class of the target.
+     */
+    private <L, B> void locate(Routes<L> routes, JaxRsMethod<B> method, Reader[] readers, String prefix, Instances<L, B> instances) {
         int segments = routes.located() ? -1 : segments(prefix);
         routes.locate(routes.prefix(prefix), (request, pathVariables, target1) -> {
             B instance = instances.get(request, pathVariables, null, target1);
