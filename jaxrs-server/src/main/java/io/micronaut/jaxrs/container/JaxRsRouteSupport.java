@@ -1330,15 +1330,6 @@ public final class JaxRsRouteSupport {
     }
 
     /**
-     * The key of the converter of a parameter: its type, and its annotations.
-     *
-     * @param argument    The parameter
-     * @param annotations The annotations of the parameter
-     */
-    private record ConverterKey(Argument<?> argument, AnnotationMetadata annotations) {
-    }
-
-    /**
      * How a parameter of a type is converted from a string, resolved once: by a
      * {@link ParamConverterProvider}, else by the rules of JAX-RS for the type (a static
      * {@code fromString} or {@code valueOf} method, or a constructor with a string), else by the
@@ -1457,5 +1448,14 @@ public final class JaxRsRouteSupport {
         public AnnotationMetadata getAnnotationMetadata() {
             return annotationMetadata;
         }
+    }
+
+    /**
+     * The key of the converter of a parameter: its type, and its annotations.
+     *
+     * @param argument    The parameter
+     * @param annotations The annotations of the parameter
+     */
+    private record ConverterKey(Argument<?> argument, AnnotationMetadata annotations) {
     }
 }

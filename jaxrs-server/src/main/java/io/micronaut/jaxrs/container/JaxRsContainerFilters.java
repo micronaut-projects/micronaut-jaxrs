@@ -330,16 +330,6 @@ final class JaxRsContainerFilters {
     }
 
     /**
-     * Runs request filters.
-     *
-     * @param <M> The type of message they answer with
-     */
-    @FunctionalInterface
-    private interface Filtering<M> {
-        @Nullable M filter() throws IOException;
-    }
-
-    /**
      * Run the pre-matching request filters.
      *
      * @param request The request
@@ -402,4 +392,13 @@ final class JaxRsContainerFilters {
         return null;
     }
 
+    /**
+     * Runs request filters.
+     *
+     * @param <M> The type of message they answer with
+     */
+    @FunctionalInterface
+    private interface Filtering<M> {
+        @Nullable M filter() throws IOException;
+    }
 }
