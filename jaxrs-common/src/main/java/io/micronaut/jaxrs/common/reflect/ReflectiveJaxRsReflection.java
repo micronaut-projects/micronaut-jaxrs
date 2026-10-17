@@ -21,6 +21,7 @@ import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.Introspected;
 import io.micronaut.core.beans.BeanIntrospection;
+import io.micronaut.core.beans.BeanProperty;
 import io.micronaut.core.beans.BeanIntrospector;
 import io.micronaut.core.reflect.ClassUtils;
 import io.micronaut.core.reflect.InstantiationUtils;
@@ -35,7 +36,6 @@ import org.jspecify.annotations.Nullable;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
@@ -193,22 +193,26 @@ public final class ReflectiveJaxRsReflection implements JaxRsReflection {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public void injectFields(Object instance, Class<? extends Annotation> annotation, Function<Class<?>, @Nullable Object> values) {
-        for (Class<?> type = instance.getClass(); type != null && type != Object.class; type = type.getSuperclass()) {
-            for (Field field : type.getDeclaredFields()) {
-                if (!field.isAnnotationPresent(annotation) || Modifier.isStatic(field.getModifiers())) {
-                    continue;
-                }
-                Object value = values.apply(field.getType());
-                if (value != null) {
-                    try {
-                        field.setAccessible(true);
-                        if (field.get(instance) == null) {
-                            field.set(instance, value);
-                        }
-                    } catch (ReflectiveOperationException | RuntimeException e) {
-                        // a field that cannot be set is left as it is
+        Class<Object> type = (Class<Object>) instance.getClass();
+        if (!ReflectionBeanIntrospection.isIntrospectable(type)) {
+            return;
+        }
+        // the fields of any visibility, of the class and its super classes: a generated
+        // introspection, which describes the members the class can reach, may leave them out
+        for (BeanProperty<Object, Object> property : ReflectionBeanIntrospection.of(type, Set.of(Introspected.AccessKind.FIELD)).getBeanProperties()) {
+            if (!property.hasAnnotation(annotation) || property.isReadOnly()) {
+                continue;
+            }
+            Object value = values.apply(property.getType());
+            if (value != null) {
+                try {
+                    if (property.isWriteOnly() || property.get(instance) == null) {
+                        property.set(instance, value);
                     }
+                } catch (RuntimeException e) {
+                    // a field that cannot be set is left as it is
                 }
             }
         }
