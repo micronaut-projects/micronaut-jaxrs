@@ -28,6 +28,8 @@ import io.micronaut.http.MutableHttpRequest;
 import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
+import io.micronaut.core.propagation.PropagatedContext;
+import io.micronaut.http.ServerHttpRequest;
 import io.micronaut.jaxrs.common.JaxRsContainerMessageBodyHandlerRegistry;
 import io.micronaut.jaxrs.common.JaxRsGenericEntity;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
@@ -52,6 +54,8 @@ import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.stream.Collectors;
 import java.util.function.ToIntFunction;
 
@@ -258,6 +262,81 @@ final class JaxRsContainerFilters {
      */
     private JaxRsFeatures.Components dynamicComponents(@Nullable RouteInfo<?> routeInfo) {
         return features.components(routeInfo);
+    }
+
+    /**
+     * Run the pre-matching request filters, once the entity is buffered, see
+     * {@link #withBufferedEntity}.
+     *
+     * @param request The request
+     * @return The stage of the response a filter aborted with, the request with the method a
+     * filter changed, or {@code null}
+     */
+    CompletionStage<@Nullable HttpMessage<?>> filterPreMatchingRequestAsync(MutableHttpRequest<?> request) {
+        if (preMatchingRequestFilters.isEmpty()) {
+            return CompletableFuture.completedFuture(null);
+        }
+        return withBufferedEntity(request, () -> filterPreMatchingRequest(request));
+    }
+
+    /**
+     * Run the post-matching request filters of a resource method, once the entity is buffered,
+     * see {@link #withBufferedEntity}.
+     *
+     * @param routeInfo The route of the resource method
+     * @param request   The request
+     * @return The stage of the response a filter aborted with, or {@code null}
+     */
+    CompletionStage<@Nullable HttpResponse<?>> filterRequestAsync(RouteInfo<?> routeInfo, MutableHttpRequest<?> request) {
+        if (requestFilters.isEmpty() && dynamicComponents(routeInfo).requestFilters().isEmpty()) {
+            return CompletableFuture.completedFuture(null);
+        }
+        return withBufferedEntity(request, () -> filterRequest(routeInfo, request));
+    }
+
+    /**
+     * Run request filters once the entity of the request is buffered: a filter reads it with
+     * {@link ContainerRequestContext#getEntityStream()}, which must not block, e.g. the event
+     * loop, while it streams. A copy of the body is buffered, the resource method still reads
+     * the body, and it is consumed here, so nothing is left to release.
+     */
+    private <M> CompletionStage<@Nullable M> withBufferedEntity(MutableHttpRequest<?> request, Filtering<M> filtering) {
+        if (!(request instanceof ServerHttpRequest<?> serverHttpRequest)
+            || request.getAttribute(JaxRsContainerRequestContext.BUFFERED_ENTITY).isPresent()
+            || !hasEntity(request)) {
+            return run(filtering);
+        }
+        PropagatedContext propagatedContext = PropagatedContext.getOrEmpty();
+        return serverHttpRequest.byteBody().split().buffer().thenCompose(body -> {
+            request.setAttribute(JaxRsContainerRequestContext.BUFFERED_ENTITY, body.toByteArray());
+            // the filters run in the context of the request, also when the body completes later
+            try (PropagatedContext.Scope ignore = propagatedContext.propagate()) {
+                return run(filtering);
+            }
+        });
+    }
+
+    private static boolean hasEntity(HttpRequest<?> request) {
+        return request.getMethod().permitsRequestBody()
+            && (request.getContentLength() > 0 || request.getHeaders().contains(io.micronaut.http.HttpHeaders.TRANSFER_ENCODING));
+    }
+
+    private static <M> CompletionStage<@Nullable M> run(Filtering<M> filtering) {
+        try {
+            return CompletableFuture.completedFuture(filtering.filter());
+        } catch (Exception e) {
+            return CompletableFuture.failedFuture(e);
+        }
+    }
+
+    /**
+     * Runs request filters.
+     *
+     * @param <M> The type of message they answer with
+     */
+    @FunctionalInterface
+    private interface Filtering<M> {
+        @Nullable M filter() throws IOException;
     }
 
     /**

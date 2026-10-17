@@ -355,8 +355,9 @@ public final class JaxRsRouteSupport {
                 .orElse(AnnotationMetadata.EMPTY_METADATA);
             route.annotationMetadata(new SubResourceMethod(metadata, root));
         }
-        // the post-matching request filters of the resource method (JAX-RS 6.7.2)
-        return route.beforeReplacing(request -> containerFilters().filterRequest(RouteAttributes.getRouteInfo(request).orElseThrow(), request)).and();
+        // the post-matching request filters of the resource method (JAX-RS 6.7.2), once the entity
+        // they may read is buffered
+        return route.beforeReplacingAsync(request -> containerFilters().filterRequestAsync(RouteAttributes.getRouteInfo(request).orElseThrow(), request)).and();
     }
 
     private JaxRsContainerFilters containerFilters() {
