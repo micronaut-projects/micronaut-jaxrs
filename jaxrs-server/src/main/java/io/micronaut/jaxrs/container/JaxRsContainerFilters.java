@@ -28,6 +28,7 @@ import io.micronaut.http.MutableHttpRequest;
 import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
+import io.micronaut.jaxrs.common.JaxRsContainerMessageBodyHandlerRegistry;
 import io.micronaut.jaxrs.common.JaxRsGenericEntity;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import io.micronaut.jaxrs.common.JaxRsUtils;
@@ -80,14 +81,18 @@ final class JaxRsContainerFilters {
     JaxRsContainerFilters(ApplicationProvider applicationProvider,
                  BeanContext beanContext,
                  NameBindingPredicate nameBindingPredicate,
-                 JaxRsFeatures features) {
+                 JaxRsFeatures features,
+                 JaxRsContainerMessageBodyHandlerRegistry registry) {
         this.applicationProvider = applicationProvider;
         this.beanContext = beanContext;
         this.features = features;
         // the filters the features register are beans too
         features.configure();
+        // the ones registered with the application, like the other providers (JAX-RS 2.3)
         List<BeanRegistration<ContainerRequestFilter>> requestFilters = new ArrayList<>(beanContext.getBeanRegistrations(ContainerRequestFilter.class));
+        requestFilters.removeIf(br -> !registry.isRegistered(br.getBeanDefinition().getBeanType()));
         List<BeanRegistration<ContainerResponseFilter>> containerResponseFilters = new ArrayList<>(beanContext.getBeanRegistrations(ContainerResponseFilter.class));
+        containerResponseFilters.removeIf(br -> !registry.isRegistered(br.getBeanDefinition().getBeanType()));
         this.nameBindingPredicate = nameBindingPredicate;
         Map<Boolean, List<BeanRegistration<ContainerRequestFilter>>> matching = requestFilters.stream().collect(Collectors.groupingBy(br -> br.getBeanDefinition().hasAnnotation(PreMatching.class)));
         this.preMatchingRequestFilters = new ArrayList<>(matching.getOrDefault(true, List.of()).stream().map(BeanRegistration::getBean).toList());
