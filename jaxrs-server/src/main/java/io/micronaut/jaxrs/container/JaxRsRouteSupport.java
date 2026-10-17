@@ -56,7 +56,9 @@ import io.micronaut.http.form.FormData;
 import io.micronaut.web.router.builder.HttpRouteBuilder;
 import io.micronaut.http.uri.RouteTemplate;
 import io.micronaut.http.PathVariables;
+import io.micronaut.web.router.builder.HttpRouteGroup;
 import io.micronaut.web.router.builder.LocatedHttpRouteBuilder;
+import io.micronaut.web.router.builder.LocatedHttpRouteGroup;
 import io.micronaut.web.router.builder.LocatedRoutes;
 import io.micronaut.web.router.builder.RouteSpec;
 import io.micronaut.web.router.spi.RouteMatchSelector;
@@ -113,6 +115,7 @@ import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -222,10 +225,20 @@ public final class JaxRsRouteSupport {
      * @param resource The routes of the resource
      */
     public void routes(HttpRouteBuilder routes, JaxRsResourceRoutes resource) {
+        routes(routes, resource::declare);
+    }
+
+    /**
+     * Declare routes: with the templates of JAX-RS, selected by JAX-RS.
+     *
+     * @param routes       The builder
+     * @param declarations Declares the routes
+     */
+    public void routes(HttpRouteBuilder routes, Consumer<HttpRouteGroup> declarations) {
         routes.group(group -> {
             group.templates(templates);
             group.selectedBy(templates);
-            resource.declare(group);
+            declarations.accept(group);
         });
     }
 
@@ -236,10 +249,21 @@ public final class JaxRsRouteSupport {
      * @param located The routes of the class of the target
      */
     public void locatedRoutes(LocatedHttpRouteBuilder<Object> routes, JaxRsLocatedRoutes located) {
+        locatedRoutes(routes, located::declare);
+    }
+
+    /**
+     * Declare the routes of a located target: with the templates of JAX-RS, selected by JAX-RS.
+     *
+     * @param routes       The builder
+     * @param declarations Declares the routes
+     * @param <T>          The type of the target
+     */
+    public <T> void locatedRoutes(LocatedHttpRouteBuilder<T> routes, Consumer<LocatedHttpRouteGroup<T>> declarations) {
         routes.group(group -> {
             group.templates(templates);
             group.selectedBy(templates);
-            located.declare(group);
+            declarations.accept(group);
         });
     }
 
