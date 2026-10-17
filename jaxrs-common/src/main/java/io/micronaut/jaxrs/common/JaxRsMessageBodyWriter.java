@@ -104,7 +104,7 @@ public final class JaxRsMessageBodyWriter<T> implements MessageBodyWriter<T> {
                 }
             }
         } catch (IOException e) {
-            throw new JaxRsIOException("Cannot write to", e);
+            throw JaxRsIOException.writing("Cannot write to", e);
         }
     }
 

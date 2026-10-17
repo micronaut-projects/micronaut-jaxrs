@@ -29,13 +29,49 @@ import java.io.IOException;
 @Internal
 public final class JaxRsIOException extends CodecException {
 
+    private final boolean writing;
+
     public JaxRsIOException(String message, IOException cause) {
-        super(message, cause);
+        this(message, cause, false);
     }
 
     @SuppressWarnings("NullAway") // the message of the cause can be null, which RuntimeException accepts
     public JaxRsIOException(IOException cause) {
-        this(cause.getMessage(), cause);
+        this(cause.getMessage(), cause, false);
     }
 
+    private JaxRsIOException(String message, IOException cause, boolean writing) {
+        super(message, cause);
+        this.writing = writing;
+    }
+
+    /**
+     * The {@link IOException} of a message body writer or a writer interceptor: unmapped, it is a
+     * server error (JAX-RS 4.2.4), while one of a reader is the client's.
+     *
+     * @param message The message
+     * @param cause   The exception
+     * @return The wrapper
+     */
+    public static JaxRsIOException writing(String message, IOException cause) {
+        return new JaxRsIOException(message, cause, true);
+    }
+
+    /**
+     * The {@link IOException} of a message body writer or a writer interceptor, see {@link #writing(String, IOException)}.
+     *
+     * @param cause The exception
+     * @return The wrapper
+     */
+    @SuppressWarnings("NullAway") // the message of the cause can be null, which RuntimeException accepts
+    public static JaxRsIOException writing(IOException cause) {
+        return new JaxRsIOException(cause.getMessage(), cause, true);
+    }
+
+    /**
+     * @return Whether a message body writer or a writer interceptor threw it
+     */
+    public boolean isWriting() {
+        return writing;
+    }
 }

@@ -122,7 +122,7 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
             try {
                 originalOutputStream.write(delegateEntityStream.toByteArray());
             } catch (IOException e) {
-                throw new JaxRsIOException(e);
+                throw JaxRsIOException.writing(e);
             }
         }
     }
@@ -333,7 +333,7 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
                     throw e;
                 } catch (Exception e) {
                     throw e instanceof IOException ioException
-                        ? new JaxRsIOException(ioException)
+                        ? JaxRsIOException.writing(ioException)
                         : new CodecException("Failed to run JAX-RS WriterInterceptor", e);
                 }
             }
