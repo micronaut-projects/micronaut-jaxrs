@@ -13,6 +13,8 @@ dependencies {
     implementation(projects.micronautJaxrsCommon)
     // a @Context servlet request is a stub when the server is not a servlet container
     compileOnly(mnServlet.servlet.api)
+    // the SSLContext of a Java SE bootstrap configuration is applied to the Netty server, when it is the server
+    compileOnly(mn.micronaut.http.server.netty)
 
 	// for Java
 	testAnnotationProcessor(mn.micronaut.inject.java)
@@ -42,6 +44,8 @@ noReflection {
     allowIn("io.micronaut.jaxrs.container.JaxRsFeatures", "SERVICE_LOADING")
     // the Application class named by the configuration
     allowIn("io.micronaut.jaxrs.container.JaxRsApplicationFactory", "CLASS_LOADING")
+    // whether the Netty server, to which the SSLContext of a Java SE bootstrap configuration is applied, is on the classpath
+    allowIn("io.micronaut.jaxrs.container.JaxRsSeBootstrapServer", "CLASS_LOADING")
     // ContainerResponseContext.getEntityAnnotations() returns Annotation[]
     allowIn("io.micronaut.jaxrs.container.JaxRsContainerResponseContext", "ANNOTATION_SYNTHESIS")
     // a ParamConverterProvider gets the annotations of the parameter as Annotation[]

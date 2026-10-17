@@ -87,6 +87,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
@@ -158,6 +159,8 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     private final Map<Class<?>, Resource<?>> resources = new LinkedHashMap<>();
     // how to create the classes the locators return
     private final Map<Class<?>, Creator<?>> creators = new ConcurrentHashMap<>();
+    // how ResourceContext creates and initializes classes for a request, empty for a class without values of the request
+    private final Map<Class<?>, Optional<RequestType<?>>> contextRequestTypes = new ConcurrentHashMap<>();
     // the routes of the classes of located targets: one instance per class, for which the router keeps a route table
     private final Map<Class<?>, LocatedRoutes<?>> locatedRoutes = new ConcurrentHashMap<>();
     // the scheduler of the timeouts of the asynchronous responses, resolved when one is set
@@ -592,6 +595,58 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             throw new IllegalStateException("Cannot create the sub-resource " + type.getName());
         }
         return (request, pathVariables, form) -> beanContext.inject(introspection.instantiate());
+    }
+
+    /**
+     * A resource of {@code ResourceContext.getResource} for a request: the singleton bean, else an
+     * instance created for the request with its values, like a class a locator returns.
+     *
+     * @param type          The class of the resource
+     * @param request       The request
+     * @param pathVariables The path variables of the request
+     * @param <T>           The type
+     * @return The resource
+     */
+    <T> T resource(Class<T> type, HttpRequest<?> request, PathVariables pathVariables) {
+        BeanDefinition<T> definition = beanContext.findBeanDefinition(type).orElse(null);
+        if (definition != null && definition.isSingleton()) {
+            return beanContext.getBean(definition);
+        }
+        RequestType<T> requestType = contextRequestType(type);
+        if (requestType != null) {
+            // the form is not read for the resource context
+            return create(requestType, request, pathVariables, null);
+        }
+        return definition != null ? beanContext.getBean(definition) : beanContext.inject(JaxRsReflection.get().instantiate(type));
+    }
+
+    /**
+     * Initialize a resource of {@code ResourceContext.initResource} for a request: its injected
+     * members, and its fields and setters with the values of the request.
+     *
+     * @param resource      The resource
+     * @param request       The request
+     * @param pathVariables The path variables of the request
+     * @param <T>           The type
+     * @return The resource
+     */
+    @SuppressWarnings("unchecked")
+    <T> T initResource(T resource, HttpRequest<?> request, PathVariables pathVariables) {
+        T instance = beanContext.inject(resource);
+        RequestType<T> requestType = contextRequestType((Class<T>) instance.getClass());
+        if (requestType != null) {
+            for (Member<T> member : requestType.members()) {
+                JaxRsRouteSupport.ValueReader reader = member.reader();
+                member.property().set(instance, reader == null ? null : reader.read(request, pathVariables, null));
+            }
+        }
+        return instance;
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> @Nullable RequestType<T> contextRequestType(Class<T> type) {
+        return (RequestType<T>) contextRequestTypes.computeIfAbsent(type,
+            t -> Optional.ofNullable(requestType(type, beanContext.findBeanDefinition(type).orElse(null)))).orElse(null);
     }
 
     private <L, B> void route(Routes<L> routes, ResourceMethod<B> method, Instances<L, B> instances, boolean chainUsesForm) {
@@ -1218,7 +1273,10 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
 
         @Override
         public void locate(String prefix, Locator<@Nullable Void> locator) {
-            routes.<Object>locate(prefix, (request, pathVariables) -> locator.locate(request, pathVariables, null), support.locatedRoutes());
+            // the router does not select a locator route as JAX-RS does: a root resource class with a more
+            // specific @Path that matches the path, but none of whose routes does, answers 404
+            routes.<Object>locate(prefix, (request, pathVariables) -> support.commitsToLocator(request, prefix)
+                ? locator.locate(request, pathVariables, null) : null, support.locatedRoutes());
         }
     }
 

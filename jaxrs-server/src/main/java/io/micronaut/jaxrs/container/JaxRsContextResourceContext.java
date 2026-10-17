@@ -15,15 +15,27 @@
  */
 package io.micronaut.jaxrs.container;
 
-import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.context.BeanContext;
+import io.micronaut.context.BeanProvider;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.convert.ConversionService;
+import io.micronaut.http.HttpRequest;
+import io.micronaut.http.PathVariables;
+import io.micronaut.http.context.ServerRequestContext;
+import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
+import io.micronaut.web.router.RouteAttributes;
+import io.micronaut.web.router.RoutePathVariables;
+import io.micronaut.web.router.UriRouteMatch;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.container.ResourceContext;
 
+import java.util.Map;
+
 /**
- * The {@link ResourceContext} injected with {@code @Context}: resources are the beans of the
- * application, and other classes are instantiated and injected like beans.
+ * The {@link ResourceContext} injected with {@code @Context}: in a request, resources are created and
+ * initialized with the values of the request like the classes sub-resource locators return, and
+ * outside of one they are the beans of the application, and other classes are instantiated and
+ * injected like beans.
  *
  * @author Denis Stepanov
  * @since 5.2.0
@@ -33,19 +45,39 @@ import jakarta.ws.rs.container.ResourceContext;
 final class JaxRsContextResourceContext implements ResourceContext {
 
     private final BeanContext beanContext;
+    private final BeanProvider<JaxRsRuntimeRoutes> routes;
+    private final ConversionService conversionService;
 
-    JaxRsContextResourceContext(BeanContext beanContext) {
+    JaxRsContextResourceContext(BeanContext beanContext, BeanProvider<JaxRsRuntimeRoutes> routes, ConversionService conversionService) {
         this.beanContext = beanContext;
+        this.routes = routes;
+        this.conversionService = conversionService;
     }
 
     @Override
     public <T> T getResource(Class<T> resourceClass) {
-        return beanContext.findBean(resourceClass)
-            .orElseGet(() -> initResource(JaxRsReflection.get().instantiate(resourceClass)));
+        HttpRequest<?> request = ServerRequestContext.currentRequest().orElse(null);
+        if (request == null) {
+            return beanContext.findBean(resourceClass)
+                .orElseGet(() -> beanContext.inject(JaxRsReflection.get().instantiate(resourceClass)));
+        }
+        return routes.get().resource(resourceClass, request, pathVariables(request));
     }
 
     @Override
     public <T> T initResource(T resource) {
-        return beanContext.inject(resource);
+        HttpRequest<?> request = ServerRequestContext.currentRequest().orElse(null);
+        if (request == null) {
+            return beanContext.inject(resource);
+        }
+        return routes.get().initResource(resource, request, pathVariables(request));
+    }
+
+    private PathVariables pathVariables(HttpRequest<?> request) {
+        Map<String, Object> values = RouteAttributes.getRouteMatch(request)
+            .filter(UriRouteMatch.class::isInstance)
+            .map(match -> ((UriRouteMatch<?, ?>) match).getVariableValues())
+            .orElse(Map.of());
+        return new RoutePathVariables(values, conversionService);
     }
 }

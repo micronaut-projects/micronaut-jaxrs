@@ -199,9 +199,9 @@ public final class ReflectiveJaxRsReflection implements JaxRsReflection {
         if (!ReflectionBeanIntrospection.isIntrospectable(type)) {
             return;
         }
-        // the fields of any visibility, of the class and its super classes: a generated
-        // introspection, which describes the members the class can reach, may leave them out
-        for (BeanProperty<Object, Object> property : ReflectionBeanIntrospection.of(type, Set.of(Introspected.AccessKind.FIELD)).getBeanProperties()) {
+        // the fields of any visibility, of the class and its super classes, and the bean setters: a
+        // generated introspection, which describes the members the class can reach, may leave them out
+        for (BeanProperty<Object, Object> property : ReflectionBeanIntrospection.of(type, Set.of(Introspected.AccessKind.FIELD, Introspected.AccessKind.METHOD)).getBeanProperties()) {
             if (!property.hasAnnotation(annotation) || property.isReadOnly()) {
                 continue;
             }

@@ -22,6 +22,8 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.lang.reflect.Type;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -45,6 +47,13 @@ class ParamConverterAnnotationsTest {
         assertEquals("abc", client.toBlocking().retrieve(HttpRequest.GET("/plain?v=abc")));
     }
 
+    @Test
+    void elementsOfCollectionsAndArraysSeeTheAnnotationsOfTheParameter() {
+        assertEquals("[A, B]", client.toBlocking().retrieve(HttpRequest.GET("/upper-list?v=a&v=b")));
+        assertEquals("[A, B]", client.toBlocking().retrieve(HttpRequest.GET("/upper-array?v=a&v=b")));
+        assertEquals("[a, b]", client.toBlocking().retrieve(HttpRequest.GET("/plain-list?v=a&v=b")));
+    }
+
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.PARAMETER)
     @interface Upper {
@@ -61,6 +70,27 @@ class ParamConverterAnnotationsTest {
         @Produces("text/plain")
         public String upper(@QueryParam("v") @Upper Text v) {
             return v.value();
+        }
+
+        @GET
+        @Path("/upper-list")
+        @Produces("text/plain")
+        public String upperList(@QueryParam("v") @Upper List<Text> v) {
+            return v.stream().map(Text::value).toList().toString();
+        }
+
+        @GET
+        @Path("/upper-array")
+        @Produces("text/plain")
+        public String upperArray(@QueryParam("v") @Upper Text[] v) {
+            return Arrays.stream(v).map(Text::value).toList().toString();
+        }
+
+        @GET
+        @Path("/plain-list")
+        @Produces("text/plain")
+        public String plainList(@QueryParam("v") List<Text> v) {
+            return v.stream().map(Text::value).toList().toString();
         }
 
         @GET

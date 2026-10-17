@@ -21,6 +21,7 @@ import io.micronaut.context.ApplicationContext;
 import io.micronaut.context.RuntimeBeanDefinition;
 import io.micronaut.context.annotation.Primary;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.reflect.ClassUtils;
 import io.micronaut.jaxrs.common.bootstrap.JaxRsSeBootstrap;
 import io.micronaut.jaxrs.common.bootstrap.JaxRsSeConfiguration;
 import io.micronaut.runtime.server.EmbeddedServer;
@@ -49,6 +50,8 @@ public final class JaxRsSeBootstrapServer implements JaxRsSeBootstrap {
 
     private static final String HTTP = "HTTP";
     private static final String HTTPS = "HTTPS";
+    // the SSL context of a configuration is applied to the Netty server
+    private static final String NETTY_SSL_BUILDER = "io.micronaut.http.server.netty.ssl.ServerSslBuilder";
 
     @Override
     public CompletionStage<SeBootstrap.Instance> bootstrap(Application application, SeBootstrap.Configuration configuration) {
@@ -89,8 +92,21 @@ public final class JaxRsSeBootstrapServer implements JaxRsSeBootstrap {
         } else if (port != SeBootstrap.Configuration.DEFAULT_PORT) {
             properties.put(portProperty, port);
         }
+        // the SSL context of the configuration, else the key stores of the configuration of the server
+        boolean sslContext = https && configuration.hasProperty(SeBootstrap.Configuration.SSL_CONTEXT);
         if (https) {
             properties.put("micronaut.server.ssl.enabled", true);
+            if (sslContext && !ClassUtils.isPresent(NETTY_SSL_BUILDER, JaxRsSeBootstrapServer.class.getClassLoader())) {
+                throw new IllegalStateException("The SSLContext of a Java SE bootstrap configuration needs the Netty HTTP server: add io.micronaut:micronaut-http-server-netty to the classpath");
+            }
+            if (!sslContext && configuration.hasProperty(SeBootstrap.Configuration.SSL_CLIENT_AUTHENTICATION)) {
+                SeBootstrap.Configuration.SSLClientAuthentication authentication = configuration.sslClientAuthentication();
+                if (authentication == SeBootstrap.Configuration.SSLClientAuthentication.OPTIONAL) {
+                    properties.put("micronaut.server.ssl.client-authentication", "want");
+                } else if (authentication == SeBootstrap.Configuration.SSLClientAuthentication.MANDATORY) {
+                    properties.put("micronaut.server.ssl.client-authentication", "need");
+                }
+            }
         }
         String rootPath = configuration.rootPath();
         if (rootPath != null && !rootPath.isEmpty() && !"/".equals(rootPath)) {
@@ -101,6 +117,9 @@ public final class JaxRsSeBootstrapServer implements JaxRsSeBootstrap {
             properties.put(JaxRsApplicationFactory.APPLICATION, applicationClass.getName());
         }
         ApplicationContext context = ApplicationContext.builder().properties(properties).build();
+        if (sslContext) {
+            JaxRsSeSslBuilder.register(context, configuration.sslContext(), configuration.sslClientAuthentication());
+        }
         if (application != null) {
             register(context, application, Application.class);
             for (Object singleton : application.getSingletons()) {
