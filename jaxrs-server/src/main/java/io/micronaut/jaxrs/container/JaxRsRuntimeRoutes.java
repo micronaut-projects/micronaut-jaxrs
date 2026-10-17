@@ -590,7 +590,9 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             throw new IllegalStateException("The asynchronous resource method " + method.method().name() + " returned no stage");
         }
         Converter converter = method.converter();
-        return stage.thenApply(value -> converter.convert(request, value));
+        Completion completion = method.completion();
+        // the value of the stage is negotiated like the result of a method that is not asynchronous
+        return stage.thenApply(value -> completion.complete(request, pathVariables, converter.convert(request, value)));
     }
 
     /**
@@ -653,7 +655,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     }
 
     /**
-     * How to complete the response of a method that is not asynchronous.
+     * How to complete the response of a method, or the value of the stage of an asynchronous one.
      */
     private Completion completion(boolean produces, Argument<?> returnType) {
         if (produces) {
