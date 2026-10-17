@@ -114,7 +114,7 @@ final class JaxRsContainerFilters {
      */
     private JaxRsContainerRequestContext newContext(MutableHttpRequest<?> request, boolean preMatching) {
         return new JaxRsContainerRequestContext(request, applicationProvider, preMatching)
-            .withSecurityContext(() -> beanContext.getBean(JaxRsContextSecurityContext.class))
+            .withSecurityContext(() -> beanContext.getBean(JaxRsContextSecurityContext.class).resolve(request))
             .withRequest(() -> beanContext.getBean(JaxRsContextRequest.class));
     }
 

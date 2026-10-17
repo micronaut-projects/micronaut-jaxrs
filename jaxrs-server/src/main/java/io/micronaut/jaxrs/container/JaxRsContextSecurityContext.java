@@ -57,6 +57,18 @@ final class JaxRsContextSecurityContext implements SecurityContext {
     private SecurityContext current() {
         HttpRequest<?> request = ServerRequestContext.currentRequest()
             .orElseThrow(() -> new IllegalStateException("The SecurityContext is only available while a request is handled"));
+        return resolve(request);
+    }
+
+    /**
+     * The concrete security context of a request, not this proxy: a filter that wraps the one
+     * {@code ContainerRequestContext#getSecurityContext()} returns, and sets the wrapper, must
+     * not get a context that resolves to the wrapper itself.
+     *
+     * @param request The request
+     * @return The security context of the request
+     */
+    SecurityContext resolve(HttpRequest<?> request) {
         Optional<SecurityContext> replaced = request.getAttribute(JaxRsContainerRequestContext.SECURITY_CONTEXT, SecurityContext.class);
         if (replaced.isPresent()) {
             // set by a request filter
