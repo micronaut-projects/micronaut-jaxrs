@@ -604,7 +604,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         try {
             return URI.create(buf);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to create URI", e);
+            throw new UriBuilderException("Failed to create URI", e);
         }
     }
 
@@ -921,7 +921,8 @@ final class JaxRsUriBuilder extends UriBuilder {
                     map.add(theName, value);
                 }
             }
-            map.remove(name);
+            // the names in the path are encoded
+            map.remove(Encode.encodeMatrixParam(name));
             for (String theName : map.keySet()) {
                 List<String> vals = map.get(theName);
                 for (Object val : vals) {
