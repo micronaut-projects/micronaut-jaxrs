@@ -54,9 +54,9 @@ import static jakarta.ws.rs.ext.RuntimeDelegate.getInstance;
 @Internal
 final class JaxRsResponseBuilder extends Response.ResponseBuilder {
 
-    private final MutableHttpResponse<Object> response;
+    private MutableHttpResponse<Object> response;
     // the objects of the headers, e.g. a Date to the millisecond, see JaxRsResponseMetadata
-    private final JaxRsResponseMetadata.State metadata;
+    private JaxRsResponseMetadata.State metadata;
 
     JaxRsResponseBuilder() {
         this(HttpResponse.ok());
@@ -73,10 +73,11 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
 
     @Override
     public Response build() {
-        MutableHttpResponse<Object> mutableHttpResponse = HttpResponse.status(response.code(), response.reason())
-            .body(response.getBody().orElse(null))
-            .headers(newHeaders -> response.getHeaders().forEachValue(newHeaders::add));
-        return new JaxRsMutableResponse(mutableHttpResponse, metadata.copy());
+        Response built = new JaxRsMutableResponse(response, metadata);
+        // the builder is reset to a blank state, like ok()
+        response = HttpResponse.ok();
+        metadata = new JaxRsResponseMetadata.State();
+        return built;
     }
 
     @Override
@@ -314,12 +315,8 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
 
     @Override
     public Response.ResponseBuilder tag(@Nullable String tag) {
-        if (tag == null) {
-            response.getHeaders().remove(io.micronaut.http.HttpHeaders.ETAG);
-        } else {
-            response.getHeaders().set(io.micronaut.http.HttpHeaders.ETAG, tag);
-        }
-        return this;
+        // a strong entity tag of the value, quoted
+        return tag(tag == null ? null : new EntityTag(tag));
     }
 
     @Override
@@ -363,8 +360,13 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
     }
 
     @Override
-    public Response.ResponseBuilder links(Link... links) {
+    public Response.ResponseBuilder links(Link @Nullable ... links) {
         final MutableHttpHeaders headers = response.getHeaders();
+        if (links == null) {
+            // null removes the links
+            headers.remove(HttpHeaders.LINK);
+            return this;
+        }
         for (Link link : links) {
             headers.add(HttpHeaders.LINK, link.toString());
         }

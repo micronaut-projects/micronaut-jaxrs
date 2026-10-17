@@ -39,7 +39,8 @@ final class JaxRsVariantListBuilder extends Variant.VariantListBuilder {
 
     @Override
     public List<Variant> build() {
-        add();
+        // the current variant, unless there is none
+        addCurrent();
         var copy = new ArrayList<>(variants);
         variants.clear();
         currentLanguages.clear();
@@ -50,6 +51,14 @@ final class JaxRsVariantListBuilder extends Variant.VariantListBuilder {
 
     @Override
     public Variant.VariantListBuilder add() {
+        if (currentLanguages.isEmpty() && currentEncodings.isEmpty() && currentTypes.isEmpty()) {
+            throw new IllegalStateException("No media type, language or encoding is set for the variant");
+        }
+        addCurrent();
+        return this;
+    }
+
+    private void addCurrent() {
         int langSize = currentLanguages.size();
         int encodingSize = currentEncodings.size();
         int typeSize = currentTypes.size();
@@ -57,7 +66,7 @@ final class JaxRsVariantListBuilder extends Variant.VariantListBuilder {
         int i = 0;
 
         if (langSize == 0 && encodingSize == 0 && typeSize == 0) {
-            return this;
+            return;
         }
 
         do {
@@ -88,8 +97,6 @@ final class JaxRsVariantListBuilder extends Variant.VariantListBuilder {
         currentLanguages.clear();
         currentEncodings.clear();
         currentTypes.clear();
-
-        return this;
     }
 
     @Override

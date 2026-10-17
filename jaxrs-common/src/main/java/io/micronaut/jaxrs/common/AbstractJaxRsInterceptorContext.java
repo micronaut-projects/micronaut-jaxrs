@@ -26,7 +26,6 @@ import org.jspecify.annotations.Nullable;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.util.Collection;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -39,7 +38,8 @@ import java.util.Objects;
 @Internal
 abstract sealed class AbstractJaxRsInterceptorContext implements InterceptorContext permits JaxRsReaderInterceptorContext, JaxRsWriterInterceptorContext {
 
-    private final Map<String, Object> properties = new LinkedHashMap<>();
+    // the properties of the request or response exchange, shared with its filter contexts
+    private final Map<String, Object> properties;
     private final Argument<?> argument;
     @Nullable
     private MediaType mediaType;
@@ -49,8 +49,9 @@ abstract sealed class AbstractJaxRsInterceptorContext implements InterceptorCont
     private Type genericType;
     private Annotation @Nullable [] annotations;
 
-    protected AbstractJaxRsInterceptorContext(Argument<?> argument, @Nullable MediaType mediaType) {
+    protected AbstractJaxRsInterceptorContext(Argument<?> argument, @Nullable MediaType mediaType, Map<String, Object> properties) {
         this.argument = argument;
+        this.properties = properties;
         this.mediaType = mediaType;
     }
 

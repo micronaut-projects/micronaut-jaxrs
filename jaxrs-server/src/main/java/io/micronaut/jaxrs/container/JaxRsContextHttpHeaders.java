@@ -50,7 +50,7 @@ final class JaxRsContextHttpHeaders implements jakarta.ws.rs.core.HttpHeaders {
     }
 
     @Override
-    public List<String> getRequestHeader(String name) {
+    public @Nullable List<String> getRequestHeader(String name) {
         return getHeaders().getRequestHeader(name);
     }
 

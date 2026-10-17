@@ -528,6 +528,15 @@ final class JaxRsConfiguration implements Configuration {
     }
 
     public HttpMessageEntityReader createHttpMessageEntityReader() {
+        return createHttpMessageEntityReader(new LinkedHashMap<>());
+    }
+
+    /**
+     * @param properties The properties of the request the response is of, which the reader
+     *                   interceptor contexts share
+     * @return The reader of the entity of a response
+     */
+    public HttpMessageEntityReader createHttpMessageEntityReader(Map<String, Object> properties) {
         return new HttpMessageEntityReader() {
 
             @Override
@@ -556,7 +565,7 @@ final class JaxRsConfiguration implements Configuration {
                                 throw new IllegalStateException("No reader found for type " + type.getType() + " and mediaType " + mediaType);
                             }
 
-                        }.intercept(entityType, mediaType, headers, byteBuffer.toInputStream());
+                        }.intercept(entityType, mediaType, headers, byteBuffer.toInputStream(), properties);
                     }
                 }
                 return super.readEntity(message, entityType);
@@ -594,7 +603,7 @@ final class JaxRsConfiguration implements Configuration {
     }
 
     <T> void writeBody(MutableHttpMessage<?> mutableHttpMessage, Argument<T> bodyArgument, @Nullable T body) {
-        writeBody(mutableHttpMessage, bodyArgument, body, false);
+        writeBody(mutableHttpMessage, bodyArgument, body, false, new LinkedHashMap<>());
     }
 
     /**
@@ -607,16 +616,18 @@ final class JaxRsConfiguration implements Configuration {
      * @param body               The entity
      * @param bytes              Whether the entity must be written to bytes, e.g. to write them
      *                           through the entity stream a filter replaced
+     * @param properties         The properties of the request, which the writer interceptor contexts share
      * @param <T>                The type of the entity
      */
     @SuppressWarnings("unchecked")
-    <T> void writeBody(MutableHttpMessage<?> mutableHttpMessage, Argument<T> bodyArgument, @Nullable T body, boolean bytes) {
+    <T> void writeBody(MutableHttpMessage<?> mutableHttpMessage, Argument<T> bodyArgument, @Nullable T body, boolean bytes,
+                       Map<String, Object> properties) {
         if (body == null) {
             return;
         }
         if (body instanceof GenericEntity<?> genericEntity) {
             // the entity, written as its generic type
-            writeBody(mutableHttpMessage, (Argument<Object>) JaxRsArgumentUtil.from(genericEntity), genericEntity.getEntity(), bytes);
+            writeBody(mutableHttpMessage, (Argument<Object>) JaxRsArgumentUtil.from(genericEntity), genericEntity.getEntity(), bytes, properties);
             return;
         }
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
@@ -651,7 +662,7 @@ final class JaxRsConfiguration implements Configuration {
                     }
                 }
 
-            }.intercept(bodyArgument, mediaType, new JaxRsWriterInterceptorContextState.ClassicState(mutableHttpMessage.getHeaders(), body, outputStream));
+            }.intercept(bodyArgument, mediaType, new JaxRsWriterInterceptorContextState.ClassicState(mutableHttpMessage.getHeaders(), body, outputStream), properties);
         }
 
         if (written.get()) {

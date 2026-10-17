@@ -42,6 +42,9 @@ import java.util.stream.Stream;
 @Internal
 public sealed class JaxRsHttpHeaders implements HttpHeaders permits JaxRsMutableHttpHeaders {
 
+    // the language of any language (JAX-RS, HttpHeaders#getAcceptableLanguages)
+    private static final Locale WILDCARD_LOCALE = Locale.of("*");
+
     private final io.micronaut.http.HttpHeaders httpHeaders;
     private final boolean isResponse;
 
@@ -77,8 +80,9 @@ public sealed class JaxRsHttpHeaders implements HttpHeaders permits JaxRsMutable
     }
 
     @Override
-    public List<String> getRequestHeader(String name) {
-        return httpHeaders.getAll(name);
+    public @Nullable List<String> getRequestHeader(String name) {
+        // null for a header that is absent
+        return getRequestHeaders().get(name);
     }
 
     @Override
@@ -145,6 +149,12 @@ public sealed class JaxRsHttpHeaders implements HttpHeaders permits JaxRsMutable
 
     @Override
     public List<Locale> getAcceptableLanguages() {
+        List<Locale> languages = acceptLanguages();
+        // any language is acceptable without an Accept-Language header, or with a wildcard one
+        return languages.isEmpty() ? List.of(WILDCARD_LOCALE) : languages;
+    }
+
+    private List<Locale> acceptLanguages() {
         return httpHeaders.getAll(io.micronaut.http.HttpHeaders.ACCEPT_LANGUAGE)
             .stream()
             .flatMap(text -> {

@@ -16,6 +16,7 @@
 package io.micronaut.jaxrs.common;
 
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.io.buffer.ByteBuffer;
 import org.jspecify.annotations.Nullable;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpHeaders;
@@ -34,6 +35,9 @@ import jakarta.ws.rs.core.NewCookie;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.RuntimeDelegate;
 
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.io.Reader;
 import java.lang.annotation.Annotation;
 import java.net.URI;
 import java.util.Collections;
@@ -41,7 +45,6 @@ import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -56,11 +59,20 @@ import static jakarta.ws.rs.ext.RuntimeDelegate.getInstance;
 @Internal
 public sealed class JaxRsResponse extends Response implements HttpResponseProvider permits JaxRsMutableResponse {
 
+    /**
+     * The attribute of a response with the URI of the request that produced it, which its relative
+     * links are resolved against.
+     */
+    public static final String REQUEST_URI = JaxRsResponse.class.getName() + ".requestUri";
+
     private final HttpResponse<?> response;
     private final HttpMessageEntityReader entityReader;
     private final JaxRsHttpHeaders jaxRsHttpHeaders;
     private boolean buffered;
+    // close() was called
     private boolean closed;
+    // the entity stream was read without being buffered
+    private boolean consumed;
     private byte @Nullable [] buffer;
     @Nullable
     private Argument<?> readBodyArgument;
@@ -133,7 +145,21 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
         if (body instanceof GenericEntity<?> genericEntity) {
             return genericEntity.getEntity();
         }
+        if (body instanceof ByteBuffer<?> byteBuffer) {
+            // the entity of a received response, not read yet, is its input stream
+            return receivedEntityStream(byteBuffer);
+        }
         return body;
+    }
+
+    /**
+     * The entity stream of a received response, which {@link #getEntity()} returns.
+     *
+     * @param byteBuffer The bytes of the entity
+     * @return The stream
+     */
+    InputStream receivedEntityStream(ByteBuffer<?> byteBuffer) {
+        return new ByteArrayInputStream(byteBuffer.toByteArray());
     }
 
     /**
@@ -144,27 +170,70 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
      * @return The entity value
      */
     public <T> @Nullable T readEntity(Argument<T> entityType) {
+        checkNotClosed();
         if (readBodyArgument != null && readBodyArgument.getType().equals(entityType.getType())) {
             return (T) readBody;
         }
-        checkCanReadEntity();
-        try {
-            T value;
-            if (buffered) {
-                value = entityReader.readEntity(response.toMutableResponse().body(buffer), entityType);
-            } else {
-                readBodyArgument = entityType;
-                readBody = entityReader.readEntity(response, entityType);
-                value = (T) readBody;
+        T value;
+        if (buffered) {
+            // the buffer is read again by each read
+            value = entityReader.readEntity(response.toMutableResponse().body(buffer), entityType);
+        } else {
+            if (consumed) {
+                throw new IllegalStateException("The entity was read already, without being buffered");
             }
-            if (value == null && isPrimitiveOrWrapper(entityType.getType())) {
-                // the standard readers of these types cannot read an empty entity (JAX-RS 4.2.4)
-                throw new ProcessingException(new NoContentException("An empty entity cannot be read as " + entityType.getType().getName()));
+            consumed = true;
+            boolean stream = entityType.getType() == InputStream.class;
+            try {
+                value = (T) readUnbuffered(entityType);
+            } finally {
+                if (!stream) {
+                    // the entity stream is closed, unless it is the one requested (JAX-RS, Response#readEntity)
+                    release();
+                }
             }
-            return value;
-        } finally {
-            close();
+            readBodyArgument = entityType;
+            readBody = value;
         }
+        if (value == null) {
+            value = emptyEntity(entityType.getType());
+        }
+        return value;
+    }
+
+    /**
+     * Read the entity, which is not buffered.
+     *
+     * @param entityType The type
+     * @return The entity
+     */
+    @Nullable Object readUnbuffered(Argument<?> entityType) {
+        return entityReader.readEntity(response, entityType);
+    }
+
+    /**
+     * The value of an empty entity of a type (JAX-RS 4.2.4): a zero-length one of the standard
+     * types that have one.
+     */
+    @SuppressWarnings("unchecked")
+    private static <T> @Nullable T emptyEntity(Class<T> type) {
+        if (isPrimitiveOrWrapper(type)) {
+            // the standard readers of these types cannot read an empty entity
+            throw new ProcessingException(new NoContentException("An empty entity cannot be read as " + type.getName()));
+        }
+        if (type == String.class) {
+            return (T) "";
+        }
+        if (type == byte[].class) {
+            return (T) new byte[0];
+        }
+        if (type == InputStream.class) {
+            return (T) InputStream.nullInputStream();
+        }
+        if (type == Reader.class) {
+            return (T) Reader.nullReader();
+        }
+        return null;
     }
 
     private static boolean isPrimitiveOrWrapper(Class<?> type) {
@@ -197,29 +266,60 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
         return response.getBody().isPresent();
     }
 
-    private void checkCanReadEntity() {
-        if (closed && !buffered) {
+    /**
+     * Check that the entity can be read: the response is not closed, and its entity is buffered
+     * or not read yet.
+     */
+    final void checkCanReadEntity() {
+        checkNotClosed();
+        if (consumed && !buffered) {
+            throw new IllegalStateException("The entity was read already, without being buffered");
+        }
+    }
+
+    private void checkNotClosed() {
+        if (closed) {
             throw new IllegalStateException("Response closed");
         }
     }
 
     @Override
     public boolean bufferEntity() {
+        checkNotClosed();
         if (!buffered) {
             checkCanReadEntity();
-            Optional<byte[]> body = response.getBody(byte[].class);
-            if (body.isEmpty()) {
+            byte @Nullable [] body = bufferedBytes();
+            if (body == null) {
                 return false;
             }
-            buffer = body.orElse(new byte[]{});
+            buffer = body;
             buffered = true;
         }
         return buffered;
     }
 
+    /**
+     * The bytes of the entity that is buffered.
+     *
+     * @return The bytes, {@code null} if there is no entity
+     */
+    byte @Nullable [] bufferedBytes() {
+        return response.getBody(byte[].class).orElse(null);
+    }
+
     @Override
     public void close() {
-        closed = true;
+        if (!closed) {
+            closed = true;
+            release();
+        }
+    }
+
+    /**
+     * Release the resources of the entity, e.g. its stream.
+     */
+    void release() {
+        // the entity of a response is in memory
     }
 
     @Override
@@ -284,10 +384,13 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
 
     @Override
     public Set<Link> getLinks() {
+        // a relative link is resolved against the URI of the request, when it is known
+        URI requestUri = response.getAttribute(REQUEST_URI, URI.class).orElse(null);
         return response.getHeaders()
             .getAll(HttpHeaders.LINK)
             .stream()
-            .map(Link::valueOf)
+            .flatMap(value -> LinkDelegate.parseAll(value).stream())
+            .map(link -> requestUri == null || link.getUri().isAbsolute() ? link : new LinkImpl(requestUri.resolve(link.getUri()), link.getParams()))
             .collect(Collectors.toSet());
     }
 

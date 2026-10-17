@@ -21,6 +21,7 @@ import io.micronaut.http.HttpRequest;
 import io.micronaut.http.MutableHttpRequest;
 import io.micronaut.http.ServerHttpRequest;
 import io.micronaut.jaxrs.common.JaxRsHttpHeaders;
+import io.micronaut.jaxrs.common.JaxRsRequestProperties;
 import io.micronaut.jaxrs.common.JaxRsMutableHeadersMultivaluedMap;
 import io.micronaut.jaxrs.common.JaxRsMutableHttpHeaders;
 import io.micronaut.jaxrs.runtime.ext.bind.UriInfoImpl;
@@ -39,7 +40,6 @@ import java.io.InputStream;
 import java.net.URI;
 import java.util.Collection;
 import java.util.Date;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -71,10 +71,6 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
      * resource and the later filters see it.
      */
     static final String SECURITY_CONTEXT = JaxRsContainerRequestContext.class.getName() + ".securityContext";
-
-    // the properties of the request, which all its contexts share, and the attributes of the stub
-    // servlet request
-    private static final String PROPERTIES = JaxRsContainerRequestContext.class.getName() + ".properties";
 
     private final Map<String, Object> properties;
     // the request the filters continue with: a pre-matching filter may change its method
@@ -110,14 +106,8 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
      * @param request The request
      * @return The properties, created on first use
      */
-    @SuppressWarnings("unchecked")
     static Map<String, Object> properties(HttpRequest<?> request) {
-        Map<String, Object> properties = request.getAttribute(PROPERTIES, Map.class).orElse(null);
-        if (properties == null) {
-            properties = new LinkedHashMap<>();
-            request.setAttribute(PROPERTIES, properties);
-        }
-        return properties;
+        return JaxRsRequestProperties.of(request);
     }
 
     /**

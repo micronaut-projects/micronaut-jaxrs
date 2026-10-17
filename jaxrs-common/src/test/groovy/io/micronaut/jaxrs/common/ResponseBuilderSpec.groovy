@@ -2,6 +2,7 @@ package io.micronaut.jaxrs.common
 
 import jakarta.ws.rs.core.EntityTag
 import jakarta.ws.rs.core.HttpHeaders
+import jakarta.ws.rs.core.Link
 import jakarta.ws.rs.core.MediaType
 import jakarta.ws.rs.core.MultivaluedHashMap
 import jakarta.ws.rs.core.Response
@@ -54,5 +55,33 @@ class ResponseBuilderSpec extends Specification {
         expect:
         Response.ok().tag(new EntityTag("a")).tag((EntityTag) null).build().getHeaderString(HttpHeaders.ETAG) == null
         Response.ok().tag("a").tag((String) null).build().getHeaderString(HttpHeaders.ETAG) == null
+    }
+
+    void "tag of a string is a strong entity tag"() {
+        expect:
+        Response.ok().tag("v1").build().getHeaderString(HttpHeaders.ETAG) == '"v1"'
+        Response.ok().tag("v1").build().getEntityTag() == new EntityTag("v1")
+    }
+
+    void "null links remove the links"() {
+        expect:
+        Response.ok().links(Link.fromUri("http://a").rel("a").build()).links((Link[]) null).build().getLinks().isEmpty()
+    }
+
+    void "build resets the builder"() {
+        given:
+        def builder = Response.status(404).header("X-Header", "a").entity("e")
+
+        when:
+        def first = builder.build()
+        def second = builder.build()
+
+        then:
+        first.status == 404
+        first.getHeaderString("X-Header") == "a"
+        first.getEntity() == "e"
+        second.status == 200
+        second.getHeaderString("X-Header") == null
+        !second.hasEntity()
     }
 }

@@ -19,6 +19,7 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.type.MutableHeaders;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.core.MultivaluedMap;
+import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 
@@ -51,8 +52,20 @@ public final class JaxRsMutableHeadersMultivaluedMap extends JaxRsHeadersMultiva
     }
 
     @Override
-    public List<String> put(String key, List<String> value) {
+    public @Nullable List<String> put(String key, List<String> value) {
+        // replaces the values of the header
+        List<String> previous = remove(key);
         value.forEach(v -> mutableHeaders.add(key, v));
-        return value;
+        return previous;
+    }
+
+    @Override
+    public @Nullable List<String> remove(Object key) {
+        List<String> previous = get(key);
+        if (previous != null) {
+            previous = List.copyOf(previous);
+            mutableHeaders.remove((String) key);
+        }
+        return previous;
     }
 }

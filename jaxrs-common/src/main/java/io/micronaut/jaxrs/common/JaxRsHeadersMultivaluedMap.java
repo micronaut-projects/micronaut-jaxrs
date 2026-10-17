@@ -63,7 +63,7 @@ public class JaxRsHeadersMultivaluedMap extends AbstractMap<String, List<String>
     }
 
     @Override
-    public List<String> remove(Object key) {
+    public @Nullable List<String> remove(Object key) {
         throw new IllegalStateException("Not supported");
     }
 
@@ -106,7 +106,7 @@ public class JaxRsHeadersMultivaluedMap extends AbstractMap<String, List<String>
     }
 
     @Override
-    public List<String> put(String key, List<String> value) {
+    public @Nullable List<String> put(String key, List<String> value) {
         throw new IllegalStateException("Not supported");
     }
 
@@ -129,7 +129,17 @@ public class JaxRsHeadersMultivaluedMap extends AbstractMap<String, List<String>
     }
 
     @Override
+    public @Nullable List<String> get(Object key) {
+        // the names of headers are case-insensitive, like the ones of the headers
+        if (!(key instanceof String name)) {
+            return null;
+        }
+        List<String> values = headers.getAll(name);
+        return values.isEmpty() && !headers.contains(name) ? null : values;
+    }
+
+    @Override
     public boolean containsKey(Object key) {
-        return get(key) != null;
+        return key instanceof String name && headers.contains(name);
     }
 }

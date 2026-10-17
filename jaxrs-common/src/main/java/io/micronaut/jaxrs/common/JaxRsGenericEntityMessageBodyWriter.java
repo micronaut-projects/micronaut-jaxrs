@@ -115,7 +115,8 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
                     write(argument, mediaType, state.getEntity(), outgoingHeaders, state.getOutputStream());
                 }
 
-            }.intercept(argument, mediaType, new JaxRsWriterInterceptorContextState.ClassicState(outgoingHeaders, entity, outputStream));
+            }.intercept(argument, mediaType, new JaxRsWriterInterceptorContextState.ClassicState(outgoingHeaders, entity, outputStream),
+                JaxRsRequestProperties.current());
         }
 
         try {
@@ -372,7 +373,7 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
                                 transferWritten();
                             }
                         }
-                    }.intercept(argument, mediaType, this);
+                    }.intercept(argument, mediaType, this, JaxRsRequestProperties.of(request));
                 } catch (RuntimeException e) {
                     // e.g. a WebApplicationException, which the exception mappers map
                     throw e;
