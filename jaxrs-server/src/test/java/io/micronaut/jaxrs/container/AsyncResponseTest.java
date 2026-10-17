@@ -1,0 +1,230 @@
+package io.micronaut.jaxrs.container;
+
+import io.micronaut.context.annotation.Property;
+import io.micronaut.context.annotation.Requires;
+import io.micronaut.runtime.server.EmbeddedServer;
+import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.NotFoundException;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.container.AsyncResponse;
+import jakarta.ws.rs.container.ConnectionCallback;
+import jakarta.ws.rs.container.Suspended;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.ext.ExceptionMapper;
+import jakarta.ws.rs.ext.Provider;
+import org.junit.jupiter.api.Test;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.util.List;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Server-side asynchronous processing with a {@code @Suspended} {@link AsyncResponse} (JAX-RS 8.2).
+ */
+@MicronautTest
+@Property(name = "spec.name", value = "AsyncResponseTest")
+class AsyncResponseTest {
+
+    static final BlockingQueue<Object> COMPLETED = new LinkedBlockingQueue<>();
+    static final BlockingQueue<Object> STATES = new LinkedBlockingQueue<>();
+
+    @Inject
+    EmbeddedServer server;
+
+    private HttpResponse<String> get(String path) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder(URI.create(server.getURL() + "/api/async-response/" + path)).build();
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            return client.send(request, HttpResponse.BodyHandlers.ofString());
+        }
+    }
+
+    @Test
+    void resumeWithEntity() throws Exception {
+        HttpResponse<String> response = get("entity");
+        assertEquals(200, response.statusCode());
+        assertEquals("resumed", response.body());
+        assertTrue(response.headers().firstValue("Content-Type").orElse("").startsWith("text/plain"));
+    }
+
+    @Test
+    void resumeWithResponse() throws Exception {
+        HttpResponse<String> response = get("response");
+        assertEquals(201, response.statusCode());
+        assertEquals("created", response.body());
+        assertEquals("value", response.headers().firstValue("X-Async").orElse(null));
+    }
+
+    @Test
+    void resumeFromAnotherThread() throws Exception {
+        HttpResponse<String> response = get("later");
+        assertEquals(200, response.statusCode());
+        assertEquals("later", response.body());
+    }
+
+    @Test
+    void resumeWithMappedException() throws Exception {
+        HttpResponse<String> response = get("mapped");
+        assertEquals(418, response.statusCode());
+        assertEquals("mapped: failed", response.body());
+    }
+
+    @Test
+    void resumeWithWebApplicationException() throws Exception {
+        assertEquals(404, get("not-found").statusCode());
+    }
+
+    @Test
+    void thrownExceptionIsMapped() throws Exception {
+        HttpResponse<String> response = get("thrown");
+        assertEquals(418, response.statusCode());
+        assertEquals("mapped: thrown", response.body());
+    }
+
+    @Test
+    void timeoutIsServiceUnavailable() throws Exception {
+        assertEquals(503, get("timeout").statusCode());
+    }
+
+    @Test
+    void timeoutHandlerResumes() throws Exception {
+        HttpResponse<String> response = get("timeout-handler");
+        assertEquals(200, response.statusCode());
+        assertEquals("timed out", response.body());
+    }
+
+    @Test
+    void cancelIsServiceUnavailable() throws Exception {
+        STATES.clear();
+        HttpResponse<String> response = get("cancel");
+        assertEquals(503, response.statusCode());
+        assertEquals("5", response.headers().firstValue("Retry-After").orElse(null));
+        assertEquals(List.of(true, true, false, true), STATES.poll(5, TimeUnit.SECONDS));
+    }
+
+    @Test
+    void completionCallbackIsCalled() throws Exception {
+        COMPLETED.clear();
+        assertEquals("completed", get("callback").body());
+        assertEquals("none", COMPLETED.poll(5, TimeUnit.SECONDS));
+        assertEquals(418, get("callback-failure").statusCode());
+        assertInstanceOf(MappedException.class, COMPLETED.poll(5, TimeUnit.SECONDS));
+    }
+
+    public static final class MappedException extends RuntimeException {
+        public MappedException(String message) {
+            super(message);
+        }
+    }
+
+    @Requires(property = "spec.name", value = "AsyncResponseTest")
+    @Provider
+    public static class MappedExceptionMapper implements ExceptionMapper<MappedException> {
+        @Override
+        public Response toResponse(MappedException exception) {
+            return Response.status(418).entity("mapped: " + exception.getMessage()).type(MediaType.TEXT_PLAIN).build();
+        }
+    }
+
+    @Requires(property = "spec.name", value = "AsyncResponseTest")
+    @Path("/async-response")
+    @Produces(MediaType.TEXT_PLAIN)
+    public static class AsyncResource {
+
+        @GET
+        @Path("entity")
+        public void entity(@Suspended AsyncResponse response) {
+            response.resume("resumed");
+        }
+
+        @GET
+        @Path("response")
+        public void response(@Suspended AsyncResponse response) {
+            response.resume(Response.status(201).entity("created").header("X-Async", "value").build());
+        }
+
+        @GET
+        @Path("later")
+        public void later(@Suspended AsyncResponse response) {
+            CompletableFuture.runAsync(() -> response.resume("later"), CompletableFuture.delayedExecutor(100, TimeUnit.MILLISECONDS));
+        }
+
+        @GET
+        @Path("mapped")
+        public void mapped(@Suspended AsyncResponse response) {
+            CompletableFuture.runAsync(() -> response.resume(new MappedException("failed")));
+        }
+
+        @GET
+        @Path("not-found")
+        public void notFound(@Suspended AsyncResponse response) {
+            response.resume(new NotFoundException());
+        }
+
+        @GET
+        @Path("thrown")
+        public void thrown(@Suspended AsyncResponse response) {
+            throw new MappedException("thrown");
+        }
+
+        @GET
+        @Path("timeout")
+        public void timeout(@Suspended AsyncResponse response) {
+            response.setTimeout(100, TimeUnit.MILLISECONDS);
+        }
+
+        @GET
+        @Path("timeout-handler")
+        public void timeoutHandler(@Suspended AsyncResponse response) {
+            response.setTimeoutHandler(timedOut -> timedOut.resume("timed out"));
+            response.setTimeout(100, TimeUnit.MILLISECONDS);
+        }
+
+        @GET
+        @Path("cancel")
+        public void cancel(@Suspended AsyncResponse response) {
+            boolean suspended = response.isSuspended();
+            boolean cancelled = response.cancel(5);
+            STATES.add(List.of(suspended, cancelled, response.isSuspended(), response.isCancelled() && response.isDone()));
+        }
+
+        @GET
+        @Path("callback")
+        public void callback(@Suspended AsyncResponse response) {
+            assertTrue(response.register(CompletionCallbackImpl.class).contains(jakarta.ws.rs.container.CompletionCallback.class));
+            assertTrue(response.register((ConnectionCallback) disconnected -> { }).isEmpty());
+            CompletableFuture.runAsync(() -> response.resume("completed"));
+        }
+
+        @GET
+        @Path("callback-failure")
+        public void callbackFailure(@Suspended AsyncResponse response) {
+            response.register(new CompletionCallbackImpl());
+            assertFalse(response.isDone());
+            response.resume(new MappedException("callback"));
+            assertFalse(response.resume("too late"));
+        }
+    }
+
+    @io.micronaut.core.annotation.Introspected
+    public static class CompletionCallbackImpl implements jakarta.ws.rs.container.CompletionCallback {
+        @Override
+        public void onComplete(Throwable throwable) {
+            COMPLETED.add(throwable == null ? "none" : throwable);
+        }
+    }
+}

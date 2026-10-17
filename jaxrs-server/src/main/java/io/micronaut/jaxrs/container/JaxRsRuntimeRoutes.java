@@ -36,6 +36,8 @@ import io.micronaut.inject.ExecutableMethod;
 import io.micronaut.inject.ProxyBeanDefinition;
 import io.micronaut.inject.annotation.AnnotationMetadataHierarchy;
 import io.micronaut.inject.qualifiers.Qualifiers;
+import io.micronaut.scheduling.TaskExecutors;
+import io.micronaut.scheduling.TaskScheduler;
 import io.micronaut.http.PathVariables;
 import io.micronaut.web.router.builder.AsyncBodyRequestHandler;
 import io.micronaut.web.router.builder.BodyRequestHandler;
@@ -65,6 +67,7 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.container.AsyncResponse;
 import jakarta.ws.rs.container.Suspended;
 import jakarta.ws.rs.core.Application;
 import jakarta.ws.rs.core.Context;
@@ -143,6 +146,9 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         "jakarta.servlet.ServletConfig"
     );
 
+    // the request attribute of the asynchronous response of a call
+    private static final String ASYNC_RESPONSE = "io.micronaut.jaxrs.asyncResponse";
+
     private static final List<Class<? extends Annotation>> REQUEST_ANNOTATIONS = List.of(
         PathParam.class, QueryParam.class, MatrixParam.class, HeaderParam.class, CookieParam.class,
         FormParam.class, BeanParam.class, Context.class
@@ -155,10 +161,14 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     private final Map<Class<?>, Creator<?>> creators = new ConcurrentHashMap<>();
     // the routes of the classes of located targets: one instance per class, for which the router keeps a route table
     private final Map<Class<?>, LocatedRoutes<?>> locatedRoutes = new ConcurrentHashMap<>();
+    // the scheduler of the timeouts of the asynchronous responses, resolved when one is set
+    private final Supplier<@Nullable TaskScheduler> scheduler;
 
     JaxRsRuntimeRoutes(BeanContext beanContext, JaxRsRouteSupport support) {
         this.beanContext = beanContext;
         this.support = support;
+        this.scheduler = SupplierUtil.memoized(() ->
+            beanContext.findBean(TaskScheduler.class, Qualifiers.byName(TaskExecutors.SCHEDULED)).orElse(null));
     }
 
     @Override
@@ -648,6 +658,9 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     private <L, B> CompletionStage<HttpResponse<?>> callAsync(ResourceMethod<B> method, Instances<L, B> instances, HttpRequest<?> request,
                                                              PathVariables pathVariables, @Nullable L target, @Nullable FormData form,
                                                              byte @Nullable [] body) throws Exception {
+        if (method.suspended()) {
+            return callSuspended(method, instances, request, pathVariables, target, form, body);
+        }
         CompletionStage<?> stage = (CompletionStage<?>) invoke(method, instances, request, pathVariables, target, form, body);
         if (stage == null) {
             throw new IllegalStateException("The asynchronous resource method " + method.method().name() + " returned no stage");
@@ -656,6 +669,27 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         Completion completion = method.completion();
         // the value of the stage is negotiated like the result of a method that is not asynchronous
         return stage.thenApply(value -> completion.complete(request, pathVariables, converter.convert(request, value)));
+    }
+
+    /**
+     * Call a resource method with a {@code @Suspended} asynchronous response (JAX-RS 8.2): the stage
+     * of the response it is resumed with.
+     */
+    private <L, B> CompletionStage<HttpResponse<?>> callSuspended(ResourceMethod<B> method, Instances<L, B> instances, HttpRequest<?> request,
+                                                                 PathVariables pathVariables, @Nullable L target, @Nullable FormData form,
+                                                                 byte @Nullable [] body) {
+        Converter converter = method.converter();
+        JaxRsAsyncResponse asyncResponse = new JaxRsAsyncResponse(value -> converter.convert(request, value), scheduler);
+        request.setAttribute(ASYNC_RESPONSE, asyncResponse);
+        try {
+            invoke(method, instances, request, pathVariables, target, form, body);
+        } catch (Exception e) {
+            // answered like an exception the response is resumed with
+            if (!asyncResponse.resume(e)) {
+                LOG.warn("The JAX-RS resource method {} failed after its asynchronous response was resumed", method.method().name(), e);
+            }
+        }
+        return asyncResponse.response();
     }
 
     /**
@@ -733,6 +767,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                                                            JaxRsMethod<B> method, String httpMethod, String template) {
         Argument<?>[] arguments = arguments(method);
         Reader[] readers = new Reader[arguments.length];
+        boolean suspended = false;
         boolean form = false;
         boolean usesForm = false;
         int entity = -1;
@@ -740,8 +775,14 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             Argument<?> argument = arguments[i];
             AnnotationMetadata metadata = argument.getAnnotationMetadata();
             if (metadata.hasAnnotation(Suspended.class)) {
-                LOG.warn("JAX-RS asynchronous responses with @Suspended are not routed yet: {}", method.name());
-                return null;
+                if (argument.getType() != AsyncResponse.class) {
+                    LOG.error("The @Suspended parameter of the JAX-RS resource method {} is not an AsyncResponse: it is not routed", method.name());
+                    return null;
+                }
+                // the asynchronous response of the call, see callSuspended
+                readers[i] = (request, pathVariables, f, body) -> request.getAttribute(ASYNC_RESPONSE, AsyncResponse.class).orElse(null);
+                suspended = true;
+                continue;
             }
             if (metadata.hasAnnotation(FormParam.class) && NO_BODY_METHODS.contains(httpMethod)) {
                 // no form without a body: read from the query, like the controllers did
@@ -788,12 +829,18 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         if (valueType.getType() == Void.class && async) {
             valueType = Argument.VOID;
         }
+        if (suspended) {
+            // the response is resumed with a value known only at runtime, the result is ignored
+            async = true;
+            valueType = Argument.OBJECT_ARGUMENT;
+        }
         List<String> produces = mediaTypes(method.metadata(), classMetadata, Produces.class);
         List<String> consumes = mediaTypes(method.metadata(), classMetadata, Consumes.class);
         JaxRsRouteSupport.RouteMetadata metadata = new JaxRsRouteSupport.RouteMetadata(owner, method.name(),
             Argument.toClassArray(method.arguments()), produces.toArray(String[]::new), consumes.toArray(String[]::new), rootClass);
         return new ResourceMethod<>(method, httpMethod, template, readers, form, formEntity, usesForm, entity, async,
-            !produces.isEmpty(), converter(valueType, async), completion(!produces.isEmpty(), valueType), responseType(valueType), metadata);
+            !produces.isEmpty(), converter(valueType, async), completion(!produces.isEmpty(), valueType), responseType(valueType), metadata,
+            suspended);
     }
 
     /**
@@ -1312,12 +1359,13 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      * @param completion Completes its response
      * @param responseType The declared type of its entity, {@code null} for none
      * @param metadata   Its route metadata
+     * @param suspended  Whether it has a {@code @Suspended} asynchronous response
      * @param <B>        The type of the instances it is called on
      */
     private record ResourceMethod<B>(JaxRsMethod<B> method, String httpMethod, String template, Reader[] readers, boolean form,
                                      boolean formEntity, boolean usesForm, int entity, boolean async, boolean produces,
                                      Converter converter, Completion completion, @Nullable Argument<?> responseType,
-                                     JaxRsRouteSupport.RouteMetadata metadata) {
+                                     JaxRsRouteSupport.RouteMetadata metadata, boolean suspended) {
     }
 
     /**
