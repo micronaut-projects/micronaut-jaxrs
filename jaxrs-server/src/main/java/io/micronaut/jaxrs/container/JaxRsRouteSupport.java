@@ -830,6 +830,16 @@ public final class JaxRsRouteSupport {
      * @return The response
      */
     public HttpResponse<?> jaxRsResponse(@Nullable Response response) {
+        return toHttpResponse(response);
+    }
+
+    /**
+     * Converts a JAX-RS response, e.g. of a resource method or an exception mapper.
+     *
+     * @param response The JAX-RS response, null for no content
+     * @return The response
+     */
+    static MutableHttpResponse<?> toHttpResponse(@Nullable Response response) {
         if (response == null) {
             return HttpResponse.noContent();
         }

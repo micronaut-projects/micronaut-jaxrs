@@ -29,7 +29,6 @@ import io.micronaut.http.server.exceptions.NotFoundException;
 import io.micronaut.http.server.exceptions.UnsupportedMediaException;
 import io.micronaut.http.server.exceptions.response.ErrorContext;
 import io.micronaut.http.server.exceptions.response.ErrorResponseProcessor;
-import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.WebApplicationException;
@@ -79,7 +78,7 @@ final class JaxRsHttpStatusExceptionHandler implements ExceptionHandler<HttpStat
             } else {
                 response = webApplicationException.getResponse();
             }
-            return ((JaxRsMutableResponse) response).getResponse();
+            return JaxRsRouteSupport.toHttpResponse(response);
         }
         return responseProcessor.processResponse(ErrorContext.builder(request)
             .errorMessage(Objects.requireNonNullElse(exception.getMessage(), "Unknown error"))

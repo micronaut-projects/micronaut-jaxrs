@@ -23,7 +23,7 @@ import io.micronaut.http.annotation.Produces;
 import io.micronaut.http.server.exceptions.ExceptionHandler;
 import io.micronaut.http.server.exceptions.response.ErrorContext;
 import io.micronaut.http.server.exceptions.response.ErrorResponseProcessor;
-import io.micronaut.jaxrs.common.JaxRsMutableResponse;
+import io.micronaut.http.codec.CodecException;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.ext.ExceptionMapper;
@@ -66,7 +66,11 @@ final class JaxRsGlobalExceptionHandler implements ExceptionHandler<Throwable, H
         if (LOG.isDebugEnabled()) {
             LOG.debug(exception.getMessage(), exception);
         }
-        boolean writing = exception instanceof JaxRsIOException ioException && ioException.isWriting();
+        // an unmapped exception of reading the request body is the client's, any other one, e.g. an
+        // unchecked exception of a resource method, is a server error (JAX-RS 3.3.4); the parameter
+        // conversions throw a WebApplicationException with their status (JAX-RS 3.2)
+        boolean clientError = exception instanceof CodecException
+            && !(exception instanceof JaxRsIOException ioException && ioException.isWriting());
         if (exception instanceof JaxRsIOException && exception.getCause() != null) {
             // the IOException a provider threw, wrapped to cross Micronaut's reader and writer API
             exception = exception.getCause();
@@ -79,11 +83,11 @@ final class JaxRsGlobalExceptionHandler implements ExceptionHandler<Throwable, H
                 return HttpResponse.status(HttpStatus.INTERNAL_SERVER_ERROR);
             }
             request.getAttributes().put(USED_EXCEPTION_MAPPER, exceptionMapperName);
-            return ((JaxRsMutableResponse) exceptionMapper.toResponse(exception)).getResponse();
+            return JaxRsRouteSupport.toHttpResponse(exceptionMapper.toResponse(exception));
         }
         return responseProcessor.processResponse(ErrorContext.builder(request)
             .errorMessage(Objects.requireNonNullElse(exception.getMessage(), "Unknown error"))
             .cause(exception)
-            .build(), writing ? HttpResponse.serverError() : HttpResponse.badRequest());
+            .build(), clientError ? HttpResponse.badRequest() : HttpResponse.serverError());
     }
 }

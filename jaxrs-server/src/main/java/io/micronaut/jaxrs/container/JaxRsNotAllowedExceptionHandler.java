@@ -24,7 +24,6 @@ import io.micronaut.http.HttpResponse;
 import io.micronaut.http.annotation.Produces;
 import io.micronaut.http.server.exceptions.ExceptionHandler;
 import io.micronaut.http.server.exceptions.NotAllowedException;
-import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.core.Response;
@@ -77,7 +76,7 @@ final class JaxRsNotAllowedExceptionHandler implements ExceptionHandler<NotAllow
         } else {
             response = notAllowedException.getResponse();
         }
-        return ((JaxRsMutableResponse) response).getResponse();
+        return JaxRsRouteSupport.toHttpResponse(response);
     }
 
 }
