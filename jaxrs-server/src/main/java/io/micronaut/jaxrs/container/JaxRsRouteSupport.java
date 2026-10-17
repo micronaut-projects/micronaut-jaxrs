@@ -146,6 +146,13 @@ public final class JaxRsRouteSupport {
      */
     static final String SSE_EVENT_SINK = SseEventSink.class.getName();
 
+    // the types of header values with a header delegate, a subtype first (NewCookie of Cookie)
+    private static final List<Class<?>> HEADER_TYPES = List.of(
+        jakarta.ws.rs.core.MediaType.class, jakarta.ws.rs.core.NewCookie.class, jakarta.ws.rs.core.Cookie.class,
+        jakarta.ws.rs.core.EntityTag.class, jakarta.ws.rs.core.Link.class, jakarta.ws.rs.core.CacheControl.class);
+    private static final java.time.format.DateTimeFormatter HTTP_DATE =
+        java.time.format.DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss 'GMT'", java.util.Locale.US);
+
     // the servlet request types of a @Context value, bound to a stub when the server is not a
     // servlet container
     private static final Set<String> SERVLET_REQUEST_TYPES = Set.of("jakarta.servlet.ServletRequest", "jakarta.servlet.http.HttpServletRequest");
@@ -841,13 +848,37 @@ public final class JaxRsRouteSupport {
         MutableHttpResponse<Object> httpResponse = HttpResponse.status(response.getStatus(), response.getStatusInfo().getReasonPhrase());
         response.getMetadata().forEach((name, values) -> {
             for (Object value : values) {
-                httpResponse.getHeaders().add(name, String.valueOf(value));
+                if (value != null) {
+                    httpResponse.getHeaders().add(name, headerValue(value));
+                }
             }
         });
         if (response.hasEntity()) {
             httpResponse.body(response.getEntity());
         }
         return httpResponse;
+    }
+
+    /**
+     * A header value of a response as a string: with the header delegate of its type, e.g. of a
+     * subclass of {@code Link} or {@code NewCookie}, a date as an HTTP date, else its
+     * {@code toString()} (JAX-RS, {@code Response#getStringHeaders}).
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static String headerValue(Object value) {
+        if (value instanceof String string) {
+            return string;
+        }
+        if (value instanceof java.util.Date date) {
+            return HTTP_DATE.format(date.toInstant().atZone(java.time.ZoneOffset.UTC));
+        }
+        for (Class<?> type : HEADER_TYPES) {
+            if (type.isInstance(value)) {
+                return ((jakarta.ws.rs.ext.RuntimeDelegate.HeaderDelegate) jakarta.ws.rs.ext.RuntimeDelegate.getInstance()
+                    .createHeaderDelegate(type)).toString(value);
+            }
+        }
+        return value.toString();
     }
 
     /**
