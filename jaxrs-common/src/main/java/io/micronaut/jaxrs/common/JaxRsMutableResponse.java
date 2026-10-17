@@ -16,6 +16,7 @@
 package io.micronaut.jaxrs.common;
 
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.io.buffer.ByteBuffer;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpResponseProvider;
 import io.micronaut.http.HttpHeaders;
@@ -29,7 +30,6 @@ import java.io.ByteArrayInputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.util.Date;
 
 /**
@@ -84,30 +84,62 @@ public final class JaxRsMutableResponse extends JaxRsResponse implements HttpRes
 
     @Override
     public boolean hasEntity() {
+        checkCanReadEntity();
         return entityStream != null || super.hasEntity();
     }
 
     @Override
-    public <T> @Nullable T readEntity(Argument<T> entityType) {
+    public @Nullable Object getEntity() {
         if (entityStream != null) {
-            if (entityType.getType().equals(InputStream.class)) {
-                return (T) entityStream;
-            }
-            byte[] result;
-            try {
-                result = entityStream.readAllBytes();
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-            try {
-                entityStream.close();
-            } catch (IOException ignore) {
-                // Ignore
-            }
-            mutableHttpResponse.body(result);
-            entityStream = null;
+            checkCanReadEntity();
+            // the entity stream, e.g. the one a filter set, not read yet
+            return entityStream;
         }
-        return super.readEntity(entityType);
+        return super.getEntity();
+    }
+
+    @Override
+    InputStream receivedEntityStream(ByteBuffer<?> byteBuffer) {
+        // the entity stream the entity is then read from
+        return getEntityStream();
+    }
+
+    @Override
+    @Nullable Object readUnbuffered(Argument<?> entityType) {
+        InputStream stream = entityStream;
+        if (stream != null) {
+            if (entityType.getType() == InputStream.class) {
+                // it stays the entity stream, which close() closes
+                return stream;
+            }
+            entityStream = null;
+            mutableHttpResponse.body(readAll(stream));
+        }
+        return super.readUnbuffered(entityType);
+    }
+
+    @Override
+    byte @Nullable [] bufferedBytes() {
+        // the current entity stream, e.g. the one a response filter set
+        InputStream stream = entityStream;
+        if (stream != null) {
+            entityStream = null;
+            byte[] bytes = readAll(stream);
+            mutableHttpResponse.body(bytes);
+            return bytes;
+        }
+        return super.bufferedBytes();
+    }
+
+    /**
+     * Read a stream to its end, and close it.
+     */
+    private static byte[] readAll(InputStream stream) {
+        try (stream) {
+            return stream.readAllBytes();
+        } catch (IOException e) {
+            throw new ProcessingException(e);
+        }
     }
 
     @Override
@@ -143,11 +175,12 @@ public final class JaxRsMutableResponse extends JaxRsResponse implements HttpRes
     }
 
     @Override
-    public void close() {
+    void release() {
         try {
-            if (entityStream != null) {
-                entityStream.close();
+            InputStream stream = entityStream;
+            if (stream != null) {
                 entityStream = null;
+                stream.close();
             }
             // an entity that holds a resource, e.g. Response.ok(new FileInputStream(file))
             Object body = mutableHttpResponse.body();
@@ -160,6 +193,5 @@ public final class JaxRsMutableResponse extends JaxRsResponse implements HttpRes
         } catch (IOException e) {
             throw new ProcessingException(e);
         }
-        super.close();
     }
 }
