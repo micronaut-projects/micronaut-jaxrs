@@ -20,6 +20,8 @@ import io.micronaut.core.type.MutableHeaders;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.ext.WriterInterceptorContext;
 
+import java.io.FilterOutputStream;
+import java.io.IOException;
 import java.io.OutputStream;
 
 /**
@@ -62,6 +64,34 @@ public sealed interface JaxRsWriterInterceptorContextState permits JaxRsGenericE
     MultivaluedMap<String, Object> getHeaders();
 
     /**
+     * Called after the interceptor chain: closes the stream the interceptors installed, e.g. to
+     * finish a {@code GZIPOutputStream}, without closing the underlying response stream.
+     *
+     * @throws IOException If closing fails
+     */
+    void finish() throws IOException;
+
+    /**
+     * A stream that only flushes the given stream when it is closed.
+     *
+     * @param outputStream The stream
+     * @return The stream not to close
+     */
+    static OutputStream nonClosing(OutputStream outputStream) {
+        return new FilterOutputStream(outputStream) {
+            @Override
+            public void write(byte[] b, int off, int len) throws IOException {
+                out.write(b, off, len);
+            }
+
+            @Override
+            public void close() throws IOException {
+                out.flush();
+            }
+        };
+    }
+
+    /**
      * Implementation with simple fields.
      */
     final class ClassicState implements JaxRsWriterInterceptorContextState {
@@ -72,7 +102,13 @@ public sealed interface JaxRsWriterInterceptorContextState permits JaxRsGenericE
         public ClassicState(MutableHeaders headers, Object entity, OutputStream outputStream) {
             this.headers = new JaxRsMutableObjectHeadersMultivaluedMap(headers);
             this.entity = entity;
-            this.outputStream = outputStream;
+            // the interceptors' streams are closed after the chain, the underlying one is not
+            this.outputStream = nonClosing(outputStream);
+        }
+
+        @Override
+        public void finish() throws IOException {
+            outputStream.close();
         }
 
         @Override
