@@ -75,7 +75,7 @@ public final class JaxRsStringMessageBodyReaderWriter implements MessageBodyRead
         }
     }
 
-    private static Charset getCharset(MediaType mediaType) {
+    static Charset getCharset(MediaType mediaType) {
         if (mediaType == null) {
             return StandardCharsets.UTF_8;
         }

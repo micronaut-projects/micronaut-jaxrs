@@ -18,7 +18,6 @@ package io.micronaut.jaxrs.common.body.standard;
 import io.micronaut.context.annotation.Prototype;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.Order;
-import io.micronaut.core.io.IOUtils;
 import io.micronaut.core.order.Ordered;
 import io.micronaut.jaxrs.common.JaxRsIOException;
 import jakarta.ws.rs.Consumes;
@@ -29,10 +28,8 @@ import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.ext.MessageBodyReader;
 import jakarta.ws.rs.ext.MessageBodyWriter;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
@@ -63,12 +60,8 @@ final class JaxRsBooleanMessageBodyReaderWriter implements MessageBodyReader<Boo
 
     @Override
     public Boolean readFrom(Class<Boolean> type, Type genericType, Annotation[] annotations, MediaType mediaType, MultivaluedMap<String, String> httpHeaders, InputStream entityStream) throws IOException, WebApplicationException {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(entityStream, StandardCharsets.UTF_8))) {
-            String s = IOUtils.readText(reader);
-            return Boolean.parseBoolean(s);
-        } catch (IOException e) {
-            throw new JaxRsIOException(e);
-        }
+        // an empty entity is a NoContentException, like a number or a character
+        return Boolean.parseBoolean(JaxRsStringMessageBodyReaderWriter.readToString(entityStream, mediaType, true));
     }
 
     @Override
