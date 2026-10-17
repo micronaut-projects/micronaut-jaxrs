@@ -163,7 +163,7 @@ public final class JaxRsRouteSupport {
 
     private final BeanContext beanContext;
 
-    private final Map<Argument<?>, StringConverter> converters = new ConcurrentHashMap<>();
+    private final Map<ConverterKey, StringConverter> converters = new ConcurrentHashMap<>();
 
     private final Map<String, java.lang.reflect.Field> fields = new ConcurrentHashMap<>();
 
@@ -1310,7 +1310,10 @@ public final class JaxRsRouteSupport {
     }
 
     private @Nullable Object convertOne(String value, Argument<?> argument, boolean notFound) {
-        StringConverter converter = converters.computeIfAbsent(argument, this::converter);
+        // the annotations are part of the key: a ParamConverterProvider sees them, and arguments
+        // are equal without them
+        StringConverter converter = converters.computeIfAbsent(new ConverterKey(argument, argument.getAnnotationMetadata()),
+            key -> converter(key.argument()));
         Object converted;
         try {
             converted = converter.convert(value);
@@ -1324,6 +1327,15 @@ public final class JaxRsRouteSupport {
             throw notFound ? new NotFoundException(cause) : new BadRequestException(cause);
         }
         return converted;
+    }
+
+    /**
+     * The key of the converter of a parameter: its type, and its annotations.
+     *
+     * @param argument    The parameter
+     * @param annotations The annotations of the parameter
+     */
+    private record ConverterKey(Argument<?> argument, AnnotationMetadata annotations) {
     }
 
     /**
