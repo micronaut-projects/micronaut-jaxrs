@@ -7,6 +7,7 @@ import io.micronaut.http.client.HttpClient;
 import io.micronaut.http.client.annotation.Client;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
+import jakarta.ws.rs.Encoded;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.Path;
@@ -43,6 +44,11 @@ class ResourceContextTest {
     }
 
     @Test
+    void getResourceGivesAnEncodedPathParamMemberTheRawValue() {
+        assertEquals("a%2Fb", client.toBlocking().retrieve(HttpRequest.GET("/encoded/a%2Fb")));
+    }
+
+    @Test
     void initResourceInitializesTheResource() {
         assertEquals("c q3 h3 /resource-context/init/c",
             client.toBlocking().retrieve(HttpRequest.GET("/init/c?q=q3").header("X-H", "h3")));
@@ -53,6 +59,12 @@ class ResourceContextTest {
     public static class RootResource {
         @Context
         ResourceContext resourceContext;
+
+        @GET
+        @Path("/encoded/{id}")
+        public String encoded() {
+            return resourceContext.getResource(EncodedMember.class).id;
+        }
 
         @GET
         @Path("/get/{id}")
@@ -120,6 +132,19 @@ class ResourceContextTest {
 
         String describe() {
             return id + " " + query;
+        }
+    }
+
+    @Requires(property = "spec.name", value = "ResourceContextTest")
+    @Path("/encoded-member")
+    public static class EncodedMember {
+        @Encoded
+        @PathParam("id")
+        String id;
+
+        @GET
+        public String get() {
+            return id;
         }
     }
 }

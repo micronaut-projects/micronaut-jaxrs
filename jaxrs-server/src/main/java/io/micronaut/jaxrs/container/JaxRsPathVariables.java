@@ -32,11 +32,13 @@ import java.util.Set;
  * The path variables of the route of a request, converted with the conversion service.
  *
  * @param values            The values of the variables, by name
+ * @param rawValues         The values of the variables as they appear in the path, not percent-decoded, by name
  * @param conversionService The conversion service
  * @author Denis Stepanov
  * @since 5.2.0
  */
-record JaxRsPathVariables(Map<String, Object> values, ConversionService conversionService) implements PathVariables {
+record JaxRsPathVariables(Map<String, Object> values, Map<String, Object> rawValues,
+                          ConversionService conversionService) implements PathVariables {
 
     /**
      * @param request           The request
@@ -44,11 +46,20 @@ record JaxRsPathVariables(Map<String, Object> values, ConversionService conversi
      * @return The path variables of the route the request matched, none if it matched none
      */
     static JaxRsPathVariables of(HttpRequest<?> request, ConversionService conversionService) {
-        Map<String, Object> values = RouteAttributes.getRouteMatch(request)
+        UriRouteMatch<?, ?> match = RouteAttributes.getRouteMatch(request)
             .filter(UriRouteMatch.class::isInstance)
-            .map(match -> ((UriRouteMatch<?, ?>) match).getVariableValues())
-            .orElse(Map.of());
-        return new JaxRsPathVariables(values, conversionService);
+            .<UriRouteMatch<?, ?>>map(m -> (UriRouteMatch<?, ?>) m)
+            .orElse(null);
+        if (match == null) {
+            return new JaxRsPathVariables(Map.of(), Map.of(), conversionService);
+        }
+        return new JaxRsPathVariables(match.getVariableValues(), match.getRawVariableValues(), conversionService);
+    }
+
+    @Override
+    public PathVariables raw() {
+        // the raw variables of the raw variables are themselves
+        return values == rawValues ? this : new JaxRsPathVariables(rawValues, rawValues, conversionService);
     }
 
     @Override
