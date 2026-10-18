@@ -71,6 +71,26 @@ class JaxRsClientSslTest {
     }
 
     @Test
+    void sslContextAndHostnameVerifier() throws Exception {
+        SSLContext sslContext = trustAll();
+        // the certificate of the server is the one of localhost, not of its address
+        String uri = "https://127.0.0.1:" + server.getPort();
+        assertThrows(ProcessingException.class, () -> get(ClientBuilder.newBuilder().sslContext(sslContext), uri));
+
+        List<String> verified = new CopyOnWriteArrayList<>();
+        HostnameVerifier accepting = (host, session) -> verified.add(host);
+        ClientBuilder builder = ClientBuilder.newBuilder().sslContext(sslContext).hostnameVerifier(accepting);
+        assertEquals("hello", get(builder, uri));
+        assertEquals(List.of("127.0.0.1"), verified);
+        try (Client client = builder.build()) {
+            assertSame(sslContext, client.getSslContext());
+        }
+
+        HostnameVerifier rejecting = (host, session) -> false;
+        assertThrows(ProcessingException.class, () -> get(ClientBuilder.newBuilder().sslContext(sslContext).hostnameVerifier(rejecting), uri));
+    }
+
+    @Test
     void storesResetTheSslContextAndBack() throws Exception {
         KeyStore emptyTrustStore = KeyStore.getInstance(KeyStore.getDefaultType());
         emptyTrustStore.load(null, null);
@@ -86,7 +106,11 @@ class JaxRsClientSslTest {
     }
 
     private String get(ClientBuilder builder) {
-        return withClient(builder, client -> client.target(server.getURI()).path("client/hello").request().get(String.class));
+        return get(builder, server.getURI().toString());
+    }
+
+    private static String get(ClientBuilder builder, String uri) {
+        return withClient(builder, client -> client.target(uri).path("client/hello").request().get(String.class));
     }
 
     private static <T> T withClient(ClientBuilder builder, Function<Client, T> function) {

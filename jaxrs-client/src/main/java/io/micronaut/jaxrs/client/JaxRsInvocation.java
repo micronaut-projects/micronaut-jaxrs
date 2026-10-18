@@ -322,7 +322,7 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
                         if (throwable instanceof HttpClientResponseException httpClientResponseException) {
                             // a response that is not successful is filtered like any other
                             HttpResponse<?> response = httpClientResponseException.getResponse();
-                            future.complete(new Exchanged(new JaxRsMutableResponse(errorResponse(response)
+                            future.complete(new Exchanged(new JaxRsMutableResponse(response.toMutableResponse()
                                 .attribute(JaxRsResponse.REQUEST_URI, requestUri)), requestContext));
                         } else {
                             future.completeExceptionally(new ProcessingException(throwable));
@@ -342,19 +342,6 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
             future.completeExceptionally(new ProcessingException(e));
         }
         return future;
-    }
-
-    /**
-     * A response that is not successful, with its entity: the HTTP client did not convert it, so
-     * it is the bytes of the response.
-     */
-    @SuppressWarnings("unchecked")
-    private static MutableHttpResponse<?> errorResponse(HttpResponse<?> response) {
-        MutableHttpResponse<?> mutableResponse = response.toMutableResponse();
-        if (mutableResponse.getBody().isEmpty()) {
-            response.getBody(byte[].class).ifPresent(((MutableHttpResponse<Object>) mutableResponse)::body);
-        }
-        return mutableResponse;
     }
 
     /**

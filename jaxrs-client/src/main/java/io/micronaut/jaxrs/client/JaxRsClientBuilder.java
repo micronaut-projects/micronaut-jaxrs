@@ -26,7 +26,6 @@ import io.micronaut.http.body.MessageBodyReader;
 import io.micronaut.http.body.MessageBodyWriter;
 import io.micronaut.http.client.DefaultHttpClientConfiguration;
 import io.micronaut.http.client.netty.DefaultHttpClient;
-import io.micronaut.http.client.netty.DefaultHttpClientBuilder;
 import io.micronaut.jaxrs.common.JaxRsStandardProviders;
 import io.micronaut.jaxrs.common.body.standard.JaxRsInputStreamMessageBodyReader;
 import io.micronaut.jaxrs.common.body.standard.JaxRsInputStreamMessageBodyWriter;
@@ -94,13 +93,10 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
         configuration.setReadTimeout(readTimeout);
         // the SSL of this builder, else the one of the HTTP client
         SSLContext clientSslContext = JaxRsClientSsl.sslContext(sslContext, keyStore, keyStorePassword, trustStore, hostnameVerifier);
-        Supplier<DefaultHttpClient> httpClients = () -> {
-            DefaultHttpClientBuilder builder = DefaultHttpClient.builder().configuration(configuration);
-            if (clientSslContext != null) {
-                builder.nettyClientSslBuilder(new JaxRsClientSsl(clientSslContext));
-            }
-            return builder.build();
-        };
+        if (clientSslContext != null) {
+            JaxRsClientSsl.configure(configuration.getSslConfiguration(), clientSslContext, sslContext != null, hostnameVerifier);
+        }
+        Supplier<DefaultHttpClient> httpClients = () -> DefaultHttpClient.builder().configuration(configuration).build();
         DefaultHttpClient httpClient = httpClients.get();
         ContextlessMessageBodyHandlerRegistry handlerRegistry = (ContextlessMessageBodyHandlerRegistry) httpClient.getHandlerRegistry();
         // the properties and components registered on this builder, then the standard ones

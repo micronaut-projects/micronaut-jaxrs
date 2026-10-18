@@ -19,6 +19,7 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.io.buffer.ByteBuffer;
 import org.jspecify.annotations.Nullable;
 import io.micronaut.core.type.Argument;
+import io.micronaut.http.ByteBodyHttpResponse;
 import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.HttpResponseProvider;
@@ -141,7 +142,7 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
     @Override
     public @Nullable Object getEntity() {
         checkCanReadEntity();
-        Object body = response.body();
+        Object body = body();
         if (body instanceof GenericEntity<?> genericEntity) {
             return genericEntity.getEntity();
         }
@@ -263,7 +264,19 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
     @Override
     public boolean hasEntity() {
         checkCanReadEntity();
-        return response.getBody().isPresent();
+        return body() != null;
+    }
+
+    /**
+     * The body of the response: its object, else its received bytes, e.g. the ones of an error
+     * response the HTTP client did not convert.
+     */
+    private @Nullable Object body() {
+        Object body = response.body();
+        if (body == null && response instanceof ByteBodyHttpResponse<?> byteBodyResponse && byteBodyResponse.hasByteBody()) {
+            return response.getBody(ByteBuffer.class).orElse(null);
+        }
+        return body;
     }
 
     /**

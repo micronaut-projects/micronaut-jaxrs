@@ -191,6 +191,24 @@ class JaxRsClientTest {
     }
 
     @Test
+    void entityOfAnErrorResponseIsItsStream() throws IOException {
+        NotFoundException e = assertThrows(NotFoundException.class, () -> target("missing").request().get(String.class));
+
+        Object entity = e.getResponse().getEntity();
+        assertInstanceOf(InputStream.class, entity);
+        assertEquals("the error", new String(((InputStream) entity).readAllBytes(), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void responseOfAnErrorStatusHasItsEntity() {
+        try (Response response = target("missing").request().get()) {
+            assertEquals(404, response.getStatus());
+            assertTrue(response.hasEntity());
+            assertEquals("the error", response.readEntity(String.class));
+        }
+    }
+
+    @Test
     void responseFilterChangesTheStatusOfATypedInvocation() {
         String body = target("missing")
             .register((ClientResponseFilter) (request, response) -> response.setStatus(200))
