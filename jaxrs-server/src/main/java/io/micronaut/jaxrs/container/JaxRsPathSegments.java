@@ -60,10 +60,10 @@ final class JaxRsPathSegments {
         for (int i = 1; i < parts.length; i++) {
             String part = parts[i];
             int equals = part.indexOf('=');
-            String key = URLDecoder.decode(equals < 0 ? part : part.substring(0, equals), StandardCharsets.UTF_8);
+            String key = decode(equals < 0 ? part : part.substring(0, equals));
             if (key.equals(name)) {
                 String value = equals < 0 ? "" : part.substring(equals + 1);
-                values.add(encoded ? value : URLDecoder.decode(value, StandardCharsets.UTF_8));
+                values.add(encoded ? value : decode(value));
             }
         }
         return values;
@@ -81,20 +81,28 @@ final class JaxRsPathSegments {
         String path = request.getUri().getRawPath();
         for (String segment : path.split("/")) {
             String[] parts = segment.split(";");
-            String decoded = URLDecoder.decode(parts[0], StandardCharsets.UTF_8);
+            String decoded = decode(parts[0]);
             if (decoded.equals(value) || parts[0].equals(value)) {
                 MultivaluedMap<String, String> parameters = new MultivaluedHashMap<>();
                 for (int i = 1; i < parts.length; i++) {
                     int equals = parts[i].indexOf('=');
                     String key = equals < 0 ? parts[i] : parts[i].substring(0, equals);
                     String parameter = equals < 0 ? "" : parts[i].substring(equals + 1);
-                    parameters.add(encoded ? key : URLDecoder.decode(key, StandardCharsets.UTF_8),
-                        encoded ? parameter : URLDecoder.decode(parameter, StandardCharsets.UTF_8));
+                    parameters.add(encoded ? key : decode(key),
+                        encoded ? parameter : decode(parameter));
                 }
                 return new Segment(encoded ? parts[0] : decoded, parameters);
             }
         }
         return new Segment(value, new MultivaluedHashMap<>());
+    }
+
+    /**
+     * Percent-decode a part of a path: a {@code +} of a path is not a space.
+     */
+    private static String decode(String value) {
+        return value.indexOf('+') < 0 ? URLDecoder.decode(value, StandardCharsets.UTF_8)
+            : URLDecoder.decode(value.replace("+", "%2B"), StandardCharsets.UTF_8);
     }
 
     /**
