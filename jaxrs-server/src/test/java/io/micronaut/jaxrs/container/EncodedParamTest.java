@@ -87,6 +87,19 @@ class EncodedParamTest {
         assertEquals("a b%", post("/api/encoded/form-decoded", "g=a+b%25"));
     }
 
+    @ParameterizedTest
+    @CsvSource({
+        "/api/encoded/form,%GG=value",
+        "/api/encoded/form,f=%GG",
+    })
+    void malformedFormIsABadRequest(String path, String form) throws Exception {
+        HttpResponse<String> response = client.send(HttpRequest.newBuilder(URI.create(server.getURL() + path))
+                .header("Content-Type", MediaType.APPLICATION_FORM_URLENCODED)
+                .POST(HttpRequest.BodyPublishers.ofString(form)).build(),
+            HttpResponse.BodyHandlers.ofString());
+        assertEquals(400, response.statusCode(), response.body());
+    }
+
     private String get(String path) throws Exception {
         HttpResponse<String> response = client.send(HttpRequest.newBuilder(URI.create(server.getURL() + path)).build(),
             HttpResponse.BodyHandlers.ofString());
