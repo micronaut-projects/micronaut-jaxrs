@@ -66,6 +66,19 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
      */
     public static final String REQUEST_URI = JaxRsResponse.class.getName() + ".requestUri";
 
+    // the standard types (JAX-RS 4.2.4) without a zero-length value, which read an empty entity as null
+    private static final Set<String> STANDARD_NULLABLE_TYPES = Set.of(
+        "java.io.File",
+        "jakarta.activation.DataSource",
+        "javax.xml.transform.Source",
+        "javax.xml.transform.stream.StreamSource",
+        "javax.xml.transform.sax.SAXSource",
+        "javax.xml.transform.dom.DOMSource",
+        "jakarta.xml.bind.JAXBElement",
+        "jakarta.ws.rs.core.MultivaluedMap",
+        "jakarta.ws.rs.core.StreamingOutput"
+    );
+
     private final HttpResponse<?> response;
     private final HttpMessageEntityReader entityReader;
     private final JaxRsHttpHeaders jaxRsHttpHeaders;
@@ -175,6 +188,7 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
         if (readBodyArgument != null && readBodyArgument.getType().equals(entityType.getType())) {
             return (T) readBody;
         }
+        boolean empty = isEmptyEntity();
         T value;
         if (buffered) {
             // the buffer is read again by each read
@@ -196,10 +210,23 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
             readBodyArgument = entityType;
             readBody = value;
         }
-        if (value == null) {
+        if (value == null && empty) {
             value = emptyEntity(entityType.getType());
         }
         return value;
+    }
+
+    /**
+     * Whether the entity is empty: none, or zero-length.
+     */
+    private boolean isEmptyEntity() {
+        if (buffered) {
+            return buffer == null || buffer.length == 0;
+        }
+        Object body = body();
+        return body == null
+            || body instanceof ByteBuffer<?> byteBuffer && byteBuffer.readableBytes() == 0
+            || body instanceof byte[] bytes && bytes.length == 0;
     }
 
     /**
@@ -234,7 +261,12 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
         if (type == Reader.class) {
             return (T) Reader.nullReader();
         }
-        return null;
+        if (type == Object.class || STANDARD_NULLABLE_TYPES.contains(type.getName())) {
+            // the other standard types read an empty entity as null, as the TCK expects
+            return null;
+        }
+        // an application type has no zero-length representation (JAX-RS, Response#readEntity)
+        throw new ProcessingException(new NoContentException("An empty entity cannot be read as " + type.getName()));
     }
 
     private static boolean isPrimitiveOrWrapper(Class<?> type) {

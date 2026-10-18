@@ -15,6 +15,7 @@
  */
 package io.micronaut.jaxrs.providers;
 
+import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.type.Argument;
 import io.micronaut.jaxrs.common.JaxRsCurrentProviders;
 import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
@@ -103,7 +104,7 @@ public final class JaxRsJaxbMessageBodyReaderWriter implements MessageBodyReader
                 Class<?> declared = typeArgument(genericType);
                 return unmarshaller(declared, mediaType).unmarshal(entity, declared);
             }
-            if (type.isAnnotationPresent(XmlRootElement.class)) {
+            if (isRootElement(type)) {
                 Object value = unmarshaller(type, mediaType).unmarshal(entity);
                 return value instanceof JAXBElement<?> element ? element.getValue() : value;
             }
@@ -131,7 +132,7 @@ public final class JaxRsJaxbMessageBodyReaderWriter implements MessageBodyReader
                 bound = element.getDeclaredType();
             } else {
                 bound = value.getClass();
-                if (!bound.isAnnotationPresent(XmlRootElement.class)) {
+                if (!isRootElement(bound)) {
                     // an @XmlType without a root element: the element is named after the class
                     root = new JAXBElement(new QName(Introspector.decapitalize(bound.getSimpleName())), bound, value);
                 }
@@ -147,10 +148,20 @@ public final class JaxRsJaxbMessageBodyReaderWriter implements MessageBodyReader
         }
     }
 
+    /**
+     * Whether a class is bound by JAXB: its annotations come from the reflection SPI, so without
+     * reflection a JAXB class must be introspected.
+     */
     private static boolean isJaxb(Class<?> type) {
-        return JAXBElement.class.isAssignableFrom(type)
-            || type.isAnnotationPresent(XmlRootElement.class)
-            || type.isAnnotationPresent(XmlType.class);
+        if (JAXBElement.class.isAssignableFrom(type)) {
+            return true;
+        }
+        AnnotationMetadata metadata = JaxRsReflection.get().annotationMetadata(type);
+        return metadata.hasAnnotation(XmlRootElement.class) || metadata.hasAnnotation(XmlType.class);
+    }
+
+    private static boolean isRootElement(Class<?> type) {
+        return JaxRsReflection.get().annotationMetadata(type).hasAnnotation(XmlRootElement.class);
     }
 
     private static Class<?> typeArgument(Type genericType) {

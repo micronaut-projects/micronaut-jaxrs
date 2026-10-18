@@ -1,5 +1,6 @@
 package io.micronaut.jaxrs.providers;
 
+import io.micronaut.core.annotation.Introspected;
 import io.micronaut.runtime.server.EmbeddedServer;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.activation.DataSource;
@@ -90,6 +91,8 @@ class StandardProvidersTest {
         assertTrue(response.body().contains(">text!<"), response.body());
     }
 
+    // without reflection, a JAXB class is found by its introspection
+    @Introspected
     @XmlRootElement(name = "item")
     public static class Item {
         public String name;

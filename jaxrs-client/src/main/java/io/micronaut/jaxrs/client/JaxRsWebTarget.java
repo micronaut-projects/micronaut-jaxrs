@@ -74,10 +74,14 @@ public final class JaxRsWebTarget implements WebTarget, JaxRsConfigurable<WebTar
         return uriBuilder.build();
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>The builder is a copy: changing it doesn't change this target.</p>
+     */
     @Override
     public UriBuilder getUriBuilder() {
         client.checkOpen();
-        return uriBuilder;
+        return uriBuilder.clone();
     }
 
     @Override

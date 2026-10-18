@@ -19,6 +19,7 @@ import io.micronaut.core.annotation.Internal;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import io.micronaut.core.io.buffer.ByteBuffer;
+import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpMethod;
@@ -28,6 +29,7 @@ import io.micronaut.http.HttpResponseFactory;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.MutableHttpHeaders;
 import io.micronaut.http.MutableHttpRequest;
+import io.micronaut.http.simple.SimpleHttpHeaders;
 import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.http.client.exceptions.HttpClientResponseException;
 import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
@@ -116,7 +118,9 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
         this.uri = uri;
         this.method = method;
         this.entity = entity;
-        this.mutableHttpHeaders = mutableHttpHeaders;
+        // a snapshot: later changes of the builder don't change a built invocation
+        this.mutableHttpHeaders = new SimpleHttpHeaders(ConversionService.SHARED);
+        mutableHttpHeaders.forEachValue(this.mutableHttpHeaders::add);
         this.configuration = configuration.copy();
         this.properties = new LinkedHashMap<>(properties);
     }

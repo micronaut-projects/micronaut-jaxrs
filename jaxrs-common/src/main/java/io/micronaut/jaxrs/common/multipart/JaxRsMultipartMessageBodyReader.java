@@ -27,7 +27,6 @@ import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.EntityPart;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.ext.MessageBodyReader;
 import jakarta.ws.rs.ext.Providers;
@@ -125,7 +124,7 @@ public final class JaxRsMultipartMessageBodyReader implements MessageBodyReader<
     }
 
     private static MultivaluedMap<String, String> headers(String block) {
-        MultivaluedMap<String, String> headers = new MultivaluedHashMap<>();
+        MultivaluedMap<String, String> headers = JaxRsEntityPart.headers();
         for (String line : block.split("\r\n")) {
             int colon = line.indexOf(':');
             if (colon > 0) {
