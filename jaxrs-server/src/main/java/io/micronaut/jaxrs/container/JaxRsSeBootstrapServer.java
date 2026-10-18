@@ -19,7 +19,6 @@ import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.jaxrs.common.JaxRsRouteInterceptors;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.inject.BeanDefinition;
-import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.context.ApplicationContext;
 import io.micronaut.context.RuntimeBeanDefinition;
 import io.micronaut.context.annotation.Primary;
