@@ -38,9 +38,10 @@ class MetadataReflectionTest {
     HttpClient client;
 
     @Test
-    void annotationsOfABeanWithoutIntrospection() {
-        // e.g. of a client provider registered by class without @Provider
-        assertEquals(List.of("text/x-bean"),
+    void annotationsOfAClassWithoutIntrospectionNeedReflection() {
+        // e.g. of a client provider registered by class without @Provider: the annotations of a
+        // bean are the ones of its bean definition, which respects its @Requires
+        assertEquals(List.of(),
             List.of(JaxRsReflection.get().annotationMetadata(ProducingBean.class).stringValues(Produces.class)));
     }
 

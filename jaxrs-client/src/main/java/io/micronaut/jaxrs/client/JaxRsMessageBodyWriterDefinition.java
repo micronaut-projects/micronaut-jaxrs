@@ -15,6 +15,7 @@
  */
 package io.micronaut.jaxrs.client;
 
+import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.order.Ordered;
 import io.micronaut.core.type.Argument;
@@ -25,6 +26,7 @@ import io.micronaut.http.body.MessageBodyWriter;
  *
  * @param type              The type
  * @param messageBodyWriter The writer
+ * @param metadata          The annotations of the class of the provider
  * @param priority          The priority
  * @author Denis Stepanov
  * @since 4.6
@@ -32,5 +34,6 @@ import io.micronaut.http.body.MessageBodyWriter;
 @Internal
 record JaxRsMessageBodyWriterDefinition(Argument<?> type,
                                         MessageBodyWriter<?> messageBodyWriter,
-                                        int priority) implements Ordered {
+                                        int priority,
+                                        AnnotationMetadata metadata) implements Ordered {
 }

@@ -65,8 +65,9 @@ public interface JaxRsReflection {
     boolean isReflective();
 
     /**
-     * The annotations of a class: without reflection, the ones of its introspection, else of its
-     * bean definition, and none for a class the annotation processors never saw.
+     * The annotations of a class: without reflection, the ones of its introspection, else none,
+     * e.g. for a class the annotation processors never saw. The annotations of a bean are the
+     * ones of its bean definition, see {@code BeanRegistration#getBeanDefinition()}.
      *
      * @param type A class
      * @return The annotations of the class

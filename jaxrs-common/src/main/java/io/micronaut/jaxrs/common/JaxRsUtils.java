@@ -15,8 +15,8 @@
  */
 package io.micronaut.jaxrs.common;
 
-import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.context.BeanRegistration;
+import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Order;
 import io.micronaut.inject.BeanDefinition;
 import io.micronaut.core.annotation.Internal;
@@ -37,16 +37,8 @@ import java.util.List;
 @Internal
 public final class JaxRsUtils {
 
-    public static <T> void sortByPriority(List<T> values) {
-        sortByPriority(values, false);
-    }
-
     public static <T> void sortRegistrationsByPriority(List<BeanRegistration<T>> values) {
         sortRegistrationsByPriority(values, false);
-    }
-
-    public static <T> void sortByPriorityReversed(List<T> values) {
-        sortByPriority(values, true);
     }
 
     public static <T> void sortRegistrationsByPriorityReversed(List<BeanRegistration<T>> values) {
@@ -61,23 +53,15 @@ public final class JaxRsUtils {
         values.sort(comparator);
     }
 
-    private static <T> void sortByPriority(List<T> values, boolean reverse) {
-        Comparator<T> comparator = Comparator.comparingInt(JaxRsUtils::getPriorityOrder);
-        if (reverse) {
-            comparator = comparator.reversed();
-        }
-        values.sort(comparator);
-    }
-
     /**
-     * The priority of a provider: its {@code @Priority}, else {@link Priorities#USER}, the default
-     * of the providers without one (JAX-RS 4.1.3, {@link Priorities}).
+     * The priority of a provider of annotations: its {@code @Priority}, else {@link Priorities#USER},
+     * the default of the providers without one (JAX-RS 4.1.3, {@link Priorities}).
      *
-     * @param o1 The provider
+     * @param metadata The annotations of the provider
      * @return The priority
      */
-    public static int getPriorityOrder(Object o1) {
-        return JaxRsReflection.get().annotationMetadata(o1.getClass()).intValue(Priority.class).orElse(Priorities.USER);
+    public static int getPriorityOrder(AnnotationMetadata metadata) {
+        return metadata.intValue(Priority.class).orElse(Priorities.USER);
     }
 
     /**

@@ -23,6 +23,7 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.type.Argument;
 import io.micronaut.inject.BeanDefinition;
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
+import io.micronaut.jaxrs.common.JaxRsRouteInterceptors;
 import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.container.ContainerRequestFilter;
@@ -91,7 +92,9 @@ final class JaxRsApplicationSingletons implements BeanCreatedEventListener<Appli
         RuntimeBeanDefinition.Builder<T> definition = RuntimeBeanDefinition.builder(type, () -> instance)
             .singleton(true)
             .replaces(type)
-            .annotationMetadata(MutableAnnotationMetadata.of(JaxRsReflection.get().annotationMetadata(type)));
+            // the annotations of the replaced bean, else of the class, which is not a bean
+            .annotationMetadata(MutableAnnotationMetadata.of(generated == null
+                ? JaxRsRouteInterceptors.metadata(type) : generated.getAnnotationMetadata()));
         for (Class<?> contract : PROVIDER_CONTRACTS) {
             if (!contract.isInstance(instance)) {
                 continue;

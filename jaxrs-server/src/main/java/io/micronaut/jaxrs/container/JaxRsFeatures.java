@@ -18,6 +18,8 @@ package io.micronaut.jaxrs.container;
 import io.micronaut.context.RuntimeBeanDefinition;
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
+import io.micronaut.core.annotation.AnnotationMetadata;
+import io.micronaut.inject.BeanDefinition;
 import io.micronaut.context.ApplicationContext;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.context.ServerRequestContext;
@@ -90,7 +92,7 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
     private final Map<String, Object> properties = new ConcurrentHashMap<>();
     private volatile boolean configured;
 
-    JaxRsFeatures(ApplicationContext context, Collection<Feature> features, Collection<DynamicFeature> dynamicFeatures) {
+    JaxRsFeatures(ApplicationContext context, List<BeanRegistration<Feature>> features, List<BeanRegistration<DynamicFeature>> dynamicFeatures) {
         this.context = context;
         Application application = context.findBean(Application.class).orElse(null);
         this.features = collect(Feature.class, features, application);
@@ -216,17 +218,18 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
      * The instances of a type: the beans, the ones of the {@code Application}, and the ones the
      * service loader provides, one per class.
      */
-    private <T> List<T> collect(Class<T> type, Collection<T> beans, @Nullable Application application) {
+    private <T> List<T> collect(Class<T> type, List<BeanRegistration<T>> beans, @Nullable Application application) {
         Map<Class<?>, T> instances = new LinkedHashMap<>();
         Set<Class<?>> listed = new HashSet<>();
         if (application != null) {
             listed.addAll(application.getClasses());
             application.getSingletons().forEach(singleton -> listed.add(singleton.getClass()));
         }
-        for (T bean : beans) {
+        for (BeanRegistration<T> bean : beans) {
             // an application that lists its classes or instances registers only those (JAX-RS 2.3)
-            if (listed.isEmpty() || listed.contains(bean.getClass())) {
-                instances.putIfAbsent(bean.getClass(), bean);
+            Class<?> beanType = bean.getBeanDefinition().getBeanType();
+            if (listed.isEmpty() || listed.contains(beanType)) {
+                instances.putIfAbsent(beanType, bean.getBean());
             }
         }
         if (application != null) {
@@ -307,13 +310,16 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
      * @param writerInterceptors The writer interceptors
      * @param priorities         The priorities the components were registered with, by contract,
      *                           {@code null} for all of their contracts
+     * @param defaultPriorities  The priorities of the annotations of the components, read when
+     *                           they were registered
      */
     record Components(List<ContainerRequestFilter> requestFilters,
                       List<ContainerResponseFilter> responseFilters,
                       List<ReaderInterceptor> readerInterceptors,
                       List<WriterInterceptor> writerInterceptors,
-                      Map<Object, Map<@Nullable Class<?>, Integer>> priorities) {
-        static final Components EMPTY = new Components(List.of(), List.of(), List.of(), List.of(), Map.of());
+                      Map<Object, Map<@Nullable Class<?>, Integer>> priorities,
+                      Map<Object, Integer> defaultPriorities) {
+        static final Components EMPTY = new Components(List.of(), List.of(), List.of(), List.of(), Map.of(), Map.of());
 
         boolean isEmpty() {
             return requestFilters.isEmpty() && responseFilters.isEmpty() && readerInterceptors.isEmpty() && writerInterceptors.isEmpty();
@@ -335,7 +341,8 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
                     return priority;
                 }
             }
-            return JaxRsUtils.getPriorityOrder(component);
+            Integer priority = defaultPriorities.get(component);
+            return priority == null ? Priorities.USER : priority;
         }
     }
 
@@ -365,6 +372,7 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
         private final Map<String, Object> properties = new LinkedHashMap<>();
         private final Set<Object> instances = new LinkedHashSet<>();
         private final Map<Object, Map<@Nullable Class<?>, Integer>> priorities = new HashMap<>();
+        private final Map<Object, Integer> defaultPriorities = new HashMap<>();
         private final Map<Object, Set<Class<?>>> contracts = new HashMap<>();
         private final Set<Class<?>> classes = new HashSet<>();
 
@@ -391,7 +399,7 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
                     writerInterceptors.add(i);
                 }
             }
-            var components = new Components(requestFilters, responseFilters, readerInterceptors, writerInterceptors, Map.copyOf(priorities));
+            var components = new Components(requestFilters, responseFilters, readerInterceptors, writerInterceptors, Map.copyOf(priorities), Map.copyOf(defaultPriorities));
             // the explicit priorities, else @Priority, order them; the response filters run in
             // the reverse order (JAX-RS 6.9)
             requestFilters.sort(Comparator.comparingInt(c -> components.priority(c, ContainerRequestFilter.class)));
@@ -460,6 +468,7 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
             }
             Object instance = component != null ? component : instance(componentClass);
             if (instances.add(instance)) {
+                defaultPriorities.put(instance, JaxRsUtils.getPriorityOrder(metadata(componentClass)));
                 if (!priorities.isEmpty()) {
                     this.priorities.put(instance, priorities);
                 }
@@ -505,8 +514,18 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
             Class<T> type = (Class<T>) component.getClass();
             context.registerBeanDefinition(RuntimeBeanDefinition.builder(type, () -> component)
                 .singleton(true)
-                .annotationMetadata(MutableAnnotationMetadata.of(JaxRsReflection.get().annotationMetadata(type)))
+                .annotationMetadata(MutableAnnotationMetadata.of(JaxRsRouteInterceptors.metadata(type)))
                 .build());
+        }
+
+        /**
+         * The annotations of a component class: the ones of its bean definition, else the ones
+         * of the class, see {@link JaxRsRouteInterceptors#metadata(Class)}.
+         */
+        private AnnotationMetadata metadata(Class<?> componentClass) {
+            return context.findBeanDefinition(componentClass)
+                .<AnnotationMetadata>map(BeanDefinition::getAnnotationMetadata)
+                .orElseGet(() -> JaxRsRouteInterceptors.metadata(componentClass));
         }
 
         private static Map<@Nullable Class<?>, Integer> allContracts(int priority) {

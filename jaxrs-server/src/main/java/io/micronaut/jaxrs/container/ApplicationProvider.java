@@ -15,7 +15,7 @@
  */
 package io.micronaut.jaxrs.container;
 
-import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
+import io.micronaut.jaxrs.common.JaxRsRouteInterceptors;
 import io.micronaut.context.BeanContext;
 import io.micronaut.context.annotation.Value;
 import io.micronaut.core.annotation.AnnotationMetadata;
@@ -79,7 +79,7 @@ public final class ApplicationProvider implements AnnotationMetadataProvider {
         Class<? extends Application> type = beanContext.getBean(Application.class).getClass();
         return beanContext.findBeanDefinition(type)
             .map(AnnotationMetadataProvider::getAnnotationMetadata)
-            .orElseGet(() -> JaxRsReflection.get().annotationMetadata(type));
+            .orElseGet(() -> JaxRsRouteInterceptors.metadata(type));
     }
 
     /**

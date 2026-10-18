@@ -1,5 +1,7 @@
 package io.micronaut.jaxrs.common
 
+import io.micronaut.core.annotation.AnnotationMetadata
+import jakarta.ws.rs.Priorities
 import io.micronaut.core.type.Argument
 import io.micronaut.core.type.Headers
 import io.micronaut.http.MediaType
@@ -26,7 +28,7 @@ class InterceptedReadSpec extends Specification {
         } as ReaderInterceptor
 
         when:
-        def read = new JaxRsInterceptedRead<String>([interceptor]) {
+        def read = new JaxRsInterceptedRead<String>([JaxRsRouteInterceptors.registration(interceptor, AnnotationMetadata.EMPTY_METADATA, Priorities.USER)], { true }) {
             @Override
             protected String readFromAfterInterception(Argument<Object> type, MediaType mediaType, Headers httpHeaders, InputStream inputStream) {
                 return httpHeaders.get("X-A") + httpHeaders.get("X-B")
@@ -42,7 +44,7 @@ class InterceptedReadSpec extends Specification {
         ReaderInterceptor interceptor = { ReaderInterceptorContext ctx -> ctx.proceed() } as ReaderInterceptor
 
         when:
-        def read = new JaxRsInterceptedRead<Integer>([interceptor]) {
+        def read = new JaxRsInterceptedRead<Integer>([JaxRsRouteInterceptors.registration(interceptor, AnnotationMetadata.EMPTY_METADATA, Priorities.USER)], { true }) {
             @Override
             protected Integer readFromAfterInterception(Argument<Object> type, MediaType mediaType, Headers httpHeaders, InputStream inputStream) {
                 return null

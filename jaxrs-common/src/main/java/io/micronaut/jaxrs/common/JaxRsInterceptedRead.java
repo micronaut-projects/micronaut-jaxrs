@@ -59,12 +59,6 @@ public abstract class JaxRsInterceptedRead<T> {
         JaxRsUtils.sortRegistrationsByPriority(this.readerInterceptorsRegistrations);
     }
 
-    public JaxRsInterceptedRead(List<ReaderInterceptor> readerInterceptor) {
-        this(readerInterceptor.stream()
-            .map(JaxRsRouteInterceptors::registration)
-            .toList(), annotationMetadata -> true);
-    }
-
     public final @Nullable T intercept(@NonNull Argument<T> type,
                              @Nullable MediaType mediaType,
                              @NonNull Headers httpHeaders,

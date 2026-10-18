@@ -16,6 +16,9 @@
 package io.micronaut.jaxrs.common;
 
 import io.micronaut.context.BeanRegistration;
+import io.micronaut.context.RuntimeBeanDefinition;
+import io.micronaut.core.annotation.AnnotationMetadata;
+import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.inject.BeanDefinition;
 import io.micronaut.inject.BeanIdentifier;
 import io.micronaut.core.annotation.Internal;
@@ -55,9 +58,7 @@ public interface JaxRsRouteInterceptors {
      * @param contract    The contract, {@link ReaderInterceptor} or {@link WriterInterceptor}
      * @return The priority
      */
-    default int priority(Object interceptor, Class<?> contract) {
-        return JaxRsUtils.getPriorityOrder(interceptor);
-    }
+    int priority(Object interceptor, Class<?> contract);
 
     /**
      * The beans of a contract that are registered for it, with the priorities they were
@@ -89,35 +90,42 @@ public interface JaxRsRouteInterceptors {
         }
         List<BeanRegistration<I>> all = new ArrayList<>(beans);
         for (I interceptor : forRoute) {
-            all.add(registration(interceptor, priority.applyAsInt(interceptor)));
+            // registered for the resource method: bound to it whatever its name bindings
+            all.add(new Prioritized<>(null, null, interceptor, priority.applyAsInt(interceptor)));
         }
         return all;
     }
 
     /**
-     * The registration of an interceptor that is not a bean: it has no identifier and no bean
-     * definition.
+     * The registration of a provider that is not a bean, e.g. one a client registers, created
+     * once, when it is registered: its bean definition carries the annotations of its class, see
+     * {@link #metadata(Class)}, and its priority is the one it was registered with.
      *
-     * @param interceptor The interceptor
-     * @param <I>         The type of interceptor
+     * @param provider The provider
+     * @param metadata The annotations of its class
+     * @param priority The priority
+     * @param <I>      The type of provider
      * @return The registration
      */
-    @SuppressWarnings("NullAway") // BeanRegistration has no way to register an instance without a bean definition
-    static <I> BeanRegistration<I> registration(I interceptor) {
-        return registration(interceptor, JaxRsUtils.getPriorityOrder(interceptor));
+    @SuppressWarnings("unchecked")
+    static <I> BeanRegistration<I> registration(I provider, AnnotationMetadata metadata, int priority) {
+        Class<I> type = (Class<I>) provider.getClass();
+        BeanDefinition<I> definition = RuntimeBeanDefinition.builder(type, () -> provider)
+            .annotationMetadata(metadata)
+            .build();
+        return new Prioritized<>(null, definition, provider, priority);
     }
 
     /**
-     * The registration of an interceptor that is not a bean, with its priority.
+     * The annotations of the class of a provider that is not a bean, read once, when it is
+     * registered: the ones of its generated introspection, else, with reflection, the ones of
+     * the class, else none, e.g. no {@code @Priority}, so the default priority.
      *
-     * @param interceptor The interceptor
-     * @param priority    The priority
-     * @param <I>         The type of interceptor
-     * @return The registration
+     * @param type The class of the provider
+     * @return The annotations
      */
-    @SuppressWarnings("NullAway") // BeanRegistration has no way to register an instance without a bean definition
-    static <I> BeanRegistration<I> registration(I interceptor, int priority) {
-        return new Prioritized<>(null, null, interceptor, priority);
+    static AnnotationMetadata metadata(Class<?> type) {
+        return JaxRsReflection.get().annotationMetadata(type);
     }
 
     /**

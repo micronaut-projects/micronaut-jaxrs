@@ -270,7 +270,7 @@ final class JaxRsConfiguration implements Configuration {
      * @param component The provider
      */
     void registerStandard(Object component) {
-        components.add(new InstanceComponent(component, NO_PRIORITY, List.of()));
+        components.add(InstanceComponent.of(component, NO_PRIORITY, List.of()));
         clearCaches();
     }
 
@@ -288,14 +288,14 @@ final class JaxRsConfiguration implements Configuration {
     void register(Object component, int priority, Class<?>... contracts) {
         List<ComponentContract> assignable = assignable(component.getClass(), toContracts(contracts));
         if (assignable != null) {
-            add(new InstanceComponent(component, priority, assignable));
+            add(InstanceComponent.of(component, priority, assignable));
         }
     }
 
     void register(Object component, Map<Class<?>, Integer> contracts) {
         List<ComponentContract> assignable = assignable(component.getClass(), toContracts(contracts));
         if (assignable != null) {
-            add(new InstanceComponent(component, NO_PRIORITY, assignable));
+            add(InstanceComponent.of(component, NO_PRIORITY, assignable));
         }
     }
 
@@ -416,37 +416,39 @@ final class JaxRsConfiguration implements Configuration {
         if (found == null) {
             List<JaxRsMessageBodyReaderDefinition> built = new ArrayList<>();
             for (JaxRsConfiguration.Component component : components) {
+                AnnotationMetadata metadata = component.metadata();
+                int priority = component.priority() == NO_PRIORITY ? JaxRsUtils.getPriorityOrder(metadata) : component.priority();
                 MessageBodyReader<?> reader = injected(component.tryGet(MessageBodyReader.class));
                 if (reader != null) {
-                    if (isNotConstrainedToClient(reader.getClass())) {
+                    if (isNotConstrainedToClient(metadata)) {
                         continue;
                     }
                     built.add(new JaxRsMessageBodyReaderDefinition(
                         providedType(reader, MessageBodyReader.class),
                         new JaxRsMessageBodyReader<>(reader),
-                        component.priority() == NO_PRIORITY ? JaxRsUtils.getPriorityOrder(reader) : component.priority()
+                        priority,
+                        metadata
                     ));
                 }
                 io.micronaut.http.body.MessageBodyReader<?> micronautReader = injected(component.tryGet(io.micronaut.http.body.MessageBodyReader.class));
                 if (micronautReader != null) {
-                    if (isNotConstrainedToClient(micronautReader.getClass())) {
+                    if (isNotConstrainedToClient(metadata)) {
                         continue;
                     }
                     if (micronautReader instanceof TypedMessageBodyReader<?> typedMessageBodyReader) {
                         Argument<?> type = typedMessageBodyReader.getType();
-                        if (isNotConstrainedToClient(typedMessageBodyReader.getClass())) {
-                            continue;
-                        }
                         built.add(new JaxRsMessageBodyReaderDefinition(
                             type,
                             micronautReader,
-                            component.priority() == NO_PRIORITY ? JaxRsUtils.getPriorityOrder(micronautReader) : component.priority()
+                            priority,
+                            metadata
                         ));
                     } else {
                         built.add(new JaxRsMessageBodyReaderDefinition(
                             providedType(micronautReader, io.micronaut.http.body.MessageBodyReader.class),
                             micronautReader,
-                            component.priority() == NO_PRIORITY ? JaxRsUtils.getPriorityOrder(micronautReader) : component.priority()
+                            priority,
+                            metadata
                         ));
                     }
                 }
@@ -456,11 +458,6 @@ final class JaxRsConfiguration implements Configuration {
             this.readers = found;
         }
         return found;
-    }
-
-    private boolean isNotConstrainedToClient(Class<?> bodyHandler) {
-        AnnotationMetadata annotationMetadata = annotationMetadataOf(bodyHandler);
-        return isNotConstrainedToClient(annotationMetadata);
     }
 
     private boolean isNotConstrainedToClient(AnnotationMetadata annotationMetadata) {
@@ -477,16 +474,18 @@ final class JaxRsConfiguration implements Configuration {
         if (found == null) {
             List<JaxRsMessageBodyWriterDefinition> built = new ArrayList<>();
             for (JaxRsConfiguration.Component component : components) {
+                AnnotationMetadata metadata = component.metadata();
+                int priority = component.priority() == NO_PRIORITY ? JaxRsUtils.getPriorityOrder(metadata) : component.priority();
                 MessageBodyWriter<?> writer = injected(component.tryGet(MessageBodyWriter.class));
                 if (writer != null) {
-                    AnnotationMetadata annotationMetadata = annotationMetadataOf(writer.getClass());
-                    if (isNotConstrainedToClient(annotationMetadata)) {
+                    if (isNotConstrainedToClient(metadata)) {
                         continue;
                     }
                     built.add(new JaxRsMessageBodyWriterDefinition(
                         providedType(writer, MessageBodyWriter.class),
-                        new JaxRsMessageBodyWriter<>(annotationMetadata, (MessageBodyWriter<Object>) writer),
-                        component.priority() == NO_PRIORITY ? JaxRsUtils.getPriorityOrder(writer) : component.priority()
+                        new JaxRsMessageBodyWriter<>(metadata, (MessageBodyWriter<Object>) writer),
+                        priority,
+                        metadata
                     ));
                 }
                 io.micronaut.http.body.MessageBodyWriter<?> micronautWriter = injected(component.tryGet(io.micronaut.http.body.MessageBodyWriter.class));
@@ -496,13 +495,15 @@ final class JaxRsConfiguration implements Configuration {
                         built.add(new JaxRsMessageBodyWriterDefinition(
                             type,
                             micronautWriter,
-                            component.priority() == NO_PRIORITY ? JaxRsUtils.getPriorityOrder(micronautWriter) : component.priority()
+                            priority,
+                            metadata
                         ));
                     } else {
                         built.add(new JaxRsMessageBodyWriterDefinition(
                             providedType(micronautWriter, io.micronaut.http.body.MessageBodyWriter.class),
                             micronautWriter,
-                            component.priority() == NO_PRIORITY ? JaxRsUtils.getPriorityOrder(micronautWriter) : component.priority()
+                            priority,
+                            metadata
                         ));
                     }
                 }
@@ -512,10 +513,6 @@ final class JaxRsConfiguration implements Configuration {
             this.writers = found;
         }
         return found;
-    }
-
-    private static AnnotationMetadata annotationMetadataOf(Class<?> type) {
-        return JaxRsReflection.get().annotationMetadata(type);
     }
 
     /**
@@ -582,7 +579,7 @@ final class JaxRsConfiguration implements Configuration {
             io.micronaut.http.body.MessageBodyReader<T> reader = (io.micronaut.http.body.MessageBodyReader<T>) readerDer.messageBodyReader();
             if (reader instanceof JaxRsMessageBodyReader<?> jaxRsReader
                 && readerDer.type().isAssignableFrom(argument.getType()) && reader.isReadable(argument, mediaType)) {
-                long rank = rank(readerDer.type().getType(), jaxRsReader.delegate(), Consumes.class, argument.getType(), mediaType);
+                long rank = rank(readerDer.type().getType(), jaxRsReader.delegate(), readerDer.metadata(), Consumes.class, argument.getType(), mediaType);
                 if (rank < bestRank) {
                     best = reader;
                     bestRank = rank;
@@ -701,7 +698,7 @@ final class JaxRsConfiguration implements Configuration {
             io.micronaut.http.body.MessageBodyWriter<T> writer = (io.micronaut.http.body.MessageBodyWriter<T>) writerDef.messageBodyWriter();
             if (writer instanceof JaxRsMessageBodyWriter<?> jaxRsWriter
                 && writerDef.type().isAssignableFrom(argument.getType()) && writer.isWriteable(argument, mediaType)) {
-                long rank = rank(writerDef.type().getType(), jaxRsWriter.delegate(), Produces.class, argument.getType(), mediaType);
+                long rank = rank(writerDef.type().getType(), jaxRsWriter.delegate(), writerDef.metadata(), Produces.class, argument.getType(), mediaType);
                 if (rank < bestRank) {
                     best = writer;
                     bestRank = rank;
@@ -726,9 +723,9 @@ final class JaxRsConfiguration implements Configuration {
      * type first, then the most specific media type, then the providers of the application before
      * the standard ones. Equal ones keep the order of their priority.
      */
-    private static long rank(Class<?> provided, Object provider, Class<? extends Annotation> declaring, Class<?> type,
-                             @Nullable MediaType mediaType) {
-        String[] declared = annotationMetadataOf(provider.getClass()).stringValues(declaring);
+    private static long rank(Class<?> provided, Object provider, AnnotationMetadata metadata, Class<? extends Annotation> declaring,
+                             Class<?> type, @Nullable MediaType mediaType) {
+        String[] declared = metadata.stringValues(declaring);
         int distance = JaxRsUtils.typeDistance(provided, type);
         int specificity = mediaType == null ? 0 : JaxRsUtils.mediaTypeSpecificity(declared, List.of(mediaType));
         int standard = provider.getClass().getName().startsWith("io.micronaut.") ? 1 : 0;
@@ -773,7 +770,7 @@ final class JaxRsConfiguration implements Configuration {
      * @return The registered providers of a type with their priorities, in the order of the priorities
      */
     private <T> List<BeanRegistration<T>> registrationsOfType(Class<T> type) {
-        var valuesWithPriority = new ArrayList<Map.Entry<T, Integer>>();
+        var registrations = new ArrayList<BeanRegistration<T>>();
         for (JaxRsConfiguration.Component component : components) {
             List<ComponentContract> contracts = component.components();
             ComponentContract contract = contracts.stream().filter(c -> c.contract().equals(type)).findFirst().orElse(null);
@@ -786,14 +783,12 @@ final class JaxRsConfiguration implements Configuration {
                 // the priority of the registration, else of the contract, else of @Priority
                 int priority = component.priority() != NO_PRIORITY ? component.priority()
                     : contract != null && contract.priority() != NO_PRIORITY ? contract.priority()
-                    : JaxRsUtils.getPriorityOrder(instance);
-                valuesWithPriority.add(Map.entry(instance, priority));
+                    : JaxRsUtils.getPriorityOrder(component.metadata());
+                registrations.add(JaxRsRouteInterceptors.registration(instance, component.metadata(), priority));
             }
         }
-        valuesWithPriority.sort(Comparator.comparingInt(Map.Entry::getValue));
-        return valuesWithPriority.stream()
-            .map(entry -> JaxRsRouteInterceptors.registration(entry.getKey(), entry.getValue()))
-            .toList();
+        registrations.sort(Comparator.comparingInt(BeanRegistration::getOrder));
+        return registrations;
     }
 
     /**
@@ -827,7 +822,7 @@ final class JaxRsConfiguration implements Configuration {
                 if (definition.messageBodyReader() instanceof JaxRsMessageBodyReader<?> jaxRsReader
                     && definition.type().isAssignableFrom(type)
                     && jaxRsReader.delegate().isReadable(type, genericType, annotations, mediaType)) {
-                    long rank = rank(definition.type().getType(), jaxRsReader.delegate(), Consumes.class, type, micronautMediaType);
+                    long rank = rank(definition.type().getType(), jaxRsReader.delegate(), definition.metadata(), Consumes.class, type, micronautMediaType);
                     if (rank < bestRank) {
                         best = (MessageBodyReader<T>) jaxRsReader.delegate();
                         bestRank = rank;
@@ -848,7 +843,7 @@ final class JaxRsConfiguration implements Configuration {
                 if (definition.messageBodyWriter() instanceof JaxRsMessageBodyWriter<?> jaxRsWriter
                     && definition.type().isAssignableFrom(type)
                     && jaxRsWriter.delegate().isWriteable(type, genericType, annotations, mediaType)) {
-                    long rank = rank(definition.type().getType(), jaxRsWriter.delegate(), Produces.class, type, micronautMediaType);
+                    long rank = rank(definition.type().getType(), jaxRsWriter.delegate(), definition.metadata(), Produces.class, type, micronautMediaType);
                     if (rank < bestRank) {
                         best = (MessageBodyWriter<T>) jaxRsWriter.delegate();
                         bestRank = rank;
@@ -911,10 +906,21 @@ final class JaxRsConfiguration implements Configuration {
 
         List<ComponentContract> components();
 
+        /**
+         * @return The annotations of the class of the component, read when it is registered, see
+         * {@link JaxRsRouteInterceptors#metadata(Class)}
+         */
+        AnnotationMetadata metadata();
+
     }
 
     record InstanceComponent(Object component, int priority,
-                             List<ComponentContract> components) implements Component {
+                             List<ComponentContract> components, AnnotationMetadata metadata) implements Component {
+
+        static InstanceComponent of(Object component, int priority, List<ComponentContract> components) {
+            return new InstanceComponent(component, priority, components, JaxRsRouteInterceptors.metadata(component.getClass()));
+        }
+
         @Override
         public <T> @Nullable T tryGet(Class<T> type) {
             if (type.isInstance(component)) {
@@ -943,12 +949,19 @@ final class JaxRsConfiguration implements Configuration {
         private final Class<?> componentClass;
         private final int priority;
         private final List<ComponentContract> components;
+        private final AnnotationMetadata metadata;
         private volatile @Nullable Object instance;
 
         ClassComponent(Class<?> componentClass, int priority, List<ComponentContract> components) {
             this.componentClass = componentClass;
             this.priority = priority;
             this.components = components;
+            this.metadata = JaxRsRouteInterceptors.metadata(componentClass);
+        }
+
+        @Override
+        public AnnotationMetadata metadata() {
+            return metadata;
         }
 
         @Override

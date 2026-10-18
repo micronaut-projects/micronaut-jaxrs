@@ -23,13 +23,8 @@ import io.micronaut.http.HttpRequest;
 import io.micronaut.http.PathVariables;
 import io.micronaut.http.context.ServerRequestContext;
 import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
-import io.micronaut.web.router.RouteAttributes;
-import io.micronaut.web.router.RoutePathVariables;
-import io.micronaut.web.router.UriRouteMatch;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.container.ResourceContext;
-
-import java.util.Map;
 
 /**
  * The {@link ResourceContext} injected with {@code @Context}: in a request, resources are created and
@@ -74,10 +69,6 @@ final class JaxRsContextResourceContext implements ResourceContext {
     }
 
     private PathVariables pathVariables(HttpRequest<?> request) {
-        Map<String, Object> values = RouteAttributes.getRouteMatch(request)
-            .filter(UriRouteMatch.class::isInstance)
-            .map(match -> ((UriRouteMatch<?, ?>) match).getVariableValues())
-            .orElse(Map.of());
-        return new RoutePathVariables(values, conversionService);
+        return JaxRsPathVariables.of(request, conversionService);
     }
 }

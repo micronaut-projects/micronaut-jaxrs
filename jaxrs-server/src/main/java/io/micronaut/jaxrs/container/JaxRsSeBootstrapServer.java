@@ -16,6 +16,9 @@
 package io.micronaut.jaxrs.container;
 
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
+import io.micronaut.jaxrs.common.JaxRsRouteInterceptors;
+import io.micronaut.core.annotation.AnnotationMetadata;
+import io.micronaut.inject.BeanDefinition;
 import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.context.ApplicationContext;
 import io.micronaut.context.RuntimeBeanDefinition;
@@ -157,7 +160,10 @@ public final class JaxRsSeBootstrapServer implements JaxRsSeBootstrap {
     private static <T> void register(ApplicationContext context, T instance, @Nullable Class<? super T> exposed) {
         Class<T> type = (Class<T>) instance.getClass();
         // the annotations of the class, e.g. its @ApplicationPath, which the builder adds to
-        MutableAnnotationMetadata metadata = MutableAnnotationMetadata.of(JaxRsReflection.get().annotationMetadata(type));
+        // of the replaced bean, else of the class, which is not a bean
+        MutableAnnotationMetadata metadata = MutableAnnotationMetadata.of(context.findBeanDefinition(type)
+            .<AnnotationMetadata>map(BeanDefinition::getAnnotationMetadata)
+            .orElseGet(() -> JaxRsRouteInterceptors.metadata(type)));
         RuntimeBeanDefinition.Builder<T> definition = RuntimeBeanDefinition.builder(type, () -> instance)
             .singleton(true)
             .replaces(type);

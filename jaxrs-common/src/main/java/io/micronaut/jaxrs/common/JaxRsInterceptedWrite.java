@@ -56,13 +56,6 @@ public abstract class JaxRsInterceptedWrite<T, S extends JaxRsWriterInterceptorC
         JaxRsUtils.sortRegistrationsByPriority(this.writerInterceptorsRegistrations);
     }
 
-    public JaxRsInterceptedWrite(List<WriterInterceptor> writerInterceptors) {
-        this(
-            writerInterceptors.stream().map(JaxRsRouteInterceptors::registration).toList(),
-            annotationMetadata -> true
-        );
-    }
-
     public final void intercept(@NonNull Argument<T> type,
                                 @NonNull MediaType mediaType,
                                 S state) throws CodecException {
