@@ -36,4 +36,12 @@ public record JaxRsMessageBodyReaderDefinition(Argument<?> type,
                                                MessageBodyReader<?> messageBodyReader,
                                                int priority,
                                                AnnotationMetadata metadata) implements Ordered {
+
+    /**
+     * @return The order of the provider: its priority (JAX-RS 4.1.3), the lower first
+     */
+    @Override
+    public int getOrder() {
+        return priority;
+    }
 }

@@ -93,7 +93,7 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
                 new MediaTypeQualifier<>(Argument.of(MessageBodyReader.class, type), mediaTypes, Consumes.class)
             ).stream()
             .map((BeanRegistration br) -> (BeanRegistration<MessageBodyReader<T>>) br)
-            .filter(br -> isRegistered(br.getBeanDefinition().getBeanType()))
+            .filter(br -> isRegistered(br.getBeanDefinition().getBeanType(), MessageBodyReader.class))
             // the readers of the type, a supertype, including Object, or a subtype
             .filter(br -> typeDistance(br, MessageBodyReader.class, theType) != Integer.MAX_VALUE || readsSubtype(br, theType))
             // the order of the writers (JAX-RS 4.2.2, step 4), which 4.2.1 leaves open: the nearest
@@ -122,7 +122,7 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
                 )
             ).stream()
             .map((BeanRegistration br) -> (BeanRegistration<MessageBodyWriter<T>>) br)
-            .filter(br -> isRegistered(br.getBeanDefinition().getBeanType()))
+            .filter(br -> isRegistered(br.getBeanDefinition().getBeanType(), MessageBodyWriter.class))
             // the writers of the type or a supertype, including Object: MessageBodyWriter<Object>
             .filter(br -> typeDistance(br, MessageBodyWriter.class, theType) != Integer.MAX_VALUE)
             // JAX-RS 4.2.2, step 4: the nearest type first, then the most specific media type, then
@@ -330,6 +330,19 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
      * @return Whether it is registered
      */
     public boolean isRegistered(Class<?> providerClass) {
+        return isRegistered(providerClass, null);
+    }
+
+    /**
+     * Whether a provider is registered with the application for a contract: a feature that
+     * registers it for some contracts registers it only for those (JAX-RS,
+     * {@code Configurable#register(Class, Class[])}), see {@link #isRegistered(Class)}.
+     *
+     * @param providerClass The class of the provider
+     * @param contract      The contract, e.g. {@code MessageBodyReader}, {@code null} for any
+     * @return Whether it is registered for the contract
+     */
+    public boolean isRegistered(Class<?> providerClass, @Nullable Class<?> contract) {
         Set<Class<?>> registered = registeredClasses;
         if (registered == null) {
             Set<Class<?>> classes = new HashSet<>();
@@ -342,16 +355,22 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
             registered = classes;
             registeredClasses = registered;
         }
-        if (registered.isEmpty() || registered.contains(providerClass) || providerClass.getName().startsWith("io.micronaut.")) {
+        boolean listed = registered.isEmpty() || registered.contains(providerClass) || providerClass.getName().startsWith("io.micronaut.");
+        if (listed && contract == null) {
             return true;
         }
-        // registered by a feature: the configuration of the server knows it
+        boolean byFeature = false;
         for (Configuration configuration : beanLocator.getBeansOfType(Configuration.class)) {
             if (configuration.getRuntimeType() == RuntimeType.SERVER && configuration.isRegistered(providerClass)) {
-                return true;
+                // registered by a feature for some contracts: for those only, none for all
+                Map<Class<?>, Integer> contracts = contract == null ? Map.of() : configuration.getContracts(providerClass);
+                if (!contracts.isEmpty() && !contracts.containsKey(contract)) {
+                    return false;
+                }
+                byFeature = true;
             }
         }
-        return false;
+        return byFeature || listed;
     }
 
     /**

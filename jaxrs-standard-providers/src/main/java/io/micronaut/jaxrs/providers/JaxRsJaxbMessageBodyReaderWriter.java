@@ -16,6 +16,7 @@
 package io.micronaut.jaxrs.providers;
 
 import io.micronaut.core.type.Argument;
+import io.micronaut.jaxrs.common.JaxRsCurrentProviders;
 import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.context.BeanProvider;
 import io.micronaut.core.annotation.Internal;
@@ -81,7 +82,8 @@ public final class JaxRsJaxbMessageBodyReaderWriter implements MessageBodyReader
     }
 
     /**
-     * A provider without the context resolvers of an application, for the client.
+     * A provider of the client: the context resolvers are the ones of the configuration that
+     * reads or writes the entity, see {@link JaxRsCurrentProviders}.
      */
     JaxRsJaxbMessageBodyReaderWriter() {
         this.providers = null;
@@ -165,7 +167,8 @@ public final class JaxRsJaxbMessageBodyReaderWriter implements MessageBodyReader
      */
     @SuppressWarnings("unchecked")
     private JAXBContext context(Class<?> type, @Nullable MediaType mediaType) throws JAXBException {
-        Providers providers = this.providers != null && this.providers.isPresent() ? this.providers.get() : null;
+        // the ones of the server, else of the client configuration that reads or writes the entity
+        Providers providers = this.providers != null && this.providers.isPresent() ? this.providers.get() : JaxRsCurrentProviders.current();
         ContextResolver<JAXBContext> resolver = providers == null ? null : providers.getContextResolver(JAXBContext.class, mediaType);
         if (resolver != null) {
             JAXBContext context = resolver.getContext(type);
