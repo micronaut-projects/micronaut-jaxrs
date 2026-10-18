@@ -44,21 +44,30 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /**
  * Receives the events of a target (JAX-RS 9.4): it reconnects when the connection is lost, after
  * the reconnect delay the server or the builder gave, and when the server answers
  * {@code 503 Service Unavailable} with a valid {@code Retry-After}, after it. The reconnects are
- * scheduled on the scheduled executor service of the client builder, else on a shared one.
+ * scheduled on the scheduled executor service of the client builder, else on a shared one. The
+ * events, the errors and the completion are processed in order on the executor service of the
+ * client, not on the event loop of the HTTP client.
  *
  * @author Denis Stepanov
  * @since 5.0.0
@@ -73,9 +82,20 @@ final class JaxRsSseEventSource implements SseEventSource {
     private final List<Consumer<Throwable>> onError = new CopyOnWriteArrayList<>();
     private final List<Runnable> onComplete = new CopyOnWriteArrayList<>();
     private final ScheduledExecutorService scheduler;
+    private final Executor executor;
+    // the callbacks to run on the executor, one at a time and in order
+    private final Queue<Runnable> callbacks = new ConcurrentLinkedQueue<>();
+    private final AtomicInteger pendingCallbacks = new AtomicInteger();
+    // completed once the callbacks dispatched before the end of the processing ran
+    private final CompletableFuture<@Nullable Void> processed = new CompletableFuture<>();
+    // the thread running the callbacks, which close cannot wait for
+    private volatile @Nullable Thread callbackThread;
     // whether onComplete or onError was invoked: the processing ended
     private final AtomicBoolean ended = new AtomicBoolean();
+    // whether a connection received an event stream: then a broken connection is reconnected
+    private volatile boolean connected;
     private volatile long reconnectDelay;
+    // the state, changed under this lock: connect and close are atomic to each other
     private volatile boolean open;
     private volatile boolean closed;
     private volatile @Nullable String lastEventId;
@@ -89,6 +109,7 @@ final class JaxRsSseEventSource implements SseEventSource {
         this.reconnectDelay = reconnectDelay;
         ScheduledExecutorService clientScheduler = target.client().getScheduledExecutorService();
         this.scheduler = clientScheduler != null ? clientScheduler : DefaultScheduler.INSTANCE;
+        this.executor = target.client().getExecutorService();
     }
 
     @Override
@@ -130,6 +151,7 @@ final class JaxRsSseEventSource implements SseEventSource {
             throw new IllegalStateException("The event source is open");
         }
         open = true;
+        target.client().opened(this);
         connect();
     }
 
@@ -140,26 +162,59 @@ final class JaxRsSseEventSource implements SseEventSource {
 
     @Override
     public boolean close(long timeout, TimeUnit unit) {
-        if (closed) {
-            return true;
+        Future<?> reconnect;
+        BodyElements<Event<String>> current;
+        DefaultHttpClient client;
+        synchronized (this) {
+            if (closed) {
+                return true;
+            }
+            closed = true;
+            open = false;
+            reconnect = pendingReconnect;
+            current = events;
+            client = httpClient;
+            httpClient = null;
         }
-        closed = true;
-        open = false;
-        Future<?> reconnect = pendingReconnect;
+        target.client().closed(this);
         if (reconnect != null) {
             reconnect.cancel(false);
         }
-        BodyElements<Event<String>> current = events;
         if (current != null) {
             current.closeAsync();
         }
-        DefaultHttpClient client = httpClient;
         if (client != null) {
             client.close();
         }
         // the processing ends, e.g. before a pending reconnect (JAX-RS, SseEventSource#register)
         complete();
-        return true;
+        return awaitProcessed(timeout, unit);
+    }
+
+    /**
+     * Wait for the callbacks to run, up to the timeout (JAX-RS, SseEventSource#close).
+     */
+    private boolean awaitProcessed(long timeout, TimeUnit unit) {
+        if (callbackThread == Thread.currentThread()) {
+            // closed by a consumer: its callbacks run after it returns
+            return processed.isDone();
+        }
+        try {
+            processed.get(timeout, unit);
+            return true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        } catch (ExecutionException | TimeoutException e) {
+            return false;
+        }
+    }
+
+    /**
+     * @return The HTTP client of the connection, {@code null} before connecting and after closing
+     */
+    @Nullable DefaultHttpClient httpClient() {
+        return httpClient;
     }
 
     private void connect() {
@@ -174,11 +229,18 @@ final class JaxRsSseEventSource implements SseEventSource {
         if (!filtered(request)) {
             return;
         }
-        DefaultHttpClient client = httpClient;
-        if (client == null) {
-            // configured like the HTTP client of the JAX-RS client: its timeouts and SSL
-            client = target.client().newHttpClient();
-            httpClient = client;
+        DefaultHttpClient client;
+        synchronized (this) {
+            // a close before the lock wins: no client is created after it
+            if (!open) {
+                return;
+            }
+            client = httpClient;
+            if (client == null) {
+                // configured like the HTTP client of the JAX-RS client: its timeouts and SSL
+                client = target.client().newHttpClient();
+                httpClient = client;
+            }
         }
         client.toAsyncStreaming().exchangeEventStream(request, Argument.STRING).whenComplete((response, error) -> {
             if (error != null) {
@@ -215,7 +277,14 @@ final class JaxRsSseEventSource implements SseEventSource {
             error(new ProcessingException("The response is not an event stream: " + contentType));
             return;
         }
-        events = body;
+        synchronized (this) {
+            if (!open) {
+                body.closeAsync();
+                return;
+            }
+            events = body;
+            connected = true;
+        }
         body.forEach(event -> {
             received(event);
             return CompletableFuture.completedFuture(null);
@@ -225,11 +294,10 @@ final class JaxRsSseEventSource implements SseEventSource {
                 return;
             }
             if (error != null) {
-                failed(error instanceof CompletionException && error.getCause() != null ? error.getCause() : error);
-            } else {
-                // the connection is lost: reconnect
-                reconnect(reconnectDelay);
+                LOG.debug("The event stream failed, reconnecting: {}", error.getMessage(), error);
             }
+            // the connection is lost, closed by the server or broken: reconnect
+            reconnect(reconnectDelay);
         });
     }
 
@@ -275,6 +343,13 @@ final class JaxRsSseEventSource implements SseEventSource {
         }
         JaxRsInboundSseEvent inbound = new JaxRsInboundSseEvent(event.getName(), event.getId(), event.getComment(), delay,
             event.getData(), target.getConfiguration());
+        dispatch(() -> deliver(inbound));
+    }
+
+    private void deliver(InboundSseEvent inbound) {
+        if (ended.get()) {
+            return;
+        }
         for (Consumer<InboundSseEvent> consumer : onEvent) {
             try {
                 consumer.accept(inbound);
@@ -296,6 +371,12 @@ final class JaxRsSseEventSource implements SseEventSource {
                 }
             }
             error(JaxRsInvocation.exception(new JaxRsMutableResponse(responseException.getResponse().toMutableResponse())));
+            return;
+        }
+        if (connected) {
+            // a transport error while reconnecting, e.g. the server is restarting: retry later
+            LOG.debug("The reconnection failed, retrying: {}", throwable.getMessage(), throwable);
+            reconnect(reconnectDelay);
             return;
         }
         error(throwable);
@@ -327,6 +408,13 @@ final class JaxRsSseEventSource implements SseEventSource {
 
     private void error(Throwable throwable) {
         open = false;
+        dispatch(() -> {
+            notifyError(throwable);
+            processed.complete(null);
+        });
+    }
+
+    private void notifyError(Throwable throwable) {
         if (!ended.compareAndSet(false, true)) {
             return;
         }
@@ -343,6 +431,13 @@ final class JaxRsSseEventSource implements SseEventSource {
     }
 
     private void complete() {
+        dispatch(() -> {
+            notifyComplete();
+            processed.complete(null);
+        });
+    }
+
+    private void notifyComplete() {
         if (!ended.compareAndSet(false, true)) {
             return;
         }
@@ -356,16 +451,56 @@ final class JaxRsSseEventSource implements SseEventSource {
     }
 
     private void reconnect(long delay) {
-        if (!open) {
-            complete();
-            return;
+        synchronized (this) {
+            if (open) {
+                try {
+                    pendingReconnect = scheduler.schedule(this::connect, delay, TimeUnit.MILLISECONDS);
+                    return;
+                } catch (RuntimeException e) {
+                    // the scheduler is shut down
+                    error(new ProcessingException(e));
+                    return;
+                }
+            }
         }
+        complete();
+    }
+
+    /**
+     * Run a callback on the executor of the client, after the callbacks dispatched before it.
+     */
+    private void dispatch(Runnable callback) {
+        callbacks.add(callback);
+        if (pendingCallbacks.getAndIncrement() == 0) {
+            try {
+                executor.execute(this::drainCallbacks);
+            } catch (RejectedExecutionException e) {
+                // the executor is shut down: run on this thread
+                drainCallbacks();
+            }
+        }
+    }
+
+    private void drainCallbacks() {
+        callbackThread = Thread.currentThread();
         try {
-            pendingReconnect = scheduler.schedule(this::connect, delay, TimeUnit.MILLISECONDS);
-        } catch (RuntimeException e) {
-            // the scheduler is shut down
-            error(new ProcessingException(e));
+            drainCallbacksOnThisThread();
+        } finally {
+            callbackThread = null;
         }
+    }
+
+    private void drainCallbacksOnThisThread() {
+        do {
+            Runnable callback = callbacks.poll();
+            if (callback != null) {
+                try {
+                    callback.run();
+                } catch (RuntimeException e) {
+                    LOG.warn("An event source callback failed: {}", e.getMessage(), e);
+                }
+            }
+        } while (pendingCallbacks.decrementAndGet() != 0);
     }
 
     /**

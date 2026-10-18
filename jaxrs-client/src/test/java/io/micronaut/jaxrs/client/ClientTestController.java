@@ -86,6 +86,21 @@ class ClientTestController {
         return HttpResponse.ok("not events").contentType(MediaType.TEXT_PLAIN_TYPE);
     }
 
+    private final java.util.concurrent.atomic.AtomicInteger dropped = new java.util.concurrent.atomic.AtomicInteger();
+
+    @Get(value = "/dropping", produces = MediaType.TEXT_EVENT_STREAM)
+    Publisher<Event<String>> dropping() {
+        // the connection breaks after an event
+        int connection = dropped.incrementAndGet();
+        return Flux.concat(Flux.just(Event.of("connection " + connection).id(String.valueOf(connection))),
+            reactor.core.publisher.Mono.delay(java.time.Duration.ofMillis(100)).then(reactor.core.publisher.Mono.error(new IllegalStateException("dropped"))));
+    }
+
+    @Get(value = "/endless", produces = MediaType.TEXT_EVENT_STREAM)
+    Publisher<Event<String>> endless() {
+        return Flux.interval(java.time.Duration.ofMillis(50)).map(i -> Event.of("tick " + i));
+    }
+
     @Get(value = "/unavailable", produces = MediaType.TEXT_EVENT_STREAM)
     HttpResponse<?> unavailable() {
         return HttpResponse.status(HttpStatus.SERVICE_UNAVAILABLE);
