@@ -101,6 +101,7 @@ import org.jspecify.annotations.Nullable;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PushbackInputStream;
 import java.io.UncheckedIOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
@@ -764,7 +765,22 @@ public final class JaxRsRouteSupport {
             return readers().readEntity(argument, request.getContentType().orElse(null), request.getHeaders(), replaced);
         }
         if (body == null || body.length == 0) {
-            return emptyEntity(request, argument);
+            // through the reader interceptors too, which can replace the empty stream (JAX-RS 6.3)
+            JaxRsMessageBodyReaders<?> readers = readers();
+            return readers.readEntity(argument, request.getContentType().orElse(null), request.getHeaders(), InputStream.nullInputStream(),
+                (type, mediaType, headers, entity) -> {
+                    PushbackInputStream in = new PushbackInputStream(entity);
+                    try {
+                        int first = in.read();
+                        if (first < 0) {
+                            return emptyEntity(request, type);
+                        }
+                        in.unread(first);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                    return readers.entityReader(type, mediaType).read(type, mediaType, headers, in);
+                });
         }
         return readers()
             .readEntity(argument, request.getContentType().orElse(null), request.getHeaders(), new ByteArrayInputStream(body));
