@@ -1316,6 +1316,10 @@ public final class JaxRsRouteSupport {
         String headerParam = metadata.stringValue(HeaderParam.class).orElse(null);
         String cookieParam = metadata.stringValue(CookieParam.class).orElse(null);
         String formParam = metadata.stringValue(FormParam.class).orElse(null);
+        if (defaultValue != null && (pathParam != null || queryParam != null || matrixParam != null || headerParam != null
+            || cookieParam != null || formParam != null)) {
+            convertDefault(argument, defaultValue);
+        }
         if (pathParam != null) {
             return (request, pathVariables, form) -> pathParam(request, pathVariables, pathParam, argument, defaultValue, encoded);
         } else if (queryParam != null) {
@@ -1336,6 +1340,37 @@ public final class JaxRsRouteSupport {
             return (request, pathVariables, form) -> context(request, argument, named);
         }
         return null;
+    }
+
+    /**
+     * Convert the default value of a parameter with its {@link ParamConverter} when the routes are
+     * built: a converter that is not {@link ParamConverter.Lazy} converts it eagerly, and a
+     * failure fails the deployment (see {@link ParamConverter}).
+     */
+    private void convertDefault(Argument<?> argument, String defaultValue) {
+        Class<?> type = argument.getType();
+        Argument<?> target = argument;
+        if (type == List.class || type == Set.class || type == SortedSet.class || type == Collection.class) {
+            target = element(argument.getFirstTypeVariable().orElse(Argument.STRING), argument);
+        } else if (type.isArray()) {
+            target = element(Argument.of(type.getComponentType()), argument);
+        }
+        Annotation[] annotations = target.synthesizeAll();
+        for (ParamConverterProvider provider : paramConverterProviders.get()) {
+            ParamConverter<?> converter = provider.getConverter(target.getType(), target.asType(), annotations);
+            if (converter == null) {
+                continue;
+            }
+            if (!JaxRsReflection.get().annotationMetadata(converter.getClass()).hasAnnotation(ParamConverter.Lazy.class)) {
+                try {
+                    converter.fromString(defaultValue);
+                } catch (RuntimeException e) {
+                    throw new IllegalStateException("The default value [" + defaultValue + "] of the parameter " + argument.getName()
+                        + " cannot be converted to " + target.getTypeName() + ": " + e.getMessage(), e);
+                }
+            }
+            return;
+        }
     }
 
     /**
