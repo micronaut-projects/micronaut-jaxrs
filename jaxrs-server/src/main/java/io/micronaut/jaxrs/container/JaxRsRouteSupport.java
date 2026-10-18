@@ -498,11 +498,11 @@ public final class JaxRsRouteSupport {
         Optional<String> value = variables.findString(name);
         Class<?> type = argument.getType();
         if (type == PathSegment.class) {
-            return value.map(v -> JaxRsPathSegments.pathSegment(request, v, encoded)).orElse(null);
+            return value.map(v -> JaxRsPathSegments.pathSegment(request, name, v, encoded)).orElse(null);
         }
         if (type == List.class && argument.getFirstTypeVariable().map(Argument::getType).orElse(null) == PathSegment.class) {
             // a variable over several segments
-            return value.map(v -> Arrays.stream(v.split("/")).map(segment -> JaxRsPathSegments.pathSegment(request, segment, encoded)).toList())
+            return value.map(v -> JaxRsPathSegments.pathSegments(request, name, v, encoded))
                 .orElse(List.of());
         }
         List<String> values;

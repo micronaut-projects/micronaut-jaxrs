@@ -17,6 +17,8 @@ package io.micronaut.jaxrs.container;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.HttpRequest;
+import io.micronaut.web.router.RouteAttributes;
+import io.micronaut.web.router.UriRouteMatch;
 import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.PathSegment;
@@ -25,6 +27,7 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Matrix parameters, {@code /cars;color=red/details}: the JAX-RS route template engine matches the
@@ -70,31 +73,133 @@ final class JaxRsPathSegments {
     }
 
     /**
-     * The path segment a path variable matched, with its matrix parameters.
+     * The path segments a path variable matched, with their matrix parameters: located by the
+     * position of the variable in the template of the matched route, else by their text.
      *
      * @param request The request
+     * @param name    The name of the variable
+     * @param value   The value of the variable, its segments separated by slashes
+     * @param encoded Whether the paths and the parameters are not decoded
+     * @return The segments
+     */
+    static List<PathSegment> pathSegments(HttpRequest<?> request, String name, String value, boolean encoded) {
+        String[] segments = request.getUri().getRawPath().split("/", -1);
+        String[] values = value.split("/", -1);
+        int index = segmentIndex(request, name);
+        List<PathSegment> located = new ArrayList<>(values.length);
+        for (int i = 0; i < values.length; i++) {
+            int position = index < 0 ? -1 : index + i;
+            if (position >= 0 && position < segments.length && matches(segments[position], values[i])) {
+                located.add(segment(segments[position], encoded));
+            } else {
+                located.add(pathSegment(segments, values[i], encoded));
+            }
+        }
+        return located;
+    }
+
+    /**
+     * The path segment a path variable matched, with its matrix parameters, see
+     * {@link #pathSegments(HttpRequest, String, String, boolean)}.
+     *
+     * @param request The request
+     * @param name    The name of the variable
      * @param value   The value of the variable
      * @param encoded Whether the path and the parameters are not decoded
      * @return The segment
      */
-    static PathSegment pathSegment(HttpRequest<?> request, String value, boolean encoded) {
-        String path = request.getUri().getRawPath();
-        for (String segment : path.split("/")) {
-            String[] parts = segment.split(";");
-            String decoded = decode(parts[0]);
-            if (decoded.equals(value) || parts[0].equals(value)) {
-                MultivaluedMap<String, String> parameters = new MultivaluedHashMap<>();
-                for (int i = 1; i < parts.length; i++) {
-                    int equals = parts[i].indexOf('=');
-                    String key = equals < 0 ? parts[i] : parts[i].substring(0, equals);
-                    String parameter = equals < 0 ? "" : parts[i].substring(equals + 1);
-                    parameters.add(encoded ? key : decode(key),
-                        encoded ? parameter : decode(parameter));
-                }
-                return new Segment(encoded ? parts[0] : decoded, parameters);
+    static PathSegment pathSegment(HttpRequest<?> request, String name, String value, boolean encoded) {
+        String[] segments = request.getUri().getRawPath().split("/", -1);
+        int index = segmentIndex(request, name);
+        if (index >= 0 && index < segments.length && matches(segments[index], value)) {
+            return segment(segments[index], encoded);
+        }
+        return pathSegment(segments, value, encoded);
+    }
+
+    /**
+     * The first segment with the text of a value, for a variable whose position is not known.
+     */
+    private static PathSegment pathSegment(String[] segments, String value, boolean encoded) {
+        for (String segment : segments) {
+            if (matches(segment, value)) {
+                return segment(segment, encoded);
             }
         }
         return new Segment(value, new MultivaluedHashMap<>());
+    }
+
+    /**
+     * @return The index of the path segment of the last occurrence of a variable in the template of
+     * the matched route, -1 if not known: the slashes before it, and in the values of the variables
+     * before it
+     */
+    private static int segmentIndex(HttpRequest<?> request, String name) {
+        UriRouteMatch<?, ?> match = RouteAttributes.getRouteMatch(request)
+            .filter(UriRouteMatch.class::isInstance)
+            .<UriRouteMatch<?, ?>>map(m -> (UriRouteMatch<?, ?>) m)
+            .orElse(null);
+        if (match == null) {
+            return -1;
+        }
+        Map<String, Object> rawValues = match.getRawVariableValues();
+        String template = JaxRsRouteTemplateEngine.withoutMarks(match.getRouteInfo().getRouteTemplate().expression());
+        int slashes = 0;
+        int index = -1;
+        int i = 0;
+        while (i < template.length()) {
+            char c = template.charAt(i);
+            if (c == '/') {
+                slashes++;
+            } else if (c == '{') {
+                // the end of the variable, its regular expression can have braces
+                int depth = 1;
+                int end = i + 1;
+                while (end < template.length() && depth > 0) {
+                    char e = template.charAt(end);
+                    if (e == '{') {
+                        depth++;
+                    } else if (e == '}') {
+                        depth--;
+                    }
+                    end++;
+                }
+                String variable = template.substring(i + 1, Math.max(i + 1, end - 1));
+                int colon = variable.indexOf(':');
+                String variableName = (colon < 0 ? variable : variable.substring(0, colon)).trim();
+                if (variableName.equals(name)) {
+                    index = slashes;
+                }
+                Object raw = rawValues.get(variableName);
+                if (raw != null) {
+                    // a variable over several segments
+                    slashes += (int) raw.toString().chars().filter(ch -> ch == '/').count();
+                }
+                i = end;
+                continue;
+            }
+            i++;
+        }
+        return index;
+    }
+
+    private static boolean matches(String segment, String value) {
+        int semicolon = segment.indexOf(';');
+        String path = semicolon < 0 ? segment : segment.substring(0, semicolon);
+        return path.equals(value) || decode(path).equals(value);
+    }
+
+    private static PathSegment segment(String segment, boolean encoded) {
+        String[] parts = segment.split(";");
+        MultivaluedMap<String, String> parameters = new MultivaluedHashMap<>();
+        for (int i = 1; i < parts.length; i++) {
+            int equals = parts[i].indexOf('=');
+            String key = equals < 0 ? parts[i] : parts[i].substring(0, equals);
+            String parameter = equals < 0 ? "" : parts[i].substring(equals + 1);
+            parameters.add(encoded ? key : decode(key), encoded ? parameter : decode(parameter));
+        }
+        String path = parts.length == 0 ? "" : parts[0];
+        return new Segment(encoded ? path : decode(path), parameters);
     }
 
     /**
