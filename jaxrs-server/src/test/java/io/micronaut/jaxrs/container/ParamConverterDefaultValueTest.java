@@ -76,6 +76,8 @@ class ParamConverterDefaultValueTest {
         }
     }
 
+    // introspected: its @Lazy is known without reflection
+    @io.micronaut.core.annotation.Introspected
     @ParamConverter.Lazy
     public static class LazyConverter extends Converter {
     }
