@@ -115,7 +115,7 @@ final class JaxRsProviders implements Providers {
         int nearestDistance = Integer.MAX_VALUE;
         for (BeanRegistration<ExceptionMapper> registration : beanContext.getBeanRegistrations(ExceptionMapper.class,
                 MatchArgumentQualifier.contravariant(ExceptionMapper.class, Argument.of(type)))) {
-            if (!registry.isRegistered(registration.getBeanDefinition().getBeanType())) {
+            if (!registry.isRegistered(registration.getBeanDefinition().getBeanType(), ExceptionMapper.class)) {
                 continue;
             }
             List<Argument<?>> arguments = registration.getBeanDefinition().getTypeArguments(ExceptionMapper.class);
@@ -142,7 +142,7 @@ final class JaxRsProviders implements Providers {
         List<Candidate<T>> candidates = new ArrayList<>();
         for (BeanRegistration<ContextResolver> registration : beanContext.getBeanRegistrations(ContextResolver.class,
                 MatchArgumentQualifier.covariant(ContextResolver.class, Argument.of(contextType)))) {
-            if (!registry.isRegistered(registration.getBeanDefinition().getBeanType())) {
+            if (!registry.isRegistered(registration.getBeanDefinition().getBeanType(), ContextResolver.class)) {
                 continue;
             }
             int specificity = specificity(registration.getBeanDefinition().getAnnotationMetadata().stringValues(Produces.class), mediaType);
