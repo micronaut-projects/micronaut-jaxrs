@@ -102,7 +102,8 @@ public class JaxRsHeadersMultivaluedMap extends AbstractMap<String, List<String>
 
     @Override
     public Set<Entry<String, List<String>>> entrySet() {
-        return headers.asMap().entrySet();
+        // a view of the headers: a removal, a new value of an entry and clear() write through
+        return new HeaderEntries<>(headers, this);
     }
 
     @Override
