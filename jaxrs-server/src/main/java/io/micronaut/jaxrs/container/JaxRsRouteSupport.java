@@ -26,6 +26,7 @@ import io.micronaut.web.router.MethodBasedRouteInfo;
 import io.micronaut.http.simple.SimpleHttpHeaders;
 import io.micronaut.jaxrs.common.JaxRsUtils;
 import io.micronaut.http.body.AsyncRequestBody;
+import io.micronaut.http.body.FormOptions;
 import io.micronaut.http.body.MessageBodyHandlerRegistry;
 import io.micronaut.http.body.MessageBodyReader;
 import io.micronaut.core.beans.BeanIntrospection;
@@ -106,6 +107,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.io.ByteArrayOutputStream;
+import java.net.URLDecoder;
+import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
@@ -145,6 +148,8 @@ public final class JaxRsRouteSupport {
      * The attribute of the request that holds its event sink.
      */
     static final String SSE_EVENT_SINK = SseEventSink.class.getName();
+    // set when the url-encoded form of the request is read with its raw values, for @Encoded form parameters
+    private static final String RAW_FORM = JaxRsRouteSupport.class.getName() + ".rawForm";
 
     // the types of header values with a header delegate, a subtype first (NewCookie of Cookie)
     private static final List<Class<?>> HEADER_TYPES = List.of(
@@ -413,12 +418,20 @@ public final class JaxRsRouteSupport {
      * @param request       The request
      * @param pathVariables The path variables
      * @param body          The body of the request
+     * @param raw           Whether the values of an url-encoded form are read raw, for {@code @Encoded} form parameters
      * @param handler       Calls the resource method with the form
      * @return The response
      */
     public CompletionStage<? extends HttpResponse<?>> formAsync(HttpRequest<?> request, PathVariables pathVariables,
-                                                                AsyncRequestBody body, JaxRsAsyncHandler<FormData> handler) {
-        return body.form()
+                                                                AsyncRequestBody body, boolean raw, JaxRsAsyncHandler<FormData> handler) {
+        CompletionStage<FormData> read;
+        if (raw && isUrlEncoded(request)) {
+            request.setAttribute(RAW_FORM, Boolean.TRUE);
+            read = body.form(FormOptions.defaults().withRawValues());
+        } else {
+            read = body.form();
+        }
+        return read
             .thenCompose(form -> readParts(request, form))
             .thenCompose(form -> call(handler, request, pathVariables, form));
     }
@@ -476,7 +489,9 @@ public final class JaxRsRouteSupport {
      */
     public @Nullable Object pathParam(HttpRequest<?> request, PathVariables pathVariables, String name, Argument<?> argument,
                                       @Nullable String defaultValue, boolean encoded) {
-        Optional<String> value = pathVariables.findString(name);
+        // an @Encoded parameter gets the value as it appears in the path
+        PathVariables variables = encoded ? pathVariables.raw() : pathVariables;
+        Optional<String> value = variables.findString(name);
         Class<?> type = argument.getType();
         if (type == PathSegment.class) {
             return value.map(v -> JaxRsPathSegments.pathSegment(request, v, encoded)).orElse(null);
@@ -491,19 +506,16 @@ public final class JaxRsRouteSupport {
             values = List.of();
         } else {
             // a variable that repeats: the values of every occurrence, the last one first
-            Optional<String> earlier = pathVariables.findString(JaxRsRouteTemplateEngine.repeated(name, 1));
+            Optional<String> earlier = variables.findString(JaxRsRouteTemplateEngine.repeated(name, 1));
             if (earlier.isEmpty()) {
                 values = List.of(value.get());
             } else {
                 values = new ArrayList<>();
                 values.add(value.get());
-                for (int i = 1; earlier.isPresent(); earlier = pathVariables.findString(JaxRsRouteTemplateEngine.repeated(name, ++i))) {
+                for (int i = 1; earlier.isPresent(); earlier = variables.findString(JaxRsRouteTemplateEngine.repeated(name, ++i))) {
                     values.add(earlier.get());
                 }
             }
-        }
-        if (encoded) {
-            values = values.stream().map(JaxRsRouteSupport::encode).toList();
         }
         return convert(values, argument, defaultValue, true);
     }
@@ -586,10 +598,17 @@ public final class JaxRsRouteSupport {
             EntityPart part = formPart(request, form, name);
             return part == null || type == EntityPart.class ? part : part.getContent();
         }
+        // the form of a route with an @Encoded form parameter is read with its raw values
         List<String> values = form.getValues(name);
-        if (encoded) {
-            // form encoding: a space is a plus
-            values = values.stream().map(value -> java.net.URLEncoder.encode(value, java.nio.charset.StandardCharsets.UTF_8)).toList();
+        if (isRawForm(request)) {
+            if (!encoded) {
+                Charset charset = formCharset(request);
+                values = values.stream().map(value -> URLDecoder.decode(value, charset)).toList();
+            }
+        } else if (encoded) {
+            // the decoded values of a form read for parameters that are not @Encoded: form encoding, a space is a plus
+            Charset charset = formCharset(request);
+            values = values.stream().map(value -> URLEncoder.encode(value, charset)).toList();
         }
         return convert(values, argument, defaultValue, false);
     }
@@ -632,19 +651,23 @@ public final class JaxRsRouteSupport {
      *
      * @param request The request
      * @param body    The entity, {@code null} for an empty body
+     * @param raw     Whether the values are kept as they appear, for {@code @Encoded} form parameters
      * @return The form
      */
-    public @Nullable FormData entityForm(HttpRequest<?> request, byte @Nullable [] body) {
+    public @Nullable FormData entityForm(HttpRequest<?> request, byte @Nullable [] body, boolean raw) {
         MediaType contentType = request.getContentType().orElse(null);
         if (body == null || contentType == null || !MediaType.APPLICATION_FORM_URLENCODED_TYPE.matches(contentType)) {
             return null;
+        }
+        if (raw) {
+            request.setAttribute(RAW_FORM, Boolean.TRUE);
         }
         Optional<JaxRsEntityForm> parsed = request.getAttribute(JaxRsEntityForm.class.getName(), JaxRsEntityForm.class);
         if (parsed.isPresent()) {
             return parsed.get();
         }
         Charset charset = contentType.getCharset().orElse(StandardCharsets.UTF_8);
-        JaxRsEntityForm form = new JaxRsEntityForm(new String(body, charset), charset);
+        JaxRsEntityForm form = new JaxRsEntityForm(new String(body, charset), charset, raw);
         request.setAttribute(JaxRsEntityForm.class.getName(), form);
         return form;
     }
@@ -652,14 +675,18 @@ public final class JaxRsRouteSupport {
     /**
      * The form as the entity of a resource method that also reads {@code @FormParam}s.
      *
+     * @param request  The request
      * @param form     The form
      * @param argument The type of the entity, a {@link MultivaluedMap} or a {@link Form}
      * @return The entity
      */
-    public Object formEntity(FormData form, Argument<?> argument) {
+    public Object formEntity(HttpRequest<?> request, FormData form, Argument<?> argument) {
         MultivaluedMap<String, String> map = new MultivaluedHashMap<>();
+        // the entity has the decoded values, also of a form read raw for @Encoded parameters
+        Charset charset = isRawForm(request) ? formCharset(request) : null;
         for (String name : form.names()) {
-            map.put(name, new ArrayList<>(form.getValues(name)));
+            List<String> values = form.getValues(name);
+            map.put(name, charset == null ? new ArrayList<>(values) : new ArrayList<>(values.stream().map(value -> URLDecoder.decode(value, charset)).toList()));
         }
         return argument.getType() == Form.class ? new Form(map) : map;
     }
@@ -1270,8 +1297,16 @@ public final class JaxRsRouteSupport {
         return beanContext.createBean(type, arguments);
     }
 
-    private static String encode(String value) {
-        return java.net.URLEncoder.encode(value, java.nio.charset.StandardCharsets.UTF_8).replace("+", "%20");
+    private static boolean isUrlEncoded(HttpRequest<?> request) {
+        return request.getContentType().map(MediaType.APPLICATION_FORM_URLENCODED_TYPE::matches).orElse(false);
+    }
+
+    private static boolean isRawForm(HttpRequest<?> request) {
+        return request.getAttribute(RAW_FORM).isPresent();
+    }
+
+    private static Charset formCharset(HttpRequest<?> request) {
+        return request.getContentType().flatMap(MediaType::getCharset).orElse(StandardCharsets.UTF_8);
     }
 
     private static List<String> rawQueryValues(HttpRequest<?> request, String name) {

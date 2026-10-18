@@ -44,14 +44,19 @@ final class JaxRsEntityForm implements FormData {
 
     private final Map<String, List<String>> fields = new LinkedHashMap<>();
 
-    JaxRsEntityForm(String entity, Charset charset) {
+    /**
+     * @param entity  The url-encoded form
+     * @param charset Its charset
+     * @param raw     Whether the values are kept as they appear, not percent-decoded: the names are decoded
+     */
+    JaxRsEntityForm(String entity, Charset charset, boolean raw) {
         for (String pair : entity.split("&")) {
             if (pair.isEmpty()) {
                 continue;
             }
             int equals = pair.indexOf('=');
             String name = URLDecoder.decode(equals < 0 ? pair : pair.substring(0, equals), charset);
-            String value = equals < 0 ? "" : URLDecoder.decode(pair.substring(equals + 1), charset);
+            String value = equals < 0 ? "" : raw ? pair.substring(equals + 1) : URLDecoder.decode(pair.substring(equals + 1), charset);
             fields.computeIfAbsent(name, n -> new ArrayList<>()).add(value);
         }
     }

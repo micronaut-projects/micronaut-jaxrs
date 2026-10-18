@@ -46,8 +46,8 @@ public final class JaxRsRequestProperties {
      */
     @SuppressWarnings("unchecked")
     public static Map<String, Object> of(HttpRequest<?> request) {
-        // the map itself, not a converted copy
-        Map<String, Object> properties = request.getAttribute(ATTRIBUTE).orElse(null) instanceof Map<?, ?> map ? (Map<String, Object>) map : null;
+        // the map itself: an attribute of the requested type is not converted
+        Map<String, Object> properties = request.getAttribute(ATTRIBUTE, Map.class).orElse(null);
         if (properties == null) {
             properties = new LinkedHashMap<>();
             request.setAttribute(ATTRIBUTE, properties);

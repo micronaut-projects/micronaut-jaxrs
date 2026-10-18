@@ -24,6 +24,7 @@ import io.micronaut.http.HttpRequest;
 import io.micronaut.jaxrs.container.JaxRsMatched;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.RouteMatch;
+import io.micronaut.web.router.UriRouteMatch;
 import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.PathSegment;
@@ -34,7 +35,6 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLDecoder;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -183,12 +183,9 @@ public final class UriInfoImpl implements UriInfo {
         MultivaluedMap<String, String> map = new MultivaluedHashMap<>();
         if (decode) {
             match.getVariableValues().forEach((name, value) -> map.add(variableName(name), value.toString()));
-        } else {
-            // We should be able to access DefaultUriRouteMatch#matchInfo to get unencoded values
-            match.getVariableValues().forEach((name, value) -> map.add(
-                variableName(name),
-                URLEncoder.encode(value.toString(), StandardCharsets.UTF_8).replace("+", "%20")
-            ));
+        } else if (match instanceof UriRouteMatch<?, ?> uriMatch) {
+            // the values as they appear in the path
+            uriMatch.getRawVariableValues().forEach((name, value) -> map.add(variableName(name), value.toString()));
         }
         return map;
     }

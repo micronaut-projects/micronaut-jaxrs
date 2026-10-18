@@ -460,7 +460,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             } else if (methodPath != null) {
                 // a resource method is selected before a locator: the end of its @Path is marked
                 String prefix = template(path, methodPath) + JaxRsRouteTemplateEngine.LOCATOR_MARK;
-                locator(routes, rootClass, method, prefix, instances, rootUsesForm, visited, chainUsesForm);
+                locator(routes, classMetadata, rootClass, method, prefix, instances, rootUsesForm, visited, chainUsesForm);
             }
         }
     }
@@ -480,7 +480,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      * only at runtime, or a locator that repeats, is located by the router, which routes the
      * rest of the path with the routes of the class of the target.
      */
-    private <L, B> void locator(Routes<L> routes, Class<?> rootClass, JaxRsMethod<B> method, String prefix,
+    private <L, B> void locator(Routes<L> routes, AnnotationMetadata classMetadata, Class<?> rootClass, JaxRsMethod<B> method, String prefix,
                                 Instances<L, B> instances, boolean rootUsesForm, Map<Class<?>, Integer> visited, boolean chainUsesForm) {
         Argument<?>[] arguments = arguments(method);
         Reader[] readers = new Reader[arguments.length];
@@ -491,7 +491,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 LOG.info("The JAX-RS sub-resource locator {} has a parameter that is not read from the request: it is not routed", method.name());
                 return;
             }
-            readers[i] = reader(argument, method.metadata());
+            readers[i] = reader(argument, method.metadata(), classMetadata);
             usesForm |= usesForm(argument);
         }
         Argument<?> returned = method.returnType();
@@ -661,22 +661,26 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         if (method.async()) {
             if (form) {
                 routes.handleAsync(declaration, (request, pathVariables, target, requestBody) -> support.formAsync(request, pathVariables, requestBody,
-                    (readRequest, readPathVariables, value) -> callAsync(method, instances, readRequest, readPathVariables, target, value, null)));
+                    method.encodedForm(), (readRequest, readPathVariables, value) -> callAsync(method, instances, readRequest, readPathVariables, target, value, null)));
             } else if (body) {
                 routes.handleAsync(declaration, (request, pathVariables, target, requestBody) -> support.entityAsync(request, pathVariables, requestBody,
                     (readRequest, readPathVariables, value) -> callAsync(method, instances, readRequest, readPathVariables, target,
-                        entityForm ? support.entityForm(readRequest, value) : null, value)));
+                        entityForm ? support.entityForm(readRequest, value, method.encodedForm()) : null, value)));
             } else {
                 // the body is not read
                 routes.handleAsync(declaration, (request, pathVariables, target, requestBody) ->
                     callAsync(method, instances, request, pathVariables, target, null, null));
             }
+        } else if (form && method.encodedForm()) {
+            // the form of the entity, with its raw values: an url-encoded form, the only one with encoded values
+            routes.handleEntity(declaration, (request, pathVariables, target, value) ->
+                call(method, instances, request, pathVariables, target, support.entityForm(request, value, true), null));
         } else if (form) {
             routes.handleForm(declaration, (request, pathVariables, target, value) ->
                 call(method, instances, request, pathVariables, target, value, null));
         } else if (body) {
             routes.handleEntity(declaration, (request, pathVariables, target, value) ->
-                call(method, instances, request, pathVariables, target, entityForm ? support.entityForm(request, value) : null, value));
+                call(method, instances, request, pathVariables, target, entityForm ? support.entityForm(request, value, method.encodedForm()) : null, value));
         } else {
             routes.handle(declaration, (request, pathVariables, target, value) ->
                 call(method, instances, request, pathVariables, target, null, null));
@@ -814,6 +818,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         boolean suspended = false;
         boolean form = false;
         boolean usesForm = false;
+        boolean encodedForm = false;
         int entity = -1;
         for (int i = 0; i < arguments.length; i++) {
             Argument<?> argument = arguments[i];
@@ -832,12 +837,14 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 // no form without a body: read from the query, like the controllers did
                 String name = metadata.stringValue(FormParam.class).orElse(argument.getName());
                 String defaultValue = metadata.stringValue(DefaultValue.class).orElse(null);
-                boolean encoded = encoded(argument, method.metadata());
+                boolean encoded = encoded(argument, method.metadata(), classMetadata);
                 readers[i] = (request, pathVariables, f, body) -> support.queryParam(request, name, argument, defaultValue, encoded);
             } else if (isRequestAnnotated(metadata)) {
-                readers[i] = reader(argument, method.metadata());
+                readers[i] = reader(argument, method.metadata(), classMetadata);
                 form |= metadata.hasAnnotation(FormParam.class);
                 usesForm |= metadata.hasAnnotation(BeanParam.class) && usesForm(argument);
+                encodedForm |= (metadata.hasAnnotation(FormParam.class) && encoded(argument, method.metadata(), classMetadata))
+                    || (metadata.hasAnnotation(BeanParam.class) && usesEncodedForm(argument.getType(), 0));
             } else if (CONTEXT_TYPES.contains(argument.getType().getName())) {
                 String named = metadata.stringValue(NAMED).orElse(null);
                 readers[i] = (request, pathVariables, f, body) -> support.context(request, argument, named);
@@ -859,7 +866,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                     return null;
                 }
                 formEntity = true;
-                readers[entity] = (request, pathVariables, f, body) -> f == null ? null : support.formEntity(f, argument);
+                readers[entity] = (request, pathVariables, f, body) -> f == null ? null : support.formEntity(request, f, argument);
             } else {
                 // the readers see the annotations of the parameter
                 readers[entity] = (request, pathVariables, f, body) -> support.entity(request, body, argument);
@@ -882,7 +889,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         List<String> consumes = mediaTypes(method.metadata(), classMetadata, Consumes.class);
         JaxRsRouteSupport.RouteMetadata metadata = new JaxRsRouteSupport.RouteMetadata(owner, method.name(),
             Argument.toClassArray(method.arguments()), produces.toArray(String[]::new), consumes.toArray(String[]::new), rootClass);
-        return new ResourceMethod<>(method, httpMethod, template, readers, form, formEntity, usesForm, entity, async,
+        return new ResourceMethod<>(method, httpMethod, template, readers, form, formEntity, usesForm, encodedForm, entity, async,
             !produces.isEmpty(), converter(valueType, async), completion(!produces.isEmpty(), valueType), responseType(valueType), metadata,
             suspended);
     }
@@ -914,16 +921,20 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         return declared;
     }
 
-    private Reader reader(Argument<?> argument, AnnotationMetadata methodMetadata) {
-        JaxRsRouteSupport.ValueReader reader = support.reader(argument.getAnnotationMetadata(), argument, encoded(argument, methodMetadata));
+    private Reader reader(Argument<?> argument, AnnotationMetadata methodMetadata, AnnotationMetadata classMetadata) {
+        JaxRsRouteSupport.ValueReader reader = support.reader(argument.getAnnotationMetadata(), argument, encoded(argument, methodMetadata, classMetadata));
         if (reader == null) {
             return (request, pathVariables, form, body) -> null;
         }
         return (request, pathVariables, form, body) -> reader.read(request, pathVariables, form);
     }
 
-    private static boolean encoded(Argument<?> argument, AnnotationMetadata methodMetadata) {
-        return argument.getAnnotationMetadata().hasAnnotation(Encoded.class) || methodMetadata.hasAnnotation(Encoded.class);
+    /**
+     * @return Whether a parameter is {@code @Encoded}, or its method, or its class
+     */
+    private static boolean encoded(Argument<?> argument, AnnotationMetadata methodMetadata, AnnotationMetadata classMetadata) {
+        return argument.getAnnotationMetadata().hasAnnotation(Encoded.class) || methodMetadata.hasAnnotation(Encoded.class)
+            || classMetadata.hasAnnotation(Encoded.class);
     }
 
     private static boolean isRequestAnnotated(AnnotationMetadata metadata) {
@@ -1034,6 +1045,31 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     private static boolean usesForm(Argument<?> argument) {
         AnnotationMetadata metadata = argument.getAnnotationMetadata();
         return metadata.hasAnnotation(FormParam.class) || metadata.hasAnnotation(BeanParam.class) && usesForm(argument.getType(), 0);
+    }
+
+    /**
+     * @return Whether a {@code @BeanParam} type, or one nested in it, reads an {@code @Encoded} form field
+     */
+    private static boolean usesEncodedForm(Class<?> type, int depth) {
+        BeanIntrospection<?> introspection = depth > 8 ? null : introspection(type);
+        if (introspection == null) {
+            return false;
+        }
+        boolean encodedType = introspection.hasAnnotation(Encoded.class);
+        for (Argument<?> argument : introspection.getConstructorArguments()) {
+            AnnotationMetadata metadata = argument.getAnnotationMetadata();
+            if (metadata.hasAnnotation(FormParam.class) && (encodedType || metadata.hasAnnotation(Encoded.class))) {
+                return true;
+            }
+        }
+        for (BeanProperty<?, ?> property : introspection.getBeanProperties()) {
+            AnnotationMetadata metadata = property.getAnnotationMetadata();
+            if (metadata.hasAnnotation(FormParam.class) && (encodedType || metadata.hasAnnotation(Encoded.class))
+                || metadata.hasAnnotation(BeanParam.class) && usesEncodedForm(property.getType(), depth + 1)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -1399,6 +1435,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      * @param form       Whether it has form parameters
      * @param formEntity Whether its entity is the form
      * @param usesForm   Whether a bean parameter reads the form
+     * @param encodedForm Whether it has {@code @Encoded} form parameters, which need the raw values of the form
      * @param entity     The index of its entity parameter, -1 without one
      * @param async      Whether it returns a stage of its result
      * @param produces   Whether it declares the media types it produces
@@ -1410,7 +1447,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      * @param <B>        The type of the instances it is called on
      */
     private record ResourceMethod<B>(JaxRsMethod<B> method, String httpMethod, String template, Reader[] readers, boolean form,
-                                     boolean formEntity, boolean usesForm, int entity, boolean async, boolean produces,
+                                     boolean formEntity, boolean usesForm, boolean encodedForm, int entity, boolean async, boolean produces,
                                      Converter converter, Completion completion, @Nullable Argument<?> responseType,
                                      JaxRsRouteSupport.RouteMetadata metadata, boolean suspended) {
     }
