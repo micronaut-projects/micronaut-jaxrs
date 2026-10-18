@@ -18,6 +18,7 @@ package io.micronaut.jaxrs.common.multipart;
 import io.micronaut.core.annotation.Internal;
 import jakarta.ws.rs.ProcessingException;
 import jakarta.ws.rs.core.EntityPart;
+import jakarta.ws.rs.core.AbstractMultivaluedMap;
 import jakarta.ws.rs.core.GenericType;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedHashMap;
@@ -36,6 +37,7 @@ import java.lang.annotation.Annotation;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
+import java.util.TreeMap;
 
 /**
  * An {@link EntityPart}: built with its content, or read from a multipart entity with its bytes.
@@ -96,6 +98,15 @@ public final class JaxRsEntityPart implements EntityPart {
     }
 
     /**
+     * New headers of a part, whose names are case-insensitive (RFC 7578, RFC 2045).
+     *
+     * @return The headers
+     */
+    public static MultivaluedMap<String, String> headers() {
+        return new AbstractMultivaluedMap<>(new TreeMap<>(String.CASE_INSENSITIVE_ORDER)) { };
+    }
+
+    /**
      * A part of a form field.
      *
      * @param name      The name
@@ -105,7 +116,7 @@ public final class JaxRsEntityPart implements EntityPart {
      * @return The part
      */
     public static JaxRsEntityPart read(String name, @Nullable String fileName, MediaType mediaType, byte[] content) {
-        MultivaluedMap<String, String> headers = new MultivaluedHashMap<>();
+        MultivaluedMap<String, String> headers = headers();
         headers.putSingle("Content-Type", mediaType.toString());
         return read(name, fileName, mediaType, headers, content, null);
     }

@@ -19,7 +19,6 @@ import io.micronaut.core.annotation.Internal;
 import jakarta.ws.rs.core.EntityPart;
 import jakarta.ws.rs.core.GenericType;
 import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.core.MultivaluedMap;
 import org.jspecify.annotations.Nullable;
 
@@ -36,7 +35,7 @@ import java.util.List;
 public final class JaxRsEntityPartBuilder implements EntityPart.Builder {
 
     private final String name;
-    private final MultivaluedMap<String, String> headers = new MultivaluedHashMap<>();
+    private final MultivaluedMap<String, String> headers = JaxRsEntityPart.headers();
     private @Nullable MediaType mediaType;
     private @Nullable String fileName;
     private @Nullable Object content;
@@ -129,6 +128,8 @@ public final class JaxRsEntityPartBuilder implements EntityPart.Builder {
         // a file is binary, a field is text (EntityPart.getMediaType)
         MediaType type = mediaType != null ? mediaType
             : fileName != null ? MediaType.APPLICATION_OCTET_STREAM_TYPE : MediaType.TEXT_PLAIN_TYPE;
-        return new JaxRsEntityPart(name, fileName, type, new MultivaluedHashMap<>(headers), content, contentType, null);
+        MultivaluedMap<String, String> copied = JaxRsEntityPart.headers();
+        copied.putAll(headers);
+        return new JaxRsEntityPart(name, fileName, type, copied, content, contentType, null);
     }
 }
