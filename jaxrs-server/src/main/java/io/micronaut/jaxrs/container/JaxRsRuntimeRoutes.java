@@ -684,7 +684,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 call(method, instances, request, pathVariables, target, support.entityForm(request, value, true), null));
         } else if (form) {
             routes.handleForm(declaration, (request, pathVariables, target, value) ->
-                call(method, instances, request, pathVariables, target, value, null));
+                call(method, instances, request, pathVariables, target, support.filteredForm(request, value), null));
         } else if (body) {
             routes.handleEntity(declaration, (request, pathVariables, target, value) ->
                 call(method, instances, request, pathVariables, target, entityForm ? support.entityForm(request, value, encodedForm) : null, value));

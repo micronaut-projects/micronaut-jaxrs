@@ -99,7 +99,9 @@ import jakarta.ws.rs.ext.ParamConverterProvider;
 import org.jspecify.annotations.Nullable;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -432,6 +434,7 @@ public final class JaxRsRouteSupport {
             read = body.form();
         }
         return read
+            .thenApply(form -> filteredForm(request, form))
             .thenCompose(form -> readParts(request, form))
             .thenCompose(form -> call(handler, request, pathVariables, form));
     }
@@ -656,6 +659,10 @@ public final class JaxRsRouteSupport {
      */
     public @Nullable FormData entityForm(HttpRequest<?> request, byte @Nullable [] body, boolean raw) {
         MediaType contentType = request.getContentType().orElse(null);
+        byte[] replaced = replacedForm(request);
+        if (replaced != null) {
+            body = replaced;
+        }
         if (body == null || contentType == null || !MediaType.APPLICATION_FORM_URLENCODED_TYPE.matches(contentType)) {
             return null;
         }
@@ -670,6 +677,46 @@ public final class JaxRsRouteSupport {
         JaxRsEntityForm form = new JaxRsEntityForm(new String(body, charset), charset, raw);
         request.setAttribute(JaxRsEntityForm.class.getName(), form);
         return form;
+    }
+
+    /**
+     * The form of a request, or the form of the entity stream a request filter set (JAX-RS 6.5.1).
+     *
+     * @param request The request
+     * @param form    The form read from the body, {@code null} if none
+     * @return The form
+     */
+    public @Nullable FormData filteredForm(HttpRequest<?> request, @Nullable FormData form) {
+        byte[] replaced = replacedForm(request);
+        if (replaced == null) {
+            return form;
+        }
+        JaxRsEntityForm parsed = request.getAttribute(JaxRsEntityForm.class.getName(), JaxRsEntityForm.class).orElse(null);
+        if (parsed == null) {
+            Charset charset = formCharset(request);
+            parsed = new JaxRsEntityForm(new String(replaced, charset), charset, isRawForm(request));
+            request.setAttribute(JaxRsEntityForm.class.getName(), parsed);
+        }
+        return parsed;
+    }
+
+    /**
+     * @return The url-encoded form of the entity stream a request filter set, {@code null} if it set none
+     */
+    private static byte @Nullable [] replacedForm(HttpRequest<?> request) {
+        InputStream replaced = request.getAttribute(JaxRsContainerRequestContext.ENTITY_STREAM, InputStream.class).orElse(null);
+        if (replaced == null || !isUrlEncoded(request)) {
+            return null;
+        }
+        byte[] bytes;
+        try {
+            bytes = replaced.readAllBytes();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        // the stream is read once: an entity read too reads the same bytes
+        request.setAttribute(JaxRsContainerRequestContext.ENTITY_STREAM, new ByteArrayInputStream(bytes));
+        return bytes;
     }
 
     /**
