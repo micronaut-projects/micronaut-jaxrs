@@ -42,6 +42,7 @@ import io.micronaut.inject.ast.ParameterElement;
 import io.micronaut.inject.ast.TypedElement;
 import io.micronaut.inject.visitor.TypeElementVisitor;
 import io.micronaut.inject.visitor.VisitorContext;
+import io.micronaut.context.annotation.BeanProperties;
 import io.micronaut.context.annotation.Parameter;
 import io.micronaut.context.annotation.Prototype;
 import jakarta.inject.Inject;
@@ -136,9 +137,10 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             }
             element.annotate(Singleton.class);
             element.annotate(Named.class);
-            if (!element.isAbstract() && !element.hasAnnotation(Introspected.class)) {
-                // its annotations, e.g. @Priority, without reflection
-                element.annotate(Introspected.class);
+            if (!element.isAbstract()) {
+                // its annotations, e.g. @Priority, and its @Context fields and setters, which an
+                // instance registered by the application is injected with, without reflection
+                introspect(element);
             }
             if (!element.isAbstract()) {
                 // the type arguments of the provider interfaces it implements, e.g. the T of a
@@ -147,9 +149,9 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             }
             return;
         }
-        if (element.isAssignable(Application.class) && !element.isAbstract() && !element.hasAnnotation(Introspected.class)) {
-            // its @ApplicationPath and constructor, without reflection
-            element.annotate(Introspected.class);
+        if (element.isAssignable(Application.class) && !element.isAbstract()) {
+            // its @ApplicationPath, constructor and @Context members, without reflection
+            introspect(element);
         }
         // the @Path of a class maps to the annotation of a resource method or locator: the
         // methods of the class are not all resource methods
@@ -172,18 +174,15 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             .annotated(metadata -> metadata.hasStereotype(HttpMethod.class))).isEmpty();
         boolean routed = !element.getEnclosedElements(ElementQuery.ALL_METHODS.onlyInstance()
             .annotated(metadata -> metadata.hasStereotype(HttpMethod.class) || metadata.hasDeclaredAnnotation(Path.class))).isEmpty();
-        if (routed && !element.isInterface() && !element.hasAnnotation(Introspected.class)) {
-            // the target of a sub-resource locator, or a resource created per request: the runtime
-            // routes read its resource methods, locators, constructor and request members
-            element.annotate(Introspected.class, builder -> builder
-                .member("accessKind", new Introspected.AccessKind[]{Introspected.AccessKind.FIELD, Introspected.AccessKind.METHOD})
-                .member("visibility", new Introspected.Visibility[]{Introspected.Visibility.ANY}));
+        if ((routed || JaxRsResources.isCreatedPerRequest(element)) && !element.isInterface()) {
+            // the target of a sub-resource locator, or a resource created per request, also one
+            // without resource methods: the runtime routes read its resource methods, locators,
+            // constructor and request members
+            introspect(element);
         }
         if (!resource && !element.isAbstract() && !element.isInterface() && !JaxRsResources.requestMembers(element).isEmpty()) {
             // a @BeanParam type: initialized at runtime from its introspection, with the values of the request
-            element.annotate(Introspected.class, builder -> builder
-                .member("accessKind", new Introspected.AccessKind[]{Introspected.AccessKind.FIELD, Introspected.AccessKind.METHOD})
-                .member("visibility", new Introspected.Visibility[]{Introspected.Visibility.ANY}));
+            introspect(element);
             return;
         }
         if (!element.isAbstract() && !element.isInterface() && !element.hasStereotype(Controller.class)
@@ -297,6 +296,23 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         mapParam(parameter, PathParam.class, PathVariable.class);
         if (parameter.hasAnnotation(QueryParam.class)) {
             annotateQueryParam(parameter);
+        }
+    }
+
+    /**
+     * Introspect a class with its fields and methods of any visibility, including its injection
+     * points: its {@code @Context} fields and setters, mapped to {@code @Inject}, are set on an
+     * instance that is not a bean. A class already annotated with {@code @Introspected} keeps its
+     * members, it only includes its injection points.
+     */
+    private static void introspect(ClassElement element) {
+        if (element.hasAnnotation(Introspected.class)) {
+            element.annotate(Introspected.class, builder -> builder.member(BeanProperties.MEMBER_INCLUDE_INJECTED, true));
+        } else {
+            element.annotate(Introspected.class, builder -> builder
+                .member("accessKind", new Introspected.AccessKind[]{Introspected.AccessKind.FIELD, Introspected.AccessKind.METHOD})
+                .member("visibility", new Introspected.Visibility[]{Introspected.Visibility.ANY})
+                .member(BeanProperties.MEMBER_INCLUDE_INJECTED, true));
         }
     }
 
