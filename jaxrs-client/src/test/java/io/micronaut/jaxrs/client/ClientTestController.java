@@ -30,6 +30,11 @@ class ClientTestController {
         return "hello";
     }
 
+    @Get(value = "/empty", produces = MediaType.APPLICATION_JSON)
+    HttpResponse<?> empty() {
+        return HttpResponse.noContent();
+    }
+
     @Get(value = "/missing", produces = MediaType.TEXT_PLAIN)
     HttpResponse<String> missing() {
         return HttpResponse.<String>notFound().body("the error").contentType(MediaType.TEXT_PLAIN_TYPE);
