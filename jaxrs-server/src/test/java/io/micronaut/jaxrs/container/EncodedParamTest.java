@@ -87,6 +87,29 @@ class EncodedParamTest {
         assertEquals("a b%", post("/api/encoded/form-decoded", "g=a+b%25"));
     }
 
+    @Test
+    void encodedFormParamField() throws Exception {
+        assertEquals("a%20b!|a b!", post("/api/encoded-field", "x=a%20b!&y=a%20b!"));
+    }
+
+    @Test
+    void encodedFormParamOfALocator() throws Exception {
+        assertEquals("a%20b!|a b!", post("/api/encoded-field/located", "x=a%20b!&y=a%20b!"));
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "/api/encoded/form,%GG=value",
+        "/api/encoded/form,f=%GG",
+    })
+    void malformedFormIsABadRequest(String path, String form) throws Exception {
+        HttpResponse<String> response = client.send(HttpRequest.newBuilder(URI.create(server.getURL() + path))
+                .header("Content-Type", MediaType.APPLICATION_FORM_URLENCODED)
+                .POST(HttpRequest.BodyPublishers.ofString(form)).build(),
+            HttpResponse.BodyHandlers.ofString());
+        assertEquals(400, response.statusCode(), response.body());
+    }
+
     private String get(String path) throws Exception {
         HttpResponse<String> response = client.send(HttpRequest.newBuilder(URI.create(server.getURL() + path)).build(),
             HttpResponse.BodyHandlers.ofString());
@@ -152,6 +175,40 @@ class EncodedParamTest {
         @Path("/{p}")
         public String path(@PathParam("p") String raw) {
             return raw;
+        }
+    }
+
+    @Requires(property = "spec.name", value = "EncodedParamTest")
+    @Path("/encoded-field")
+    @Produces(MediaType.TEXT_PLAIN)
+    public static class EncodedFieldResource {
+        @Encoded
+        @FormParam("x")
+        String x;
+
+        @POST
+        @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+        public String post(@FormParam("y") String y) {
+            return x + "|" + y;
+        }
+
+        @Path("/located")
+        public Located located(@Encoded @FormParam("x") String raw) {
+            return new Located(raw);
+        }
+    }
+
+    public static class Located {
+        private final String raw;
+
+        Located(String raw) {
+            this.raw = raw;
+        }
+
+        @POST
+        @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+        public String post(@FormParam("y") String y) {
+            return raw + "|" + y;
         }
     }
 }

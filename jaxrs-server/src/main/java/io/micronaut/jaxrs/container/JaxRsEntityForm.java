@@ -20,6 +20,7 @@ import io.micronaut.core.convert.ConversionService;
 import io.micronaut.http.form.FileUpload;
 import io.micronaut.http.form.FormData;
 import io.micronaut.http.form.FormFieldException;
+import jakarta.ws.rs.BadRequestException;
 
 import java.net.URLDecoder;
 import java.nio.charset.Charset;
@@ -48,6 +49,7 @@ final class JaxRsEntityForm implements FormData {
      * @param entity  The url-encoded form
      * @param charset Its charset
      * @param raw     Whether the values are kept as they appear, not percent-decoded: the names are decoded
+     * @throws BadRequestException if the form is not well percent-encoded
      */
     JaxRsEntityForm(String entity, Charset charset, boolean raw) {
         for (String pair : entity.split("&")) {
@@ -55,8 +57,18 @@ final class JaxRsEntityForm implements FormData {
                 continue;
             }
             int equals = pair.indexOf('=');
-            String name = URLDecoder.decode(equals < 0 ? pair : pair.substring(0, equals), charset);
-            String value = equals < 0 ? "" : raw ? pair.substring(equals + 1) : URLDecoder.decode(pair.substring(equals + 1), charset);
+            String name;
+            String value;
+            try {
+                name = URLDecoder.decode(equals < 0 ? pair : pair.substring(0, equals), charset);
+                String encoded = equals < 0 ? "" : pair.substring(equals + 1);
+                // a raw value is decoded too, to reject it when malformed like a decoded one
+                String decoded = URLDecoder.decode(encoded, charset);
+                value = raw ? encoded : decoded;
+            } catch (IllegalArgumentException e) {
+                // a malformed percent-encoding is a malformed request
+                throw new BadRequestException("Malformed form entity: " + e.getMessage(), e);
+            }
             fields.computeIfAbsent(name, n -> new ArrayList<>()).add(value);
         }
     }

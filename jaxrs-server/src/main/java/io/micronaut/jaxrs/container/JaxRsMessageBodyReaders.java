@@ -110,23 +110,45 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
     public @Nullable Object readEntity(Argument<?> type, @Nullable MediaType contentType, Headers httpHeaders, InputStream entity) {
+        return readEntity(type, contentType, httpHeaders, entity, (t, m, h, in) -> entityReader(t, m).read(t, m, h, in));
+    }
+
+    /**
+     * Read the entity of a resource method through the reader interceptors, with the reader that
+     * reads the entity after them.
+     *
+     * @param type        The type of the entity, with the annotations of its parameter
+     * @param contentType The content type of the request, {@code null} for none
+     * @param httpHeaders The headers of the request
+     * @param entity      The entity
+     * @param reader      Reads the entity after the interceptors, which can change its type, media type and stream
+     * @return The value
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public @Nullable Object readEntity(Argument<?> type, @Nullable MediaType contentType, Headers httpHeaders, InputStream entity,
+                                       EntityReader reader) {
         MediaType mediaType = mediaType(contentType);
         List<BeanRegistration<ReaderInterceptor>> interceptors = readerInterceptors();
         if (interceptors.isEmpty()) {
-            return entityReader((Argument) type, mediaType).read((Argument) type, mediaType, httpHeaders, entity);
+            return reader.read((Argument) type, mediaType, httpHeaders, entity);
         }
         return new JaxRsInterceptedRead<Object>(interceptors, JaxRsRouteInterceptors.predicate(nameBindingPredicate)) {
 
             @Override
             protected @Nullable Object readFromAfterInterception(Argument<Object> type, @Nullable MediaType mediaType, Headers httpHeaders, InputStream inputStream) {
                 // the interceptors can change the type and the media type
-                return entityReader(type, Objects.requireNonNull(mediaType)).read(type, mediaType, httpHeaders, inputStream);
+                return reader.read(type, Objects.requireNonNull(mediaType), httpHeaders, inputStream);
             }
 
         }.intercept((Argument) type, mediaType, httpHeaders, entity, JaxRsRequestProperties.current());
     }
 
-    private MessageBodyReader<Object> entityReader(Argument<Object> type, MediaType mediaType) {
+    /**
+     * @param type      The type of an entity
+     * @param mediaType Its media type
+     * @return The JAX-RS reader of the application that reads it, else a Micronaut reader
+     */
+    MessageBodyReader<Object> entityReader(Argument<Object> type, MediaType mediaType) {
         List<MediaType> mediaTypes = List.of(mediaType);
         // a JAX-RS reader of the application that reads the value
         Optional<MessageBodyReader<Object>> reader = registry.findReader(type, mediaTypes);
@@ -186,5 +208,20 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
             }
 
         }.intercept(type, mediaType, httpHeaders, inputStream, JaxRsRequestProperties.current());
+    }
+
+    /**
+     * Reads the entity of a resource method after the reader interceptors.
+     */
+    @FunctionalInterface
+    interface EntityReader {
+        /**
+         * @param type        The type of the entity
+         * @param mediaType   The media type of the entity
+         * @param httpHeaders The headers
+         * @param entity      The entity
+         * @return The value
+         */
+        @Nullable Object read(Argument<Object> type, MediaType mediaType, Headers httpHeaders, InputStream entity);
     }
 }

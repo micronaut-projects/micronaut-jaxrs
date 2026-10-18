@@ -99,7 +99,10 @@ import jakarta.ws.rs.ext.ParamConverterProvider;
 import org.jspecify.annotations.Nullable;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.PushbackInputStream;
+import java.io.UncheckedIOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -432,6 +435,7 @@ public final class JaxRsRouteSupport {
             read = body.form();
         }
         return read
+            .thenApply(form -> filteredForm(request, form))
             .thenCompose(form -> readParts(request, form))
             .thenCompose(form -> call(handler, request, pathVariables, form));
     }
@@ -494,11 +498,11 @@ public final class JaxRsRouteSupport {
         Optional<String> value = variables.findString(name);
         Class<?> type = argument.getType();
         if (type == PathSegment.class) {
-            return value.map(v -> JaxRsPathSegments.pathSegment(request, v, encoded)).orElse(null);
+            return value.map(v -> JaxRsPathSegments.pathSegment(request, name, v, encoded)).orElse(null);
         }
         if (type == List.class && argument.getFirstTypeVariable().map(Argument::getType).orElse(null) == PathSegment.class) {
             // a variable over several segments
-            return value.map(v -> Arrays.stream(v.split("/")).map(segment -> JaxRsPathSegments.pathSegment(request, segment, encoded)).toList())
+            return value.map(v -> JaxRsPathSegments.pathSegments(request, name, v, encoded))
                 .orElse(List.of());
         }
         List<String> values;
@@ -656,6 +660,10 @@ public final class JaxRsRouteSupport {
      */
     public @Nullable FormData entityForm(HttpRequest<?> request, byte @Nullable [] body, boolean raw) {
         MediaType contentType = request.getContentType().orElse(null);
+        byte[] replaced = replacedForm(request);
+        if (replaced != null) {
+            body = replaced;
+        }
         if (body == null || contentType == null || !MediaType.APPLICATION_FORM_URLENCODED_TYPE.matches(contentType)) {
             return null;
         }
@@ -670,6 +678,46 @@ public final class JaxRsRouteSupport {
         JaxRsEntityForm form = new JaxRsEntityForm(new String(body, charset), charset, raw);
         request.setAttribute(JaxRsEntityForm.class.getName(), form);
         return form;
+    }
+
+    /**
+     * The form of a request, or the form of the entity stream a request filter set (JAX-RS 6.5.1).
+     *
+     * @param request The request
+     * @param form    The form read from the body, {@code null} if none
+     * @return The form
+     */
+    public @Nullable FormData filteredForm(HttpRequest<?> request, @Nullable FormData form) {
+        byte[] replaced = replacedForm(request);
+        if (replaced == null) {
+            return form;
+        }
+        JaxRsEntityForm parsed = request.getAttribute(JaxRsEntityForm.class.getName(), JaxRsEntityForm.class).orElse(null);
+        if (parsed == null) {
+            Charset charset = formCharset(request);
+            parsed = new JaxRsEntityForm(new String(replaced, charset), charset, isRawForm(request));
+            request.setAttribute(JaxRsEntityForm.class.getName(), parsed);
+        }
+        return parsed;
+    }
+
+    /**
+     * @return The url-encoded form of the entity stream a request filter set, {@code null} if it set none
+     */
+    private static byte @Nullable [] replacedForm(HttpRequest<?> request) {
+        InputStream replaced = request.getAttribute(JaxRsContainerRequestContext.ENTITY_STREAM, InputStream.class).orElse(null);
+        if (replaced == null || !isUrlEncoded(request)) {
+            return null;
+        }
+        byte[] bytes;
+        try {
+            bytes = replaced.readAllBytes();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        // the stream is read once: an entity read too reads the same bytes
+        request.setAttribute(JaxRsContainerRequestContext.ENTITY_STREAM, new ByteArrayInputStream(bytes));
+        return bytes;
     }
 
     /**
@@ -717,7 +765,22 @@ public final class JaxRsRouteSupport {
             return readers().readEntity(argument, request.getContentType().orElse(null), request.getHeaders(), replaced);
         }
         if (body == null || body.length == 0) {
-            return emptyEntity(request, argument);
+            // through the reader interceptors too, which can replace the empty stream (JAX-RS 6.3)
+            JaxRsMessageBodyReaders<?> readers = readers();
+            return readers.readEntity(argument, request.getContentType().orElse(null), request.getHeaders(), InputStream.nullInputStream(),
+                (type, mediaType, headers, entity) -> {
+                    PushbackInputStream in = new PushbackInputStream(entity);
+                    try {
+                        int first = in.read();
+                        if (first < 0) {
+                            return emptyEntity(request, type);
+                        }
+                        in.unread(first);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                    return readers.entityReader(type, mediaType).read(type, mediaType, headers, in);
+                });
         }
         return readers()
             .readEntity(argument, request.getContentType().orElse(null), request.getHeaders(), new ByteArrayInputStream(body));
@@ -1253,6 +1316,10 @@ public final class JaxRsRouteSupport {
         String headerParam = metadata.stringValue(HeaderParam.class).orElse(null);
         String cookieParam = metadata.stringValue(CookieParam.class).orElse(null);
         String formParam = metadata.stringValue(FormParam.class).orElse(null);
+        if (defaultValue != null && (pathParam != null || queryParam != null || matrixParam != null || headerParam != null
+            || cookieParam != null || formParam != null)) {
+            convertDefault(argument, defaultValue);
+        }
         if (pathParam != null) {
             return (request, pathVariables, form) -> pathParam(request, pathVariables, pathParam, argument, defaultValue, encoded);
         } else if (queryParam != null) {
@@ -1273,6 +1340,37 @@ public final class JaxRsRouteSupport {
             return (request, pathVariables, form) -> context(request, argument, named);
         }
         return null;
+    }
+
+    /**
+     * Convert the default value of a parameter with its {@link ParamConverter} when the routes are
+     * built: a converter that is not {@link ParamConverter.Lazy} converts it eagerly, and a
+     * failure fails the deployment (see {@link ParamConverter}).
+     */
+    private void convertDefault(Argument<?> argument, String defaultValue) {
+        Class<?> type = argument.getType();
+        Argument<?> target = argument;
+        if (type == List.class || type == Set.class || type == SortedSet.class || type == Collection.class) {
+            target = element(argument.getFirstTypeVariable().orElse(Argument.STRING), argument);
+        } else if (type.isArray()) {
+            target = element(Argument.of(type.getComponentType()), argument);
+        }
+        Annotation[] annotations = target.synthesizeAll();
+        for (ParamConverterProvider provider : paramConverterProviders.get()) {
+            ParamConverter<?> converter = provider.getConverter(target.getType(), target.asType(), annotations);
+            if (converter == null) {
+                continue;
+            }
+            if (!JaxRsReflection.get().annotationMetadata(converter.getClass()).hasAnnotation(ParamConverter.Lazy.class)) {
+                try {
+                    converter.fromString(defaultValue);
+                } catch (RuntimeException e) {
+                    throw new IllegalStateException("The default value [" + defaultValue + "] of the parameter " + argument.getName()
+                        + " cannot be converted to " + target.getTypeName() + ": " + e.getMessage(), e);
+                }
+            }
+            return;
+        }
     }
 
     /**

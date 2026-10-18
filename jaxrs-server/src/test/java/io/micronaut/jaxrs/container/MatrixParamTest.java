@@ -13,6 +13,7 @@ import jakarta.ws.rs.MatrixParam;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.PathSegment;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -45,6 +46,35 @@ class MatrixParamTest {
     @Test
     void matrixParamsOnAMiddleSegmentDoNotChangeTheRoute() {
         assertEquals("details of 7", client.toBlocking().retrieve(HttpRequest.GET("/cars;color=red/7;trim=gt/details")));
+    }
+
+    @Test
+    void pathSegmentsAreLocatedByTheirPosition() {
+        assertEquals("same x=1 | same x=2", client.toBlocking().retrieve(HttpRequest.GET("/segments/same;x=1/same;x=2")));
+        assertEquals("[same x=3, same x=4] | same x=5",
+            client.toBlocking().retrieve(HttpRequest.GET("/segments/many/same;x=3/same;x=4/last/same;x=5")));
+    }
+
+    @Requires(property = "spec.name", value = "MatrixParamTest")
+    @Path("/matrix-param/segments")
+    public static class SegmentsResource {
+        @GET
+        @Path("{a}/{b}")
+        @Produces("text/plain")
+        public String segments(@PathParam("a") PathSegment a, @PathParam("b") PathSegment b) {
+            return describe(a) + " | " + describe(b);
+        }
+
+        @GET
+        @Path("many/{a: .+}/last/{b}")
+        @Produces("text/plain")
+        public String many(@PathParam("a") List<PathSegment> a, @PathParam("b") PathSegment b) {
+            return a.stream().map(SegmentsResource::describe).toList() + " | " + describe(b);
+        }
+
+        private static String describe(PathSegment segment) {
+            return segment.getPath() + " x=" + segment.getMatrixParameters().getFirst("x");
+        }
     }
 
     @Requires(property = "spec.name", value = "MatrixParamTest")

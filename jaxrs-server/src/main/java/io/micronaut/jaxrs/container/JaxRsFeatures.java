@@ -450,11 +450,13 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
             return implemented;
         }
 
-        private FeatureContext register(Class<?> componentClass, @Nullable Object component,
+        private FeatureContext register(Class<?> componentClass, @Nullable Object registered,
                                         @Nullable Set<Class<?>> contracts, Map<@Nullable Class<?>, Integer> priorities) {
             if (rejected(componentClass)) {
                 return this;
             }
+            // an instance is injected before it is used (Configurable.register(Object))
+            Object component = registered == null ? null : injected(registered);
             if (global) {
                 if (contracts != null || !priorities.isEmpty()) {
                     registrations.put(componentClass, new Registration(contracts, new HashMap<>(priorities)));
@@ -477,6 +479,16 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
                 }
             }
             return this;
+        }
+
+        /**
+         * The {@code @Context} members of an instance, like the ones of a bean of its class: proxies
+         * of the current request.
+         */
+        private Object injected(Object component) {
+            Object injected = context.inject(component);
+            JaxRsReflection.get().injectFields(injected, jakarta.ws.rs.core.Context.class, type -> context.findBean(type).orElse(null));
+            return injected;
         }
 
         @SuppressWarnings({"unchecked", "rawtypes"})

@@ -220,7 +220,8 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             : (request, pathVariables, form, target) -> support.matched(request, create(requestType, request, pathVariables, form), rootSegments);
         Map<Class<?>, Integer> visited = new LinkedHashMap<>();
         visited.put(type, 1);
-        declare(routes, type, root.methods(), type, prefix, instance, requestType != null && requestType.usesForm(), visited, false);
+        declare(routes, type, root.methods(), type, prefix, instance, requestType != null && requestType.usesForm(), visited, false,
+            requestType != null && requestType.encodedForm());
     }
 
     /**
@@ -248,7 +249,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                     Map<Class<?>, Integer> visited = new LinkedHashMap<>();
                     visited.put(type, 1);
                     Instances<T, T> instances = (request, pathVariables, form, target) -> Objects.requireNonNull(target, "target");
-                    declare(new LocatedGroupRoutes<>(group), type, methods(type), type, "", instances, false, visited, false);
+                    declare(new LocatedGroupRoutes<>(group), type, methods(type), type, "", instances, false, visited, false, false);
                 });
             }
         };
@@ -445,7 +446,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      */
     private <L, B> void declare(Routes<L> routes, Class<?> type, List<JaxRsMethod<B>> methods, Class<?> rootClass, String path,
                                 Instances<L, B> instances, boolean rootUsesForm, Map<Class<?>, Integer> visited,
-                                boolean chainUsesForm) {
+                                boolean chainUsesForm, boolean chainEncodedForm) {
         AnnotationMetadata classMetadata = classMetadata(type);
         for (JaxRsMethod<B> method : methods) {
             AnnotationMetadata metadata = method.metadata();
@@ -455,12 +456,12 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 String template = template(path, methodPath == null ? "" : methodPath);
                 ResourceMethod<B> resourceMethod = resourceMethod(type, classMetadata, rootClass, method, httpMethod, template);
                 if (resourceMethod != null) {
-                    route(routes, resourceMethod, instances, rootUsesForm || chainUsesForm);
+                    route(routes, resourceMethod, instances, rootUsesForm || chainUsesForm, chainEncodedForm);
                 }
             } else if (methodPath != null) {
                 // a resource method is selected before a locator: the end of its @Path is marked
                 String prefix = template(path, methodPath) + JaxRsRouteTemplateEngine.LOCATOR_MARK;
-                locator(routes, classMetadata, rootClass, method, prefix, instances, rootUsesForm, visited, chainUsesForm);
+                locator(routes, classMetadata, rootClass, method, prefix, instances, rootUsesForm, visited, chainUsesForm, chainEncodedForm);
             }
         }
     }
@@ -481,10 +482,12 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      * rest of the path with the routes of the class of the target.
      */
     private <L, B> void locator(Routes<L> routes, AnnotationMetadata classMetadata, Class<?> rootClass, JaxRsMethod<B> method, String prefix,
-                                Instances<L, B> instances, boolean rootUsesForm, Map<Class<?>, Integer> visited, boolean chainUsesForm) {
+                                Instances<L, B> instances, boolean rootUsesForm, Map<Class<?>, Integer> visited, boolean chainUsesForm,
+                                boolean chainEncodedForm) {
         Argument<?>[] arguments = arguments(method);
         Reader[] readers = new Reader[arguments.length];
         boolean usesForm = chainUsesForm;
+        boolean encodedForm = chainEncodedForm;
         for (int i = 0; i < arguments.length; i++) {
             Argument<?> argument = arguments[i];
             if (!isRequestAnnotated(argument.getAnnotationMetadata())) {
@@ -493,6 +496,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             }
             readers[i] = reader(argument, method.metadata(), classMetadata);
             usesForm |= usesForm(argument);
+            encodedForm |= usesEncodedForm(argument, encoded(argument, method.metadata(), classMetadata));
         }
         Argument<?> returned = method.returnType();
         boolean classReturn = returned.getType() == Class.class;
@@ -504,7 +508,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         int occurrences = visited.getOrDefault(target, 0);
         boolean known = !target.isPrimitive() && target != Object.class && !Response.class.isAssignableFrom(target)
             && occurrences < MAX_LOCATOR_REPEAT;
-        if (known && follow(routes, rootClass, method, readers, prefix, instances, target, rootUsesForm, visited, usesForm)) {
+        if (known && follow(routes, rootClass, method, readers, prefix, instances, target, rootUsesForm, visited, usesForm, encodedForm)) {
             return;
         }
         // known only at runtime, or recursive: the paths cannot be enumerated
@@ -534,7 +538,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      */
     private <L, B, T> boolean follow(Routes<L> routes, Class<?> rootClass, JaxRsMethod<B> method, Reader[] readers, String prefix,
                                      Instances<L, B> instances, Class<T> target, boolean rootUsesForm,
-                                     Map<Class<?>, Integer> visited, boolean usesForm) {
+                                     Map<Class<?>, Integer> visited, boolean usesForm, boolean encodedForm) {
         List<JaxRsMethod<T>> targetMethods = methods(target);
         if (targetMethods.isEmpty()) {
             return false;
@@ -547,7 +551,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         int occurrences = visited.getOrDefault(target, 0);
         visited.put(target, occurrences + 1);
         try {
-            declare(routes, target, targetMethods, rootClass, prefix, chained, rootUsesForm, visited, usesForm);
+            declare(routes, target, targetMethods, rootClass, prefix, chained, rootUsesForm, visited, usesForm, encodedForm);
         } finally {
             visited.put(target, occurrences);
         }
@@ -649,11 +653,14 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             t -> Optional.ofNullable(requestType(type, beanContext.findBeanDefinition(type).orElse(null)))).orElse(null);
     }
 
-    private <L, B> void route(Routes<L> routes, ResourceMethod<B> method, Instances<L, B> instances, boolean chainUsesForm) {
+    private <L, B> void route(Routes<L> routes, ResourceMethod<B> method, Instances<L, B> instances, boolean chainUsesForm,
+                              boolean chainEncodedForm) {
         String name = method.httpMethod();
         Declaration declaration = new Declaration(name, method.template(), method.metadata(), method.responseType());
         boolean body = method.entity() >= 0 && !method.formEntity() && !"GET".equals(name);
         boolean usesForm = method.usesForm() || chainUsesForm;
+        // the form is read raw for an @Encoded form parameter of the method, or of a resource or locator up to it
+        boolean encodedForm = method.encodedForm() || chainEncodedForm;
         // a form is read for a method that can have one and reads no entity
         boolean form = method.form() || (usesForm && !NO_BODY_METHODS.contains(name) && method.entity() < 0);
         // a route that reads the entity and form parameters: the form is parsed from the entity
@@ -661,26 +668,26 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         if (method.async()) {
             if (form) {
                 routes.handleAsync(declaration, (request, pathVariables, target, requestBody) -> support.formAsync(request, pathVariables, requestBody,
-                    method.encodedForm(), (readRequest, readPathVariables, value) -> callAsync(method, instances, readRequest, readPathVariables, target, value, null)));
+                    encodedForm, (readRequest, readPathVariables, value) -> callAsync(method, instances, readRequest, readPathVariables, target, value, null)));
             } else if (body) {
                 routes.handleAsync(declaration, (request, pathVariables, target, requestBody) -> support.entityAsync(request, pathVariables, requestBody,
                     (readRequest, readPathVariables, value) -> callAsync(method, instances, readRequest, readPathVariables, target,
-                        entityForm ? support.entityForm(readRequest, value, method.encodedForm()) : null, value)));
+                        entityForm ? support.entityForm(readRequest, value, encodedForm) : null, value)));
             } else {
                 // the body is not read
                 routes.handleAsync(declaration, (request, pathVariables, target, requestBody) ->
                     callAsync(method, instances, request, pathVariables, target, null, null));
             }
-        } else if (form && method.encodedForm()) {
+        } else if (form && encodedForm) {
             // the form of the entity, with its raw values: an url-encoded form, the only one with encoded values
             routes.handleEntity(declaration, (request, pathVariables, target, value) ->
                 call(method, instances, request, pathVariables, target, support.entityForm(request, value, true), null));
         } else if (form) {
             routes.handleForm(declaration, (request, pathVariables, target, value) ->
-                call(method, instances, request, pathVariables, target, value, null));
+                call(method, instances, request, pathVariables, target, support.filteredForm(request, value), null));
         } else if (body) {
             routes.handleEntity(declaration, (request, pathVariables, target, value) ->
-                call(method, instances, request, pathVariables, target, entityForm ? support.entityForm(request, value, method.encodedForm()) : null, value));
+                call(method, instances, request, pathVariables, target, entityForm ? support.entityForm(request, value, encodedForm) : null, value));
         } else {
             routes.handle(declaration, (request, pathVariables, target, value) ->
                 call(method, instances, request, pathVariables, target, null, null));
@@ -980,6 +987,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         JaxRsRouteSupport.@Nullable ValueReader[] constructorReaders = new JaxRsRouteSupport.ValueReader[constructorArguments.length];
         boolean perRequest = false;
         boolean usesForm = false;
+        boolean encodedForm = false;
         for (int i = 0; i < constructorArguments.length; i++) {
             Argument<?> argument = constructorArguments[i];
             if (isRequestAnnotated(argument.getAnnotationMetadata())) {
@@ -987,6 +995,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 constructorReaders[i] = support.reader(argument.getAnnotationMetadata(), argument, encoded);
                 perRequest = true;
                 usesForm |= usesForm(argument);
+                encodedForm |= usesEncodedForm(argument, encoded);
             }
         }
         List<Member<T>> members = new ArrayList<>();
@@ -997,6 +1006,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                     boolean encoded = encodedType || metadata.hasAnnotation(Encoded.class);
                     members.add(new Member<>(property, support.reader(metadata, property.asArgument(), encoded)));
                     usesForm |= usesForm(property.asArgument());
+                    encodedForm |= usesEncodedForm(property.asArgument(), encoded);
                 }
             }
         }
@@ -1007,7 +1017,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         for (int i = 0; i < names.length; i++) {
             names[i] = constructorArguments[i].getName();
         }
-        return new RequestType<>(type, definition != null, introspection, constructorReaders, names, members, usesForm);
+        return new RequestType<>(type, definition != null, introspection, constructorReaders, names, members, usesForm, encodedForm);
     }
 
     /**
@@ -1045,6 +1055,17 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     private static boolean usesForm(Argument<?> argument) {
         AnnotationMetadata metadata = argument.getAnnotationMetadata();
         return metadata.hasAnnotation(FormParam.class) || metadata.hasAnnotation(BeanParam.class) && usesForm(argument.getType(), 0);
+    }
+
+    /**
+     * @param argument A parameter, field or setter read from the request
+     * @param encoded  Whether it is {@code @Encoded}, or its method or class
+     * @return Whether it is an {@code @Encoded} form field, or a {@code @BeanParam} that reads one
+     */
+    private static boolean usesEncodedForm(Argument<?> argument, boolean encoded) {
+        AnnotationMetadata metadata = argument.getAnnotationMetadata();
+        return metadata.hasAnnotation(FormParam.class) && encoded
+            || metadata.hasAnnotation(BeanParam.class) && usesEncodedForm(argument.getType(), 0);
     }
 
     /**
@@ -1472,10 +1493,11 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      * @param names              The names of the parameters of its constructor
      * @param members            Its fields and setters with values of the request
      * @param usesForm           Whether it reads the form
+     * @param encodedForm        Whether it reads an {@code @Encoded} form field, which needs the raw values of the form
      * @param <T>                The type
      */
     private record RequestType<T>(Class<T> type, boolean bean, @Nullable BeanIntrospection<T> introspection,
                                JaxRsRouteSupport.@Nullable ValueReader[] constructorReaders, String[] names,
-                                  List<Member<T>> members, boolean usesForm) {
+                                  List<Member<T>> members, boolean usesForm, boolean encodedForm) {
     }
 }

@@ -87,8 +87,11 @@ public final class UriInfoImpl implements UriInfo {
         this(request, null);
     }
 
-    private String getPath(String requestPath, boolean decode) {
-        String path = decode ? URLDecoder.decode(requestPath, StandardCharsets.UTF_8) : requestPath;
+    /**
+     * @return The path of the request relative to the base URI, as it appears in the request, not decoded
+     */
+    private String relativeRawPath() {
+        String path = request.getPath();
         if (basePath != null) {
             String pathToCheck = path;
             if (!path.startsWith("/")) {
@@ -108,7 +111,23 @@ public final class UriInfoImpl implements UriInfo {
 
     @Override
     public String getPath(boolean decode) {
-        return getPath(request.getPath(), decode);
+        String path = relativeRawPath();
+        return decode ? decodePath(path) : path;
+    }
+
+    /**
+     * Percent-decode a part of a path: a plus is not a space in a path.
+     */
+    private static String decodePath(String raw) {
+        if (raw.indexOf('%') < 0) {
+            return raw;
+        }
+        try {
+            return URLDecoder.decode(raw.replace("+", "%2B"), StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException e) {
+            // not well encoded: as it is
+            return raw;
+        }
     }
 
     @Override
@@ -118,7 +137,8 @@ public final class UriInfoImpl implements UriInfo {
 
     @Override
     public List<PathSegment> getPathSegments(boolean decode) {
-        return Stream.of(request.getPath().split("/"))
+        // relative to the base URI, split before decoding: an encoded slash or semicolon is not a separator
+        return Stream.of(relativeRawPath().split("/"))
             .filter(StringUtils::isNotEmpty)
             .<PathSegment>map(token -> {
                 String[] segmentTokens = token.split(";");
@@ -127,9 +147,9 @@ public final class UriInfoImpl implements UriInfo {
                     String[] keyVal = segmentTokens[i].split("=", 2);
                     String key = keyVal[0];
                     String val = keyVal.length > 1 ? keyVal[1] : null;
-                    params.add(getPath(key, decode), val == null ? null : getPath(val, decode));
+                    params.add(decode ? decodePath(key) : key, val == null || !decode ? val : decodePath(val));
                 }
-                return new UriPathSegment(getPath(segmentTokens[0], decode), params);
+                return new UriPathSegment(decode ? decodePath(segmentTokens[0]) : segmentTokens[0], params);
             })
             .toList();
     }
@@ -199,9 +219,8 @@ public final class UriInfoImpl implements UriInfo {
     public MultivaluedMap<String, String> getQueryParameters(boolean decode) {
         var map = new MultivaluedHashMap<String, String>();
         if (decode) {
-            request.getParameters().forEach(
-                (str, vals) -> vals.forEach(
-                    val -> map.add(getPath(str, decode), getPath(val, decode))));
+            // the parameters are decoded once, from the query
+            request.getParameters().forEach((name, values) -> values.forEach(value -> map.add(name, value)));
         } else {
             getEncodedParameters(request.getUri()).forEach(
                 (str, vals) -> vals.forEach(
@@ -271,12 +290,18 @@ public final class UriInfoImpl implements UriInfo {
 
     @Override
     public URI resolve(URI uri) {
-        return request.getUri().resolve(uri);
+        // against the base URI of the application
+        return getBaseUri().resolve(uri);
     }
 
     @Override
     public URI relativize(URI uri) {
-        return request.getUri().relativize(uri);
+        // a relative URI is resolved against the base URI first, then relativized to the request URI:
+        // relative to its last segment, as a reference in it is
+        URI resolved = uri.isAbsolute() ? uri : resolve(uri);
+        String rawPath = getAbsolutePath().getRawPath();
+        URI directory = uriWithRawPath(rawPath.substring(0, rawPath.lastIndexOf('/') + 1), null);
+        return directory.relativize(resolved);
     }
 
     /**
