@@ -42,6 +42,40 @@ class UriInfoTest {
     }
 
     @Test
+    void queryParametersAreDecodedOnce() {
+        UriInfo uriInfo = new UriInfoImpl(HttpRequest.GET("http://example.com/api/foo?q=%252F&p=%25&s=a+b"), "/api");
+        Assertions.assertEquals("%2F", uriInfo.getQueryParameters().getFirst("q"));
+        Assertions.assertEquals("%", uriInfo.getQueryParameters().getFirst("p"));
+        Assertions.assertEquals("a b", uriInfo.getQueryParameters().getFirst("s"));
+        Assertions.assertEquals("%252F", uriInfo.getQueryParameters(false).getFirst("q"));
+    }
+
+    @Test
+    void resolveAgainstTheBaseUri() {
+        UriInfo uriInfo = new UriInfoImpl(HttpRequest.GET("http://host/api/a/b"), "/api");
+        Assertions.assertEquals(URI.create("http://host/api/c"), uriInfo.resolve(URI.create("c")));
+    }
+
+    @Test
+    void relativizeResolvesARelativeUriAgainstTheBaseUri() {
+        UriInfo uriInfo = new UriInfoImpl(HttpRequest.GET("http://example.com:8080/app/root/a/b/c/resource.html"), "/app/root");
+        Assertions.assertEquals(URI.create("d/file.txt"), uriInfo.relativize(URI.create("a/b/c/d/file.txt")));
+        URI other = URI.create("http://example2.com:9090/app2/root2/a/d/file.txt");
+        Assertions.assertEquals(other, uriInfo.relativize(other));
+    }
+
+    @Test
+    void pathSegmentsAreRelativeToTheBaseUri() {
+        UriInfo uriInfo = new UriInfoImpl(HttpRequest.GET("http://host/api/items/a%2Fb;m=x%20y/7+8"), "/api");
+        Assertions.assertEquals(List.of("items", "a/b", "7+8"),
+            uriInfo.getPathSegments().stream().map(jakarta.ws.rs.core.PathSegment::getPath).toList());
+        Assertions.assertEquals("x y", uriInfo.getPathSegments().get(1).getMatrixParameters().getFirst("m"));
+        Assertions.assertEquals(List.of("items", "a%2Fb", "7+8"),
+            uriInfo.getPathSegments(false).stream().map(jakarta.ws.rs.core.PathSegment::getPath).toList());
+        Assertions.assertEquals("/items/a/b;m=x y/7+8", uriInfo.getPath());
+    }
+
+    @Test
     void encodedQueryParametersWithoutAQuery() {
         UriInfo uriInfo = new UriInfoImpl(HttpRequest.GET("http://example.com/foo"));
         Assertions.assertTrue(uriInfo.getQueryParameters(false).isEmpty());
