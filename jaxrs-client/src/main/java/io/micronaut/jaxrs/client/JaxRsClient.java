@@ -23,12 +23,15 @@ import org.jspecify.annotations.Nullable;
 import jakarta.ws.rs.client.Invocation;
 import jakarta.ws.rs.core.Link;
 import jakarta.ws.rs.core.UriBuilder;
+import jakarta.ws.rs.sse.SseEventSource;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 import java.net.URI;
 import java.security.NoSuchAlgorithmException;
 import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ForkJoinPool;
@@ -50,6 +53,8 @@ public final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
     private final @Nullable ScheduledExecutorService scheduledExecutorService;
     private final @Nullable SSLContext sslContext;
     private final @Nullable HostnameVerifier hostnameVerifier;
+    // the event sources opened from the targets of this client, closed with it
+    private final Set<SseEventSource> eventSources = ConcurrentHashMap.newKeySet();
     private volatile boolean closed;
 
     /**
@@ -118,7 +123,31 @@ public final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
         if (!closed) {
             closed = true;
             httpClient.close();
+            for (SseEventSource source : eventSources) {
+                source.close();
+            }
+            eventSources.clear();
         }
+    }
+
+    /**
+     * Track an open event source of a target of this client: closing the client closes it.
+     *
+     * @param source The event source
+     */
+    void opened(SseEventSource source) {
+        eventSources.add(source);
+        if (closed && eventSources.remove(source)) {
+            // closed meanwhile
+            source.close();
+        }
+    }
+
+    /**
+     * @param source An event source that is closed
+     */
+    void closed(SseEventSource source) {
+        eventSources.remove(source);
     }
 
     /**
