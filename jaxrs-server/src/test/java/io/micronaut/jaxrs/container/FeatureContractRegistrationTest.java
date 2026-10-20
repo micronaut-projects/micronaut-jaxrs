@@ -12,12 +12,15 @@ import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.Feature;
 import jakarta.ws.rs.core.FeatureContext;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.ext.MessageBodyReader;
 import jakarta.ws.rs.ext.MessageBodyWriter;
+import jakarta.ws.rs.ext.ParamConverter;
+import jakarta.ws.rs.ext.ParamConverterProvider;
 import jakarta.ws.rs.ext.Provider;
 import org.junit.jupiter.api.Test;
 
@@ -49,10 +52,35 @@ class FeatureContractRegistrationTest {
             HttpRequest.POST("/", "posted").contentType("text/x-dual")));
     }
 
+    @Test
+    void aReaderOnlyRegistrationDoesNotConvertParameters() {
+        // converted with the constructor of the record, not with the provider
+        assertEquals("fallback:x", client.toBlocking().retrieve(HttpRequest.GET("/param?dual=x")));
+    }
+
     public record Dual(String value) {
     }
 
-    public static class DualProvider implements MessageBodyReader<Dual>, MessageBodyWriter<Dual> {
+    public static class DualProvider implements MessageBodyReader<Dual>, MessageBodyWriter<Dual>, ParamConverterProvider {
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <T> ParamConverter<T> getConverter(Class<T> rawType, Type genericType, Annotation[] annotations) {
+            if (rawType != Dual.class) {
+                return null;
+            }
+            return (ParamConverter<T>) new ParamConverter<Dual>() {
+                @Override
+                public Dual fromString(String value) {
+                    return new Dual("converter:" + value);
+                }
+
+                @Override
+                public String toString(Dual value) {
+                    return value.value();
+                }
+            };
+        }
 
         @Override
         public boolean isReadable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
@@ -111,6 +139,13 @@ class FeatureContractRegistrationTest {
         @Produces("text/plain")
         public Dual get() {
             return new Dual("get");
+        }
+
+        @GET
+        @Path("param")
+        @Produces("text/plain")
+        public Dual param(@QueryParam("dual") Dual dual) {
+            return dual;
         }
 
         @POST

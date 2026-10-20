@@ -31,6 +31,7 @@ import java.io.OutputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -92,6 +93,27 @@ class JaxRsClientProvidersTest {
             .post(Entity.text(new Thing("x")), String.class);
 
         assertEquals("text/plain|high:x", echoed);
+    }
+
+    @Test
+    void aProviderRegisteredForNoContractIsIgnored() {
+        String echoed = echo()
+            .register(new HighWriter(), Map.of())
+            .register(new ThingWriter("low"), 5000)
+            .request()
+            .post(Entity.text(new Thing("x")), String.class);
+
+        assertEquals("text/plain|low:x", echoed);
+    }
+
+    @Test
+    void theStandardStringWriterIsAProvider() {
+        String echoed = echo()
+            .register(new StringDelegatingWriter())
+            .request()
+            .post(Entity.text(new Thing("x")), String.class);
+
+        assertEquals("text/plain|delegated:x", echoed);
     }
 
     @Test
@@ -210,6 +232,27 @@ class JaxRsClientProvidersTest {
         public void writeTo(Object value, Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType,
                             MultivaluedMap<String, Object> httpHeaders, OutputStream entityStream) throws IOException {
             write("object:" + ((Thing) value).value(), entityStream);
+        }
+    }
+
+    /**
+     * Writes a thing with the standard writer of strings, from the providers.
+     */
+    public static final class StringDelegatingWriter implements MessageBodyWriter<Thing> {
+
+        @Context
+        Providers providers;
+
+        @Override
+        public boolean isWriteable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+            return type == Thing.class;
+        }
+
+        @Override
+        public void writeTo(Thing thing, Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType,
+                            MultivaluedMap<String, Object> httpHeaders, OutputStream entityStream) throws IOException {
+            MessageBodyWriter<String> writer = providers.getMessageBodyWriter(String.class, String.class, annotations, mediaType);
+            writer.writeTo("delegated:" + thing.value(), String.class, String.class, annotations, mediaType, httpHeaders, entityStream);
         }
     }
 
