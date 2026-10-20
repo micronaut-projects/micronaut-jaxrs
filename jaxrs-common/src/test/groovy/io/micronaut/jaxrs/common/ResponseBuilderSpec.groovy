@@ -84,4 +84,44 @@ class ResponseBuilderSpec extends Specification {
         second.getHeaderString("X-Header") == null
         !second.hasEntity()
     }
+
+    void "a null entity keeps the selected status"() {
+        expect:
+        Response.status(200).entity(null).build().status == 200
+        Response.ok().entity(null).entity("replacement").build().status == 200
+
+        and: "a response without a selected status is a 204 without an entity"
+        jakarta.ws.rs.ext.RuntimeDelegate.instance.createResponseBuilder().entity(null).build().status == 204
+        jakarta.ws.rs.ext.RuntimeDelegate.instance.createResponseBuilder().entity("e").build().status == 200
+    }
+
+    void "the allowed methods are split at commas"() {
+        expect:
+        Response.ok().allow("GET", "post").build().allowedMethods == ["GET", "POST"] as Set
+        Response.ok().header(HttpHeaders.ALLOW, "GET, POST").header(HttpHeaders.ALLOW, "PUT").build().allowedMethods == ["GET", "POST", "PUT"] as Set
+    }
+
+    void "the header views write through to the response"() {
+        given:
+        def response = Response.ok().header("X-Secret", "1").header("X-Other", "2").build()
+
+        when:
+        response.headers.keySet().remove("X-Secret")
+
+        then:
+        response.getHeaderString("X-Secret") == null
+        !response.headers.containsKey("X-Secret")
+
+        when:
+        response.headers.entrySet().find { it.key == "X-Other" }.setValue(["3"])
+
+        then:
+        response.getHeaderString("X-Other") == "3"
+
+        when:
+        response.headers.values().clear()
+
+        then:
+        response.getHeaderString("X-Other") == null
+    }
 }
