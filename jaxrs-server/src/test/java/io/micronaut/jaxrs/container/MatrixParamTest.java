@@ -55,6 +55,54 @@ class MatrixParamTest {
             client.toBlocking().retrieve(HttpRequest.GET("/segments/many/same;x=3/same;x=4/last/same;x=5")));
     }
 
+    @Test
+    void locatorMatrixParamsAreTheOnesOfItsLastSegment() {
+        assertEquals("red details", client.toBlocking().retrieve(HttpRequest.GET("/located/1;color=red/details;color=blue")));
+    }
+
+    @Test
+    void pathSegmentOfAVariableInPartOfASegment() {
+        assertEquals("file-a.txt x=1", client.toBlocking().retrieve(HttpRequest.GET("/segments/file-a.txt;x=1")));
+    }
+
+    @Test
+    void pathSegmentOfAVariableOverSeveralSegmentsIsTheLastOne() {
+        assertEquals("b x=1", client.toBlocking().retrieve(HttpRequest.GET("/segments/last/a/b;x=1")));
+    }
+
+    @Test
+    void encodedSlashIsNotASegmentSeparator() {
+        assertEquals("[a/b x=null, c x=1] | d x=null",
+            client.toBlocking().retrieve(HttpRequest.GET("/segments/many/a%2Fb/c;x=1/last/d")));
+    }
+
+    @Requires(property = "spec.name", value = "MatrixParamTest")
+    @Path("/matrix-param/located")
+    public static class LocatorResource {
+        @Path("{id}")
+        public Details details(@MatrixParam("color") String color) {
+            return new Details(color);
+        }
+    }
+
+    /**
+     * The sub-resource of {@link LocatorResource}.
+     */
+    public static class Details {
+        private final String color;
+
+        Details(String color) {
+            this.color = color;
+        }
+
+        @GET
+        @Path("details")
+        @Produces("text/plain")
+        public String get() {
+            return color + " details";
+        }
+    }
+
     @Requires(property = "spec.name", value = "MatrixParamTest")
     @Path("/matrix-param/segments")
     public static class SegmentsResource {
@@ -63,6 +111,20 @@ class MatrixParamTest {
         @Produces("text/plain")
         public String segments(@PathParam("a") PathSegment a, @PathParam("b") PathSegment b) {
             return describe(a) + " | " + describe(b);
+        }
+
+        @GET
+        @Path("file-{id}.txt")
+        @Produces("text/plain")
+        public String file(@PathParam("id") PathSegment id) {
+            return describe(id);
+        }
+
+        @GET
+        @Path("last/{p: .+}")
+        @Produces("text/plain")
+        public String last(@PathParam("p") PathSegment p) {
+            return describe(p);
         }
 
         @GET

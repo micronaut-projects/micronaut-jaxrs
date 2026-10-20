@@ -94,6 +94,7 @@ import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.NoContentException;
 import jakarta.ws.rs.core.PathSegment;
+import io.micronaut.jaxrs.runtime.ext.bind.UriInfoImpl;
 import jakarta.ws.rs.core.SecurityContext;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ParamConverter;
@@ -154,6 +155,13 @@ public final class JaxRsRouteSupport {
      */
     static final String SSE_EVENT_SINK = SseEventSink.class.getName();
     // set when the url-encoded form of the request is read with its raw values, for @Encoded form parameters
+    /**
+     * The attribute of a request with the number of path segments, relative to the base URI, a
+     * sub-resource locator matched while its parameters are read: its matrix parameters are the
+     * ones of the last of them ({@code MatrixParam}).
+     */
+    static final String MATCHED_SEGMENTS = JaxRsRouteSupport.class.getName() + ".matchedSegments";
+
     private static final String RAW_FORM = JaxRsRouteSupport.class.getName() + ".rawForm";
 
     // the types of header values with a header delegate, a subtype first (NewCookie of Cookie)
@@ -542,7 +550,8 @@ public final class JaxRsRouteSupport {
 
     /**
      * @param request      The request
-     * @param name         The name of the matrix parameter, of the last segment of the path
+     * @param name         The name of the matrix parameter, of the last segment of the path, or
+     *                     of the last one a sub-resource locator matched
      * @param argument     The type of the parameter
      * @param defaultValue The {@code @DefaultValue}
      * @param encoded      Whether the value is kept encoded ({@code @Encoded})
@@ -550,6 +559,15 @@ public final class JaxRsRouteSupport {
      */
     public @Nullable Object matrixParam(HttpRequest<?> request, String name, Argument<?> argument,
                                         @Nullable String defaultValue, boolean encoded) {
+        int matched = request.getAttribute(MATCHED_SEGMENTS, Integer.class).orElse(-1);
+        if (matched > 0) {
+            // a parameter of a sub-resource locator: of the last segment it matched
+            List<PathSegment> segments = new UriInfoImpl(request, applicationProvider.getPath(), applicationProvider.getContextPath())
+                .getPathSegments(!encoded);
+            List<String> values = matched <= segments.size() ? segments.get(matched - 1).getMatrixParameters().get(name) : null;
+            return convert(values == null ? List.of() : values.stream().map(value -> value == null ? "" : value).toList(),
+                argument, defaultValue, true);
+        }
         return convert(JaxRsPathSegments.values(request, name, encoded), argument, defaultValue, true);
     }
 
