@@ -134,12 +134,35 @@ public final class JaxRsUtils {
         for (String value : declared) {
             MediaType produced = new MediaType(value);
             for (MediaType mediaType : mediaTypes) {
-                if (mediaType.matches(produced) || produced.matches(mediaType)) {
-                    int specificity = "*".equals(produced.getType()) ? 0 : "*".equals(produced.getSubtype()) ? 1 : 2;
+                if (isCompatible(produced, mediaType)) {
+                    int specificity = "*".equals(produced.getType()) ? 0 : produced.getSubtype().startsWith("*") ? 1 : 2;
                     best = Math.max(best, specificity);
                 }
             }
         }
         return best;
+    }
+
+    /**
+     * Whether two media types are compatible, either way: like {@link MediaType#matches}, and a
+     * subtype with a wildcard and a suffix, e.g. {@code application/*+json}, matches the subtypes
+     * with that suffix, e.g. {@code application/vnd.example+json}.
+     *
+     * @param declared  A media type, e.g. the one a provider declares
+     * @param mediaType Another media type
+     * @return Whether they are compatible
+     */
+    public static boolean isCompatible(MediaType declared, MediaType mediaType) {
+        return mediaType.matches(declared) || declared.matches(mediaType)
+            || matchesSuffix(declared, mediaType) || matchesSuffix(mediaType, declared);
+    }
+
+    private static boolean matchesSuffix(MediaType wildcard, MediaType mediaType) {
+        String subtype = wildcard.getSubtype();
+        if (!subtype.startsWith("*+")) {
+            return false;
+        }
+        return ("*".equals(wildcard.getType()) || wildcard.getType().equalsIgnoreCase(mediaType.getType()))
+            && mediaType.getSubtype().toLowerCase(java.util.Locale.ROOT).endsWith(subtype.substring(1).toLowerCase(java.util.Locale.ROOT));
     }
 }

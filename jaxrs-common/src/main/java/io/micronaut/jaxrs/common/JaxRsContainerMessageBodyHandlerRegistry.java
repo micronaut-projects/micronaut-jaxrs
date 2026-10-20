@@ -418,7 +418,7 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
                 MediaType mediaType = new MediaType(mt);
                 for (MediaType m : mediaTypes) {
                     // compatible either way: application/xml and application/*
-                    if (m.matches(mediaType) || mediaType.matches(m)) {
+                    if (JaxRsUtils.isCompatible(mediaType, m)) {
                         return true;
                     }
                 }

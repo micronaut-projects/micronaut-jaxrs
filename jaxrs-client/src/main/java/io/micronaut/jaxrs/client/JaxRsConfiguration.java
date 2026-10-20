@@ -797,7 +797,7 @@ final class JaxRsConfiguration implements Configuration {
         for (String value : declared) {
             for (String type : value.split(",")) {
                 MediaType candidate = new MediaType(type.trim());
-                if (mediaType.matches(candidate) || candidate.matches(mediaType)) {
+                if (JaxRsUtils.isCompatible(candidate, mediaType)) {
                     return true;
                 }
             }

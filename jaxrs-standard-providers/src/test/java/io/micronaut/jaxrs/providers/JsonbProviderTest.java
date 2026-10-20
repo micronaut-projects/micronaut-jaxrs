@@ -66,6 +66,20 @@ class JsonbProviderTest {
         }
     }
 
+    @Test
+    void clientUsesItsJsonbForAVendorJsonType() {
+        // JSON-B reads and writes application/*+json
+        MediaType vendor = new MediaType("application", "vnd.example+json");
+        try (Client client = ClientBuilder.newClient().register(new SnakeCaseResolver())) {
+            Person person = new Person();
+            person.setFirstName("Ann");
+            String echoed = client.target(server.getURI()).path("jsonb/vendor")
+                .request(vendor)
+                .post(Entity.entity(person, vendor), String.class);
+            assertEquals("{\"first_name\":\"Ann echoed\"}", echoed);
+        }
+    }
+
     public static class Person {
         private String firstName;
 
@@ -99,6 +113,14 @@ class JsonbProviderTest {
         public Person echo(Person person) {
             person.setFirstName(person.getFirstName() + " echoed");
             return person;
+        }
+
+        @POST
+        @Path("vendor")
+        @Consumes("application/vnd.example+json")
+        @Produces("application/vnd.example+json")
+        public Person vendor(Person person) {
+            return echo(person);
         }
     }
 }
