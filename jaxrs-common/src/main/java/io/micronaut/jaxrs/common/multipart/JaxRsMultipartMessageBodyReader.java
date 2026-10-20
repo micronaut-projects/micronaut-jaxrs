@@ -57,6 +57,7 @@ import java.util.Optional;
 public final class JaxRsMultipartMessageBodyReader implements MessageBodyReader<List<EntityPart>> {
 
     private static final byte[] CRLF = {'\r', '\n'};
+    private static final byte[] CLOSE = {'-', '-'};
     private static final byte[] HEADERS_END = {'\r', '\n', '\r', '\n'};
 
     // injected by the client, or by the bean context of the server
@@ -87,20 +88,20 @@ public final class JaxRsMultipartMessageBodyReader implements MessageBodyReader<
         byte[] delimiter = ("--" + boundary).getBytes(StandardCharsets.ISO_8859_1);
         // every delimiter but the first follows a line break
         byte[] nextDelimiter = ("\r\n--" + boundary).getBytes(StandardCharsets.ISO_8859_1);
-        int position = indexOf(entity, delimiter, 0);
+        int position = delimiterIndex(entity, delimiter, 0);
         if (position < 0) {
             throw new BadRequestException("The multipart entity has no part");
         }
         position += delimiter.length;
         List<EntityPart> parts = new ArrayList<>();
-        while (!startsWith(entity, position, new byte[] {'-', '-'})) {
+        while (!startsWith(entity, position, CLOSE)) {
             position = indexOf(entity, CRLF, position);
             if (position < 0) {
                 throw new BadRequestException("The multipart entity is not terminated");
             }
             position += CRLF.length;
             int headersEnd = startsWith(entity, position, CRLF) ? position : indexOf(entity, HEADERS_END, position);
-            int end = headersEnd < 0 ? -1 : indexOf(entity, nextDelimiter, headersEnd);
+            int end = headersEnd < 0 ? -1 : delimiterIndex(entity, nextDelimiter, headersEnd);
             if (end < 0) {
                 throw new BadRequestException("The multipart entity is not terminated");
             }
@@ -132,6 +133,29 @@ public final class JaxRsMultipartMessageBodyReader implements MessageBodyReader<
             }
         }
         return headers;
+    }
+
+    /**
+     * The index of a delimiter: the boundary followed by the end of its line, after optional
+     * transport padding, or by the two hyphens of the close delimiter (RFC 2046 section 5.1.1),
+     * not a boundary prefix within the content of a part.
+     */
+    private static int delimiterIndex(byte[] entity, byte[] delimiter, int from) {
+        int index = indexOf(entity, delimiter, from);
+        while (index >= 0 && !isDelimiterEnd(entity, index + delimiter.length)) {
+            index = indexOf(entity, delimiter, index + 1);
+        }
+        return index;
+    }
+
+    private static boolean isDelimiterEnd(byte[] entity, int position) {
+        if (startsWith(entity, position, CLOSE)) {
+            return true;
+        }
+        while (position < entity.length && (entity[position] == ' ' || entity[position] == '\t')) {
+            position++;
+        }
+        return startsWith(entity, position, CRLF);
     }
 
     private static boolean startsWith(byte[] array, int position, byte[] prefix) {

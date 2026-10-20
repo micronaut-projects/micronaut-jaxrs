@@ -13,11 +13,16 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.EntityPart;
 import jakarta.ws.rs.core.GenericEntity;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.ext.MessageBodyReader;
+import jakarta.ws.rs.ext.Provider;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Type;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -94,6 +99,37 @@ class MultipartTest {
             + "--" + boundary + "--\r\n", response.body());
     }
 
+    @Test
+    void partsOfFormParametersAreReadWithTheRegisteredReaders() throws Exception {
+        HttpResponse<String> response = post("reader");
+        assertEquals(200, response.statusCode(), response.body());
+        assertEquals("FILE CONTENT", response.body());
+    }
+
+    /**
+     * The content of a part, upper-cased.
+     *
+     * @param value The value
+     */
+    public record Upper(String value) {
+    }
+
+    @Requires(property = "spec.name", value = "MultipartTest")
+    @Provider
+    public static class UpperReader implements MessageBodyReader<Upper> {
+
+        @Override
+        public boolean isReadable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+            return type == Upper.class;
+        }
+
+        @Override
+        public Upper readFrom(Class<Upper> type, Type genericType, Annotation[] annotations, MediaType mediaType,
+                              MultivaluedMap<String, String> httpHeaders, InputStream entityStream) throws IOException {
+            return new Upper(new String(entityStream.readAllBytes(), StandardCharsets.UTF_8).toUpperCase());
+        }
+    }
+
     @Requires(property = "spec.name", value = "MultipartTest")
     @Path("/multipart")
     public static class MultipartResource {
@@ -121,6 +157,13 @@ class MultipartTest {
                              @FormParam("file") InputStream stream) throws IOException {
             return text + "|" + file.getFileName().orElse(null) + ":" + file.getContent(String.class)
                 + "|" + new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+
+        @POST
+        @Path("reader")
+        @Consumes(MediaType.MULTIPART_FORM_DATA)
+        public String reader(@FormParam("file") EntityPart file) throws IOException {
+            return file.getContent(Upper.class).value();
         }
 
         @POST

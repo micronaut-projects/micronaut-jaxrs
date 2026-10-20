@@ -18,6 +18,7 @@ package io.micronaut.jaxrs.common.multipart;
 import io.micronaut.core.annotation.Internal;
 import jakarta.ws.rs.core.EntityPart;
 import jakarta.ws.rs.core.GenericType;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
 import org.jspecify.annotations.Nullable;
@@ -52,15 +53,20 @@ public final class JaxRsEntityPartBuilder implements EntityPart.Builder {
     }
 
     @Override
-    public EntityPart.Builder mediaType(MediaType mediaType) throws IllegalArgumentException {
+    public EntityPart.Builder mediaType(@Nullable MediaType mediaType) throws IllegalArgumentException {
         this.mediaType = mediaType;
+        // the media type is the Content-Type header of the part (EntityPart.Builder.mediaType)
+        if (mediaType == null) {
+            headers.remove(HttpHeaders.CONTENT_TYPE);
+        } else {
+            headers.putSingle(HttpHeaders.CONTENT_TYPE, mediaType.toString());
+        }
         return this;
     }
 
     @Override
     public EntityPart.Builder mediaType(String mediaTypeString) throws IllegalArgumentException {
-        this.mediaType = mediaTypeString == null ? null : MediaType.valueOf(mediaTypeString);
-        return this;
+        return mediaType(mediaTypeString == null ? null : MediaType.valueOf(mediaTypeString));
     }
 
     @Override
@@ -125,8 +131,9 @@ public final class JaxRsEntityPartBuilder implements EntityPart.Builder {
         if (content == null || contentType == null) {
             throw new IllegalStateException("The part " + name + " has no content");
         }
-        // a file is binary, a field is text (EntityPart.getMediaType)
-        MediaType type = mediaType != null ? mediaType
+        // the Content-Type header, set by the media type or as a header, else a file is binary, a field is text (EntityPart.getMediaType)
+        String header = headers.getFirst(HttpHeaders.CONTENT_TYPE);
+        MediaType type = header != null ? MediaType.valueOf(header) : mediaType != null ? mediaType
             : fileName != null ? MediaType.APPLICATION_OCTET_STREAM_TYPE : MediaType.TEXT_PLAIN_TYPE;
         MultivaluedMap<String, String> copied = JaxRsEntityPart.headers();
         copied.putAll(headers);
