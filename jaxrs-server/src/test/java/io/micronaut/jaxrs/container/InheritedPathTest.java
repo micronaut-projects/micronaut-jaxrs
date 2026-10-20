@@ -17,7 +17,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * The annotations of a class are not inherited, those of a method are (JAX-RS 3.6).
+ * The {@code @Path} of a superclass is not inherited, the annotations of a method are (JAX-RS
+ * 3.6).
  */
 @MicronautTest
 @Property(name = "spec.name", value = "InheritedPathTest")

@@ -282,15 +282,14 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         });
         resources.forEach((type, resource) -> {
             // a class without a @Path is a sub-resource, unless the application lists it
-            // the @Path of a superclass is not inherited (JAX-RS 3.6)
-            if (!roots.containsKey(type) && (resource.definition().hasDeclaredAnnotation(Path.class) || listed.contains(type))) {
+            if (!roots.containsKey(type) && (resource.definition().hasAnnotation(Path.class) || listed.contains(type))) {
                 roots.put(type, root(resource));
             }
         });
         // the resources the annotation processor did not describe, e.g. the instances of an
         // application the Java SE bootstrap registers as beans: routed from their introspection
         for (BeanDefinition<?> definition : beanContext.getBeanDefinitions(Qualifiers.byStereotype(Path.class))) {
-            if (definition.hasDeclaredAnnotation(Path.class) && !definition.hasStereotype(Controller.class) && !definition.hasStereotype(INTRODUCTION)
+            if (!definition.hasStereotype(Controller.class) && !definition.hasStereotype(INTRODUCTION)
                 && !roots.containsKey(definition.getBeanType())) {
                 Root<?> root = beanRoot(definition);
                 if (root != null) {
