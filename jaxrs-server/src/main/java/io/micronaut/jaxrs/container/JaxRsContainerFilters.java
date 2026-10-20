@@ -166,6 +166,8 @@ final class JaxRsContainerFilters {
             entityAnnotations = genericEntity.getAnnotations();
             mutableHttpResponse.body(genericEntity.getEntity());
             body = genericEntity.getEntity();
+            // e.g. the GenericEntity a resource method returns, with its type arguments
+            declaredType = bodyArgument.getType().isInstance(body);
         } else if (body instanceof GenericEntity<?> genericEntity) {
             body = genericEntity.getEntity();
             bodyArgument = JaxRsArgumentUtil.from(genericEntity);
