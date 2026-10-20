@@ -50,6 +50,11 @@ import java.util.stream.Stream;
  */
 @Internal
 public final class UriInfoImpl implements UriInfo {
+    /**
+     * The attribute of a request whose pre-matching filters run: no resource is matched yet.
+     */
+    public static final String PRE_MATCHING = UriInfoImpl.class.getName() + ".preMatching";
+
     private final HttpRequest<?> request;
     @Nullable
     private final String basePath;
@@ -263,6 +268,10 @@ public final class UriInfoImpl implements UriInfo {
 
     @Override
     public List<String> getMatchedURIs(boolean decode) {
+        if (request.getAttribute(PRE_MATCHING).isPresent()) {
+            // nothing is matched before the matching
+            return List.of();
+        }
         String path = trimSlashes(getPath(decode));
         List<String> uris = new ArrayList<>();
         uris.add(path);

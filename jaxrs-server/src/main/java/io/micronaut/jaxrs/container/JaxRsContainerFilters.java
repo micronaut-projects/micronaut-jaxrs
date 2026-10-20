@@ -37,6 +37,7 @@ import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import io.micronaut.jaxrs.common.JaxRsUtils;
 import io.micronaut.jaxrs.common.NameBindingPredicate;
 import io.micronaut.jaxrs.runtime.ext.bind.HttpHeadersBinder;
+import io.micronaut.jaxrs.runtime.ext.bind.UriInfoImpl;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.RouteInfo;
 import jakarta.inject.Singleton;
@@ -377,13 +378,18 @@ final class JaxRsContainerFilters {
             return null;
         }
         JaxRsContainerRequestContext requestContext = newContext(request, true);
-        for (ContainerRequestFilter preMatchingRequestFilter : preMatchingRequestFilters) {
-            preMatchingRequestFilter.filter(requestContext);
-            Response response = requestContext.getResponse();
-            if (response != null) {
-                // a response of the application too, not only of the runtime delegate
-                return JaxRsRouteSupport.toHttpResponse(response);
+        request.setAttribute(UriInfoImpl.PRE_MATCHING, Boolean.TRUE);
+        try {
+            for (ContainerRequestFilter preMatchingRequestFilter : preMatchingRequestFilters) {
+                preMatchingRequestFilter.filter(requestContext);
+                Response response = requestContext.getResponse();
+                if (response != null) {
+                    // a response of the application too, not only of the runtime delegate
+                    return JaxRsRouteSupport.toHttpResponse(response);
+                }
             }
+        } finally {
+            request.removeAttribute(UriInfoImpl.PRE_MATCHING, Boolean.class);
         }
         requestContext.finished();
         // the request whose method a filter changed: the route is matched with it
