@@ -86,6 +86,28 @@ class JaxRsSseEventSinkTest {
         assertTrue(over.isDone());
     }
 
+    @Test
+    void sendFailsWhenTheSinkIsClosedWhileTheEventIsWritten() {
+        var sinkRef = new AtomicReference<JaxRsSseEventSink>();
+        // closed by another thread while the data is written
+        var sink = new JaxRsSseEventSink(e -> {
+            sinkRef.get().close();
+            return String.valueOf(e.getData());
+        });
+        sinkRef.set(sink);
+        var subscription = new AtomicReference<Subscription>();
+        List<String> received = new CopyOnWriteArrayList<>();
+        sink.publisher().subscribe(new TestSubscriber(subscription, received));
+        subscription.get().request(Long.MAX_VALUE);
+
+        CompletableFuture<?> sent = sink.send(event("one")).toCompletableFuture();
+
+        // the stage settles, and the event is not published after the completion
+        ExecutionException failure = assertThrows(ExecutionException.class, sent::get);
+        assertInstanceOf(IllegalStateException.class, failure.getCause());
+        assertTrue(received.isEmpty());
+    }
+
     private record TestSubscriber(AtomicReference<Subscription> subscription,
                                   List<String> received) implements Subscriber<Event<String>> {
         @Override

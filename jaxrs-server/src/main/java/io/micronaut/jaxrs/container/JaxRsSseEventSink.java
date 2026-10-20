@@ -207,6 +207,10 @@ final class JaxRsSseEventSink implements SseEventSink, Publisher<Event<String>>,
                 if (cancelled) {
                     return CompletableFuture.failedFuture(new IOException("The client disconnected"));
                 }
+                if (completed) {
+                    // closed while the data was written: not published after the completion
+                    return CompletableFuture.failedFuture(new IllegalStateException("The event sink is closed"));
+                }
                 if (subscriber == null && buffer.size() < UNSUBSCRIBED_LIMIT) {
                     // buffered until the response is written, after the resource method
                     pending.sent.complete(null);
