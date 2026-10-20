@@ -152,12 +152,8 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
             writer = registry.findWriter(argument, mediaTypes);
         }
         if (writer.isEmpty()) {
-            Optional<MessageBodyWriter<String>> stringWriter = registry.findWriter(Argument.STRING, mediaTypes);
-            if (stringWriter.isPresent()) {
-                stringWriter.get().writeTo(Argument.STRING, mediaType, entity.toString(), outgoingHeaders, outputStream);
-            } else {
-                throw new CodecException("Could not find MessageBodyWriter for media type " + mediaType + " for argument " + argument);
-            }
+            // not written as its string: no writer is a server error (JAX-RS 4.2.2)
+            throw new CodecException("Could not find MessageBodyWriter for media type " + mediaType + " for argument " + argument);
         } else {
             writer.get().createSpecific(argument).writeTo(argument, mediaType, entity, outgoingHeaders, outputStream);
         }
@@ -406,12 +402,8 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
                 writer = registry.findWriter(this.argument, mediaTypes);
             }
             if (writer.isEmpty()) {
-                Optional<MessageBodyWriter<String>> stringWriter = registry.findWriter(Argument.STRING, mediaTypes);
-                if (stringWriter.isPresent()) {
-                    writeInner0(ResponseBodyWriter.wrap(stringWriter.get()), Argument.STRING, this.entity.toString());
-                } else {
-                    throw new CodecException("Could not find MessageBodyWriter for media type " + mediaType + " for argument " + this.argument);
-                }
+                // not written as its string: no writer is a server error (JAX-RS 4.2.2)
+                throw new CodecException("Could not find MessageBodyWriter for media type " + mediaType + " for argument " + this.argument);
             } else {
                 writeInner0(ResponseBodyWriter.wrap(writer.get().createSpecific(argument)), argument, entity);
             }

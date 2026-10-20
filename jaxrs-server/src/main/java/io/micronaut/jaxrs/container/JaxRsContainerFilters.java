@@ -37,9 +37,11 @@ import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import io.micronaut.jaxrs.common.JaxRsUtils;
 import io.micronaut.jaxrs.common.NameBindingPredicate;
 import io.micronaut.jaxrs.runtime.ext.bind.HttpHeadersBinder;
+import io.micronaut.jaxrs.runtime.ext.bind.UriInfoImpl;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.RouteInfo;
 import jakarta.inject.Singleton;
+import jakarta.ws.rs.NotAcceptableException;
 import jakarta.ws.rs.container.ContainerRequestFilter;
 import jakarta.ws.rs.container.ContainerResponseFilter;
 import jakarta.ws.rs.container.PreMatching;
@@ -72,6 +74,12 @@ import java.util.function.ToIntFunction;
 @Singleton
 @Internal
 final class JaxRsContainerFilters {
+
+    /**
+     * The attribute of a request with the entity of its response that no writer writes as the
+     * negotiated type: unless a response filter replaces it, the response is not acceptable.
+     */
+    static final String UNWRITABLE_ENTITY = ContainerResponseFilter.class.getName() + ".unwritable";
 
     private static final String REQUEST_CONTEXT_KEY = ContainerRequestFilter.class.getName();
 
@@ -166,6 +174,9 @@ final class JaxRsContainerFilters {
             entityAnnotations = genericEntity.getAnnotations();
             mutableHttpResponse.body(genericEntity.getEntity());
             body = genericEntity.getEntity();
+            // e.g. the GenericEntity a resource method returns, with its type arguments: the
+            // class of the entity otherwise, like for the writers of JAX-RS
+            declaredType = bodyArgument.getTypeParameters().length > 0 && bodyArgument.getType().isInstance(body);
         } else if (body instanceof GenericEntity<?> genericEntity) {
             body = genericEntity.getEntity();
             bodyArgument = JaxRsArgumentUtil.from(genericEntity);
@@ -225,6 +236,11 @@ final class JaxRsContainerFilters {
             delegateEntityStream = responseContext.getDelegateEntityStream();
             customEntityStream = responseContext.getCustomEntityStream();
         }
+        Object unwritable = request.getAttribute(UNWRITABLE_ENTITY).orElse(null);
+        if (unwritable != null && unwritable == body) {
+            // no filter replaced the entity no writer writes as the negotiated type (JAX-RS 3.8)
+            throw new NotAcceptableException();
+        }
         if (body != null) {
             mutableHttpResponse.body(new JaxRsGenericEntity<>(
                 body,
@@ -259,6 +275,16 @@ final class JaxRsContainerFilters {
         Comparator<Prioritized<F>> comparator = Comparator.comparingInt(Prioritized::priority);
         all.sort(reversed ? comparator.reversed() : comparator);
         return all.stream().map(Prioritized::filter).toList();
+    }
+
+    /**
+     * Whether response filters can filter the response of a route.
+     *
+     * @param routeInfo The route of a resource method, {@code null} if no route matched
+     * @return Whether there are response filters
+     */
+    boolean filtersResponse(@Nullable RouteInfo<?> routeInfo) {
+        return !containerResponseFilters.isEmpty() || !dynamicComponents(routeInfo).responseFilters().isEmpty();
     }
 
     /**
@@ -353,13 +379,18 @@ final class JaxRsContainerFilters {
             return null;
         }
         JaxRsContainerRequestContext requestContext = newContext(request, true);
-        for (ContainerRequestFilter preMatchingRequestFilter : preMatchingRequestFilters) {
-            preMatchingRequestFilter.filter(requestContext);
-            Response response = requestContext.getResponse();
-            if (response != null) {
-                // a response of the application too, not only of the runtime delegate
-                return JaxRsRouteSupport.toHttpResponse(response);
+        request.setAttribute(UriInfoImpl.PRE_MATCHING, Boolean.TRUE);
+        try {
+            for (ContainerRequestFilter preMatchingRequestFilter : preMatchingRequestFilters) {
+                preMatchingRequestFilter.filter(requestContext);
+                Response response = requestContext.getResponse();
+                if (response != null) {
+                    // a response of the application too, not only of the runtime delegate
+                    return JaxRsRouteSupport.toHttpResponse(response);
+                }
             }
+        } finally {
+            request.removeAttribute(UriInfoImpl.PRE_MATCHING, Boolean.class);
         }
         requestContext.finished();
         // the request whose method a filter changed: the route is matched with it

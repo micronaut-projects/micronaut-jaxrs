@@ -153,6 +153,11 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             // its @ApplicationPath, constructor and @Context members, without reflection
             introspect(element);
         }
+        if (!element.hasDeclaredAnnotation(Path.class) && element.hasAnnotation(Path.class) && !pathOfInterface(element)) {
+            // the annotations of a superclass are not inherited (JAX-RS 3.6): a subclass without
+            // a @Path is not a root resource. The @Path of an interface is
+            element.removeAnnotation(Path.class);
+        }
         // the @Path of a class maps to the annotation of a resource method or locator: the
         // methods of the class are not all resource methods
         element.removeStereotype(HttpMethodMappingMapper.RESOURCE_METHOD);
@@ -211,6 +216,20 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
                 }
             }
         }
+    }
+
+    /**
+     * Whether an interface of a class, or of one of its superclasses, has a {@code @Path}.
+     */
+    private static boolean pathOfInterface(ClassElement element) {
+        for (ClassElement type = element; type != null; type = type.getSuperType().orElse(null)) {
+            for (ClassElement anInterface : type.getInterfaces()) {
+                if (anInterface.hasAnnotation(Path.class)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     @Override

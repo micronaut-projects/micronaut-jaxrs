@@ -81,6 +81,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.annotation.Annotation;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -131,6 +132,9 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      * its own type is followed to this depth, then located at runtime.
      */
     private static final int MAX_LOCATOR_REPEAT = 2;
+
+    // the attribute of a request with the form its route read
+    private static final String FORM = JaxRsRuntimeRoutes.class.getName() + ".form";
 
     private static final Set<String> CONTEXT_TYPES = Set.of(
         "jakarta.ws.rs.core.HttpHeaders",
@@ -535,7 +539,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         int segments = routes.located() ? -1 : segments(prefix);
         routes.locate(routes.prefix(prefix), (request, pathVariables, target1) -> {
             B instance = instances.get(request, pathVariables, null, target1);
-            return support.matched(request, locate(method, instance, readers, request, pathVariables, null), segments);
+            return support.matched(request, locate(method, instance, readers, request, pathVariables, null, segments), segments);
         });
     }
 
@@ -555,7 +559,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         int segments = segments(prefix);
         Instances<L, T> chained = (request, pathVariables, form, located) -> {
             B instance = instances.get(request, pathVariables, form, located);
-            return support.matched(request, target.cast(locate(method, instance, readers, request, pathVariables, form)), segments);
+            return support.matched(request, target.cast(locate(method, instance, readers, request, pathVariables, form, segments)), segments);
         };
         int occurrences = visited.getOrDefault(target, 0);
         visited.put(target, occurrences + 1);
@@ -569,12 +573,24 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
 
     /**
      * Call a locator: its target, or an instance created for the request of the class it returns.
+     * Its matrix parameters are the ones of the last segment it matched, see
+     * {@link JaxRsRouteSupport#MATCHED_SEGMENTS}.
      */
     private <B> Object locate(JaxRsMethod<B> method, B instance, Reader[] readers, HttpRequest<?> request, PathVariables pathVariables,
-                              @Nullable FormData form) {
+                              @Nullable FormData form, int segments) {
         Object[] arguments = new Object[readers.length];
-        for (int i = 0; i < readers.length; i++) {
-            arguments[i] = readers[i].read(request, pathVariables, form, null);
+        Object previous = request.getAttribute(JaxRsRouteSupport.MATCHED_SEGMENTS).orElse(null);
+        request.setAttribute(JaxRsRouteSupport.MATCHED_SEGMENTS, segments);
+        try {
+            for (int i = 0; i < readers.length; i++) {
+                arguments[i] = readers[i].read(request, pathVariables, form, null);
+            }
+        } finally {
+            if (previous == null) {
+                request.removeAttribute(JaxRsRouteSupport.MATCHED_SEGMENTS, Object.class);
+            } else {
+                request.setAttribute(JaxRsRouteSupport.MATCHED_SEGMENTS, previous);
+            }
         }
         // a locator returning null is a 404
         Object target = support.located(method.executable().invoke(instance, arguments));
@@ -627,8 +643,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         }
         RequestType<T> requestType = contextRequestType(type);
         if (requestType != null) {
-            // the form is not read for the resource context
-            return create(requestType, request, pathVariables, null);
+            return create(requestType, request, pathVariables, contextForm(request));
         }
         return definition != null ? beanContext.getBean(definition) : beanContext.inject(JaxRsReflection.get().instantiate(type));
     }
@@ -650,10 +665,18 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         if (requestType != null) {
             for (Member<T> member : requestType.members()) {
                 JaxRsRouteSupport.ValueReader reader = member.reader();
-                member.property().set(instance, reader == null ? null : reader.read(request, pathVariables, null));
+                member.property().set(instance, reader == null ? null : reader.read(request, pathVariables, contextForm(request)));
             }
         }
         return instance;
+    }
+
+    /**
+     * The form of the entity for the resources of the {@code ResourceContext}: the one the route
+     * read, else an empty one, not the query.
+     */
+    private static FormData contextForm(HttpRequest<?> request) {
+        return request.getAttribute(FORM, FormData.class).orElseGet(() -> new JaxRsEntityForm("", StandardCharsets.UTF_8, false));
     }
 
     @SuppressWarnings("unchecked")
@@ -767,6 +790,10 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         if (method.produces()) {
             // a negotiated type that is not concrete is not acceptable
             support.acceptable(pathVariables);
+        }
+        if (form != null) {
+            // for the resources of the ResourceContext
+            request.setAttribute(FORM, form);
         }
         B instance = instances.get(request, pathVariables, form, target);
         Reader[] readers = method.readers();

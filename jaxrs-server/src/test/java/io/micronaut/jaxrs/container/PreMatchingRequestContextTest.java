@@ -28,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * A pre-matching filter changes the method and the URI the resource method is matched with, reads
- * and replaces the entity, and sees the request and its security context.
+ * and replaces the entity, and sees the request and its security context, and no matched URIs.
  */
 @MicronautTest
 @Property(name = "spec.name", value = "PreMatchingRequestContextTest")
@@ -80,6 +80,11 @@ class PreMatchingRequestContextTest {
     }
 
     @Test
+    void nothingIsMatchedBeforeTheMatching() {
+        assertEquals("[]", retrieve(HttpRequest.GET("/resource"), "matched"));
+    }
+
+    @Test
     void securityContextWithoutAUser() {
         assertEquals("null", retrieve(HttpRequest.GET("/resource"), "security"));
     }
@@ -102,6 +107,7 @@ class PreMatchingRequestContextTest {
                 case "replace" -> context.setEntityStream(new ByteArrayInputStream("replaced".getBytes(StandardCharsets.UTF_8)));
                 case "has" -> context.abortWith(Response.ok(String.valueOf(context.hasEntity())).build());
                 case "request" -> context.abortWith(Response.ok(context.getRequest().getMethod()).build());
+                case "matched" -> context.abortWith(Response.ok(context.getUriInfo().getMatchedURIs().toString()).build());
                 case "security" -> context.abortWith(Response.ok(String.valueOf(context.getSecurityContext().getUserPrincipal())).build());
                 default -> {
                     // the resource method

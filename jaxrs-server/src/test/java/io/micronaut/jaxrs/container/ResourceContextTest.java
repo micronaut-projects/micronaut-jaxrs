@@ -7,14 +7,18 @@ import io.micronaut.http.client.HttpClient;
 import io.micronaut.http.client.annotation.Client;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
+import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.Encoded;
+import jakarta.ws.rs.FormParam;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.HeaderParam;
+import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.container.ResourceContext;
 import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.UriInfo;
 import org.junit.jupiter.api.Test;
 
@@ -54,9 +58,22 @@ class ResourceContextTest {
             client.toBlocking().retrieve(HttpRequest.GET("/init/c?q=q3").header("X-H", "h3")));
     }
 
+    @Test
+    void formMembersAreReadFromTheEntity() {
+        assertEquals("body body", client.toBlocking().retrieve(HttpRequest.POST("/form?x=query", "x=body")
+            .contentType(io.micronaut.http.MediaType.APPLICATION_FORM_URLENCODED_TYPE)));
+    }
+
     @Requires(property = "spec.name", value = "ResourceContextTest")
     @Path("/resource-context")
     public static class RootResource {
+        @POST
+        @Path("/form")
+        @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+        public String form(@FormParam("x") String x) {
+            return resourceContext.getResource(FormMember.class).x + " " + resourceContext.initResource(new FormMember()).x;
+        }
+
         @Context
         ResourceContext resourceContext;
 
@@ -83,6 +100,14 @@ class ResourceContextTest {
         public String init() {
             return resourceContext.initResource(new Initialized()).describe();
         }
+    }
+
+    /**
+     * A resource with a form member.
+     */
+    public static class FormMember {
+        @FormParam("x")
+        String x;
     }
 
     @Requires(property = "spec.name", value = "ResourceContextTest")

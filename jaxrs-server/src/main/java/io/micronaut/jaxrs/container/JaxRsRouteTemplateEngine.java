@@ -305,6 +305,9 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
                 }
                 // the more specific of the two, with its parameters but q and qs (JAX-RS 3.8)
                 MediaType type = specificity(produce) >= specificity(accept) ? produce : accept;
+                if (rejected(accepted, accept, type)) {
+                    continue;
+                }
                 int distance = (specificity(produce) == specificity(accept) ? 0 : 1);
                 Negotiated negotiated = new Negotiated(withoutQuality(type), quality, qs(produce), distance);
                 if (best == null || negotiated.compareTo(best) > 0) {
@@ -313,6 +316,21 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
             }
         }
         return best;
+    }
+
+    /**
+     * Whether an accepted range more specific than the matching one rejects a type with
+     * {@code q=0}: the most specific range determines the quality (RFC 9110, 12.5.1).
+     */
+    private static boolean rejected(List<MediaType> accepted, MediaType matching, MediaType type) {
+        for (MediaType accept : accepted) {
+            if (accept.getQualityAsNumber().doubleValue() <= 0
+                && specificity(accept) > specificity(matching)
+                && accept.matches(type)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static MediaType withoutQuality(MediaType type) {

@@ -39,6 +39,7 @@ import io.micronaut.core.convert.ConversionContext;
 import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.async.publisher.Publishers;
 import io.micronaut.core.type.Argument;
+import io.micronaut.core.type.Headers;
 import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.inject.ExecutableMethod;
@@ -94,6 +95,7 @@ import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.NoContentException;
 import jakarta.ws.rs.core.PathSegment;
+import io.micronaut.jaxrs.runtime.ext.bind.UriInfoImpl;
 import jakarta.ws.rs.core.SecurityContext;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ParamConverter;
@@ -155,6 +157,13 @@ public final class JaxRsRouteSupport {
      */
     static final String SSE_EVENT_SINK = SseEventSink.class.getName();
     // set when the url-encoded form of the request is read with its raw values, for @Encoded form parameters
+    /**
+     * The attribute of a request with the number of path segments, relative to the base URI, a
+     * sub-resource locator matched while its parameters are read: its matrix parameters are the
+     * ones of the last of them ({@code MatrixParam}).
+     */
+    static final String MATCHED_SEGMENTS = JaxRsRouteSupport.class.getName() + ".matchedSegments";
+
     private static final String RAW_FORM = JaxRsRouteSupport.class.getName() + ".rawForm";
 
     // the types of header values with a header delegate, a subtype first (NewCookie of Cookie)
@@ -543,7 +552,8 @@ public final class JaxRsRouteSupport {
 
     /**
      * @param request      The request
-     * @param name         The name of the matrix parameter, of the last segment of the path
+     * @param name         The name of the matrix parameter, of the last segment of the path, or
+     *                     of the last one a sub-resource locator matched
      * @param argument     The type of the parameter
      * @param defaultValue The {@code @DefaultValue}
      * @param encoded      Whether the value is kept encoded ({@code @Encoded})
@@ -551,6 +561,15 @@ public final class JaxRsRouteSupport {
      */
     public @Nullable Object matrixParam(HttpRequest<?> request, String name, Argument<?> argument,
                                         @Nullable String defaultValue, boolean encoded) {
+        int matched = request.getAttribute(MATCHED_SEGMENTS, Integer.class).orElse(-1);
+        if (matched > 0) {
+            // a parameter of a sub-resource locator: of the last segment it matched
+            List<PathSegment> segments = new UriInfoImpl(request, applicationProvider.getPath(), applicationProvider.getContextPath())
+                .getPathSegments(!encoded);
+            List<String> values = matched <= segments.size() ? segments.get(matched - 1).getMatrixParameters().get(name) : null;
+            return convert(values == null ? List.of() : values.stream().map(value -> value == null ? "" : value).toList(),
+                argument, defaultValue, true);
+        }
         return convert(JaxRsPathSegments.values(request, name, encoded), argument, defaultValue, true);
     }
 
@@ -778,7 +797,8 @@ public final class JaxRsRouteSupport {
                     try {
                         int first = in.read();
                         if (first < 0) {
-                            return emptyEntity(request, type);
+                            // as the media type and with the headers the interceptors left
+                            return emptyEntity(request, type, mediaType, headers);
                         }
                         in.unread(first);
                     } catch (IOException e) {
@@ -800,9 +820,18 @@ public final class JaxRsRouteSupport {
         return readers;
     }
 
+    /**
+     * An empty entity: read by the JAX-RS reader of the application of its type and media type,
+     * else with the semantics of the standard readers (JAX-RS 4.2.4).
+     */
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private @Nullable Object emptyEntity(HttpRequest<?> request, Argument<?> argument) {
+    private @Nullable Object emptyEntity(HttpRequest<?> request, Argument<Object> argument, MediaType mediaType, Headers headers) {
         Class<?> type = argument.getType();
+        Optional<MessageBodyReader<Object>> reader = beanContext.getBean(JaxRsContainerMessageBodyHandlerRegistry.class)
+            .findReader(argument, List.of(mediaType));
+        if (reader.isPresent()) {
+            return reader.get().read(argument, mediaType, headers, InputStream.nullInputStream());
+        }
         if (type == String.class) {
             return "";
         }
@@ -810,26 +839,19 @@ public final class JaxRsRouteSupport {
             // the standard readers of these types cannot read an empty entity (JAX-RS 4.2.4)
             throw new BadRequestException(new NoContentException("An empty entity cannot be read as " + type.getName()));
         }
-        // a JAX-RS reader of the application reads an empty entity too
-        Optional<MediaType> declared = request.getContentType();
-        MediaType contentType = declared.orElse(MediaType.APPLICATION_OCTET_STREAM_TYPE);
-        Optional<MessageBodyReader<Object>> reader = beanContext.getBean(JaxRsContainerMessageBodyHandlerRegistry.class)
-            .findReader((Argument) argument, List.of(contentType));
-        if (reader.isEmpty()) {
-            if (type == MultivaluedMap.class) {
-                // the standard reader of a form reads an empty one
-                return new MultivaluedHashMap<>();
-            }
-            if (type == Form.class) {
-                return new Form();
-            }
-            if (declared.isPresent() && beanContext.getBean(MessageBodyHandlerRegistry.class).findReader(argument, List.of(contentType)).isEmpty()) {
-                // no reader reads the entity as its type (JAX-RS 4.2.1)
-                throw new NotSupportedException();
-            }
-            return null;
+        if (type == MultivaluedMap.class) {
+            // the standard reader of a form reads an empty one
+            return new MultivaluedHashMap<>();
         }
-        return reader.get().read((Argument) argument, contentType, request.getHeaders(), InputStream.nullInputStream());
+        if (type == Form.class) {
+            return new Form();
+        }
+        boolean declared = request.getContentType().isPresent() || !MediaType.APPLICATION_OCTET_STREAM_TYPE.equals(mediaType);
+        if (declared && beanContext.getBean(MessageBodyHandlerRegistry.class).findReader(argument, List.of(mediaType)).isEmpty()) {
+            // no reader reads the entity as its type (JAX-RS 4.2.1)
+            throw new NotSupportedException();
+        }
+        return null;
     }
 
     /**
@@ -1213,7 +1235,9 @@ public final class JaxRsRouteSupport {
     private static Argument<?> entityType(HttpRequest<?> request, Object body, Argument<?> returnType) {
         AnnotationMetadata annotations = routeAnnotations(request);
         if (body instanceof GenericEntity<?> entity) {
-            Argument<?> generic = JaxRsArgumentUtil.from(entity);
+            // a framework wrapper keeps its type arguments in its argument, not in its raw type
+            Argument<?> generic = entity instanceof JaxRsGenericEntity<?> wrapper && wrapper.asArgument().getTypeParameters().length > 0
+                ? wrapper.asArgument() : JaxRsArgumentUtil.from(entity);
             return Argument.of(generic.getType(), annotations, generic.getTypeParameters());
         } else if (returnType.getType() != Object.class && returnType.getType().isInstance(body)) {
             // a declared type that is not known only at runtime
@@ -1316,6 +1340,12 @@ public final class JaxRsRouteSupport {
             }
             MediaType mediaType = JaxRsRouteTemplateEngine.responseType(request.getHeaders().accept(), writable);
             if (mediaType == null) {
+                if (containerFilters().filtersResponse(RouteAttributes.getRouteInfo(request).orElse(null))) {
+                    // a response filter can replace the entity with one a writer writes: the
+                    // response is not acceptable if it does not
+                    request.setAttribute(JaxRsContainerFilters.UNWRITABLE_ENTITY, body instanceof GenericEntity<?> entity ? entity.getEntity() : body);
+                    return mutable.header(HttpHeaders.CONTENT_TYPE, selected.toString());
+                }
                 throw new NotAcceptableException();
             }
             return mutable.contentType(mediaType);
@@ -1349,11 +1379,27 @@ public final class JaxRsRouteSupport {
      * @return The bean parameter
      */
     public Object beanParam(Class<?> type, HttpRequest<?> request, PathVariables pathVariables, @Nullable FormData form) {
-        return beanParams.computeIfAbsent(type, this::beanParamBinder).bind(request, pathVariables, form);
+        return beanParamBinder(type).bind(request, pathVariables, form);
+    }
+
+    /**
+     * The binder of a {@code @BeanParam} type, built once: not in a {@code computeIfAbsent}, as
+     * building it builds the binders of the bean parameters it has.
+     */
+    private BeanParamBinder beanParamBinder(Class<?> type) {
+        BeanParamBinder binder = beanParams.get(type);
+        if (binder == null) {
+            binder = newBeanParamBinder(type);
+            BeanParamBinder existing = beanParams.putIfAbsent(type, binder);
+            if (existing != null) {
+                binder = existing;
+            }
+        }
+        return binder;
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private BeanParamBinder beanParamBinder(Class<?> type) {
+    private BeanParamBinder newBeanParamBinder(Class<?> type) {
         BeanIntrospection<Object> introspection = (BeanIntrospection<Object>) Optional.ofNullable(JaxRsReflection.get().introspection(type))
             .orElseThrow(() -> new IllegalStateException("The @BeanParam type " + type.getName() + " is not introspected"));
         boolean encoded = introspection.hasAnnotation(Encoded.class);
@@ -1415,8 +1461,9 @@ public final class JaxRsRouteSupport {
         } else if (formParam != null) {
             return (request, pathVariables, form) -> formParam(request, form, formParam, argument, defaultValue, encoded);
         } else if (metadata.hasAnnotation(BeanParam.class)) {
-            Class<?> type = argument.getType();
-            return (request, pathVariables, form) -> beanParam(type, request, pathVariables, form);
+            // built with the routes: the default values of its members are converted eagerly too
+            BeanParamBinder binder = beanParamBinder(argument.getType());
+            return binder::bind;
         } else if (metadata.hasAnnotation(jakarta.ws.rs.core.Context.class)) {
             String named = metadata.stringValue("jakarta.inject.Named").orElse(null);
             return (request, pathVariables, form) -> context(request, argument, named);

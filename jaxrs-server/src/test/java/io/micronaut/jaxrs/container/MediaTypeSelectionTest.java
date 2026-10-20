@@ -67,6 +67,13 @@ class MediaTypeSelectionTest {
         assertEquals(406, e.getStatus().getCode());
     }
 
+    @Test
+    void wildcardDoesNotReviveARejectedType() {
+        HttpResponse<String> response = client.toBlocking().exchange(HttpRequest.GET("/rejected")
+            .accept("text/plain;q=0, */*;q=1"), String.class);
+        assertEquals("application/json", response.getContentType().orElseThrow().toString());
+    }
+
     @Requires(property = "spec.name", value = "MediaTypeSelectionTest")
     @Path("/media")
     public static class WeightResource {
@@ -96,6 +103,13 @@ class MediaTypeSelectionTest {
         @Produces("image/*;qs=0.7")
         public String image() {
             return "image/any";
+        }
+
+        @GET
+        @Path("rejected")
+        @Produces({"text/plain", "application/json"})
+        public String rejected() {
+            return "\"rejected\"";
         }
 
         @GET

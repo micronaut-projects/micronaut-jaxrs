@@ -15,6 +15,8 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.MultivaluedMap;
+import jakarta.ws.rs.ext.MessageBodyReader;
 import jakarta.ws.rs.ext.Provider;
 import jakarta.ws.rs.ext.ReaderInterceptor;
 import jakarta.ws.rs.ext.ReaderInterceptorContext;
@@ -22,6 +24,9 @@ import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -61,6 +66,59 @@ class EmptyEntityInterceptorTest {
         assertEquals(HttpStatus.BAD_REQUEST, e.getStatus());
     }
 
+    @Test
+    void interceptorChangesTheMediaTypeOfAnEmptyEntity() {
+        assertEquals("empty", client.toBlocking().retrieve(HttpRequest.POST("/item", "")
+            .contentType(MediaType.TEXT_PLAIN).header("X-Type", "application/x-item")));
+    }
+
+    @Test
+    void readerOfTheApplicationReadsAnEmptyEntity() {
+        assertEquals("-1", client.toBlocking().retrieve(HttpRequest.POST("/integer", "").contentType("text/x-int")));
+    }
+
+    /**
+     * An entity of the application.
+     *
+     * @param name The name
+     */
+    public record Item(String name) {
+    }
+
+    @Requires(property = "spec.name", value = "EmptyEntityInterceptorTest")
+    @Provider
+    @Consumes("application/x-item")
+    public static class ItemReader implements MessageBodyReader<Item> {
+        @Override
+        public boolean isReadable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+            return type == Item.class;
+        }
+
+        @Override
+        public Item readFrom(Class<Item> type, Type genericType, Annotation[] annotations, MediaType mediaType,
+                             MultivaluedMap<String, String> httpHeaders, InputStream entityStream) throws IOException {
+            String name = new String(entityStream.readAllBytes(), StandardCharsets.UTF_8);
+            return new Item(name.isEmpty() ? "empty" : name);
+        }
+    }
+
+    @Requires(property = "spec.name", value = "EmptyEntityInterceptorTest")
+    @Provider
+    @Consumes("text/x-int")
+    public static class IntReader implements MessageBodyReader<Integer> {
+        @Override
+        public boolean isReadable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+            return type == Integer.class;
+        }
+
+        @Override
+        public Integer readFrom(Class<Integer> type, Type genericType, Annotation[] annotations, MediaType mediaType,
+                                MultivaluedMap<String, String> httpHeaders, InputStream entityStream) throws IOException {
+            String value = new String(entityStream.readAllBytes(), StandardCharsets.UTF_8);
+            return value.isEmpty() ? -1 : Integer.parseInt(value);
+        }
+    }
+
     @Requires(property = "spec.name", value = "EmptyEntityInterceptorTest")
     @Provider
     public static class Interceptor implements ReaderInterceptor {
@@ -68,6 +126,10 @@ class EmptyEntityInterceptorTest {
         public Object aroundReadFrom(ReaderInterceptorContext context) throws IOException {
             if (context.getHeaders().containsKey("X-Reject")) {
                 throw new WebApplicationException(422);
+            }
+            String mediaType = context.getHeaders().getFirst("X-Type");
+            if (mediaType != null) {
+                context.setMediaType(MediaType.valueOf(mediaType));
             }
             String replacement = context.getHeaders().getFirst("X-Replace");
             if (replacement != null) {
@@ -92,6 +154,19 @@ class EmptyEntityInterceptorTest {
         @Path("/int")
         public String integer(int entity) {
             return String.valueOf(entity);
+        }
+
+        @POST
+        @Path("/integer")
+        @Consumes("text/x-int")
+        public String boxed(Integer entity) {
+            return String.valueOf(entity);
+        }
+
+        @POST
+        @Path("/item")
+        public String item(Item entity) {
+            return entity.name();
         }
     }
 }

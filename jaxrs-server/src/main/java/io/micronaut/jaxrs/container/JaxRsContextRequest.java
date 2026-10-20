@@ -148,11 +148,16 @@ final class JaxRsContextRequest implements Request {
             }
             return null;
         }
-        Response.ResponseBuilder byDate = evaluatePreconditions(lastModified);
-        if (byDate != null && byDate.build().getStatus() == Response.Status.NOT_MODIFIED.getStatusCode()) {
+        long modified = lastModified.getTime() / 1000;
+        ZonedDateTime ifUnmodifiedSince = request.getHeaders().findDate(HttpHeaders.IF_UNMODIFIED_SINCE).orElse(null);
+        if (ifUnmodifiedSince != null && modified > ifUnmodifiedSince.toEpochSecond()) {
+            return Response.status(Response.Status.PRECONDITION_FAILED);
+        }
+        ZonedDateTime ifModifiedSince = request.getHeaders().findDate(HttpHeaders.IF_MODIFIED_SINCE).orElse(null);
+        if (ifModifiedSince != null && readOnly(request) && modified <= ifModifiedSince.toEpochSecond()) {
             return Response.notModified(eTag);
         }
-        return byDate;
+        return null;
     }
 
     @Override
@@ -225,13 +230,21 @@ final class JaxRsContextRequest implements Request {
         if (mediaType == null || accept.isEmpty()) {
             return 1;
         }
+        // the most specific accepted range determines the quality (RFC 9110, 12.5.1)
         double best = 0;
+        int bestSpecificity = -1;
         for (Weighted weighted : accept) {
             MediaType accepted = MediaType.valueOf(weighted.value);
             if (accepted.isCompatible(mediaType)) {
+                int specificity = accepted.isWildcardType() ? 0 : accepted.isWildcardSubtype() ? 1 : 2;
                 // a more specific accepted type counts more
-                double specificity = accepted.isWildcardType() ? 0.98 : accepted.isWildcardSubtype() ? 0.99 : 1;
-                best = Math.max(best, weighted.quality * specificity);
+                double score = weighted.quality * (specificity == 0 ? 0.98 : specificity == 1 ? 0.99 : 1);
+                if (specificity > bestSpecificity) {
+                    bestSpecificity = specificity;
+                    best = score;
+                } else if (specificity == bestSpecificity) {
+                    best = Math.max(best, score);
+                }
             }
         }
         return best;
@@ -242,11 +255,19 @@ final class JaxRsContextRequest implements Request {
             return 1;
         }
         String tag = language.toLanguageTag().toLowerCase(Locale.ENGLISH);
+        // the most specific matching range determines the quality
         double best = 0;
+        int bestSpecificity = -1;
         for (Weighted weighted : languages) {
             String accepted = weighted.value.toLowerCase(Locale.ENGLISH);
             if (accepted.equals("*") || accepted.equals(tag) || tag.startsWith(accepted + "-") || accepted.startsWith(tag + "-")) {
-                best = Math.max(best, weighted.quality);
+                int specificity = accepted.equals("*") ? 0 : accepted.length();
+                if (specificity > bestSpecificity) {
+                    bestSpecificity = specificity;
+                    best = weighted.quality;
+                } else if (specificity == bestSpecificity) {
+                    best = Math.max(best, weighted.quality);
+                }
             }
         }
         return best;
@@ -256,13 +277,17 @@ final class JaxRsContextRequest implements Request {
         if (value == null || accepted.isEmpty()) {
             return 1;
         }
-        double best = 0;
+        // an exact match takes precedence over the wildcard
+        double wildcard = -1;
+        double exact = -1;
         for (Weighted weighted : accepted) {
-            if (weighted.value.equals("*") || weighted.value.equalsIgnoreCase(value)) {
-                best = Math.max(best, weighted.quality);
+            if (weighted.value.equalsIgnoreCase(value)) {
+                exact = Math.max(exact, weighted.quality);
+            } else if (weighted.value.equals("*")) {
+                wildcard = Math.max(wildcard, weighted.quality);
             }
         }
-        return best;
+        return exact >= 0 ? exact : Math.max(wildcard, 0);
     }
 
     private static List<Weighted> weighted(List<String> headers) {
