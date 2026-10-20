@@ -29,6 +29,7 @@ import io.micronaut.core.util.SupplierUtil;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.body.AsyncRequestBody;
 import io.micronaut.http.HttpResponse;
+import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.Controller;
 import io.micronaut.http.form.FormData;
 import io.micronaut.inject.BeanDefinition;
@@ -809,10 +810,14 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     /**
      * How to complete the response of a method, or the value of the stage of an asynchronous one.
      */
-    private Completion completion(boolean produces, Argument<?> returnType) {
-        if (produces) {
+    private Completion completion(List<String> produces, Argument<?> returnType) {
+        if (!produces.isEmpty()) {
+            List<MediaType> producedTypes = new ArrayList<>(produces.size());
+            for (String produced : produces) {
+                producedTypes.add(new MediaType(produced));
+            }
             // the entity has the negotiated type, also when a HEAD request drops it (JAX-RS 3.8)
-            return (request, pathVariables, response) -> support.produced(pathVariables, response);
+            return (request, pathVariables, response) -> support.produced(request, pathVariables, response, producedTypes, returnType);
         }
         // the type of the response from the JAX-RS writers of its entity
         return (request, pathVariables, response) -> support.negotiate(request, response, returnType);
@@ -897,7 +902,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         JaxRsRouteSupport.RouteMetadata metadata = new JaxRsRouteSupport.RouteMetadata(owner, method.name(),
             Argument.toClassArray(method.arguments()), produces.toArray(String[]::new), consumes.toArray(String[]::new), rootClass);
         return new ResourceMethod<>(method, httpMethod, template, readers, form, formEntity, usesForm, encodedForm, entity, async,
-            !produces.isEmpty(), converter(valueType, async), completion(!produces.isEmpty(), valueType), responseType(valueType), metadata,
+            !produces.isEmpty(), converter(valueType, async), completion(produces, valueType), responseType(valueType), metadata,
             suspended);
     }
 

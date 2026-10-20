@@ -37,6 +37,7 @@ import io.micronaut.core.bind.ArgumentBinder;
 import io.micronaut.core.convert.ArgumentConversionContext;
 import io.micronaut.core.convert.ConversionContext;
 import io.micronaut.core.convert.ConversionService;
+import io.micronaut.core.async.publisher.Publishers;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpRequest;
@@ -1179,22 +1180,12 @@ public final class JaxRsRouteSupport {
         if (body == null) {
             return response;
         }
-        // the writers see the annotations of the resource method, like when they write
-        AnnotationMetadata annotations = routeAnnotations(request);
-        Argument<?> type;
-        if (body instanceof GenericEntity<?> entity) {
-            Argument<?> generic = JaxRsArgumentUtil.from(entity);
-            type = Argument.of(generic.getType(), annotations, generic.getTypeParameters());
-        } else if (returnType.getType() != Object.class && returnType.getType().isInstance(body)) {
-            // a declared type that is not known only at runtime
-            type = Argument.of(returnType.getType(), annotations, returnType.getTypeParameters());
-        } else {
-            type = Argument.of(body.getClass(), annotations);
-        }
+        Argument<?> type = entityType(request, body, returnType);
         List<MediaType> producible = beanContext.getBean(JaxRsContainerMessageBodyHandlerRegistry.class).producibleTypes((Argument) type);
         if (producible.isEmpty()) {
-            // no application writer writes the entity: the response is left to Micronaut
-            return response;
+            // no application writer writes the entity: the response is left to Micronaut, in an
+            // acceptable type it has a writer for
+            return writableType(request, mutable, type, body);
         }
         MediaType mediaType = JaxRsRouteTemplateEngine.responseType(request.getHeaders().accept(), producible);
         if (mediaType == null) {
@@ -1207,6 +1198,69 @@ public final class JaxRsRouteSupport {
             return response;
         }
         return mutable.contentType(mediaType);
+    }
+
+    /**
+     * The type of the entity of a response, with the annotations of the resource method, which
+     * the writers see like when they write.
+     */
+    private static Argument<?> entityType(HttpRequest<?> request, Object body, Argument<?> returnType) {
+        AnnotationMetadata annotations = routeAnnotations(request);
+        if (body instanceof GenericEntity<?> entity) {
+            Argument<?> generic = JaxRsArgumentUtil.from(entity);
+            return Argument.of(generic.getType(), annotations, generic.getTypeParameters());
+        } else if (returnType.getType() != Object.class && returnType.getType().isInstance(body)) {
+            // a declared type that is not known only at runtime
+            return Argument.of(returnType.getType(), annotations, returnType.getTypeParameters());
+        }
+        return Argument.of(body.getClass(), annotations);
+    }
+
+    /**
+     * The type of a response whose entity no application writer writes, when the request accepts
+     * only concrete types: the most acceptable one a writer writes the entity as, else the
+     * response is not acceptable (JAX-RS 3.8). With an accepted range, Micronaut chooses.
+     */
+    private HttpResponse<?> writableType(HttpRequest<?> request, MutableHttpResponse<?> response, Argument<?> type, Object body) {
+        List<MediaType> accepted = request.getHeaders().accept();
+        List<MediaType> writable = new ArrayList<>(accepted.size());
+        for (MediaType accept : accepted) {
+            if (accept.getQualityAsNumber().doubleValue() <= 0) {
+                continue;
+            }
+            if ("*".equals(accept.getType()) || "*".equals(accept.getSubtype())) {
+                return response;
+            }
+            if (writes(type, body, accept)) {
+                writable.add(accept);
+            }
+        }
+        if (accepted.isEmpty()) {
+            return response;
+        }
+        MediaType mediaType = JaxRsRouteTemplateEngine.responseType(accepted, writable);
+        if (mediaType == null) {
+            throw new NotAcceptableException();
+        }
+        return response.contentType(mediaType);
+    }
+
+    /**
+     * Whether a writer, of the application or of Micronaut, writes an entity as a media type.
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private boolean writes(Argument<?> type, Object body, MediaType mediaType) {
+        if (type.getType() == Object.class || Publishers.isConvertibleToPublisher(body)) {
+            // written element by element, or known only when written
+            return true;
+        }
+        List<MediaType> mediaTypes = List.of(mediaType);
+        if (beanContext.getBean(JaxRsContainerMessageBodyHandlerRegistry.class).findWriter((Argument) type, mediaTypes).isPresent()) {
+            return true;
+        }
+        Optional<io.micronaut.http.body.MessageBodyWriter<Object>> writer = beanContext.getBean(MessageBodyHandlerRegistry.class)
+            .findWriter((Argument) type, mediaTypes);
+        return writer.isPresent() && writer.get().isWriteable((Argument) type, mediaType);
     }
 
     /**
@@ -1227,16 +1281,38 @@ public final class JaxRsRouteSupport {
      * types it produces, unless the method chose one (JAX-RS 3.8): the response has it before
      * the entity is written, so a {@code HEAD} response has it too.
      *
+     * When no writer writes the entity as it, the most acceptable produced type a writer writes
+     * it as is chosen instead, and without one the response is not acceptable.
+     *
+     * @param request       The request
      * @param pathVariables The path variables, with the selected media type
      * @param response      The response of the resource method
+     * @param produces      The types the resource method produces
+     * @param returnType    The declared return type of the resource method
      * @return The response
      */
-    public HttpResponse<?> produced(PathVariables pathVariables, HttpResponse<?> response) {
+    public HttpResponse<?> produced(HttpRequest<?> request, PathVariables pathVariables, HttpResponse<?> response,
+                                    List<MediaType> produces, Argument<?> returnType) {
         MediaType selected = RouteMatchSelector.selectedMediaType(pathVariables);
         if (selected == null || "*".equals(selected.getType()) || "*".equals(selected.getSubtype())
             || response.getBody().isEmpty() || response.getContentType().isPresent()
             || !(response instanceof MutableHttpResponse<?> mutable)) {
             return response;
+        }
+        Object body = response.getBody().get();
+        Argument<?> type = entityType(request, body, returnType);
+        if (!writes(type, body, selected)) {
+            List<MediaType> writable = new ArrayList<>(produces.size());
+            for (MediaType produced : produces) {
+                if ("*".equals(produced.getType()) || "*".equals(produced.getSubtype()) || writes(type, body, produced)) {
+                    writable.add(produced);
+                }
+            }
+            MediaType mediaType = JaxRsRouteTemplateEngine.responseType(request.getHeaders().accept(), writable);
+            if (mediaType == null) {
+                throw new NotAcceptableException();
+            }
+            return mutable.contentType(mediaType);
         }
         // by the name as it is written, like when the entity is written
         return mutable.header(HttpHeaders.CONTENT_TYPE, selected.toString());
