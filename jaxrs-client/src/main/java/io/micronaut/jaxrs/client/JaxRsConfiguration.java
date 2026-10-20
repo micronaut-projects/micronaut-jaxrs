@@ -41,6 +41,8 @@ import io.micronaut.jaxrs.common.JaxRsMessageBodyReaderDefinition;
 import io.micronaut.jaxrs.common.JaxRsMessageBodyWriter;
 import io.micronaut.jaxrs.common.JaxRsRouteInterceptors;
 import io.micronaut.jaxrs.common.JaxRsUtils;
+import io.micronaut.jaxrs.common.body.standard.JaxRsByteArrayMessageBodyReaderWriter;
+import io.micronaut.jaxrs.common.body.standard.JaxRsStringMessageBodyReaderWriter;
 import io.micronaut.jaxrs.common.JaxRsCurrentProviders;
 import io.micronaut.jaxrs.common.JaxRsWriterInterceptorContextState;
 import jakarta.ws.rs.Consumes;
@@ -182,11 +184,22 @@ final class JaxRsConfiguration implements Configuration {
             return;
         }
         properties.putAll(configuration.getProperties());
+        // no contracts: registered for all of the ones it implements
         for (Class<?> componentClass : configuration.getClasses()) {
-            register(componentClass, configuration.getContracts(componentClass));
+            Map<Class<?>, Integer> contracts = configuration.getContracts(componentClass);
+            if (contracts.isEmpty()) {
+                register(componentClass);
+            } else {
+                register(componentClass, contracts);
+            }
         }
         for (Object instance : configuration.getInstances()) {
-            register(instance, configuration.getContracts(instance.getClass()));
+            Map<Class<?>, Integer> contracts = configuration.getContracts(instance.getClass());
+            if (contracts.isEmpty()) {
+                register(instance);
+            } else {
+                register(instance, contracts);
+            }
         }
     }
 
@@ -233,6 +246,10 @@ final class JaxRsConfiguration implements Configuration {
     }
 
     void register(Class<?> componentClass, Map<Class<?>, Integer> contracts) {
+        if (contracts == null || contracts.isEmpty()) {
+            // registered for no contract: ignored, like the one with no contract classes
+            return;
+        }
         List<ComponentContract> assignable = assignable(componentClass, toContracts(contracts));
         if (assignable != null) {
             add(new ClassComponent(componentClass, NO_PRIORITY, assignable));
@@ -297,6 +314,10 @@ final class JaxRsConfiguration implements Configuration {
     }
 
     void register(Object component, Map<Class<?>, Integer> contracts) {
+        if (contracts == null || contracts.isEmpty()) {
+            // registered for no contract: ignored, like the one with no contract classes
+            return;
+        }
         List<ComponentContract> assignable = assignable(component.getClass(), toContracts(contracts));
         if (assignable != null) {
             add(InstanceComponent.of(component, NO_PRIORITY, assignable));
@@ -1003,7 +1024,7 @@ final class JaxRsConfiguration implements Configuration {
                     }
                 }
             }
-            return best;
+            return best != null ? best : (MessageBodyReader<T>) standardProvider(type);
         }
 
         @Override
@@ -1025,7 +1046,22 @@ final class JaxRsConfiguration implements Configuration {
                     }
                 }
             }
-            return best;
+            return best != null ? best : (MessageBodyWriter<T>) standardProvider(type);
+        }
+
+        /**
+         * The standard JAX-RS provider of {@code String} and {@code byte[]} (JAX-RS 4.2.4): the
+         * client reads and writes them with the handlers of the HTTP client, which are not JAX-RS
+         * providers, so these are returned for the ones that ask for the provider of these types.
+         */
+        private static @Nullable Object standardProvider(Class<?> type) {
+            if (type == String.class) {
+                return new JaxRsStringMessageBodyReaderWriter();
+            }
+            if (type == byte[].class) {
+                return new JaxRsByteArrayMessageBodyReaderWriter();
+            }
+            return null;
         }
 
         @Override

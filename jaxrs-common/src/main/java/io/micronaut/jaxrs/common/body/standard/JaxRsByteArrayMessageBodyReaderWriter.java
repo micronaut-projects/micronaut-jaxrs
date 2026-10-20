@@ -40,7 +40,7 @@ import java.lang.reflect.Type;
 @Order(Ordered.LOWEST_PRECEDENCE)
 @Prototype
 @Internal
-final class JaxRsByteArrayMessageBodyReaderWriter implements MessageBodyReader<byte[]>, MessageBodyWriter<byte[]> {
+public final class JaxRsByteArrayMessageBodyReaderWriter implements MessageBodyReader<byte[]>, MessageBodyWriter<byte[]> {
 
     @Override
     public boolean isReadable(Class<?> type, Type genericType, Annotation[] annotations, jakarta.ws.rs.core.MediaType mediaType) {
