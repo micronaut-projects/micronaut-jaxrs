@@ -106,6 +106,16 @@ class ClientTestController {
         return Flux.interval(java.time.Duration.ofMillis(50)).map(i -> Event.of("tick " + i));
     }
 
+    @Get(value = "/flood", produces = MediaType.TEXT_EVENT_STREAM)
+    Publisher<Event<String>> flood() {
+        return Flux.range(0, 100_000).map(i -> Event.of("event " + i));
+    }
+
+    @Get(value = "/created-events", produces = MediaType.TEXT_EVENT_STREAM)
+    HttpResponse<Publisher<Event<String>>> createdEvents() {
+        return HttpResponse.<Publisher<Event<String>>>status(HttpStatus.CREATED).body(Flux.just(Event.of("one")));
+    }
+
     @Get(value = "/unavailable", produces = MediaType.TEXT_EVENT_STREAM)
     HttpResponse<?> unavailable() {
         return HttpResponse.status(HttpStatus.SERVICE_UNAVAILABLE);

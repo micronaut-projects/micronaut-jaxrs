@@ -4,6 +4,7 @@ import io.micronaut.context.annotation.Property;
 import io.micronaut.runtime.server.EmbeddedServer;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
+import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.client.ClientBuilder;
 import jakarta.ws.rs.client.ClientRequestFilter;
@@ -24,6 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -128,5 +130,90 @@ class JaxRsSseEventSourceTest {
         completed.get(10, TimeUnit.SECONDS);
         assertFalse(source.isOpen());
         assertNull(source.httpClient());
+    }
+
+    @Test
+    void aSlowConsumerSlowsTheStream() throws Exception {
+        Client client = ClientBuilder.newClient();
+        try {
+            JaxRsSseEventSource source = (JaxRsSseEventSource) SseEventSource.target(target(client, "flood")).build();
+            CountDownLatch received = new CountDownLatch(1);
+            CountDownLatch release = new CountDownLatch(1);
+            source.register(event -> {
+                received.countDown();
+                try {
+                    release.await(10, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            source.open();
+            assertTrue(received.await(10, TimeUnit.SECONDS));
+            Thread.sleep(500);
+            // the events are not read while the consumer processes one
+            assertTrue(source.pendingCallbacks() <= 1, () -> "pending " + source.pendingCallbacks());
+            release.countDown();
+            source.close();
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void anEndedSourceIsNotOpenedAgain() throws Exception {
+        Client client = ClientBuilder.newClient();
+        try (SseEventSource source = SseEventSource.target(target(client, "no-events")).build()) {
+            CompletableFuture<Void> completed = new CompletableFuture<>();
+            source.register(event -> { }, completed::completeExceptionally, () -> completed.complete(null));
+            source.open();
+            completed.get(10, TimeUnit.SECONDS);
+            assertFalse(source.isOpen());
+            assertThrows(IllegalStateException.class, source::open);
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void anotherSuccessfulStatusIsAnError() throws Exception {
+        Client client = ClientBuilder.newClient();
+        try (SseEventSource source = SseEventSource.target(target(client, "created-events")).build()) {
+            List<String> events = new CopyOnWriteArrayList<>();
+            CompletableFuture<Throwable> failed = new CompletableFuture<>();
+            source.register(event -> events.add(event.readData()), failed::complete);
+            source.open();
+            Throwable error = failed.get(10, TimeUnit.SECONDS);
+            assertEquals(201, ((WebApplicationException) error).getResponse().getStatus());
+            assertTrue(events.isEmpty());
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void closingAgainWaitsForTheProcessing() throws Exception {
+        Client client = ClientBuilder.newClient();
+        try {
+            SseEventSource source = SseEventSource.target(target(client, "endless")).build();
+            CountDownLatch received = new CountDownLatch(1);
+            CountDownLatch release = new CountDownLatch(1);
+            source.register(event -> {
+                received.countDown();
+                try {
+                    release.await(10, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            source.open();
+            assertTrue(received.await(10, TimeUnit.SECONDS));
+            assertFalse(source.close(50, TimeUnit.MILLISECONDS));
+            // the consumer still runs
+            assertFalse(source.close(50, TimeUnit.MILLISECONDS));
+            release.countDown();
+            assertTrue(source.close(10, TimeUnit.SECONDS));
+        } finally {
+            client.close();
+        }
     }
 }

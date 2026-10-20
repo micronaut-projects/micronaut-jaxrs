@@ -97,6 +97,8 @@ final class JaxRsSseEventSource implements SseEventSource {
     private volatile long reconnectDelay;
     // the state, changed under this lock: connect and close are atomic to each other
     private volatile boolean open;
+    // whether the source was opened: it is not opened again (JAX-RS, SseEventSource#open)
+    private volatile boolean opened;
     private volatile boolean closed;
     private volatile @Nullable String lastEventId;
     private volatile @Nullable BodyElements<Event<String>> events;
@@ -147,9 +149,10 @@ final class JaxRsSseEventSource implements SseEventSource {
         if (closed) {
             throw new IllegalStateException("The event source is closed");
         }
-        if (open) {
-            throw new IllegalStateException("The event source is open");
+        if (opened) {
+            throw new IllegalStateException("The event source was opened");
         }
+        opened = true;
         open = true;
         target.client().opened(this);
         connect();
@@ -167,7 +170,8 @@ final class JaxRsSseEventSource implements SseEventSource {
         DefaultHttpClient client;
         synchronized (this) {
             if (closed) {
-                return true;
+                // closed again: true only once the processing completed (JAX-RS, SseEventSource#close)
+                return awaitProcessed(timeout, unit);
             }
             closed = true;
             open = false;
@@ -263,7 +267,16 @@ final class JaxRsSseEventSource implements SseEventSource {
             }
             return;
         }
-        if (response.code() == HttpStatus.NO_CONTENT.getCode() || body == null) {
+        int status = response.code();
+        if (status != HttpStatus.OK.getCode() && status != HttpStatus.NO_CONTENT.getCode()) {
+            // another status is an error, e.g. a 201 (JAX-RS, SseEventSource)
+            if (body != null) {
+                body.closeAsync();
+            }
+            error(JaxRsInvocation.exception(Response.status(status).build()));
+            return;
+        }
+        if (status == HttpStatus.NO_CONTENT.getCode() || body == null) {
             if (body != null) {
                 body.closeAsync();
             }
@@ -285,10 +298,8 @@ final class JaxRsSseEventSource implements SseEventSource {
             events = body;
             connected = true;
         }
-        body.forEach(event -> {
-            received(event);
-            return CompletableFuture.completedFuture(null);
-        }).whenComplete((done, error) -> {
+        // the next event is read once the consumers processed this one: a slow consumer slows the stream
+        body.forEach(this::received).whenComplete((done, error) -> {
             events = null;
             if (!open) {
                 return;
@@ -331,7 +342,12 @@ final class JaxRsSseEventSource implements SseEventSource {
         return true;
     }
 
-    private void received(Event<String> event) {
+    /**
+     * Dispatch an event to the consumers.
+     *
+     * @return The stage completed once the consumers processed it
+     */
+    private CompletableFuture<@Nullable Void> received(Event<String> event) {
         long delay = InboundSseEvent.RECONNECT_NOT_SET;
         Duration retry = event.getRetry();
         if (retry != null) {
@@ -343,7 +359,15 @@ final class JaxRsSseEventSource implements SseEventSource {
         }
         JaxRsInboundSseEvent inbound = new JaxRsInboundSseEvent(event.getName(), event.getId(), event.getComment(), delay,
             event.getData(), target.getConfiguration());
-        dispatch(() -> deliver(inbound));
+        CompletableFuture<@Nullable Void> delivered = new CompletableFuture<>();
+        dispatch(() -> {
+            try {
+                deliver(inbound);
+            } finally {
+                delivered.complete(null);
+            }
+        });
+        return delivered;
     }
 
     private void deliver(InboundSseEvent inbound) {
@@ -479,6 +503,13 @@ final class JaxRsSseEventSource implements SseEventSource {
                 drainCallbacks();
             }
         }
+    }
+
+    /**
+     * @return The number of callbacks dispatched and not yet run
+     */
+    int pendingCallbacks() {
+        return pendingCallbacks.get();
     }
 
     private void drainCallbacks() {
