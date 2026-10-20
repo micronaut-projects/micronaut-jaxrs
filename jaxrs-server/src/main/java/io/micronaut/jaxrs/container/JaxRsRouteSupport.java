@@ -39,6 +39,7 @@ import io.micronaut.core.convert.ConversionContext;
 import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.async.publisher.Publishers;
 import io.micronaut.core.type.Argument;
+import io.micronaut.core.type.Headers;
 import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.inject.ExecutableMethod;
@@ -774,7 +775,8 @@ public final class JaxRsRouteSupport {
                     try {
                         int first = in.read();
                         if (first < 0) {
-                            return emptyEntity(request, type);
+                            // as the media type and with the headers the interceptors left
+                            return emptyEntity(request, type, mediaType, headers);
                         }
                         in.unread(first);
                     } catch (IOException e) {
@@ -796,9 +798,18 @@ public final class JaxRsRouteSupport {
         return readers;
     }
 
+    /**
+     * An empty entity: read by the JAX-RS reader of the application of its type and media type,
+     * else with the semantics of the standard readers (JAX-RS 4.2.4).
+     */
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private @Nullable Object emptyEntity(HttpRequest<?> request, Argument<?> argument) {
+    private @Nullable Object emptyEntity(HttpRequest<?> request, Argument<Object> argument, MediaType mediaType, Headers headers) {
         Class<?> type = argument.getType();
+        Optional<MessageBodyReader<Object>> reader = beanContext.getBean(JaxRsContainerMessageBodyHandlerRegistry.class)
+            .findReader(argument, List.of(mediaType));
+        if (reader.isPresent()) {
+            return reader.get().read(argument, mediaType, headers, InputStream.nullInputStream());
+        }
         if (type == String.class) {
             return "";
         }
@@ -806,26 +817,19 @@ public final class JaxRsRouteSupport {
             // the standard readers of these types cannot read an empty entity (JAX-RS 4.2.4)
             throw new BadRequestException(new NoContentException("An empty entity cannot be read as " + type.getName()));
         }
-        // a JAX-RS reader of the application reads an empty entity too
-        Optional<MediaType> declared = request.getContentType();
-        MediaType contentType = declared.orElse(MediaType.APPLICATION_OCTET_STREAM_TYPE);
-        Optional<MessageBodyReader<Object>> reader = beanContext.getBean(JaxRsContainerMessageBodyHandlerRegistry.class)
-            .findReader((Argument) argument, List.of(contentType));
-        if (reader.isEmpty()) {
-            if (type == MultivaluedMap.class) {
-                // the standard reader of a form reads an empty one
-                return new MultivaluedHashMap<>();
-            }
-            if (type == Form.class) {
-                return new Form();
-            }
-            if (declared.isPresent() && beanContext.getBean(MessageBodyHandlerRegistry.class).findReader(argument, List.of(contentType)).isEmpty()) {
-                // no reader reads the entity as its type (JAX-RS 4.2.1)
-                throw new NotSupportedException();
-            }
-            return null;
+        if (type == MultivaluedMap.class) {
+            // the standard reader of a form reads an empty one
+            return new MultivaluedHashMap<>();
         }
-        return reader.get().read((Argument) argument, contentType, request.getHeaders(), InputStream.nullInputStream());
+        if (type == Form.class) {
+            return new Form();
+        }
+        boolean declared = request.getContentType().isPresent() || !MediaType.APPLICATION_OCTET_STREAM_TYPE.equals(mediaType);
+        if (declared && beanContext.getBean(MessageBodyHandlerRegistry.class).findReader(argument, List.of(mediaType)).isEmpty()) {
+            // no reader reads the entity as its type (JAX-RS 4.2.1)
+            throw new NotSupportedException();
+        }
+        return null;
     }
 
     /**
