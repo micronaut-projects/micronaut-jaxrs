@@ -121,4 +121,30 @@ class ResponseEntitySpec extends Specification {
         Response.noContent().build().readEntity(String) == ""
         Response.noContent().build().readEntity(byte[]) == new byte[0]
     }
+
+    void "an empty entity read again is the same zero-length value"() {
+        given:
+        def response = received("")
+
+        expect:
+        response.readEntity(String) == ""
+        response.readEntity(String) == ""
+    }
+
+    void "an empty entity of an application type is not read as null when read again"() {
+        given:
+        def response = received("")
+
+        when:
+        response.readEntity(URI)
+
+        then:
+        thrown(jakarta.ws.rs.ProcessingException)
+
+        when:
+        response.readEntity(URI)
+
+        then:
+        thrown(IllegalStateException)
+    }
 }

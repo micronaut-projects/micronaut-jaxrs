@@ -44,6 +44,7 @@ import java.net.URI;
 import java.util.Collections;
 import java.util.Date;
 import java.util.LinkedHashMap;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -207,8 +208,13 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
                     release();
                 }
             }
+            if (value == null && empty) {
+                // the value of the empty entity is cached, not null, or nothing when it cannot be read
+                value = emptyEntity(entityType.getType());
+            }
             readBodyArgument = entityType;
             readBody = value;
+            return value;
         }
         if (value == null && empty) {
             value = emptyEntity(entityType.getType());
@@ -384,8 +390,12 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
 
     @Override
     public Set<String> getAllowedMethods() {
+        // a header line lists methods separated by commas (RFC 9110 section 10.2.1)
         return response.getHeaders().getAll(HttpHeaders.ALLOW)
             .stream()
+            .flatMap(value -> Arrays.stream(value.split(",")))
+            .map(String::trim)
+            .filter(method -> !method.isEmpty())
             .map(String::toUpperCase)
             .collect(Collectors.toUnmodifiableSet());
     }

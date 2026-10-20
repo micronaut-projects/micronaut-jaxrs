@@ -36,6 +36,9 @@ import java.io.OutputStream;
 import java.lang.annotation.Annotation;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
 
@@ -71,7 +74,7 @@ public final class JaxRsEntityPart implements EntityPart {
         this.name = name;
         this.fileName = fileName;
         this.mediaType = mediaType;
-        this.headers = headers;
+        this.headers = immutable(headers);
         this.content = content;
         this.contentType = contentType;
         this.providers = providers;
@@ -113,12 +116,21 @@ public final class JaxRsEntityPart implements EntityPart {
      * @param fileName  The file name
      * @param mediaType The media type
      * @param content   The content
+     * @param providers The providers that read the content
      * @return The part
      */
-    public static JaxRsEntityPart read(String name, @Nullable String fileName, MediaType mediaType, byte[] content) {
+    public static JaxRsEntityPart read(String name, @Nullable String fileName, MediaType mediaType, byte[] content,
+                                       @Nullable Providers providers) {
         MultivaluedMap<String, String> headers = headers();
         headers.putSingle("Content-Type", mediaType.toString());
-        return read(name, fileName, mediaType, headers, content, null);
+        return read(name, fileName, mediaType, headers, content, providers);
+    }
+
+    // the headers of a part are immutable (EntityPart.getHeaders)
+    private static MultivaluedMap<String, String> immutable(MultivaluedMap<String, String> headers) {
+        Map<String, List<String>> copied = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        headers.forEach((name, values) -> copied.put(name, values == null ? List.of() : List.copyOf(values)));
+        return new AbstractMultivaluedMap<>(Collections.unmodifiableMap(copied)) { };
     }
 
     @Override
@@ -159,18 +171,21 @@ public final class JaxRsEntityPart implements EntityPart {
         if (rawType == InputStream.class) {
             return (T) stream();
         }
-        if (rawType == byte[].class) {
-            return (T) stream().readAllBytes();
+        // the content stream is closed once read (EntityPart.getContent)
+        try (InputStream stream = stream()) {
+            if (rawType == byte[].class) {
+                return (T) stream.readAllBytes();
+            }
+            if (rawType == String.class) {
+                return (T) new String(stream.readAllBytes(), charset());
+            }
+            MessageBodyReader<T> reader = providers == null ? null
+                : providers.getMessageBodyReader(rawType, type.getType(), NO_ANNOTATIONS, mediaType);
+            if (reader == null) {
+                throw new IllegalArgumentException("No reader of " + type.getType() + " for the media type " + mediaType);
+            }
+            return reader.readFrom(rawType, type.getType(), NO_ANNOTATIONS, mediaType, headers, stream);
         }
-        if (rawType == String.class) {
-            return (T) new String(stream().readAllBytes(), charset());
-        }
-        MessageBodyReader<T> reader = providers == null ? null
-            : providers.getMessageBodyReader(rawType, type.getType(), NO_ANNOTATIONS, mediaType);
-        if (reader == null) {
-            throw new IllegalArgumentException("No reader of " + type.getType() + " for the media type " + mediaType);
-        }
-        return reader.readFrom(rawType, type.getType(), NO_ANNOTATIONS, mediaType, headers, stream());
     }
 
     @Override

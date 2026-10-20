@@ -625,7 +625,7 @@ public final class JaxRsRouteSupport {
      * over the content of the field, which is read once per request. The file of an asynchronous
      * resource method was read before it is called; a resource method that blocks reads it here.
      */
-    private static @Nullable EntityPart formPart(HttpRequest<?> request, FormData form, String name) {
+    private @Nullable EntityPart formPart(HttpRequest<?> request, FormData form, String name) {
         Map<String, FormPart> parts = formParts(request);
         FormPart part;
         synchronized (parts) {
@@ -649,7 +649,9 @@ public final class JaxRsRouteSupport {
             }
             parts.put(name, part);
         }
-        return JaxRsEntityPart.read(name, part.fileName(), part.mediaType(), part.content());
+        // read with the registered readers (EntityPart.getContent)
+        return JaxRsEntityPart.read(name, part.fileName(), part.mediaType(), part.content(),
+            beanContext.findBean(jakarta.ws.rs.ext.Providers.class).orElse(null));
     }
 
     /**

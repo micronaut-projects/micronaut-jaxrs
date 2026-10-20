@@ -23,10 +23,12 @@ import org.jspecify.annotations.Nullable;
 
 import java.util.AbstractList;
 import java.util.AbstractMap;
+import java.util.AbstractSet;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -180,12 +182,16 @@ public final class JaxRsResponseMetadata extends AbstractMap<String, List<Object
     @Override
     @SuppressWarnings("NullAway") // a MultivaluedMap takes a null key
     public Set<Entry<String, List<Object>>> entrySet() {
-        Map<@Nullable String, List<Object>> all = new LinkedHashMap<>();
-        for (String name : headers.names()) {
-            all.put(name, get(name));
-        }
-        objects.forEach(all::putIfAbsent);
-        return (Set) all.entrySet();
+        return (Set) new Entries();
+    }
+
+    /**
+     * The names of the headers, then the other keys of the objects.
+     */
+    private Set<@Nullable String> keys() {
+        Set<@Nullable String> keys = new LinkedHashSet<>(headers.names());
+        keys.addAll(objects.keySet());
+        return keys;
     }
 
     private List<Object> values(@Nullable String key) {
@@ -277,6 +283,69 @@ public final class JaxRsResponseMetadata extends AbstractMap<String, List<Object
                 objects.put(name, values);
                 written.put(name, headers.getAll(name));
             }
+        }
+    }
+
+    /**
+     * The entries, read from the headers: removing an entry, through the iterator, the key set or
+     * the values, setting the value of an entry, and clearing write through to the headers.
+     */
+    private final class Entries extends AbstractSet<Entry<@Nullable String, List<Object>>> {
+
+        @Override
+        public Iterator<Entry<@Nullable String, List<Object>>> iterator() {
+            // over a copy of the keys: an entry can be removed while iterating
+            Iterator<@Nullable String> keys = new ArrayList<>(keys()).iterator();
+            return new Iterator<>() {
+                private boolean current;
+                private @Nullable String key;
+
+                @Override
+                public boolean hasNext() {
+                    return keys.hasNext();
+                }
+
+                @Override
+                public Entry<@Nullable String, List<Object>> next() {
+                    key = keys.next();
+                    current = true;
+                    return new HeaderEntry(key, Objects.requireNonNullElse(get(key), List.of()));
+                }
+
+                @Override
+                public void remove() {
+                    if (!current) {
+                        throw new IllegalStateException("No entry to remove");
+                    }
+                    current = false;
+                    JaxRsResponseMetadata.this.remove(key);
+                }
+            };
+        }
+
+        @Override
+        public int size() {
+            return keys().size();
+        }
+
+        @Override
+        public void clear() {
+            JaxRsResponseMetadata.this.clear();
+        }
+    }
+
+    /**
+     * An entry whose new value replaces the values of the header.
+     */
+    private final class HeaderEntry extends SimpleEntry<@Nullable String, List<Object>> {
+        HeaderEntry(@Nullable String key, List<Object> values) {
+            super(key, values);
+        }
+
+        @Override
+        public List<Object> setValue(List<Object> value) {
+            put(getKey(), value);
+            return super.setValue(value);
         }
     }
 

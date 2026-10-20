@@ -18,7 +18,6 @@ package io.micronaut.jaxrs.common;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.util.ArgumentUtils;
 import io.micronaut.http.HttpResponse;
-import io.micronaut.http.HttpStatus;
 import io.micronaut.http.MutableHttpHeaders;
 import io.micronaut.http.MutableHttpResponse;
 import org.jspecify.annotations.Nullable;
@@ -57,6 +56,8 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
     private MutableHttpResponse<Object> response;
     // the objects of the headers, e.g. a Date to the millisecond, see JaxRsResponseMetadata
     private JaxRsResponseMetadata.State metadata;
+    // whether a status was selected: a response without one and without an entity is a 204 (JAX-RS 3.3.3)
+    private boolean statusSet;
 
     JaxRsResponseBuilder() {
         this(HttpResponse.ok());
@@ -73,10 +74,14 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
 
     @Override
     public Response build() {
+        if (!statusSet && response.getBody().isEmpty()) {
+            response.status(Response.Status.NO_CONTENT.getStatusCode());
+        }
         Response built = new JaxRsMutableResponse(response, metadata);
         // the builder is reset to a blank state, like ok()
         response = HttpResponse.ok();
         metadata = new JaxRsResponseMetadata.State();
+        statusSet = true;
         return built;
     }
 
@@ -86,27 +91,29 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
         MutableHttpResponse<Object> copy = HttpResponse.status(response.code(), response.reason())
             .body(response.getBody().orElse(null))
             .headers(newHeaders -> response.getHeaders().forEachValue(newHeaders::add));
-        return new JaxRsResponseBuilder(copy, metadata.copy());
+        JaxRsResponseBuilder clone = new JaxRsResponseBuilder(copy, metadata.copy());
+        clone.statusSet = statusSet;
+        return clone;
     }
 
     @Override
     public Response.ResponseBuilder status(int status) {
         response.status(status);
+        statusSet = true;
         return this;
     }
 
     @Override
     public Response.ResponseBuilder status(int status, String reasonPhrase) {
         response.status(status, reasonPhrase);
+        statusSet = true;
         return this;
     }
 
     @Override
     public Response.ResponseBuilder entity(Object entity) {
+        // a status that was selected is kept, even for a null entity
         response.body(entity);
-        if (entity == null && response.getStatus() == HttpStatus.OK) {
-            response.status(Response.Status.NO_CONTENT.getStatusCode());
-        }
         return this;
     }
 
