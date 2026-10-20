@@ -1311,6 +1311,12 @@ public final class JaxRsRouteSupport {
             }
             MediaType mediaType = JaxRsRouteTemplateEngine.responseType(request.getHeaders().accept(), writable);
             if (mediaType == null) {
+                if (containerFilters().filtersResponse(RouteAttributes.getRouteInfo(request).orElse(null))) {
+                    // a response filter can replace the entity with one a writer writes: the
+                    // response is not acceptable if it does not
+                    request.setAttribute(JaxRsContainerFilters.UNWRITABLE_ENTITY, body instanceof GenericEntity<?> entity ? entity.getEntity() : body);
+                    return mutable.header(HttpHeaders.CONTENT_TYPE, selected.toString());
+                }
                 throw new NotAcceptableException();
             }
             return mutable.contentType(mediaType);

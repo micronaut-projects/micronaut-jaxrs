@@ -40,6 +40,7 @@ import io.micronaut.jaxrs.runtime.ext.bind.HttpHeadersBinder;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.RouteInfo;
 import jakarta.inject.Singleton;
+import jakarta.ws.rs.NotAcceptableException;
 import jakarta.ws.rs.container.ContainerRequestFilter;
 import jakarta.ws.rs.container.ContainerResponseFilter;
 import jakarta.ws.rs.container.PreMatching;
@@ -72,6 +73,12 @@ import java.util.function.ToIntFunction;
 @Singleton
 @Internal
 final class JaxRsContainerFilters {
+
+    /**
+     * The attribute of a request with the entity of its response that no writer writes as the
+     * negotiated type: unless a response filter replaces it, the response is not acceptable.
+     */
+    static final String UNWRITABLE_ENTITY = ContainerResponseFilter.class.getName() + ".unwritable";
 
     private static final String REQUEST_CONTEXT_KEY = ContainerRequestFilter.class.getName();
 
@@ -227,6 +234,11 @@ final class JaxRsContainerFilters {
             delegateEntityStream = responseContext.getDelegateEntityStream();
             customEntityStream = responseContext.getCustomEntityStream();
         }
+        Object unwritable = request.getAttribute(UNWRITABLE_ENTITY).orElse(null);
+        if (unwritable != null && unwritable == body) {
+            // no filter replaced the entity no writer writes as the negotiated type (JAX-RS 3.8)
+            throw new NotAcceptableException();
+        }
         if (body != null) {
             mutableHttpResponse.body(new JaxRsGenericEntity<>(
                 body,
@@ -261,6 +273,16 @@ final class JaxRsContainerFilters {
         Comparator<Prioritized<F>> comparator = Comparator.comparingInt(Prioritized::priority);
         all.sort(reversed ? comparator.reversed() : comparator);
         return all.stream().map(Prioritized::filter).toList();
+    }
+
+    /**
+     * Whether response filters can filter the response of a route.
+     *
+     * @param routeInfo The route of a resource method, {@code null} if no route matched
+     * @return Whether there are response filters
+     */
+    boolean filtersResponse(@Nullable RouteInfo<?> routeInfo) {
+        return !containerResponseFilters.isEmpty() || !dynamicComponents(routeInfo).responseFilters().isEmpty();
     }
 
     /**

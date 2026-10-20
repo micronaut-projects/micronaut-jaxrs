@@ -14,6 +14,10 @@ import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.container.ContainerRequestContext;
+import jakarta.ws.rs.container.ContainerResponseContext;
+import jakarta.ws.rs.container.ContainerResponseFilter;
+import jakarta.ws.rs.ext.Provider;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -23,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * When no acceptable type has a writer for the entity, the response is not acceptable (JAX-RS,
- * section 3.8), not a server error.
+ * section 3.8), not a server error, unless a response filter replaces the entity.
  */
 @MicronautTest
 @Property(name = "spec.name", value = "NotAcceptableBodyTest")
@@ -48,6 +52,13 @@ class NotAcceptableBodyTest {
         assertEquals("{\"name\":\"pojo\"}", response.body());
     }
 
+    @Test
+    void responseFilterReplacesTheEntityWithAWritableOne() {
+        HttpResponse<String> response = client.toBlocking().exchange(HttpRequest.GET("/text").accept("text/plain"), String.class);
+        assertEquals("text/plain", response.getContentType().orElseThrow().toString());
+        assertEquals("pojo", response.body());
+    }
+
     @Serdeable
     public record Pojo(String name) {
     }
@@ -63,10 +74,28 @@ class NotAcceptableBodyTest {
         }
 
         @GET
+        @Path("/text")
+        @Produces("text/plain")
+        public Pojo text() {
+            return new Pojo("pojo");
+        }
+
+        @GET
         @Path("/json-or-text")
         @Produces({"application/json", "text/plain"})
         public Pojo jsonOrText() {
             return new Pojo("pojo");
+        }
+    }
+
+    @Requires(property = "spec.name", value = "NotAcceptableBodyTest")
+    @Provider
+    public static class TextFilter implements ContainerResponseFilter {
+        @Override
+        public void filter(ContainerRequestContext requestContext, ContainerResponseContext responseContext) {
+            if (requestContext.getUriInfo().getPath().endsWith("/text") && responseContext.getEntity() instanceof Pojo pojo) {
+                responseContext.setEntity(pojo.name());
+            }
         }
     }
 }
