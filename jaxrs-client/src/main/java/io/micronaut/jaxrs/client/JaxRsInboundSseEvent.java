@@ -119,7 +119,8 @@ final class JaxRsInboundSseEvent implements InboundSseEvent {
             throw new ProcessingException("No reader reads the data of the event as " + type + " and " + mediaType);
         }
         byte[] bytes = data == null ? new byte[0] : data.getBytes(StandardCharsets.UTF_8);
-        return reader.read(type, micronautType, new SimpleHttpHeaders(), new ByteArrayInputStream(bytes));
+        // the reader finds the context resolvers of the client, like for a response (JAX-RS 4.3)
+        return configuration.withProviders(() -> reader.read(type, micronautType, new SimpleHttpHeaders(), new ByteArrayInputStream(bytes)));
     }
 
     @Override

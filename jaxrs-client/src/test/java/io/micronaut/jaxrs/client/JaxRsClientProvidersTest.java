@@ -20,6 +20,7 @@ import jakarta.ws.rs.ext.MessageBodyWriter;
 import jakarta.ws.rs.ext.Providers;
 import jakarta.ws.rs.ext.WriterInterceptor;
 import jakarta.ws.rs.ext.WriterInterceptorContext;
+import jakarta.ws.rs.sse.InboundSseEvent;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -130,6 +131,16 @@ class JaxRsClientProvidersTest {
         assertEquals("application/xml|xml", echoed);
     }
 
+    @Test
+    void theDataOfAnEventIsReadWithTheProvidersOfTheTarget() {
+        client.register(new ContextReader());
+        // a target derived after the reader was injected, with another provider
+        JaxRsWebTarget target = (JaxRsWebTarget) echo().register(XmlResolver.class);
+        var event = new JaxRsInboundSseEvent(null, null, null, InboundSseEvent.RECONNECT_NOT_SET, "x", target.getConfiguration());
+
+        assertEquals(new Thing("xml"), event.readData(Thing.class, MediaType.APPLICATION_XML_TYPE));
+    }
+
     public record Thing(String value) {
     }
 
@@ -230,6 +241,27 @@ class JaxRsClientProvidersTest {
                             MultivaluedMap<String, Object> httpHeaders, OutputStream entityStream) throws IOException {
             ContextResolver<String> resolver = providers.getContextResolver(String.class, mediaType);
             write(resolver == null ? "none" : resolver.getContext(Thing.class), entityStream);
+        }
+    }
+
+    /**
+     * Reads the context of the context resolver of strings for the media type.
+     */
+    public static final class ContextReader implements MessageBodyReader<Thing> {
+
+        @Context
+        Providers providers;
+
+        @Override
+        public boolean isReadable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+            return type == Thing.class;
+        }
+
+        @Override
+        public Thing readFrom(Class<Thing> type, Type genericType, Annotation[] annotations, MediaType mediaType,
+                              MultivaluedMap<String, String> httpHeaders, InputStream entityStream) {
+            ContextResolver<String> resolver = providers.getContextResolver(String.class, mediaType);
+            return new Thing(resolver == null ? "none" : resolver.getContext(Thing.class));
         }
     }
 

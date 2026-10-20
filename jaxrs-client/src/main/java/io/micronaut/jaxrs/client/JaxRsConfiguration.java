@@ -79,6 +79,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -542,6 +543,23 @@ final class JaxRsConfiguration implements Configuration {
     private static Argument<?> providedType(Object provider, Class<?> providerType) {
         Argument<?> argument = JaxRsReflection.get().resolveGeneric(provider.getClass(), providerType);
         return argument == null || argument.getTypeParameters().length == 0 ? Argument.OBJECT_ARGUMENT : argument.getTypeParameters()[0];
+    }
+
+    /**
+     * Get a value with the providers of this configuration as the current ones, e.g. to read
+     * with a reader that looks up the context resolvers of the client (JAX-RS 4.3).
+     *
+     * @param supplier The supplier of the value
+     * @param <T>      The type of the value
+     * @return The value
+     */
+    <T> T withProviders(Supplier<T> supplier) {
+        Providers previous = JaxRsCurrentProviders.set(providers);
+        try {
+            return supplier.get();
+        } finally {
+            JaxRsCurrentProviders.restore(previous);
+        }
     }
 
     public HttpMessageEntityReader createHttpMessageEntityReader() {
