@@ -63,7 +63,8 @@ final class JaxRsServerFilters implements HttpRoutes {
                 try {
                     filterResponse(request, response);
                 } finally {
-                    // the response is processed: the completion callbacks of an asynchronous response
+                    // the response is processed: the completion callbacks of an asynchronous response, if
+                    // the server does not call them once the response was written
                     JaxRsAsyncResponse.completed(request);
                 }
             });

@@ -94,6 +94,10 @@ You can also use the link:{jaxrsapi}/jakarta/ws/rs/core/Context.html[@Context] a
 
 NOTE: Parameter binding to constructor argument of resource types is not supported at this time.
 
+==== Asynchronous responses
+
+A resource method with a `@Suspended` link:{jaxrsapi}/jakarta/ws/rs/container/AsyncResponse.html[AsyncResponse] parameter answers when it resumes the response. On the Netty server, a link:{jaxrsapi}/jakarta/ws/rs/container/CompletionCallback.html[CompletionCallback] is called once the response was written to the client: with `null`, also when an `ExceptionMapper` answered an exception, else with the unmapped exception, the failure of writing the response, or a `ConnectionClosedException` when the client went away. A link:{jaxrsapi}/jakarta/ws/rs/container/ConnectionCallback.html[ConnectionCallback] is called when the client closes the HTTP/1.1 connection or resets the HTTP/2 stream before the response was written; the pending timeout of the response is then cancelled. On a server that does not report these, e.g. a servlet container, the completion callbacks are called once the response filters ran, and `register` does not register a `ConnectionCallback`.
+
 ==== Application
 
 A link:{jaxrsapi}jakarta/ws/rs/core/Application.html[Application] subclass annotated with `@ApplicationPath` is a bean, and its path prefixes the resources. The resources and providers it returns from `getClasses()` and `getSingletons()` are the only ones registered; an `Application` that returns none registers all of them.

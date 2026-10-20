@@ -2,6 +2,7 @@ package io.micronaut.jaxrs.container;
 
 import io.micronaut.context.annotation.Property;
 import io.micronaut.context.annotation.Requires;
+import io.micronaut.http.exceptions.ConnectionClosedException;
 import io.micronaut.runtime.server.EmbeddedServer;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
@@ -25,6 +26,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.net.Socket;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.net.URI;
@@ -41,6 +43,7 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -52,6 +55,7 @@ class AsyncResponseTest {
 
     static final BlockingQueue<Object> COMPLETED = new LinkedBlockingQueue<>();
     static final BlockingQueue<Object> STATES = new LinkedBlockingQueue<>();
+    static final BlockingQueue<Object> DISCONNECTED = new LinkedBlockingQueue<>();
 
     @Inject
     EmbeddedServer server;
@@ -147,6 +151,53 @@ class AsyncResponseTest {
     }
 
     @Test
+    void completionCallbackIsCalledAfterTheWriter() throws Exception {
+        COMPLETED.clear();
+        assertEquals("written:value", get("callback-written").body());
+        assertEquals("filtered", COMPLETED.poll(5, TimeUnit.SECONDS));
+        assertEquals("written", COMPLETED.poll(5, TimeUnit.SECONDS));
+        assertEquals("none", COMPLETED.poll(5, TimeUnit.SECONDS));
+    }
+
+    @Test
+    void completionCallbackReceivesTheFailureOfTheWriter() throws Exception {
+        COMPLETED.clear();
+        assertEquals(500, get("callback-writer-failure").statusCode());
+        Object failure = COMPLETED.poll(5, TimeUnit.SECONDS);
+        assertInstanceOf(IOException.class, failure);
+        assertEquals("broken writer", ((IOException) failure).getMessage());
+    }
+
+    @Test
+    void connectionCallbackIsCalledWhenTheClientDisconnects() throws Exception {
+        COMPLETED.clear();
+        DISCONNECTED.clear();
+        STATES.clear();
+        try (Socket socket = new Socket(server.getHost(), server.getPort())) {
+            socket.getOutputStream().write(("GET /api/async-response/disconnect HTTP/1.1\r\nHost: localhost\r\n\r\n")
+                .getBytes(StandardCharsets.US_ASCII));
+            socket.getOutputStream().flush();
+            assertEquals(List.of(jakarta.ws.rs.container.CompletionCallback.class, ConnectionCallback.class), STATES.poll(5, TimeUnit.SECONDS));
+        }
+        AsyncResponse disconnected = (AsyncResponse) DISCONNECTED.poll(5, TimeUnit.SECONDS);
+        assertTrue(disconnected.isSuspended());
+        // the client went away: the response was not sent
+        assertInstanceOf(ConnectionClosedException.class, COMPLETED.poll(5, TimeUnit.SECONDS));
+        // the timeout of the suspended response is cancelled
+        assertNull(STATES.poll(1, TimeUnit.SECONDS));
+        assertNull(DISCONNECTED.poll(100, TimeUnit.MILLISECONDS));
+    }
+
+    @Test
+    void connectionCallbackIsNotCalledAfterTheResponse() throws Exception {
+        COMPLETED.clear();
+        DISCONNECTED.clear();
+        assertEquals("completed", get("callback").body());
+        assertEquals("none", COMPLETED.poll(5, TimeUnit.SECONDS));
+        assertNull(DISCONNECTED.poll(500, TimeUnit.MILLISECONDS));
+    }
+
+    @Test
     void timeoutHandlerSuspendsIndefinitely() throws Exception {
         HttpResponse<String> response = get("timeout-extended");
         assertEquals(200, response.statusCode());
@@ -184,12 +235,36 @@ class AsyncResponseTest {
         }
     }
 
+    public record WrittenEntity(String value) {
+    }
+
+    @Requires(property = "spec.name", value = "AsyncResponseTest")
+    @Provider
+    @Produces("text/x-written")
+    public static class WrittenEntityWriter implements MessageBodyWriter<WrittenEntity> {
+        @Override
+        public boolean isWriteable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+            return type == WrittenEntity.class;
+        }
+
+        @Override
+        public void writeTo(WrittenEntity entity, Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType,
+                            MultivaluedMap<String, Object> httpHeaders, OutputStream entityStream) throws IOException {
+            if (entity.value().equals("fail")) {
+                throw new IOException("broken writer");
+            }
+            COMPLETED.add("written");
+            entityStream.write(("written:" + entity.value()).getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
     @Requires(property = "spec.name", value = "AsyncResponseTest")
     @Provider
     public static class OrderFilter implements ContainerResponseFilter {
         @Override
         public void filter(ContainerRequestContext requestContext, ContainerResponseContext responseContext) {
-            if (requestContext.getUriInfo().getPath().endsWith("callback-order")) {
+            String path = requestContext.getUriInfo().getPath();
+            if (path.endsWith("callback-order") || path.endsWith("callback-written")) {
                 COMPLETED.add("filtered");
             }
         }
@@ -286,7 +361,8 @@ class AsyncResponseTest {
         @Path("callback")
         public void callback(@Suspended AsyncResponse response) {
             assertTrue(response.register(CompletionCallbackImpl.class).contains(jakarta.ws.rs.container.CompletionCallback.class));
-            assertTrue(response.register((ConnectionCallback) disconnected -> { }).isEmpty());
+            // supported by the Netty server
+            assertEquals(List.of(ConnectionCallback.class), response.register((ConnectionCallback) DISCONNECTED::add));
             CompletableFuture.runAsync(() -> response.resume("completed"));
         }
 
@@ -311,6 +387,32 @@ class AsyncResponseTest {
         public void callbackOrder(@Suspended AsyncResponse response) {
             response.register(new CompletionCallbackImpl());
             CompletableFuture.runAsync(() -> response.resume("ordered"));
+        }
+
+        @GET
+        @Path("callback-written")
+        @Produces("text/x-written")
+        public void callbackWritten(@Suspended AsyncResponse response) {
+            response.register(new CompletionCallbackImpl());
+            CompletableFuture.runAsync(() -> response.resume(new WrittenEntity("value")));
+        }
+
+        @GET
+        @Path("callback-writer-failure")
+        @Produces("text/x-written")
+        public void callbackWriterFailure(@Suspended AsyncResponse response) {
+            response.register(new CompletionCallbackImpl());
+            CompletableFuture.runAsync(() -> response.resume(new WrittenEntity("fail")));
+        }
+
+        @GET
+        @Path("disconnect")
+        public void disconnect(@Suspended AsyncResponse response) {
+            response.setTimeoutHandler(timedOut -> STATES.add("timed out"));
+            response.setTimeout(500, TimeUnit.MILLISECONDS);
+            List<Class<?>> registered = new java.util.ArrayList<>(response.register(new CompletionCallbackImpl()));
+            registered.addAll(response.register((ConnectionCallback) DISCONNECTED::add));
+            STATES.add(registered);
         }
 
         @GET

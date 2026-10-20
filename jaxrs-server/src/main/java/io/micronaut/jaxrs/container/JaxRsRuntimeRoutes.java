@@ -737,6 +737,8 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         JaxRsAsyncResponse asyncResponse = new JaxRsAsyncResponse(
             value -> completion.complete(request, pathVariables, converter.convert(request, value)), scheduler);
         request.setAttribute(ASYNC_RESPONSE, asyncResponse);
+        // the completion and connection callbacks, if the server reports the response and the client
+        asyncResponse.bind(request);
         try {
             invoke(method, instances, request, pathVariables, target, form, body);
         } catch (Exception e) {

@@ -18,12 +18,15 @@ package io.micronaut.jaxrs.container;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.beans.BeanIntrospection;
 import io.micronaut.http.HttpRequest;
+import io.micronaut.http.HttpRequestWrapper;
 import io.micronaut.http.HttpResponse;
+import io.micronaut.http.ServerHttpRequest;
 import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.scheduling.TaskScheduler;
 import jakarta.ws.rs.ServiceUnavailableException;
 import jakarta.ws.rs.container.AsyncResponse;
 import jakarta.ws.rs.container.CompletionCallback;
+import jakarta.ws.rs.container.ConnectionCallback;
 import jakarta.ws.rs.container.TimeoutHandler;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.Response;
@@ -50,11 +53,20 @@ import java.util.function.Supplier;
  * The {@link AsyncResponse} of a resource method with a {@code @Suspended} parameter (JAX-RS 8.2),
  * backed by the stage of the response of its asynchronous route. A resumed value is converted to the
  * response like the result of a resource method, a resumed exception fails the stage, which the
- * exception handlers answer like an exception a resource method throws. The completion callbacks
- * are called once the response was processed, see {@link #completed(HttpRequest)}.
+ * exception handlers answer like an exception a resource method throws.
  *
- * <p>{@link jakarta.ws.rs.container.ConnectionCallback} is not supported: the routes are not
- * notified when the client closes the connection.</p>
+ * <p>On a server that reports the outcome of a response ({@link ServerHttpRequest#whenResponseCompleted},
+ * e.g. the Netty server), the completion callbacks are called once the response was written to
+ * the client, or could not be: with {@code null} if it was written, also when an exception mapper
+ * answered an exception, else with the unmapped exception, the failure of writing the response, or
+ * a {@link io.micronaut.http.exceptions.ConnectionClosedException} if the client went away. On
+ * another server, e.g. a servlet container, they are called once the response was processed by
+ * the response filters, see {@link #completed(HttpRequest)}.</p>
+ *
+ * <p>A {@link ConnectionCallback} is supported if the server tells when the client goes away
+ * ({@link ServerHttpRequest#whenAbandoned}): it is called when the client closes the HTTP/1.1
+ * connection, or resets the HTTP/2 stream, before the response was written, and the pending
+ * timeout is cancelled. Else registering it registers nothing.</p>
  *
  * @author Denis Stepanov
  * @since 5.0.0
@@ -74,6 +86,7 @@ final class JaxRsAsyncResponse implements AsyncResponse {
     private final Function<@Nullable Object, HttpResponse<?>> converter;
     private final Supplier<@Nullable TaskScheduler> scheduler;
     private final List<CompletionCallback> completionCallbacks = new ArrayList<>();
+    private final List<ConnectionCallback> connectionCallbacks = new ArrayList<>();
     private @Nullable TimeoutHandler timeoutHandler;
     private @Nullable ScheduledFuture<?> timeout;
     // the generation of the timeout, a timeout of a previous one is ignored
@@ -82,6 +95,11 @@ final class JaxRsAsyncResponse implements AsyncResponse {
     private boolean timeoutUpdated;
     private State state = State.SUSPENDED;
     private boolean callbacksCalled;
+    // whether the server reports the outcome of the response, see bind
+    private boolean responseCompletion;
+    // whether the server tells when the client goes away
+    private boolean abandonment;
+    private boolean abandoned;
 
     /**
      * @param converter Converts a resumed value to the response
@@ -90,6 +108,80 @@ final class JaxRsAsyncResponse implements AsyncResponse {
     JaxRsAsyncResponse(Function<@Nullable Object, HttpResponse<?>> converter, Supplier<@Nullable TaskScheduler> scheduler) {
         this.converter = converter;
         this.scheduler = scheduler;
+    }
+
+    /**
+     * Bind the callbacks to the request received by the server, if it supports it: call before the
+     * resource method, the response is not handed to the connection yet.
+     *
+     * @param request The request, possibly wrapped by filters
+     */
+    void bind(HttpRequest<?> request) {
+        ServerHttpRequest<?> serverRequest = serverRequest(request);
+        if (serverRequest == null) {
+            return;
+        }
+        // a callback may run on the registering thread if the response is done already
+        boolean completion = serverRequest.whenResponseCompleted(failure ->
+            completed(request.getAttribute(UNMAPPED_EXCEPTION, Throwable.class).orElse(failure)));
+        synchronized (this) {
+            responseCompletion = completion;
+        }
+        // removed by the server when the response is done
+        Runnable remover = serverRequest.whenAbandoned(this::abandoned);
+        synchronized (this) {
+            abandonment |= remover != null;
+        }
+    }
+
+    private static @Nullable ServerHttpRequest<?> serverRequest(HttpRequest<?> request) {
+        HttpRequest<?> current = request;
+        while (true) {
+            if (current instanceof ServerHttpRequest<?> serverRequest) {
+                return serverRequest;
+            }
+            if (current instanceof HttpRequestWrapper<?> wrapper) {
+                current = wrapper.getDelegate();
+            } else {
+                return null;
+            }
+        }
+    }
+
+    /**
+     * The client went away before the response was written: cancel the timeout and call the
+     * connection callbacks.
+     */
+    private void abandoned() {
+        List<ConnectionCallback> callbacks;
+        ScheduledFuture<?> scheduled;
+        synchronized (this) {
+            if (abandoned) {
+                return;
+            }
+            abandoned = true;
+            // the abandonment can be reported while bind registers it
+            abandonment = true;
+            callbacks = new ArrayList<>(connectionCallbacks);
+            scheduled = timeout;
+            timeout = null;
+            // a timeout that is running already is ignored
+            timeoutGeneration++;
+        }
+        if (scheduled != null) {
+            scheduled.cancel(false);
+        }
+        for (ConnectionCallback callback : callbacks) {
+            disconnect(callback);
+        }
+    }
+
+    private void disconnect(ConnectionCallback callback) {
+        try {
+            callback.onDisconnect(this);
+        } catch (Exception e) {
+            LOG.error("A JAX-RS connection callback failed", e);
+        }
     }
 
     /**
@@ -182,22 +274,28 @@ final class JaxRsAsyncResponse implements AsyncResponse {
 
     /**
      * Call the completion callbacks of the asynchronous response of a request once its response
-     * was processed: after the exception mappers and the response filters.
+     * was processed: after the exception mappers and the response filters. Only if the server does
+     * not report the outcome of the response, else they are called once it was written.
      *
      * @param request The request
      */
     static void completed(HttpRequest<?> request) {
         JaxRsAsyncResponse asyncResponse = request.getAttribute(JaxRsRuntimeRoutes.ASYNC_RESPONSE, JaxRsAsyncResponse.class).orElse(null);
-        if (asyncResponse != null) {
+        if (asyncResponse != null && !asyncResponse.reportsCompletion()) {
             // a mapped exception completes with a response: the callbacks receive no exception
             asyncResponse.completed(request.getAttribute(UNMAPPED_EXCEPTION, Throwable.class).orElse(null));
         }
     }
 
+    private synchronized boolean reportsCompletion() {
+        return responseCompletion;
+    }
+
     private void completed(@Nullable Throwable throwable) {
         List<CompletionCallback> callbacks;
         synchronized (this) {
-            if (state == State.SUSPENDED || callbacksCalled) {
+            // reported by the server, the response is also done if the client went away while suspended
+            if ((state == State.SUSPENDED && !responseCompletion) || callbacksCalled) {
                 return;
             }
             callbacksCalled = true;
@@ -291,8 +389,9 @@ final class JaxRsAsyncResponse implements AsyncResponse {
     @Override
     public Collection<Class<?>> register(Class<?> callback) {
         Objects.requireNonNull(callback, "callback");
-        if (!CompletionCallback.class.isAssignableFrom(callback)) {
-            // a connection callback is not supported
+        if (!CompletionCallback.class.isAssignableFrom(callback)
+            && !(ConnectionCallback.class.isAssignableFrom(callback) && supportsConnectionCallback())) {
+            // a connection callback is not supported without the abandonment of the server
             return List.of();
         }
         BeanIntrospection<?> introspection = JaxRsReflection.get().introspection(callback);
@@ -315,14 +414,32 @@ final class JaxRsAsyncResponse implements AsyncResponse {
     @Override
     public Collection<Class<?>> register(Object callback) {
         Objects.requireNonNull(callback, "callback");
+        List<Class<?>> registered = new ArrayList<>(2);
         if (callback instanceof CompletionCallback completionCallback) {
             synchronized (this) {
                 completionCallbacks.add(completionCallback);
             }
-            return List.of(CompletionCallback.class);
+            registered.add(CompletionCallback.class);
         }
-        // a connection callback is not supported
-        return List.of();
+        if (callback instanceof ConnectionCallback connectionCallback) {
+            boolean disconnected;
+            synchronized (this) {
+                if (abandonment) {
+                    connectionCallbacks.add(connectionCallback);
+                    registered.add(ConnectionCallback.class);
+                }
+                disconnected = abandonment && abandoned;
+            }
+            if (disconnected) {
+                // the client went away already
+                disconnect(connectionCallback);
+            }
+        }
+        return registered;
+    }
+
+    private synchronized boolean supportsConnectionCallback() {
+        return abandonment;
     }
 
     @Override
