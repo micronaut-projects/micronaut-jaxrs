@@ -1372,11 +1372,27 @@ public final class JaxRsRouteSupport {
      * @return The bean parameter
      */
     public Object beanParam(Class<?> type, HttpRequest<?> request, PathVariables pathVariables, @Nullable FormData form) {
-        return beanParams.computeIfAbsent(type, this::beanParamBinder).bind(request, pathVariables, form);
+        return beanParamBinder(type).bind(request, pathVariables, form);
+    }
+
+    /**
+     * The binder of a {@code @BeanParam} type, built once: not in a {@code computeIfAbsent}, as
+     * building it builds the binders of the bean parameters it has.
+     */
+    private BeanParamBinder beanParamBinder(Class<?> type) {
+        BeanParamBinder binder = beanParams.get(type);
+        if (binder == null) {
+            binder = newBeanParamBinder(type);
+            BeanParamBinder existing = beanParams.putIfAbsent(type, binder);
+            if (existing != null) {
+                binder = existing;
+            }
+        }
+        return binder;
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private BeanParamBinder beanParamBinder(Class<?> type) {
+    private BeanParamBinder newBeanParamBinder(Class<?> type) {
         BeanIntrospection<Object> introspection = (BeanIntrospection<Object>) Optional.ofNullable(JaxRsReflection.get().introspection(type))
             .orElseThrow(() -> new IllegalStateException("The @BeanParam type " + type.getName() + " is not introspected"));
         boolean encoded = introspection.hasAnnotation(Encoded.class);
@@ -1438,8 +1454,9 @@ public final class JaxRsRouteSupport {
         } else if (formParam != null) {
             return (request, pathVariables, form) -> formParam(request, form, formParam, argument, defaultValue, encoded);
         } else if (metadata.hasAnnotation(BeanParam.class)) {
-            Class<?> type = argument.getType();
-            return (request, pathVariables, form) -> beanParam(type, request, pathVariables, form);
+            // built with the routes: the default values of its members are converted eagerly too
+            BeanParamBinder binder = beanParamBinder(argument.getType());
+            return binder::bind;
         } else if (metadata.hasAnnotation(jakarta.ws.rs.core.Context.class)) {
             String named = metadata.stringValue("jakarta.inject.Named").orElse(null);
             return (request, pathVariables, form) -> context(request, argument, named);

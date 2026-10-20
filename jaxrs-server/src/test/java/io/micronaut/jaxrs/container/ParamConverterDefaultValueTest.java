@@ -7,6 +7,7 @@ import io.micronaut.http.HttpStatus;
 import io.micronaut.http.client.HttpClient;
 import io.micronaut.http.client.exceptions.HttpClientResponseException;
 import io.micronaut.runtime.server.EmbeddedServer;
+import jakarta.ws.rs.BeanParam;
 import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
@@ -33,11 +34,20 @@ class ParamConverterDefaultValueTest {
 
     @Test
     void invalidDefaultValueFailsTheDeployment() {
+        assertDeploymentFails("ParamConverterDefaultValueTest.eager", "/api/default-value/eager");
+    }
+
+    @Test
+    void invalidDefaultValueOfABeanParamMemberFailsTheDeployment() {
+        assertDeploymentFails("ParamConverterDefaultValueTest.bean", "/api/default-value/bean");
+    }
+
+    private static void assertDeploymentFails(String spec, String path) {
         Exception failure = assertThrows(Exception.class, () -> {
-            try (EmbeddedServer server = ApplicationContext.run(EmbeddedServer.class, Map.of("spec.name", "ParamConverterDefaultValueTest.eager"));
+            try (EmbeddedServer server = ApplicationContext.run(EmbeddedServer.class, Map.of("spec.name", spec));
                  HttpClient client = server.getApplicationContext().createBean(HttpClient.class, server.getURL())) {
                 // the routes may be built on the first request
-                client.toBlocking().retrieve(HttpRequest.GET("/api/default-value/eager"));
+                client.toBlocking().retrieve(HttpRequest.GET(path));
             }
         });
         Throwable cause = failure;
@@ -117,6 +127,25 @@ class ParamConverterDefaultValueTest {
         @Produces("text/plain")
         public String get(@DefaultValue("bad") @QueryParam("lazy") Value value) {
             return value.value();
+        }
+    }
+
+    /**
+     * A bean parameter with a member whose default value is not valid.
+     */
+    public static class Bean {
+        @DefaultValue("bad")
+        @QueryParam("v")
+        Value value;
+    }
+
+    @Requires(property = "spec.name", value = "ParamConverterDefaultValueTest.bean")
+    @Path("/default-value/bean")
+    public static class BeanResource {
+        @GET
+        @Produces("text/plain")
+        public String get(@BeanParam Bean bean) {
+            return bean.value.value();
         }
     }
 }
