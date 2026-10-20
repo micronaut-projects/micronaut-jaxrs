@@ -189,6 +189,23 @@ class AsyncResponseTest {
     }
 
     @Test
+    void callbacksAreNotCalledOnTheEventLoop() throws Exception {
+        COMPLETED.clear();
+        DISCONNECTED.clear();
+        assertEquals("completed", get("callback-thread").body());
+        String thread = (String) COMPLETED.poll(5, TimeUnit.SECONDS);
+        assertFalse(thread.toLowerCase(java.util.Locale.ROOT).contains("eventloop"), thread);
+        try (Socket socket = new Socket(server.getHost(), server.getPort())) {
+            socket.getOutputStream().write(("GET /api/async-response/disconnect-thread HTTP/1.1\r\nHost: localhost\r\n\r\n")
+                .getBytes(StandardCharsets.US_ASCII));
+            socket.getOutputStream().flush();
+            assertEquals("registered", STATES.poll(5, TimeUnit.SECONDS));
+        }
+        thread = (String) DISCONNECTED.poll(5, TimeUnit.SECONDS);
+        assertFalse(thread.toLowerCase(java.util.Locale.ROOT).contains("eventloop"), thread);
+    }
+
+    @Test
     void connectionCallbackIsNotCalledAfterTheResponse() throws Exception {
         COMPLETED.clear();
         DISCONNECTED.clear();
@@ -413,6 +430,20 @@ class AsyncResponseTest {
             List<Class<?>> registered = new java.util.ArrayList<>(response.register(new CompletionCallbackImpl()));
             registered.addAll(response.register((ConnectionCallback) DISCONNECTED::add));
             STATES.add(registered);
+        }
+
+        @GET
+        @Path("callback-thread")
+        public void callbackThread(@Suspended AsyncResponse response) {
+            response.register((jakarta.ws.rs.container.CompletionCallback) throwable -> COMPLETED.add(Thread.currentThread().getName()));
+            CompletableFuture.runAsync(() -> response.resume("completed"));
+        }
+
+        @GET
+        @Path("disconnect-thread")
+        public void disconnectThread(@Suspended AsyncResponse response) {
+            response.register((ConnectionCallback) disconnected -> DISCONNECTED.add(Thread.currentThread().getName()));
+            STATES.add("registered");
         }
 
         @GET

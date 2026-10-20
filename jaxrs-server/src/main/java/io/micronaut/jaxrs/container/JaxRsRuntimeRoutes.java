@@ -92,6 +92,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
 
 /**
@@ -166,12 +168,18 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     private final Map<Class<?>, LocatedRoutes<?>> locatedRoutes = new ConcurrentHashMap<>();
     // the scheduler of the timeouts of the asynchronous responses, resolved when one is set
     private final Supplier<@Nullable TaskScheduler> scheduler;
+    // the executor of the callbacks of the asynchronous responses, which can block
+    private final Supplier<@Nullable Executor> callbackExecutor;
 
     JaxRsRuntimeRoutes(BeanContext beanContext, JaxRsRouteSupport support) {
         this.beanContext = beanContext;
         this.support = support;
         this.scheduler = SupplierUtil.memoized(() ->
             beanContext.findBean(TaskScheduler.class, Qualifiers.byName(TaskExecutors.SCHEDULED)).orElse(null));
+        this.callbackExecutor = SupplierUtil.memoized(() ->
+            beanContext.findBean(ExecutorService.class, Qualifiers.byName(TaskExecutors.BLOCKING))
+                .or(() -> beanContext.findBean(ExecutorService.class, Qualifiers.byName(TaskExecutors.IO)))
+                .orElse(null));
     }
 
     @Override
@@ -735,7 +743,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         Completion completion = method.completion();
         // the resumed value is negotiated like the result of a method that is not asynchronous
         JaxRsAsyncResponse asyncResponse = new JaxRsAsyncResponse(
-            value -> completion.complete(request, pathVariables, converter.convert(request, value)), scheduler);
+            value -> completion.complete(request, pathVariables, converter.convert(request, value)), scheduler, callbackExecutor);
         request.setAttribute(ASYNC_RESPONSE, asyncResponse);
         // the completion and connection callbacks, if the server reports the response and the client
         asyncResponse.bind(request);

@@ -44,6 +44,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -85,6 +87,7 @@ final class JaxRsAsyncResponse implements AsyncResponse {
     private final CompletableFuture<HttpResponse<?>> response = new CompletableFuture<>();
     private final Function<@Nullable Object, HttpResponse<?>> converter;
     private final Supplier<@Nullable TaskScheduler> scheduler;
+    private final Supplier<@Nullable Executor> callbackExecutor;
     private final List<CompletionCallback> completionCallbacks = new ArrayList<>();
     private final List<ConnectionCallback> connectionCallbacks = new ArrayList<>();
     private @Nullable TimeoutHandler timeoutHandler;
@@ -103,11 +106,15 @@ final class JaxRsAsyncResponse implements AsyncResponse {
 
     /**
      * @param converter Converts a resumed value to the response
-     * @param scheduler The scheduler of the timeouts
+     * @param scheduler        The scheduler of the timeouts
+     * @param callbackExecutor The executor of the callbacks the server reports to, e.g. the
+     *                         blocking executor: not its event loop, the callbacks can block
      */
-    JaxRsAsyncResponse(Function<@Nullable Object, HttpResponse<?>> converter, Supplier<@Nullable TaskScheduler> scheduler) {
+    JaxRsAsyncResponse(Function<@Nullable Object, HttpResponse<?>> converter, Supplier<@Nullable TaskScheduler> scheduler,
+                       Supplier<@Nullable Executor> callbackExecutor) {
         this.converter = converter;
         this.scheduler = scheduler;
+        this.callbackExecutor = callbackExecutor;
     }
 
     /**
@@ -122,16 +129,35 @@ final class JaxRsAsyncResponse implements AsyncResponse {
             return;
         }
         // a callback may run on the registering thread if the response is done already
-        boolean completion = serverRequest.whenResponseCompleted(failure ->
-            completed(request.getAttribute(UNMAPPED_EXCEPTION, Throwable.class).orElse(failure)));
+        // the server reports on its event loop, which the callbacks do not block
+        boolean completion = serverRequest.whenResponseCompleted(failure -> {
+            Throwable throwable = request.getAttribute(UNMAPPED_EXCEPTION, Throwable.class).orElse(failure);
+            offload(() -> completed(throwable));
+        });
         synchronized (this) {
             responseCompletion = completion;
         }
         // removed by the server when the response is done
-        Runnable remover = serverRequest.whenAbandoned(this::abandoned);
+        Runnable remover = serverRequest.whenAbandoned(() -> offload(this::abandoned));
         synchronized (this) {
             abandonment |= remover != null;
         }
+    }
+
+    /**
+     * Run callbacks on the callback executor, else on this thread.
+     */
+    private void offload(Runnable callbacks) {
+        Executor executor = callbackExecutor.get();
+        if (executor != null) {
+            try {
+                executor.execute(callbacks);
+                return;
+            } catch (RejectedExecutionException e) {
+                // the executor is shut down: run on this thread
+            }
+        }
+        callbacks.run();
     }
 
     private static @Nullable ServerHttpRequest<?> serverRequest(HttpRequest<?> request) {

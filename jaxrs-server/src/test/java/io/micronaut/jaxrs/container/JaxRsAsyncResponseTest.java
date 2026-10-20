@@ -32,7 +32,7 @@ class JaxRsAsyncResponseTest {
 
     private static JaxRsAsyncResponse asyncResponse() {
         return new JaxRsAsyncResponse(value -> value instanceof Response response
-            ? HttpResponse.status(response.getStatus(), null) : HttpResponse.ok(value), () -> null);
+            ? HttpResponse.status(response.getStatus(), null) : HttpResponse.ok(value), () -> null, () -> null);
     }
 
     @Test
