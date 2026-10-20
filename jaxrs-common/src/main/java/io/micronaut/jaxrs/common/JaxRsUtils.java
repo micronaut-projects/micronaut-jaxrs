@@ -165,4 +165,17 @@ public final class JaxRsUtils {
         return ("*".equals(wildcard.getType()) || wildcard.getType().equalsIgnoreCase(mediaType.getType()))
             && mediaType.getSubtype().toLowerCase(java.util.Locale.ROOT).endsWith(subtype.substring(1).toLowerCase(java.util.Locale.ROOT));
     }
+
+    /**
+     * Whether a provider is used by the server: it is not constrained to the client
+     * ({@code @ConstrainedTo}).
+     *
+     * @param metadata The annotations of the provider
+     * @return Whether the server uses it
+     */
+    public static boolean isServerProvider(AnnotationMetadata metadata) {
+        return metadata.enumValue(jakarta.ws.rs.ConstrainedTo.class, jakarta.ws.rs.RuntimeType.class)
+            .map(runtimeType -> runtimeType == jakarta.ws.rs.RuntimeType.SERVER)
+            .orElse(true);
+    }
 }

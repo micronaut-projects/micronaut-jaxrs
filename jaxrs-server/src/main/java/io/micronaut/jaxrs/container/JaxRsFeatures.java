@@ -79,6 +79,12 @@ import java.util.function.Supplier;
 public final class JaxRsFeatures implements JaxRsRouteInterceptors {
 
     private static final Logger LOG = LoggerFactory.getLogger(JaxRsFeatures.class);
+    // the contracts of the providers of the server, see Configuration#getContracts
+    private static final List<Class<?>> CONTRACTS = List.of(
+        ContainerRequestFilter.class, ContainerResponseFilter.class, ReaderInterceptor.class, WriterInterceptor.class,
+        jakarta.ws.rs.ext.MessageBodyReader.class, jakarta.ws.rs.ext.MessageBodyWriter.class,
+        jakarta.ws.rs.ext.ExceptionMapper.class, jakarta.ws.rs.ext.ContextResolver.class,
+        jakarta.ws.rs.ext.ParamConverterProvider.class, DynamicFeature.class, Feature.class);
 
     private final ApplicationContext context;
     private final List<Feature> features;
@@ -153,24 +159,41 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
      */
     Map<Class<?>, Integer> contracts(Class<?> componentClass) {
         Registration registration = registrations.get(componentClass);
-        if (registration == null || registration.contracts() == null) {
+        if (registration == null) {
             return Map.of();
         }
+        Collection<Class<?>> registered = registration.contracts();
+        if (registered == null) {
+            // registered for all of the contracts it implements, e.g. with a priority
+            registered = CONTRACTS.stream().filter(contract -> contract.isAssignableFrom(componentClass)).toList();
+        }
         Map<Class<?>, Integer> contracts = new LinkedHashMap<>();
-        for (Class<?> contract : registration.contracts()) {
+        for (Class<?> contract : registered) {
             Integer priority = registration.priority(contract);
-            contracts.put(contract, priority == null ? Priorities.USER : priority);
+            // without a priority, the one of its @Priority (Configurable#register(Class, Class[]))
+            contracts.put(contract, priority == null ? JaxRsUtils.getPriorityOrder(annotationMetadata(componentClass)) : priority);
         }
         return contracts;
     }
 
+    /**
+     * The annotations of a component class: the ones of its bean definition, else the ones of
+     * the class, see {@link JaxRsRouteInterceptors#metadata(Class)}.
+     */
+    private AnnotationMetadata annotationMetadata(Class<?> componentClass) {
+        return context.findBeanDefinition(componentClass)
+            .<AnnotationMetadata>map(BeanDefinition::getAnnotationMetadata)
+            .orElseGet(() -> JaxRsRouteInterceptors.metadata(componentClass));
+    }
+
     @Override
     public <I> List<BeanRegistration<I>> registered(List<BeanRegistration<I>> beans, Class<I> contract) {
-        if (registrations.isEmpty()) {
-            return beans;
-        }
         List<BeanRegistration<I>> registered = new ArrayList<>(beans.size());
         for (BeanRegistration<I> bean : beans) {
+            if (!JaxRsUtils.isServerProvider(bean.getBeanDefinition().getAnnotationMetadata())) {
+                // constrained to the client (@ConstrainedTo)
+                continue;
+            }
             Registration registration = registrations.get(bean.getBeanDefinition().getBeanType());
             if (registration == null) {
                 registered.add(bean);
@@ -386,6 +409,10 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
             List<ReaderInterceptor> readerInterceptors = new ArrayList<>();
             List<WriterInterceptor> writerInterceptors = new ArrayList<>();
             for (Object instance : instances) {
+                if (!JaxRsUtils.isServerProvider(metadata(instance.getClass()))) {
+                    // constrained to the client (@ConstrainedTo)
+                    continue;
+                }
                 if (instance instanceof ContainerRequestFilter f && isFor(instance, ContainerRequestFilter.class)) {
                     requestFilters.add(f);
                 }
@@ -535,9 +562,7 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
          * of the class, see {@link JaxRsRouteInterceptors#metadata(Class)}.
          */
         private AnnotationMetadata metadata(Class<?> componentClass) {
-            return context.findBeanDefinition(componentClass)
-                .<AnnotationMetadata>map(BeanDefinition::getAnnotationMetadata)
-                .orElseGet(() -> JaxRsRouteInterceptors.metadata(componentClass));
+            return annotationMetadata(componentClass);
         }
 
         private static Map<@Nullable Class<?>, Integer> allContracts(int priority) {
