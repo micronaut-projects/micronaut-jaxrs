@@ -94,7 +94,7 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
         // the SSL of this builder, else the one of the HTTP client
         SSLContext clientSslContext = JaxRsClientSsl.sslContext(sslContext, keyStore, keyStorePassword, trustStore, hostnameVerifier);
         if (clientSslContext != null) {
-            JaxRsClientSsl.configure(configuration.getSslConfiguration(), clientSslContext, sslContext != null, hostnameVerifier);
+            JaxRsClientSsl.configure(configuration.getSslConfiguration(), clientSslContext, hostnameVerifier);
         }
         Supplier<DefaultHttpClient> httpClients = () -> DefaultHttpClient.builder().configuration(configuration).build();
         DefaultHttpClient httpClient = httpClients.get();
