@@ -34,6 +34,7 @@ include 'jaxrs-common'
 include 'jaxrs-standard-providers'
 
 include 'tests:jaxrs-tck'
+include 'tests:jaxrs-conformance'
 
 enableFeaturePreview 'TYPESAFE_PROJECT_ACCESSORS'
 

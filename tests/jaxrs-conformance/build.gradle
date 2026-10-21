@@ -1,0 +1,41 @@
+plugins {
+    id 'java-library'
+    id 'io.micronaut.build.internal.jaxrs-base'
+}
+
+dependencies {
+    testAnnotationProcessor mn.micronaut.inject.java
+    testAnnotationProcessor projects.micronautJaxrsProcessor
+    testImplementation projects.micronautJaxrsCommon
+    testImplementation projects.micronautJaxrsServer
+    testImplementation projects.micronautJaxrsClient
+    testImplementation mn.micronaut.http.server.netty
+    testImplementation mnSerde.micronaut.serde.jackson
+    testRuntimeOnly mn.micronaut.reflection
+    testImplementation libs.jersey.common
+    testImplementation libs.jersey.server
+    testRuntimeOnly libs.jersey.hk2
+    testImplementation mnTest.junit.jupiter.api
+    testRuntimeOnly mnTest.junit.jupiter.engine
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testRuntimeOnly mnLogging.logback.classic
+}
+
+test {
+    useJUnitPlatform()
+    maxParallelForks = 1
+    maxHeapSize = '384m'
+    jvmArgs '-XX:ActiveProcessorCount=2', '-Dio.netty.leakDetection.level=paranoid'
+    systemProperty 'junit.jupiter.execution.parallel.enabled', 'false'
+    if (!project.hasProperty('conformanceFindings')) {
+        // the reproducers of known discrepancies fail until they are fixed: run them with -PconformanceFindings
+        filter {
+            excludeTestsMatching '*FindingsTest'
+        }
+    }
+    testLogging {
+        events 'passed', 'failed', 'skipped'
+        exceptionFormat 'full'
+        showStandardStreams = true
+    }
+}

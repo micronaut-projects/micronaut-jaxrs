@@ -1,4 +1,5 @@
 [versions]
+jersey = "3.1.11"
 managed-jaxrs-api = "4.0.0"
 micronaut = "5.3.0-SNAPSHOT"
 micronaut-security = "5.5.0"
@@ -21,6 +22,9 @@ nullaway = "0.13.8"
 jakarta-sigtest = "2.6"
 
 [libraries]
+jersey-common = { module = "org.glassfish.jersey.core:jersey-common", version.ref = "jersey" }
+jersey-server = { module = "org.glassfish.jersey.core:jersey-server", version.ref = "jersey" }
+jersey-hk2 = { module = "org.glassfish.jersey.inject:jersey-hk2", version.ref = "jersey" }
 micronaut-core = { module = 'io.micronaut:micronaut-core-bom', version.ref = 'micronaut' }
 micronaut-reactor = { module = 'io.micronaut.reactor:micronaut-reactor-bom', version.ref = 'micronaut-reactor' }
 micronaut-security = { module = "io.micronaut.security:micronaut-security-bom", version.ref = "micronaut-security" }
