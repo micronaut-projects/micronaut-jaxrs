@@ -21,12 +21,15 @@ import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.inject.BeanDefinition;
 import io.micronaut.context.ApplicationContext;
+import io.micronaut.context.event.ApplicationEventListener;
+import io.micronaut.context.event.StartupEvent;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.context.ServerRequestContext;
 import io.micronaut.jaxrs.common.JaxRsRouteInterceptors;
 import io.micronaut.jaxrs.common.JaxRsUtils;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.RouteInfo;
+import io.micronaut.web.router.Router;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.container.ContainerRequestFilter;
 import jakarta.ws.rs.container.ContainerResponseFilter;
@@ -68,15 +71,16 @@ import java.util.function.Supplier;
  * <p>A {@link Feature} is configured once, at startup: the components it registers become beans,
  * a class the annotation processors never saw through a {@link ReflectionBeanDefinition}, so the
  * container filters, interceptors and providers see them like any other. A
- * {@link DynamicFeature} is configured for each resource method: the filters and interceptors it
- * registers apply to that method only.</p>
+ * {@link DynamicFeature} is configured for each resource method, at startup: the filters and
+ * interceptors it registers apply to that method only. The methods of a sub-resource a locator
+ * returns known only at runtime are configured when first requested.</p>
  *
  * @author Denis Stepanov
  * @since 5.2.0
  */
 @Internal
 @Singleton
-public final class JaxRsFeatures implements JaxRsRouteInterceptors {
+public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationEventListener<StartupEvent> {
 
     private static final Logger LOG = LoggerFactory.getLogger(JaxRsFeatures.class);
     // the contracts of the providers of the server, see Configuration#getContracts
@@ -203,6 +207,20 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
             }
         }
         return registered;
+    }
+
+    /**
+     * Configure the dynamic features for the resource methods of the routes, at deployment
+     * ({@link DynamicFeature#configure}): a feature that fails, fails the startup.
+     *
+     * @param event The startup event
+     */
+    @Override
+    public void onApplicationEvent(StartupEvent event) {
+        if (dynamicFeatures.isEmpty()) {
+            return;
+        }
+        context.findBean(Router.class).ifPresent(router -> router.uriRoutes().forEach(this::components));
     }
 
     /**

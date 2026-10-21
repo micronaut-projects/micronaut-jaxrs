@@ -84,7 +84,7 @@ final class JaxRsContextRequest implements Request {
         for (Variant variant : variants) {
             double score = mediaTypeScore(accept, variant.getMediaType())
                 * languageScore(languages, variant.getLanguage())
-                * valueScore(encodings, variant.getEncoding());
+                * encodingScore(encodings, variant.getEncoding());
             if (score > bestScore) {
                 best = variant;
                 bestScore = score;
@@ -140,18 +140,17 @@ final class JaxRsContextRequest implements Request {
             return byTag;
         }
         HttpRequest<?> request = request();
-        if (request.getHeaders().contains(HttpHeaders.IF_NONE_MATCH)) {
-            // If-Modified-Since is ignored when If-None-Match is present
+        long modified = lastModified.getTime() / 1000;
+        // If-Unmodified-Since is ignored when If-Match is present (RFC 9110, 13.1.4)
+        if (!request.getHeaders().contains(HttpHeaders.IF_MATCH)) {
             ZonedDateTime ifUnmodifiedSince = request.getHeaders().findDate(HttpHeaders.IF_UNMODIFIED_SINCE).orElse(null);
-            if (ifUnmodifiedSince != null && lastModified.getTime() / 1000 > ifUnmodifiedSince.toEpochSecond()) {
+            if (ifUnmodifiedSince != null && modified > ifUnmodifiedSince.toEpochSecond()) {
                 return Response.status(Response.Status.PRECONDITION_FAILED);
             }
-            return null;
         }
-        long modified = lastModified.getTime() / 1000;
-        ZonedDateTime ifUnmodifiedSince = request.getHeaders().findDate(HttpHeaders.IF_UNMODIFIED_SINCE).orElse(null);
-        if (ifUnmodifiedSince != null && modified > ifUnmodifiedSince.toEpochSecond()) {
-            return Response.status(Response.Status.PRECONDITION_FAILED);
+        if (request.getHeaders().contains(HttpHeaders.IF_NONE_MATCH)) {
+            // If-Modified-Since is ignored when If-None-Match is present
+            return null;
         }
         ZonedDateTime ifModifiedSince = request.getHeaders().findDate(HttpHeaders.IF_MODIFIED_SINCE).orElse(null);
         if (ifModifiedSince != null && readOnly(request) && modified <= ifModifiedSince.toEpochSecond()) {
@@ -273,11 +272,15 @@ final class JaxRsContextRequest implements Request {
         return best;
     }
 
-    private static double valueScore(List<Weighted> accepted, @Nullable String value) {
-        if (value == null || accepted.isEmpty()) {
+    /**
+     * The quality of a content coding, where no coding is the identity coding, acceptable unless
+     * excluded explicitly or by a zero-weighted wildcard (RFC 9110, 12.5.3).
+     */
+    private static double encodingScore(List<Weighted> accepted, @Nullable String encoding) {
+        if (accepted.isEmpty()) {
             return 1;
         }
-        // an exact match takes precedence over the wildcard
+        String value = encoding == null ? "identity" : encoding;
         double wildcard = -1;
         double exact = -1;
         for (Weighted weighted : accepted) {
@@ -287,7 +290,13 @@ final class JaxRsContextRequest implements Request {
                 wildcard = Math.max(wildcard, weighted.quality);
             }
         }
-        return exact >= 0 ? exact : Math.max(wildcard, 0);
+        if (exact >= 0) {
+            return exact;
+        }
+        if (wildcard >= 0) {
+            return wildcard;
+        }
+        return value.equalsIgnoreCase("identity") ? 1 : 0;
     }
 
     private static List<Weighted> weighted(List<String> headers) {

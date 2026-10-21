@@ -25,6 +25,7 @@ import io.micronaut.jaxrs.container.JaxRsMatched;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.RouteMatch;
 import io.micronaut.web.router.UriRouteMatch;
+import jakarta.ws.rs.core.AbstractMultivaluedMap;
 import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.PathSegment;
@@ -37,6 +38,7 @@ import java.net.URISyntaxException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -154,7 +156,7 @@ public final class UriInfoImpl implements UriInfo {
                     String val = keyVal.length > 1 ? keyVal[1] : null;
                     params.add(decode ? decodePath(key) : key, val == null || !decode ? val : decodePath(val));
                 }
-                return new UriPathSegment(decode ? decodePath(segmentTokens[0]) : segmentTokens[0], params);
+                return new UriPathSegment(decode ? decodePath(segmentTokens[0]) : segmentTokens[0], unmodifiable(params));
             })
             .toList();
     }
@@ -212,7 +214,7 @@ public final class UriInfoImpl implements UriInfo {
             // the values as they appear in the path
             uriMatch.getRawVariableValues().forEach((name, value) -> map.add(variableName(name), value.toString()));
         }
-        return map;
+        return unmodifiable(map);
     }
 
     @Override
@@ -231,7 +233,7 @@ public final class UriInfoImpl implements UriInfo {
                 (str, vals) -> vals.forEach(
                     val -> map.add(str, val)));
         }
-        return map;
+        return unmodifiable(map);
     }
 
     public static Map<String, List<String>> getEncodedParameters(URI url) {
@@ -288,13 +290,13 @@ public final class UriInfoImpl implements UriInfo {
                 }
             }
         }
-        return uris;
+        return Collections.unmodifiableList(uris);
     }
 
     @Override
     public List<Object> getMatchedResources() {
         JaxRsMatched matched = JaxRsMatched.get(request);
-        return matched == null ? List.of() : matched.resources();
+        return matched == null ? List.of() : Collections.unmodifiableList(matched.resources());
     }
 
     @Override
@@ -391,6 +393,27 @@ public final class UriInfoImpl implements UriInfo {
             }
         }
         return path;
+    }
+
+    /**
+     * A read-only view of a map, as {@link UriInfo} requires for the maps it returns.
+     */
+    private static <K, V> MultivaluedMap<K, V> unmodifiable(MultivaluedMap<K, V> map) {
+        Map<K, List<V>> store = new LinkedHashMap<>();
+        map.forEach((key, values) -> store.put(key, Collections.unmodifiableList(values)));
+        return new ReadOnlyMultivaluedMap<>(Collections.unmodifiableMap(store));
+    }
+
+    /**
+     * A multivalued map over an unmodifiable store of unmodifiable lists.
+     *
+     * @param <K> The key type
+     * @param <V> The value type
+     */
+    private static final class ReadOnlyMultivaluedMap<K, V> extends AbstractMultivaluedMap<K, V> {
+        ReadOnlyMultivaluedMap(Map<K, List<V>> store) {
+            super(store);
+        }
     }
 
     private record UriPathSegment(String path,

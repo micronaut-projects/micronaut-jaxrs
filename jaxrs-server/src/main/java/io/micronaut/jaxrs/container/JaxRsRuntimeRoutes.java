@@ -69,6 +69,7 @@ import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.container.AsyncResponse;
+import jakarta.ws.rs.container.ResourceContext;
 import jakarta.ws.rs.container.Suspended;
 import jakarta.ws.rs.core.Application;
 import jakarta.ws.rs.core.Context;
@@ -83,6 +84,8 @@ import org.slf4j.LoggerFactory;
 import java.lang.annotation.Annotation;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -226,11 +229,12 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         String prefix = strip(rootPath) + JaxRsRouteTemplateEngine.ROOT_MARK;
         // a singleton is not created per request: its @Context members are proxies of the current request
         RequestType<B> requestType = root.shared() ? null : requestType(root.type(), root.definition());
-        int rootSegments = segments(rootPath);
+        MatchedSegments rootSegments = MatchedSegments.of(rootPath);
         Supplier<B> instances = root.instances();
         Instances<@Nullable Void, B> instance = requestType == null
-            ? (request, pathVariables, form, target) -> support.matched(request, instances.get(), rootSegments)
-            : (request, pathVariables, form, target) -> support.matched(request, create(requestType, request, pathVariables, form), rootSegments);
+            ? (request, pathVariables, form, target) -> support.matched(request, instances.get(), rootSegments.count(pathVariables))
+            : (request, pathVariables, form, target) -> support.matched(request, create(requestType, request, pathVariables, form),
+                rootSegments.count(pathVariables));
         Map<Class<?>, Integer> visited = new LinkedHashMap<>();
         visited.put(type, 1);
         declare(routes, type, root.methods(), type, prefix, instance, requestType != null && requestType.usesForm(), visited, false,
@@ -461,6 +465,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                                 Instances<L, B> instances, boolean rootUsesForm, Map<Class<?>, Integer> visited,
                                 boolean chainUsesForm, boolean chainEncodedForm) {
         AnnotationMetadata classMetadata = classMetadata(type);
+        boolean typeUsesResourceContext = usesResourceContext(type);
         for (JaxRsMethod<B> method : methods) {
             AnnotationMetadata metadata = method.metadata();
             String httpMethod = httpMethod(metadata);
@@ -469,7 +474,9 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 String template = template(path, methodPath == null ? "" : methodPath);
                 ResourceMethod<B> resourceMethod = resourceMethod(type, classMetadata, rootClass, method, httpMethod, template);
                 if (resourceMethod != null) {
-                    route(routes, resourceMethod, instances, rootUsesForm || chainUsesForm, chainEncodedForm);
+                    boolean usesResourceContext = typeUsesResourceContext
+                        || Arrays.stream(method.arguments()).anyMatch(argument -> argument.getType() == ResourceContext.class);
+                    route(routes, resourceMethod, instances, rootUsesForm || chainUsesForm, chainEncodedForm, usesResourceContext);
                 }
             } else if (methodPath != null) {
                 // a resource method is selected before a locator: the end of its @Path is marked
@@ -536,9 +543,10 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 method.name());
             return;
         }
-        int segments = routes.located() ? -1 : segments(prefix);
+        @Nullable MatchedSegments matchedSegments = routes.located() ? null : MatchedSegments.of(prefix);
         routes.locate(routes.prefix(prefix), (request, pathVariables, target1) -> {
             B instance = instances.get(request, pathVariables, null, target1);
+            int segments = matchedSegments == null ? -1 : matchedSegments.count(pathVariables);
             return support.matched(request, locate(method, instance, readers, request, pathVariables, null, segments), segments);
         });
     }
@@ -556,9 +564,10 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         if (targetMethods.isEmpty()) {
             return false;
         }
-        int segments = segments(prefix);
+        MatchedSegments matchedSegments = MatchedSegments.of(prefix);
         Instances<L, T> chained = (request, pathVariables, form, located) -> {
             B instance = instances.get(request, pathVariables, form, located);
+            int segments = matchedSegments.count(pathVariables);
             return support.matched(request, target.cast(locate(method, instance, readers, request, pathVariables, form, segments)), segments);
         };
         int occurrences = visited.getOrDefault(target, 0);
@@ -686,7 +695,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     }
 
     private <L, B> void route(Routes<L> routes, ResourceMethod<B> method, Instances<L, B> instances, boolean chainUsesForm,
-                              boolean chainEncodedForm) {
+                              boolean chainEncodedForm, boolean usesResourceContext) {
         String name = method.httpMethod();
         Declaration declaration = new Declaration(name, method.template(), method.metadata(), method.responseType());
         boolean body = method.entity() >= 0 && !method.formEntity() && !"GET".equals(name);
@@ -695,8 +704,12 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         boolean encodedForm = method.encodedForm() || chainEncodedForm;
         // a form is read for a method that can have one and reads no entity
         boolean form = method.form() || (usesForm && !NO_BODY_METHODS.contains(name) && method.entity() < 0);
+        // the resources of the ResourceContext read the form of the entity: a method that reads
+        // neither reads the entity for them, whatever its type
+        boolean contextEntity = usesResourceContext && !form && !body && !NO_BODY_METHODS.contains(name);
+        body |= contextEntity;
         // a route that reads the entity and form parameters: the form is parsed from the entity
-        boolean entityForm = body && !form && usesForm;
+        boolean entityForm = body && !form && (usesForm || contextEntity);
         if (method.async()) {
             if (form) {
                 routes.handleAsync(declaration, (request, pathVariables, target, requestBody) -> support.formAsync(request, pathVariables, requestBody,
@@ -1094,6 +1107,24 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         return instance;
     }
 
+    /**
+     * @param type A resource class
+     * @return Whether it has a {@link ResourceContext} injected in a constructor, field or setter
+     */
+    private boolean usesResourceContext(Class<?> type) {
+        BeanDefinition<?> definition = beanContext.findBeanDefinition(type).orElse(null);
+        if (definition != null && (definition.getInjectedFields().stream().anyMatch(field -> field.getType() == ResourceContext.class)
+            || definition.getInjectedMethods().stream()
+                .anyMatch(injected -> Arrays.stream(injected.getArguments()).anyMatch(argument -> argument.getType() == ResourceContext.class))
+            || Arrays.stream(definition.getConstructor().getArguments()).anyMatch(argument -> argument.getType() == ResourceContext.class))) {
+            return true;
+        }
+        BeanIntrospection<?> introspection = introspection(type);
+        return introspection != null
+            && (introspection.getBeanProperties().stream().anyMatch(property -> ResourceContext.class.equals(property.getType()))
+            || Arrays.stream(introspection.getConstructorArguments()).anyMatch(argument -> argument.getType() == ResourceContext.class));
+    }
+
     private static boolean usesForm(Argument<?> argument) {
         AnnotationMetadata metadata = argument.getAnnotationMetadata();
         return metadata.hasAnnotation(FormParam.class) || metadata.hasAnnotation(BeanParam.class) && usesForm(argument.getType(), 0);
@@ -1202,6 +1233,71 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             }
         }
         return segments;
+    }
+
+    /**
+     * The number of path segments a template matched: its segments, plus the further segments
+     * the values of its variables with a regular expression span, e.g. two for {@code a/b} of
+     * {@code {rest: .+}}.
+     *
+     * @param literal        The segments of the template, a variable with a regular expression
+     *                       counted as one
+     * @param regexVariables The variables with a regular expression, in their order in the
+     *                       template
+     */
+    private record MatchedSegments(int literal, List<String> regexVariables) {
+
+        static MatchedSegments of(String template) {
+            List<String> variables = new ArrayList<>();
+            int depth = 0;
+            int start = -1;
+            for (int i = 0; i < template.length(); i++) {
+                char c = template.charAt(i);
+                if (c == '{') {
+                    if (depth++ == 0) {
+                        start = i + 1;
+                    }
+                } else if (c == '}' && --depth == 0) {
+                    String variable = template.substring(start, i);
+                    int colon = variable.indexOf(':');
+                    if (colon >= 0) {
+                        variables.add(variable.substring(0, colon).trim());
+                    }
+                }
+            }
+            return new MatchedSegments(segments(template), List.copyOf(variables));
+        }
+
+        /**
+         * @param pathVariables The variables of the matched route, whose template starts with
+         *                      the template of these segments
+         * @return The number of segments matched
+         */
+        int count(PathVariables pathVariables) {
+            if (regexVariables.isEmpty()) {
+                return literal;
+            }
+            PathVariables raw = pathVariables.raw();
+            int count = literal;
+            Map<String, Integer> seen = new HashMap<>();
+            for (String name : regexVariables) {
+                // the occurrences of a variable that repeats are named from the last one, which
+                // may follow in the rest of the template
+                int occurrence = seen.merge(name, 1, Integer::sum);
+                int occurrences = 1;
+                while (raw.findString(JaxRsRouteTemplateEngine.repeated(name, occurrences)).isPresent()) {
+                    occurrences++;
+                }
+                int fromLast = occurrences - occurrence;
+                String value = raw.findString(fromLast <= 0 ? name : JaxRsRouteTemplateEngine.repeated(name, fromLast)).orElse("");
+                for (int i = 0; i < value.length(); i++) {
+                    if (value.charAt(i) == '/') {
+                        count++;
+                    }
+                }
+            }
+            return count;
+        }
     }
 
     private static String strip(String path) {

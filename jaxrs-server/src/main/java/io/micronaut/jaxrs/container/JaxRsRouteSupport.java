@@ -1201,8 +1201,16 @@ public final class JaxRsRouteSupport {
      * @param returnType The declared return type of the resource method
      * @return The response
      */
-    @SuppressWarnings({"unchecked", "rawtypes"})
     public HttpResponse<?> negotiate(HttpRequest<?> request, HttpResponse<?> response, Argument<?> returnType) {
+        return negotiate(request, response, returnType, true);
+    }
+
+    /**
+     * @param deferrable Whether a response filter can still repair a response that is not
+     *                   acceptable
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private HttpResponse<?> negotiate(HttpRequest<?> request, HttpResponse<?> response, Argument<?> returnType, boolean deferrable) {
         if (response.getContentType().isPresent() || !(response instanceof MutableHttpResponse<?> mutable)) {
             return response;
         }
@@ -1215,11 +1223,11 @@ public final class JaxRsRouteSupport {
         if (producible.isEmpty()) {
             // no application writer writes the entity: the response is left to Micronaut, in an
             // acceptable type it has a writer for
-            return writableType(request, mutable, type, body);
+            return writableType(request, mutable, type, body, deferrable);
         }
         MediaType mediaType = JaxRsRouteTemplateEngine.responseType(request.getHeaders().accept(), producible);
         if (mediaType == null) {
-            throw new NotAcceptableException();
+            return unacceptable(request, mutable, body, deferrable);
         }
         if (mediaType.equals(MediaType.APPLICATION_OCTET_STREAM_TYPE)
             && producible.size() == 1 && producible.get(0).equals(MediaType.ALL_TYPE)
@@ -1253,7 +1261,8 @@ public final class JaxRsRouteSupport {
      * only concrete types: the most acceptable one a writer writes the entity as, else the
      * response is not acceptable (JAX-RS 3.8). With an accepted range, Micronaut chooses.
      */
-    private HttpResponse<?> writableType(HttpRequest<?> request, MutableHttpResponse<?> response, Argument<?> type, Object body) {
+    private HttpResponse<?> writableType(HttpRequest<?> request, MutableHttpResponse<?> response, Argument<?> type, Object body,
+                                         boolean deferrable) {
         List<MediaType> accepted = request.getHeaders().accept();
         List<MediaType> writable = new ArrayList<>(accepted.size());
         for (MediaType accept : accepted) {
@@ -1272,9 +1281,22 @@ public final class JaxRsRouteSupport {
         }
         MediaType mediaType = JaxRsRouteTemplateEngine.responseType(accepted, writable);
         if (mediaType == null) {
-            throw new NotAcceptableException();
+            return unacceptable(request, response, body, deferrable);
         }
         return response.contentType(mediaType);
+    }
+
+    /**
+     * A response whose entity no writer writes as an acceptable type: not acceptable, unless a
+     * response filter can repair it, e.g. replace the entity with one a writer writes (JAX-RS 3.8).
+     */
+    private MutableHttpResponse<?> unacceptable(HttpRequest<?> request, MutableHttpResponse<?> response, Object body, boolean deferrable) {
+        if (!deferrable || !containerFilters().filtersResponse(RouteAttributes.getRouteInfo(request).orElse(null))) {
+            throw new NotAcceptableException();
+        }
+        request.setAttribute(JaxRsContainerFilters.UNWRITABLE_ENTITY,
+            new UnwritableEntity(body instanceof GenericEntity<?> entity ? entity.getEntity() : body, this));
+        return response;
     }
 
     /**
@@ -1342,13 +1364,8 @@ public final class JaxRsRouteSupport {
             }
             MediaType mediaType = JaxRsRouteTemplateEngine.responseType(request.getHeaders().accept(), writable);
             if (mediaType == null) {
-                if (containerFilters().filtersResponse(RouteAttributes.getRouteInfo(request).orElse(null))) {
-                    // a response filter can replace the entity with one a writer writes: the
-                    // response is not acceptable if it does not
-                    request.setAttribute(JaxRsContainerFilters.UNWRITABLE_ENTITY, body instanceof GenericEntity<?> entity ? entity.getEntity() : body);
-                    return mutable.header(HttpHeaders.CONTENT_TYPE, selected.toString());
-                }
-                throw new NotAcceptableException();
+                // a response filter can repair the response: it is not acceptable if it does not
+                return unacceptable(request, mutable, body, true).header(HttpHeaders.CONTENT_TYPE, selected.toString());
             }
             return mutable.contentType(mediaType);
         }
@@ -1754,5 +1771,40 @@ public final class JaxRsRouteSupport {
      * @param annotations The annotations of the parameter
      */
     private record ConverterKey(Argument<?> argument, AnnotationMetadata annotations) {
+    }
+
+    /**
+     * The entity of a response that no writer writes as an acceptable type, which a response
+     * filter can repair: by replacing it, or by giving it a type, annotations or a media type a
+     * writer writes it with.
+     *
+     * @param entity  The entity
+     * @param support The support, which knows the writers
+     */
+    record UnwritableEntity(Object entity, JaxRsRouteSupport support) {
+
+        /**
+         * @param body        The entity after the response filters
+         * @param type        Its type, with its annotations
+         * @param contentType The media type of the response, if it has one
+         * @return Whether the filters left the entity unwritable
+         */
+        boolean unwritable(@Nullable Object body, Argument<?> type, @Nullable MediaType contentType) {
+            return body == entity && (contentType == null || !support.writes(type, body, contentType));
+        }
+
+        /**
+         * Negotiate the media type of a response the filters repaired and gave none, like the
+         * response of the resource method: it is not acceptable if no writer writes its entity
+         * as an acceptable type.
+         *
+         * @param request  The request
+         * @param response The response, with the entity the filters set
+         * @param type     The type of the entity
+         * @return The response
+         */
+        HttpResponse<?> negotiate(HttpRequest<?> request, HttpResponse<?> response, Argument<?> type) {
+            return response.getContentType().isPresent() ? response : support.negotiate(request, response, type, false);
+        }
     }
 }

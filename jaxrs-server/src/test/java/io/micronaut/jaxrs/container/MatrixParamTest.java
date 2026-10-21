@@ -61,6 +61,11 @@ class MatrixParamTest {
     }
 
     @Test
+    void locatorMatrixParamsAreTheOnesOfTheLastSegmentOfARegexVariable() {
+        assertEquals("red details", client.toBlocking().retrieve(HttpRequest.GET("/located/rest/a;color=blue/b;color=red/details")));
+    }
+
+    @Test
     void pathSegmentOfAVariableInPartOfASegment() {
         assertEquals("file-a.txt x=1", client.toBlocking().retrieve(HttpRequest.GET("/segments/file-a.txt;x=1")));
     }
@@ -81,6 +86,11 @@ class MatrixParamTest {
     public static class LocatorResource {
         @Path("{id}")
         public Details details(@MatrixParam("color") String color) {
+            return new Details(color);
+        }
+
+        @Path("rest/{rest: .+}")
+        public Details rest(@MatrixParam("color") String color) {
             return new Details(color);
         }
     }

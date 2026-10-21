@@ -74,6 +74,13 @@ class MediaTypeSelectionTest {
         assertEquals("application/json", response.getContentType().orElseThrow().toString());
     }
 
+    @Test
+    void wildcardDoesNotOverrideAMoreSpecificWeight() {
+        HttpResponse<String> response = client.toBlocking().exchange(HttpRequest.GET("/rejected")
+            .accept("text/plain;q=0.1, application/json;q=0.8, */*;q=1"), String.class);
+        assertEquals("application/json", response.getContentType().orElseThrow().toString());
+    }
+
     @Requires(property = "spec.name", value = "MediaTypeSelectionTest")
     @Path("/media")
     public static class WeightResource {
