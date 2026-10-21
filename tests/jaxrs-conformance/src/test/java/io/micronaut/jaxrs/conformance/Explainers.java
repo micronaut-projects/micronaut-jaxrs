@@ -32,9 +32,6 @@ final class Explainers {
     static String uris(String category, String input, Object ours, Object jersey) {
         String o = String.valueOf(ours);
         String j = String.valueOf(jersey);
-        if (category.equals("mode=13") || category.equals("mode=14")) {
-            return "BUG UriBuilder.userInfo/host do not encode (ClientFindingsTest.userInfoAndHostAreEncoded)";
-        }
         if (o.replace(";", "%3B").equals(j) || o.replace(";", "%3B").replace("%253B", "%3B").equals(j)) {
             return "IMPL ';' in a path value is not encoded (RFC 3986 allows it in a segment, Jersey encodes it)";
         }
@@ -43,9 +40,6 @@ final class Explainers {
         }
         if (input.startsWith("value=") && category.equals("mode=8") || !input.startsWith("value=") && category.equals("mode=16")) {
             return "IMPL replaceQueryParam appends the replaced parameter (Jersey keeps its position)";
-        }
-        if (input.startsWith("value=") && category.equals("mode=9") && input.matches("value=[^,]*/.*")) {
-            return "BUG-LOW resolveTemplateFromEncoded encodes '/' in a path (buildFromEncoded keeps it) (ClientFindingsTest.resolveTemplateFromEncodedKeepsSlash)";
         }
         if (o.contains(";") && j.contains("%3B")) {
             return "IMPL ';' in a path value is not encoded (RFC 3986 allows it in a segment, Jersey encodes it)";

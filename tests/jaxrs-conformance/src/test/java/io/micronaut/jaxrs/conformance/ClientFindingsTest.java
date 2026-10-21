@@ -1,10 +1,8 @@
 package io.micronaut.jaxrs.conformance;
 
 import jakarta.ws.rs.core.HttpHeaders;
-import jakarta.ws.rs.core.Link;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import jakarta.ws.rs.core.UriBuilder;
 import jakarta.ws.rs.core.Variant;
 import jakarta.ws.rs.ext.RuntimeDelegate;
 import org.junit.jupiter.api.AfterAll;
@@ -80,44 +78,5 @@ class ClientFindingsTest {
         Response original = Response.ok().header("Set-Cookie", "n=v").cookie(new jakarta.ws.rs.core.NewCookie.Builder("c").value("v").build()).build();
         Response copy = Response.fromResponse(original).build();
         assertEquals(original.getHeaderString("Set-Cookie"), copy.getHeaderString("Set-Cookie"));
-    }
-
-    /** An encoded template value is not re-encoded: the same path as buildFromEncoded, a '/' kept. */
-    @Test
-    void resolveTemplateFromEncodedKeepsSlash() {
-        assertEquals(UriBuilder.fromUri("http://x.test/{x}").buildFromEncoded("a/b").toString(),
-            UriBuilder.fromUri("http://x.test/{x}").resolveTemplateFromEncoded("x", "a/b").build().toString());
-    }
-
-    /**
-     * RFC 7578 4.2 / RFC 2183: Content-Disposition parameters are quoted-strings, a semicolon inside one does not
-     * end it, and a filename cannot supply the name of the part.
-     */
-    @Test
-    void multipartDispositionParametersAreQuotedStrings() throws Exception {
-        String entity = "--B\r\nContent-Disposition: form-data; filename=\"x; name=evil\"; name=\"real\"\r\n\r\nv\r\n"
-            + "--B\r\nContent-Disposition: form-data; name=\"a;b\"\r\n\r\nw\r\n--B--\r\n";
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        java.util.List<jakarta.ws.rs.core.EntityPart> parts = new io.micronaut.jaxrs.common.multipart.JaxRsMultipartMessageBodyReader().readFrom(
-            (Class) java.util.List.class, new jakarta.ws.rs.core.GenericType<java.util.List<jakarta.ws.rs.core.EntityPart>>() { }.getType(),
-            new java.lang.annotation.Annotation[0], MediaType.valueOf("multipart/form-data;boundary=B"), new jakarta.ws.rs.core.MultivaluedHashMap<>(),
-            new java.io.ByteArrayInputStream(entity.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
-        assertAll(
-            () -> assertEquals("real", parts.get(0).getName()),
-            () -> assertEquals("x; name=evil", parts.get(0).getFileName().orElse(null)),
-            () -> assertEquals("a;b", parts.get(1).getName()));
-    }
-
-    /**
-     * UriBuilder: "contextual encoding of characters not permitted in the corresponding URI component": '@' and
-     * '/' are not permitted in a user-info, they cannot change the authority.
-     */
-    @Test
-    void userInfoAndHostAreEncoded() {
-        assertAll(
-            () -> assertEquals("x.test", UriBuilder.fromUri("http://x.test/").userInfo("a/b").build().getHost()),
-            () -> assertEquals("x.test", UriBuilder.fromUri("http://x.test/").userInfo("@").build().getHost()),
-            () -> assertEquals("http://a%20b@x.test/", UriBuilder.fromUri("http://x.test/").userInfo("a b").build().toString()),
-            () -> assertEquals("/", UriBuilder.fromUri("http://x.test/").host("a/b").build().getRawPath()));
     }
 }

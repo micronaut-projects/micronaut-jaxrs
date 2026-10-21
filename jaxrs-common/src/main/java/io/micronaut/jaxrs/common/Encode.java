@@ -53,6 +53,8 @@ final class Encode {
     private static final String[] MATRIX_PARAMETER_ENCODING = new String[128];
     private static final String[] QUERY_NAME_VALUE_ENCODING = new String[128];
     private static final String[] QUERY_STRING_ENCODING = new String[128];
+    private static final String[] USER_INFO_ENCODING = new String[128];
+    private static final String[] HOST_ENCODING = new String[128];
 
     private static final char OPEN_CURLY_REPLACEMENT = 6;
     private static final char CLOSE_CURLY_REPLACEMENT = 7;
@@ -108,6 +110,13 @@ final class Encode {
         MATRIX_PARAMETER_ENCODING['/'] = "%2F"; // RESTEASY-729
         System.arraycopy(PATH_ENCODING, 0, PATH_SEGMENT_ENCODING, 0, PATH_ENCODING.length);
         PATH_SEGMENT_ENCODING['/'] = "%2F";
+        // userinfo = *( unreserved / pct-encoded / sub-delims / ":" ), a reg-name the same without ":"; an IP literal
+        // host keeps its ':' and brackets
+        System.arraycopy(PATH_SEGMENT_ENCODING, 0, USER_INFO_ENCODING, 0, PATH_SEGMENT_ENCODING.length);
+        USER_INFO_ENCODING['@'] = "%40";
+        System.arraycopy(USER_INFO_ENCODING, 0, HOST_ENCODING, 0, USER_INFO_ENCODING.length);
+        HOST_ENCODING['['] = null;
+        HOST_ENCODING[']'] = null;
         /*
          * Encode via <a href="https://www.ietf.org/rfc/rfc3986.txt">RFC 3986</a>.
          *
@@ -214,6 +223,26 @@ final class Encode {
      */
     public static String encodePathSegment(String value) {
         return encodeValue(value, PATH_SEGMENT_ENCODING);
+    }
+
+    /**
+     * Keep encoded values "%..." and template parameters intact, encode the characters that would end a user-info.
+     *
+     * @param value user-info
+     * @return encoded user-info
+     */
+    public static String encodeUserInfo(String value) {
+        return encodeValue(value, USER_INFO_ENCODING);
+    }
+
+    /**
+     * Keep encoded values "%..." and template parameters intact, encode the characters that would end a host.
+     *
+     * @param value host
+     * @return encoded host
+     */
+    public static String encodeHost(String value) {
+        return encodeValue(value, HOST_ENCODING);
     }
 
     /**
