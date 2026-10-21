@@ -139,6 +139,9 @@ class ServerProviderSelectionTest {
         }
     }
 
+    // a bean: a feature registers a class that is not one only with reflection, see JaxRsReflection
+    @Requires(property = "spec.name", value = "ServerProviderSelectionTest")
+    @jakarta.inject.Singleton
     @Priority(5000)
     public static class FeatureMapper extends NamedMapper {
         public FeatureMapper() {
@@ -234,6 +237,9 @@ class ServerProviderSelectionTest {
         }
     }
 
+    // a bean: a feature registers a class that is not one only with reflection, see JaxRsReflection
+    @Requires(property = "spec.name", value = "ServerProviderSelectionTest")
+    @jakarta.inject.Singleton
     @Priority(5000)
     public static class FeatureWriter extends ThingWriter {
         public FeatureWriter() {
