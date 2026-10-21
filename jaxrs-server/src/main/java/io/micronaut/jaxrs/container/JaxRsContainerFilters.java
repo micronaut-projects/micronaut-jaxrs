@@ -76,8 +76,8 @@ import java.util.function.ToIntFunction;
 final class JaxRsContainerFilters {
 
     /**
-     * The attribute of a request with the entity of its response that no writer writes as the
-     * negotiated type: unless a response filter replaces it, the response is not acceptable.
+     * The attribute of a request with the {@link JaxRsRouteSupport.UnwritableEntity} of its
+     * response: unless a response filter repairs it, the response is not acceptable.
      */
     static final String UNWRITABLE_ENTITY = ContainerResponseFilter.class.getName() + ".unwritable";
 
@@ -236,10 +236,13 @@ final class JaxRsContainerFilters {
             delegateEntityStream = responseContext.getDelegateEntityStream();
             customEntityStream = responseContext.getCustomEntityStream();
         }
-        Object unwritable = request.getAttribute(UNWRITABLE_ENTITY).orElse(null);
-        if (unwritable != null && unwritable == body) {
-            // no filter replaced the entity no writer writes as the negotiated type (JAX-RS 3.8)
+        JaxRsRouteSupport.UnwritableEntity unwritable = request.getAttribute(UNWRITABLE_ENTITY, JaxRsRouteSupport.UnwritableEntity.class).orElse(null);
+        if (unwritable != null && unwritable.unwritable(body, bodyArgument, mutableHttpResponse.getContentType().orElse(null))) {
+            // no filter repaired the entity no writer writes as an acceptable type (JAX-RS 3.8)
             throw new NotAcceptableException();
+        }
+        if (unwritable != null && body != null) {
+            unwritable.negotiate(request, mutableHttpResponse, bodyArgument);
         }
         if (body != null) {
             mutableHttpResponse.body(new JaxRsGenericEntity<>(

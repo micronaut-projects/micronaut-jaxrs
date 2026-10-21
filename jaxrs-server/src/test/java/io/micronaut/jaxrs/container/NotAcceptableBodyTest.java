@@ -17,6 +17,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.container.ContainerRequestContext;
 import jakarta.ws.rs.container.ContainerResponseContext;
 import jakarta.ws.rs.container.ContainerResponseFilter;
+import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.ext.Provider;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -27,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * When no acceptable type has a writer for the entity, the response is not acceptable (JAX-RS,
- * section 3.8), not a server error, unless a response filter replaces the entity.
+ * section 3.8), not a server error, unless a response filter repairs the response.
  */
 @MicronautTest
 @Property(name = "spec.name", value = "NotAcceptableBodyTest")
@@ -59,6 +60,20 @@ class NotAcceptableBodyTest {
         assertEquals("pojo", response.body());
     }
 
+    @Test
+    void responseFilterReplacesTheEntityOfAMethodWithoutProduces() {
+        HttpResponse<String> response = client.toBlocking().exchange(HttpRequest.GET("/any-text").accept("text/plain"), String.class);
+        assertEquals("text/plain", response.getContentType().orElseThrow().toString());
+        assertEquals("pojo", response.body());
+    }
+
+    @Test
+    void responseFilterGivesTheSameEntityAWritableMediaType() {
+        HttpResponse<String> response = client.toBlocking().exchange(HttpRequest.GET("/json-repair").accept("*/*"), String.class);
+        assertEquals("application/json", response.getContentType().orElseThrow().toString());
+        assertEquals("{\"name\":\"pojo\"}", response.body());
+    }
+
     @Serdeable
     public record Pojo(String name) {
     }
@@ -81,6 +96,19 @@ class NotAcceptableBodyTest {
         }
 
         @GET
+        @Path("/any-text")
+        public Pojo anyText() {
+            return new Pojo("pojo");
+        }
+
+        @GET
+        @Path("/json-repair")
+        @Produces("text/plain")
+        public Pojo jsonRepair() {
+            return new Pojo("pojo");
+        }
+
+        @GET
         @Path("/json-or-text")
         @Produces({"application/json", "text/plain"})
         public Pojo jsonOrText() {
@@ -93,8 +121,12 @@ class NotAcceptableBodyTest {
     public static class TextFilter implements ContainerResponseFilter {
         @Override
         public void filter(ContainerRequestContext requestContext, ContainerResponseContext responseContext) {
-            if (requestContext.getUriInfo().getPath().endsWith("/text") && responseContext.getEntity() instanceof Pojo pojo) {
+            String path = requestContext.getUriInfo().getPath();
+            if ((path.endsWith("/text") || path.endsWith("/any-text")) && responseContext.getEntity() instanceof Pojo pojo) {
                 responseContext.setEntity(pojo.name());
+            } else if (path.endsWith("/json-repair")) {
+                // the same entity, with a media type a writer writes it as
+                responseContext.setEntity(responseContext.getEntity(), responseContext.getEntityAnnotations(), MediaType.APPLICATION_JSON_TYPE);
             }
         }
     }
