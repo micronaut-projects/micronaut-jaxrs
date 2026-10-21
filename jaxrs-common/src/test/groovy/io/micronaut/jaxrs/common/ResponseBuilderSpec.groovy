@@ -5,6 +5,7 @@ import jakarta.ws.rs.core.HttpHeaders
 import jakarta.ws.rs.core.Link
 import jakarta.ws.rs.core.MediaType
 import jakarta.ws.rs.core.MultivaluedHashMap
+import jakarta.ws.rs.core.NewCookie
 import jakarta.ws.rs.core.Response
 import jakarta.ws.rs.core.Variant
 import spock.lang.Specification
@@ -22,7 +23,7 @@ class ResponseBuilderSpec extends Specification {
 
         then:
         response.getHeaderString("X-Old") == null
-        response.getHeaderString(HttpHeaders.LAST_MODIFIED) == "Thu, 1 Jan 1970 00:00:00 GMT"
+        response.getHeaderString(HttpHeaders.LAST_MODIFIED) == "Thu, 01 Jan 1970 00:00:00 GMT"
         response.getHeaderString(HttpHeaders.CONTENT_TYPE) == "text/plain"
     }
 
@@ -124,4 +125,48 @@ class ResponseBuilderSpec extends Specification {
         then:
         response.getHeaderString("X-Other") == null
     }
+
+    void "a status out of 100..599 is rejected"() {
+        when:
+        Response.status(status)
+
+        then:
+        thrown(IllegalArgumentException)
+
+        when:
+        Response.status(status, "x")
+
+        then:
+        thrown(IllegalArgumentException)
+
+        where:
+        status << [99, 600]
+    }
+
+    void "a variant replaces the language"() {
+        when:
+        def response = Response.ok().language("en").variant(new Variant(MediaType.TEXT_HTML_TYPE, "fr", "gzip")).build()
+
+        then:
+        response.language == Locale.FRENCH
+        response.getHeaderString(HttpHeaders.CONTENT_LANGUAGE) == "fr"
+        response.getHeaderString(HttpHeaders.CONTENT_ENCODING) == "gzip"
+    }
+
+    void "the dates are IMF-fixdates"() {
+        expect:
+        Response.ok().lastModified(new Date(0)).build().getHeaderString(HttpHeaders.LAST_MODIFIED) == "Thu, 01 Jan 1970 00:00:00 GMT"
+        Response.ok().expires(new Date(0)).build().getHeaderString(HttpHeaders.EXPIRES) == "Thu, 01 Jan 1970 00:00:00 GMT"
+        Response.ok().header("X-Date", new Date(0)).build().getHeaderString("X-Date") == "Thu, 01 Jan 1970 00:00:00 GMT"
+    }
+
+    void "fromResponse does not duplicate a date header set raw then with lastModified"() {
+        given:
+        def original = Response.status(301).header(HttpHeaders.LAST_MODIFIED, "garbage").allow("PUT", "get")
+            .cookie(new NewCookie.Builder("c").value("v").build()).tag("t").lastModified(new Date(0)).build()
+
+        expect:
+        Response.fromResponse(original).build().getHeaderString(HttpHeaders.LAST_MODIFIED) == original.getHeaderString(HttpHeaders.LAST_MODIFIED)
+    }
+
 }
