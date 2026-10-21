@@ -804,6 +804,10 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             // a negotiated type that is not concrete is not acceptable
             support.acceptable(pathVariables);
         }
+        if (method.consumes()) {
+            // an unparseable content type matches none of the consumed types
+            support.consumable(request);
+        }
         if (form != null) {
             // for the resources of the ResourceContext
             request.setAttribute(FORM, form);
@@ -952,7 +956,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         JaxRsRouteSupport.RouteMetadata metadata = new JaxRsRouteSupport.RouteMetadata(owner, method.name(),
             Argument.toClassArray(method.arguments()), produces.toArray(String[]::new), consumes.toArray(String[]::new), rootClass);
         return new ResourceMethod<>(method, httpMethod, template, readers, form, formEntity, usesForm, encodedForm, entity, async,
-            !produces.isEmpty(), converter(valueType, async), completion(produces, valueType), responseType(valueType), metadata,
+            !produces.isEmpty(), !consumes.isEmpty(), converter(valueType, async), completion(produces, valueType), responseType(valueType), metadata,
             suspended);
     }
 
@@ -1598,6 +1602,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      * @param entity     The index of its entity parameter, -1 without one
      * @param async      Whether it returns a stage of its result
      * @param produces   Whether it declares the media types it produces
+     * @param consumes   Whether it declares the media types it consumes
      * @param converter  Converts its result to its response
      * @param completion Completes its response
      * @param responseType The declared type of its entity, {@code null} for none
@@ -1607,7 +1612,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      */
     private record ResourceMethod<B>(JaxRsMethod<B> method, String httpMethod, String template, Reader[] readers, boolean form,
                                      boolean formEntity, boolean usesForm, boolean encodedForm, int entity, boolean async, boolean produces,
-                                     Converter converter, Completion completion, @Nullable Argument<?> responseType,
+                                     boolean consumes, Converter converter, Completion completion, @Nullable Argument<?> responseType,
                                      JaxRsRouteSupport.RouteMetadata metadata, boolean suspended) {
     }
 

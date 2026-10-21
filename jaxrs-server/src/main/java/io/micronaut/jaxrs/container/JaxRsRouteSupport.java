@@ -79,6 +79,7 @@ import jakarta.ws.rs.Encoded;
 import jakarta.ws.rs.FormParam;
 import jakarta.ws.rs.core.EntityPart;
 import jakarta.ws.rs.HeaderParam;
+import jakarta.ws.rs.InternalServerErrorException;
 import jakarta.ws.rs.MatrixParam;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.QueryParam;
@@ -548,7 +549,13 @@ public final class JaxRsRouteSupport {
      */
     public @Nullable Object queryParam(HttpRequest<?> request, String name, Argument<?> argument,
                                        @Nullable String defaultValue, boolean encoded) {
-        List<String> values = encoded ? rawQueryValues(request, name) : request.getParameters().getAll(name);
+        // the name is decoded, with @Encoded the values are not
+        List<String> values = new ArrayList<>(1);
+        UriInfoImpl.queryParameters(request.getUri(), false).forEach((raw, rawValues) -> {
+            if (UriInfoImpl.decodeQuery(raw).equals(name)) {
+                rawValues.forEach(value -> values.add(encoded ? value : UriInfoImpl.decodeQuery(value)));
+            }
+        });
         return convert(values, argument, defaultValue, true);
     }
 
@@ -1227,7 +1234,7 @@ public final class JaxRsRouteSupport {
         }
         MediaType mediaType = JaxRsRouteTemplateEngine.responseType(request.getHeaders().accept(), producible);
         if (mediaType == null) {
-            return unacceptable(request, mutable, body, deferrable);
+            return unacceptable(request, mutable, body, deferrable, false);
         }
         if (mediaType.equals(MediaType.APPLICATION_OCTET_STREAM_TYPE)
             && producible.size() == 1 && producible.get(0).equals(MediaType.ALL_TYPE)
@@ -1281,7 +1288,7 @@ public final class JaxRsRouteSupport {
         }
         MediaType mediaType = JaxRsRouteTemplateEngine.responseType(accepted, writable);
         if (mediaType == null) {
-            return unacceptable(request, response, body, deferrable);
+            return unacceptable(request, response, body, deferrable, false);
         }
         return response.contentType(mediaType);
     }
@@ -1289,13 +1296,17 @@ public final class JaxRsRouteSupport {
     /**
      * A response whose entity no writer writes as an acceptable type: not acceptable, unless a
      * response filter can repair it, e.g. replace the entity with one a writer writes (JAX-RS 3.8).
+     *
+     * @param serverError Whether the type is the one the resource method produces, negotiated
+     *                    already: then no writer is a server error, not a response that is not acceptable
      */
-    private MutableHttpResponse<?> unacceptable(HttpRequest<?> request, MutableHttpResponse<?> response, Object body, boolean deferrable) {
+    private MutableHttpResponse<?> unacceptable(HttpRequest<?> request, MutableHttpResponse<?> response, Object body, boolean deferrable,
+                                                boolean serverError) {
         if (!deferrable || !containerFilters().filtersResponse(RouteAttributes.getRouteInfo(request).orElse(null))) {
-            throw new NotAcceptableException();
+            throw UnwritableEntity.failure(serverError);
         }
         request.setAttribute(JaxRsContainerFilters.UNWRITABLE_ENTITY,
-            new UnwritableEntity(body instanceof GenericEntity<?> entity ? entity.getEntity() : body, this));
+            new UnwritableEntity(body instanceof GenericEntity<?> entity ? entity.getEntity() : body, this, serverError));
         return response;
     }
 
@@ -1327,6 +1338,19 @@ public final class JaxRsRouteSupport {
         MediaType selected = RouteMatchSelector.selectedMediaType(pathVariables);
         if (selected != null && "*".equals(selected.getSubtype())) {
             throw new NotAcceptableException();
+        }
+    }
+
+    /**
+     * Reject a request whose content type cannot be parsed, for a resource method that declares
+     * the types it consumes: it matches none of them (JAX-RS 3.7.2, step 3). The route matched,
+     * as a request without a content type does, so that the method is matched first.
+     *
+     * @param request The request
+     */
+    public void consumable(HttpRequest<?> request) {
+        if (request.getContentType().isEmpty() && request.getHeaders().contains(HttpHeaders.CONTENT_TYPE)) {
+            throw new NotSupportedException();
         }
     }
 
@@ -1364,8 +1388,9 @@ public final class JaxRsRouteSupport {
             }
             MediaType mediaType = JaxRsRouteTemplateEngine.responseType(request.getHeaders().accept(), writable);
             if (mediaType == null) {
-                // a response filter can repair the response: it is not acceptable if it does not
-                return unacceptable(request, mutable, body, true).header(HttpHeaders.CONTENT_TYPE, selected.toString());
+                // no writer for the negotiated type: a response filter can repair the response,
+                // it is a server error if it does not (JAX-RS 4.2.2, step 5)
+                return unacceptable(request, mutable, body, true, true).header(HttpHeaders.CONTENT_TYPE, selected.toString());
             }
             return mutable.contentType(mediaType);
         }
@@ -1553,22 +1578,6 @@ public final class JaxRsRouteSupport {
 
     private static Charset formCharset(HttpRequest<?> request) {
         return request.getContentType().flatMap(MediaType::getCharset).orElse(StandardCharsets.UTF_8);
-    }
-
-    private static List<String> rawQueryValues(HttpRequest<?> request, String name) {
-        String query = request.getUri().getRawQuery();
-        if (query == null || query.isEmpty()) {
-            return List.of();
-        }
-        List<String> values = new ArrayList<>(1);
-        for (String pair : query.split("&")) {
-            int equals = pair.indexOf('=');
-            String key = java.net.URLDecoder.decode(equals < 0 ? pair : pair.substring(0, equals), java.nio.charset.StandardCharsets.UTF_8);
-            if (key.equals(name)) {
-                values.add(equals < 0 ? "" : pair.substring(equals + 1));
-            }
-        }
-        return values;
     }
 
     private @Nullable Object convert(List<String> values, Argument<?> argument, @Nullable String defaultValue, boolean notFound) {
@@ -1778,10 +1787,22 @@ public final class JaxRsRouteSupport {
      * filter can repair: by replacing it, or by giving it a type, annotations or a media type a
      * writer writes it with.
      *
-     * @param entity  The entity
-     * @param support The support, which knows the writers
+     * @param entity      The entity
+     * @param support     The support, which knows the writers
+     * @param serverError Whether an entity left unwritable is a server error, else a response that is
+     *                    not acceptable
      */
-    record UnwritableEntity(Object entity, JaxRsRouteSupport support) {
+    record UnwritableEntity(Object entity, JaxRsRouteSupport support, boolean serverError) {
+
+        /**
+         * @param serverError Whether no writer is a server error
+         * @return The exception of an entity no writer writes
+         */
+        static WebApplicationException failure(boolean serverError) {
+            return serverError
+                ? new InternalServerErrorException("No writer for the entity and the media type")
+                : new NotAcceptableException();
+        }
 
         /**
          * @param body        The entity after the response filters

@@ -41,7 +41,6 @@ import io.micronaut.jaxrs.runtime.ext.bind.UriInfoImpl;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.RouteInfo;
 import jakarta.inject.Singleton;
-import jakarta.ws.rs.NotAcceptableException;
 import jakarta.ws.rs.container.ContainerRequestFilter;
 import jakarta.ws.rs.container.ContainerResponseFilter;
 import jakarta.ws.rs.container.PreMatching;
@@ -239,7 +238,7 @@ final class JaxRsContainerFilters {
         JaxRsRouteSupport.UnwritableEntity unwritable = request.getAttribute(UNWRITABLE_ENTITY, JaxRsRouteSupport.UnwritableEntity.class).orElse(null);
         if (unwritable != null && unwritable.unwritable(body, bodyArgument, mutableHttpResponse.getContentType().orElse(null))) {
             // no filter repaired the entity no writer writes as an acceptable type (JAX-RS 3.8)
-            throw new NotAcceptableException();
+            throw JaxRsRouteSupport.UnwritableEntity.failure(unwritable.serverError());
         }
         if (unwritable != null && body != null) {
             unwritable.negotiate(request, mutableHttpResponse, bodyArgument);

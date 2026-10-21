@@ -8,10 +8,13 @@ import io.micronaut.http.MutableHttpRequest;
 import io.micronaut.http.client.HttpClient;
 import io.micronaut.http.client.annotation.Client;
 import io.micronaut.http.client.exceptions.HttpClientResponseException;
+import io.micronaut.runtime.server.EmbeddedServer;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
+import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
+import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import org.junit.jupiter.api.Test;
@@ -30,6 +33,9 @@ class MediaTypeSelectionTest {
     @Inject
     @Client("/api/media")
     HttpClient client;
+
+    @Inject
+    EmbeddedServer server;
 
     private HttpResponse<String> post(String accept) {
         MutableHttpRequest<String> request = HttpRequest.POST("/weight", "");
@@ -81,6 +87,18 @@ class MediaTypeSelectionTest {
         assertEquals("application/json", response.getContentType().orElseThrow().toString());
     }
 
+    @Test
+    void unparseableContentTypeMatchesNoConsumedType() throws Exception {
+        // JAX-RS 3.7.2, step 3: sent raw, as the Micronaut client parses the content type
+        java.net.http.HttpResponse<String> response = java.net.http.HttpClient.newHttpClient().send(
+            java.net.http.HttpRequest.newBuilder(server.getURI().resolve("/api/media/consumed"))
+                .header("Content-Type", "garbage")
+                .PUT(java.net.http.HttpRequest.BodyPublishers.ofString("x"))
+                .build(),
+            java.net.http.HttpResponse.BodyHandlers.ofString());
+        assertEquals(415, response.statusCode());
+    }
+
     @Requires(property = "spec.name", value = "MediaTypeSelectionTest")
     @Path("/media")
     public static class WeightResource {
@@ -110,6 +128,13 @@ class MediaTypeSelectionTest {
         @Produces("image/*;qs=0.7")
         public String image() {
             return "image/any";
+        }
+
+        @PUT
+        @Path("consumed")
+        @Consumes({"text/*", "application/json"})
+        public String consumed(String body) {
+            return body;
         }
 
         @GET

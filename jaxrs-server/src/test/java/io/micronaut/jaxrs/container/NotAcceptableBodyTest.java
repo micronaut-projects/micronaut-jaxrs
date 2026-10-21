@@ -27,8 +27,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * When no acceptable type has a writer for the entity, the response is not acceptable (JAX-RS,
- * section 3.8), not a server error, unless a response filter repairs the response.
+ * When no acceptable type has a writer for the entity of a method without {@code @Produces}, the
+ * response is not acceptable (JAX-RS, section 3.8), and when no writer writes it as the type
+ * negotiated with the {@code @Produces} of the method, it is a server error (section 4.2.2, step 5),
+ * unless a response filter repairs the response.
  */
 @MicronautTest
 @Property(name = "spec.name", value = "NotAcceptableBodyTest")
@@ -38,12 +40,26 @@ class NotAcceptableBodyTest {
     @Client("/api/not-acceptable-body")
     HttpClient client;
 
+    @Test
+    void noWriterForTheAcceptableTypes() {
+        HttpClientResponseException e = assertThrows(HttpClientResponseException.class,
+            () -> client.toBlocking().exchange(HttpRequest.GET("/any").accept("application/json;q=0, text/plain"), String.class));
+        assertEquals(HttpStatus.NOT_ACCEPTABLE, e.getStatus());
+    }
+
     @ParameterizedTest
-    @ValueSource(strings = {"/any", "/json-or-text"})
-    void noWriterForTheAcceptableTypes(String path) {
+    @ValueSource(strings = {"/json-or-text", "/text-only"})
+    void noWriterForTheProducedType(String path) {
         HttpClientResponseException e = assertThrows(HttpClientResponseException.class,
             () -> client.toBlocking().exchange(HttpRequest.GET(path).accept("application/json;q=0, text/plain"), String.class));
-        assertEquals(HttpStatus.NOT_ACCEPTABLE, e.getStatus());
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, e.getStatus());
+    }
+
+    @Test
+    void noWriterForTheProducedTypeWithoutAccept() {
+        HttpClientResponseException e = assertThrows(HttpClientResponseException.class,
+            () -> client.toBlocking().exchange(HttpRequest.GET("/text-only"), String.class));
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, e.getStatus());
     }
 
     @Test
@@ -92,6 +108,13 @@ class NotAcceptableBodyTest {
         @Path("/text")
         @Produces("text/plain")
         public Pojo text() {
+            return new Pojo("pojo");
+        }
+
+        @GET
+        @Path("/text-only")
+        @Produces("text/plain")
+        public Pojo textOnly() {
             return new Pojo("pojo");
         }
 
