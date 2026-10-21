@@ -54,10 +54,13 @@ final class JaxRsSseBroadcaster implements SseBroadcaster {
 
     @Override
     public void register(SseEventSink sink) {
-        if (closed) {
-            throw new IllegalStateException("The broadcaster is closed");
+        // atomic to close: a sink is not added after close took the sinks to close
+        synchronized (this) {
+            if (closed) {
+                throw new IllegalStateException("The broadcaster is closed");
+            }
+            sinks.add(sink);
         }
-        sinks.add(sink);
         if (sink instanceof JaxRsSseEventSink eventSink) {
             // the client disconnected, or the application closed the sink
             eventSink.onClose(() -> closed(sink));
@@ -92,8 +95,12 @@ final class JaxRsSseBroadcaster implements SseBroadcaster {
 
     @Override
     public void close(boolean cascading) {
-        closed = true;
-        for (SseEventSink sink : sinks) {
+        List<SseEventSink> registered;
+        synchronized (this) {
+            closed = true;
+            registered = List.copyOf(sinks);
+        }
+        for (SseEventSink sink : registered) {
             if (cascading) {
                 try {
                     sink.close();

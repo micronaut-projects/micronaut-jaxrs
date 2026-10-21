@@ -5,6 +5,7 @@ import io.micronaut.runtime.server.EmbeddedServer;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.ConstrainedTo;
+import jakarta.ws.rs.ProcessingException;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.RuntimeType;
 import jakarta.ws.rs.client.Client;
@@ -34,6 +35,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -178,6 +180,20 @@ class JaxRsClientProvidersTest {
         assertTrue(echoed.equals("application/xml|none") || echoed.equals("application/xml|null"), echoed);
     }
 
+    @Test
+    void theReaderOfTheDataOfAnEventIsSelectedWithTheProvidersOfTheTarget() {
+        client.register(new ContextSelectedReader());
+        // only the target has the resolver the reader needs to read
+        JaxRsWebTarget target = (JaxRsWebTarget) echo().register(XmlResolver.class);
+        // the shared reader is injected again by a target without that resolver
+        JaxRsWebTarget other = (JaxRsWebTarget) echo().register(JsonResolver.class);
+        var otherEvent = new JaxRsInboundSseEvent(null, null, null, InboundSseEvent.RECONNECT_NOT_SET, "x", other.getConfiguration());
+        assertThrows(ProcessingException.class, () -> otherEvent.readData(Thing.class, MediaType.APPLICATION_XML_TYPE));
+        var event = new JaxRsInboundSseEvent(null, null, null, InboundSseEvent.RECONNECT_NOT_SET, "x", target.getConfiguration());
+
+        assertEquals(new Thing("selected"), event.readData(Thing.class, MediaType.APPLICATION_XML_TYPE));
+    }
+
     public record Thing(String value) {
     }
 
@@ -320,6 +336,26 @@ class JaxRsClientProvidersTest {
                               MultivaluedMap<String, String> httpHeaders, InputStream entityStream) {
             ContextResolver<String> resolver = providers.getContextResolver(String.class, mediaType);
             return new Thing(resolver == null ? "none" : resolver.getContext(Thing.class));
+        }
+    }
+
+    /**
+     * Reads a thing only when a context resolver of strings is current for the media type.
+     */
+    public static final class ContextSelectedReader implements MessageBodyReader<Thing> {
+
+        @Context
+        Providers providers;
+
+        @Override
+        public boolean isReadable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+            return type == Thing.class && providers.getContextResolver(String.class, mediaType) != null;
+        }
+
+        @Override
+        public Thing readFrom(Class<Thing> type, Type genericType, Annotation[] annotations, MediaType mediaType,
+                              MultivaluedMap<String, String> httpHeaders, InputStream entityStream) {
+            return new Thing("selected");
         }
     }
 
