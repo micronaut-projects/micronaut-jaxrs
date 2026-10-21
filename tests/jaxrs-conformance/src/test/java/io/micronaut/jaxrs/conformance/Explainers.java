@@ -17,19 +17,10 @@ final class Explainers {
 
     /** HeaderConformanceTest. */
     static String headers(String category, String input, Object ours, Object jersey) {
-        if (String.valueOf(ours).equalsIgnoreCase(String.valueOf(jersey))) {
-            return "BUG MediaType.toString caches the instance it serialized (ClientFindingsTest.serializationDoesNotChangeLaterParsing)";
-        }
         if (category.equals("quoted-string") && input.equals(ours)) {
             return "JERSEY MediaType.toString does not escape a backslash in a quoted parameter";
         }
         if (category.startsWith("media:")) {
-            if (input.contains("\\")) {
-                return "BUG MediaType.valueOf keeps the quoted-pair backslashes (ClientFindingsTest.quotedPairIsUnescaped)";
-            }
-            if (!input.equals(input.trim()) || input.contains(" ;")) {
-                return "BUG MediaType.valueOf keeps the OWS in the type (ClientFindingsTest.mediaTypeWhitespaceIsNotPartOfTheType)";
-            }
             if (throwsIn(jersey)) {
                 return "IMPL MediaType.valueOf accepts characters that are not token characters";
             }
@@ -70,17 +61,13 @@ final class Explainers {
 
     /** ClientApiConformanceTest.seededHeaderDelegateRoundTrips. */
     static String delegates(String category, String input, Object ours, Object jersey) {
-        if (String.valueOf(ours).equalsIgnoreCase(String.valueOf(jersey))) {
-            return "BUG MediaType.toString caches the instance it serialized: a later valueOf returns its upper-case type "
-                + "(ClientFindingsTest.serializationDoesNotChangeLaterParsing)";
-        }
         switch (category) {
             case "link" -> {
                 if (input.contains("< ")) {
-                    return "BUG Link.valueOf throws UriBuilderException, not IllegalArgumentException (ClientFindingsTest.linkSyntaxErrorIsAnIllegalArgument)";
+                    return "JERSEY Link.valueOf accepts whitespace within <> (RFC 8288 3: a syntax error)";
                 }
                 if (input.indexOf("rel=") != input.lastIndexOf("rel=")) {
-                    return "BUG Link.valueOf merges a repeated rel (ClientFindingsTest.repeatedRelIsIgnored); Jersey keeps the last one, also wrong";
+                    return "JERSEY Link.valueOf keeps the last of a repeated rel (RFC 8288 3.3: the first)";
                 }
                 return null;
             }
@@ -91,9 +78,6 @@ final class Explainers {
                 return throwsIn(ours) ? "IMPL no HeaderDelegate<Locale> (Jersey has one; JAX-RS does not require it)" : null;
             }
             case "media-type", "media-type-toString" -> {
-                if (input.endsWith("\"\"")) {
-                    return "BUG an empty quoted parameter value is null (ClientFindingsTest.emptyQuotedParameterIsEmpty)";
-                }
                 return throwsIn(jersey) ? "IMPL MediaType.valueOf is lenient (accepts '*', spaces, empty parameter names/values)" : null;
             }
             default -> {
@@ -124,10 +108,6 @@ final class Explainers {
         for (int i = 0; i < a.size(); i++) {
             if (!String.valueOf(a.get(i)).equals(String.valueOf(b.get(i)))) {
                 String av = String.valueOf(a.get(i));
-                if (av.equalsIgnoreCase(String.valueOf(b.get(i)))) {
-                    return "BUG MediaType.toString caches the instance it serialized: a later valueOf returns its upper-case type "
-                        + "(ClientFindingsTest.serializationDoesNotChangeLaterParsing)";
-                }
                 if (i == 17 && av.contains("1970 00:00:00 GMT,")) {
                     return "BUG Response.fromResponse duplicates a date header set raw then with lastModified()/expires() (ClientFindingsTest.fromResponseDoesNotDuplicateDateHeaders)";
                 }

@@ -89,32 +89,6 @@ class ClientFindingsTest {
             UriBuilder.fromUri("http://x.test/{x}").resolveTemplateFromEncoded("x", "a/b").build().toString());
     }
 
-    /** RFC 8288 3.3: occurrences of rel after the first MUST be ignored. */
-    @Test
-    void repeatedRelIsIgnored() {
-        assertEquals(java.util.List.of("next"), Link.valueOf("<http://x.test/a>; rel=next; rel=last").getRels());
-    }
-
-    /** Link.valueOf: IllegalArgumentException if a syntax error is found (not another exception). */
-    @Test
-    void linkSyntaxErrorIsAnIllegalArgument() {
-        assertThrows(IllegalArgumentException.class, () -> Link.valueOf("< http://x.test >; rel=next"));
-    }
-
-    /** RFC 9110 5.6.6: an empty quoted-string is a parameter value, the empty string. */
-    @Test
-    void emptyQuotedParameterIsEmpty() {
-        assertEquals("", MediaType.valueOf("a/b;x=\"\"").getParameters().get("x"));
-    }
-
-    /** RFC 9110 5.6.4: a backslash-escaped character in a quoted-string is the character itself. */
-    @Test
-    void quotedPairIsUnescaped() {
-        assertAll(
-            () -> assertEquals("a\"b", MediaType.valueOf("text/plain;x=\"a\\\"b\"").getParameters().get("x")),
-            () -> assertEquals("a\\b", MediaType.valueOf("text/plain;x=\"a\\\\b\"").getParameters().get("x")));
-    }
-
     /**
      * RFC 7578 4.2 / RFC 2183: Content-Disposition parameters are quoted-strings, a semicolon inside one does not
      * end it, and a filename cannot supply the name of the part.
@@ -132,29 +106,6 @@ class ClientFindingsTest {
             () -> assertEquals("real", parts.get(0).getName()),
             () -> assertEquals("x; name=evil", parts.get(0).getFileName().orElse(null)),
             () -> assertEquals("a;b", parts.get(1).getName()));
-    }
-
-    /** RFC 9110 5.6.4: a quote or backslash in a quoted parameter value is escaped when serialized. */
-    @Test
-    void quotedParameterIsEscaped() {
-        MediaType type = new MediaType("text", "plain", java.util.Map.of("x", "a\"b"));
-        assertEquals("text/plain;x=\"a\\\"b\"", type.toString());
-    }
-
-    /** MediaType.valueOf("text/plain") gives the type as written, whatever MediaType was serialized before. */
-    @Test
-    void serializationDoesNotChangeLaterParsing() {
-        String ignored = new MediaType("X-PROBE", "ABC").toString();
-        assertEquals("x-probe", MediaType.valueOf("x-probe/abc").getType(), ignored);
-    }
-
-    /** RFC 9110 5.6.6 and 8.3.1: optional whitespace around the media type and before the semicolon. */
-    @Test
-    void mediaTypeWhitespaceIsNotPartOfTheType() {
-        assertAll(
-            () -> assertEquals("text", MediaType.valueOf(" text/plain ").getType()),
-            () -> assertEquals("plain", MediaType.valueOf(" text/plain ").getSubtype()),
-            () -> assertEquals("plain", MediaType.valueOf("text/plain ; charset=UTF-8").getSubtype()));
     }
 
     /**

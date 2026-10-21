@@ -47,7 +47,6 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Ob
         if (result == null) {
             result = internalParse(type);
             MAP.put(type, result);
-            REVERSE_MAP.put(result, type);
         }
         return result;
     }
@@ -71,7 +70,9 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Ob
     }
 
     @SuppressWarnings("java:S3776")
-    private static MediaType internalParse(String type) {
+    private static MediaType internalParse(String text) {
+        // RFC 9110 5.6.6 and 8.3.1: optional whitespace around the media type and before the parameters
+        String type = text.trim();
         int typeIndex = type.indexOf('/');
         int paramIndex = type.indexOf(';');
         String major;
@@ -80,7 +81,7 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Ob
 
             major = type;
             if (paramIndex > -1) {
-                major = major.substring(0, paramIndex);
+                major = major.substring(0, paramIndex).trim();
             }
             if (!MediaType.MEDIA_TYPE_WILDCARD.equals(major)) {
                 throw new IllegalArgumentException(INVALID_MEDIA_TYPE + type);
@@ -89,7 +90,7 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Ob
         } else {
             major = type.substring(0, typeIndex);
             if (paramIndex > -1) {
-                subtype = type.substring(typeIndex + 1, paramIndex);
+                subtype = type.substring(typeIndex + 1, paramIndex).trim();
             } else {
                 subtype = type.substring(typeIndex + 1);
             }
@@ -134,8 +135,8 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Ob
         String result = REVERSE_MAP.get(type);
         if (result == null) {
             result = internalToString(type);
+            // not cached for parsing: MediaType equality ignores the case of the type, valueOf must not
             REVERSE_MAP.put(type, result);
-            MAP.put(result, type);
         }
         return result;
     }
@@ -150,8 +151,9 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Ob
         for (String name : type.getParameters().keySet()) {
             buf.append(';').append(name).append('=');
             String val = type.getParameters().get(name);
-            if (quoted(val)) {
-                buf.append('"').append(val).append('"');
+            if (val.isEmpty() || quoted(val)) {
+                // RFC 9110 5.6.4: a quote or a backslash in a quoted-string is a quoted-pair
+                buf.append('"').append(val.replace("\\", "\\\\").replace("\"", "\\\"")).append('"');
             } else {
                 buf.append(val);
             }
