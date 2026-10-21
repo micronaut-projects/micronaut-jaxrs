@@ -83,6 +83,7 @@ import org.slf4j.LoggerFactory;
 import java.lang.annotation.Annotation;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -226,11 +227,12 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         String prefix = strip(rootPath) + JaxRsRouteTemplateEngine.ROOT_MARK;
         // a singleton is not created per request: its @Context members are proxies of the current request
         RequestType<B> requestType = root.shared() ? null : requestType(root.type(), root.definition());
-        int rootSegments = segments(rootPath);
+        MatchedSegments rootSegments = MatchedSegments.of(rootPath);
         Supplier<B> instances = root.instances();
         Instances<@Nullable Void, B> instance = requestType == null
-            ? (request, pathVariables, form, target) -> support.matched(request, instances.get(), rootSegments)
-            : (request, pathVariables, form, target) -> support.matched(request, create(requestType, request, pathVariables, form), rootSegments);
+            ? (request, pathVariables, form, target) -> support.matched(request, instances.get(), rootSegments.count(pathVariables))
+            : (request, pathVariables, form, target) -> support.matched(request, create(requestType, request, pathVariables, form),
+                rootSegments.count(pathVariables));
         Map<Class<?>, Integer> visited = new LinkedHashMap<>();
         visited.put(type, 1);
         declare(routes, type, root.methods(), type, prefix, instance, requestType != null && requestType.usesForm(), visited, false,
@@ -536,9 +538,10 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 method.name());
             return;
         }
-        int segments = routes.located() ? -1 : segments(prefix);
+        @Nullable MatchedSegments matchedSegments = routes.located() ? null : MatchedSegments.of(prefix);
         routes.locate(routes.prefix(prefix), (request, pathVariables, target1) -> {
             B instance = instances.get(request, pathVariables, null, target1);
+            int segments = matchedSegments == null ? -1 : matchedSegments.count(pathVariables);
             return support.matched(request, locate(method, instance, readers, request, pathVariables, null, segments), segments);
         });
     }
@@ -556,9 +559,10 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         if (targetMethods.isEmpty()) {
             return false;
         }
-        int segments = segments(prefix);
+        MatchedSegments matchedSegments = MatchedSegments.of(prefix);
         Instances<L, T> chained = (request, pathVariables, form, located) -> {
             B instance = instances.get(request, pathVariables, form, located);
+            int segments = matchedSegments.count(pathVariables);
             return support.matched(request, target.cast(locate(method, instance, readers, request, pathVariables, form, segments)), segments);
         };
         int occurrences = visited.getOrDefault(target, 0);
@@ -1202,6 +1206,71 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             }
         }
         return segments;
+    }
+
+    /**
+     * The number of path segments a template matched: its segments, plus the further segments
+     * the values of its variables with a regular expression span, e.g. two for {@code a/b} of
+     * {@code {rest: .+}}.
+     *
+     * @param literal        The segments of the template, a variable with a regular expression
+     *                       counted as one
+     * @param regexVariables The variables with a regular expression, in their order in the
+     *                       template
+     */
+    private record MatchedSegments(int literal, List<String> regexVariables) {
+
+        static MatchedSegments of(String template) {
+            List<String> variables = new ArrayList<>();
+            int depth = 0;
+            int start = -1;
+            for (int i = 0; i < template.length(); i++) {
+                char c = template.charAt(i);
+                if (c == '{') {
+                    if (depth++ == 0) {
+                        start = i + 1;
+                    }
+                } else if (c == '}' && --depth == 0) {
+                    String variable = template.substring(start, i);
+                    int colon = variable.indexOf(':');
+                    if (colon >= 0) {
+                        variables.add(variable.substring(0, colon).trim());
+                    }
+                }
+            }
+            return new MatchedSegments(segments(template), List.copyOf(variables));
+        }
+
+        /**
+         * @param pathVariables The variables of the matched route, whose template starts with
+         *                      the template of these segments
+         * @return The number of segments matched
+         */
+        int count(PathVariables pathVariables) {
+            if (regexVariables.isEmpty()) {
+                return literal;
+            }
+            PathVariables raw = pathVariables.raw();
+            int count = literal;
+            Map<String, Integer> seen = new HashMap<>();
+            for (String name : regexVariables) {
+                // the occurrences of a variable that repeats are named from the last one, which
+                // may follow in the rest of the template
+                int occurrence = seen.merge(name, 1, Integer::sum);
+                int occurrences = 1;
+                while (raw.findString(JaxRsRouteTemplateEngine.repeated(name, occurrences)).isPresent()) {
+                    occurrences++;
+                }
+                int fromLast = occurrences - occurrence;
+                String value = raw.findString(fromLast <= 0 ? name : JaxRsRouteTemplateEngine.repeated(name, fromLast)).orElse("");
+                for (int i = 0; i < value.length(); i++) {
+                    if (value.charAt(i) == '/') {
+                        count++;
+                    }
+                }
+            }
+            return count;
+        }
     }
 
     private static String strip(String path) {
