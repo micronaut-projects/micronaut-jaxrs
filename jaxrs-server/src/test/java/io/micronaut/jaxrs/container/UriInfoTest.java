@@ -51,6 +51,17 @@ class UriInfoTest {
     }
 
     @Test
+    void returnedCollectionsAreReadOnly() {
+        UriInfo uriInfo = new UriInfoImpl(HttpRequest.GET("http://example.com/api/foo;m=1?q=a"), "/api");
+        Assertions.assertThrows(UnsupportedOperationException.class, () -> uriInfo.getQueryParameters().clear());
+        Assertions.assertThrows(UnsupportedOperationException.class, () -> uriInfo.getQueryParameters(false).add("x", "y"));
+        Assertions.assertThrows(UnsupportedOperationException.class, () -> uriInfo.getQueryParameters().get("q").add("b"));
+        Assertions.assertThrows(UnsupportedOperationException.class,
+            () -> uriInfo.getPathSegments().get(0).getMatrixParameters().putSingle("m", "2"));
+        Assertions.assertThrows(UnsupportedOperationException.class, () -> uriInfo.getMatchedURIs().clear());
+    }
+
+    @Test
     void resolveAgainstTheBaseUri() {
         UriInfo uriInfo = new UriInfoImpl(HttpRequest.GET("http://host/api/a/b"), "/api");
         Assertions.assertEquals(URI.create("http://host/api/c"), uriInfo.resolve(URI.create("c")));
