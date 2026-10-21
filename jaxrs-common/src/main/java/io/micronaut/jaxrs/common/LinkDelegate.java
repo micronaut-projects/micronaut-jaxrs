@@ -20,6 +20,7 @@ import io.micronaut.core.util.ArgumentUtils;
 import jakarta.ws.rs.core.Link;
 import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.core.MultivaluedMap;
+import jakarta.ws.rs.core.UriBuilderException;
 import jakarta.ws.rs.ext.RuntimeDelegate;
 import org.jspecify.annotations.Nullable;
 
@@ -110,7 +111,11 @@ final class LinkDelegate implements RuntimeDelegate.HeaderDelegate<Link> {
         }
 
         public Link getLink() {
-            return builder.build();
+            try {
+                return builder.build();
+            } catch (UriBuilderException e) {
+                throw new IllegalArgumentException("Unable to parse Link header. Invalid link: " + value, e);
+            }
         }
 
         void parse() {
@@ -143,30 +148,16 @@ final class LinkDelegate implements RuntimeDelegate.HeaderDelegate<Link> {
             builder.uri(href);
             for (Entry<String, List<String>> entry : attributes.entrySet()) {
                 List<String> values = entry.getValue();
+                // RFC 8288 3.3 and 3.4.1: the occurrences of rel, title and type after the first are ignored
                 switch (entry.getKey()) {
-                    case "rel":
-                        for (String val : values) {
-                            builder.rel(val);
-                        }
-                        break;
-                    case "title":
-                        for (String val : values) {
-                            builder.title(val);
-                        }
-
-                        break;
-                    case "type":
-                        for (String val : values) {
-                            builder.type(val);
-                        }
-
-                        break;
-                    default:
+                    case "rel" -> builder.rel(values.get(0));
+                    case "title" -> builder.title(values.get(0));
+                    case "type" -> builder.type(values.get(0));
+                    default -> {
                         for (String val : values) {
                             builder.param(entry.getKey(), val);
                         }
-
-                        break;
+                    }
                 }
             }
         }

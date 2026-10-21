@@ -272,7 +272,13 @@ final class JaxRsContextRequest implements Request {
         double best = 0;
         int bestSpecificity = -1;
         for (Weighted weighted : accept) {
-            MediaType accepted = MediaType.valueOf(weighted.value);
+            MediaType accepted;
+            try {
+                accepted = MediaType.valueOf(weighted.value);
+            } catch (IllegalArgumentException e) {
+                // an invalid media range is ignored, as by the route negotiation
+                continue;
+            }
             if (accepted.isCompatible(mediaType)) {
                 int specificity = accepted.isWildcardType() ? 0 : accepted.isWildcardSubtype() ? 1 : 2;
                 // a more specific accepted type counts more

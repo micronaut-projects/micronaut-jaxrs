@@ -109,6 +109,15 @@ final class ParameterParser {
             && (chars[i2 - 1] == '"')) {
             i1++;
             i2--;
+            // RFC 9110 5.6.4: an empty quoted-string is the empty value, a quoted-pair is the escaped character
+            StringBuilder result = new StringBuilder(i2 - i1);
+            for (int i = i1; i < i2; i++) {
+                if (chars[i] == '\\' && i + 1 < i2) {
+                    i++;
+                }
+                result.append(chars[i]);
+            }
+            return result.toString();
         }
         String result = null;
         if (i2 > i1) {

@@ -1,6 +1,7 @@
 package io.micronaut.jaxrs.common
 
 import io.micronaut.http.simple.SimpleHttpHeaders
+import jakarta.ws.rs.core.MediaType
 import jakarta.ws.rs.core.Response
 import spock.lang.Specification
 
@@ -80,5 +81,35 @@ class HeadersSpec extends Specification {
 
         then:
         JaxRsHttpHeaders.forRequest(headers).getAcceptableLanguages() == [Locale.forLanguageTag("da"), Locale.forLanguageTag("en-gb")]
+    }
+
+    void "a wildcard language with a quality is the wildcard locale"() {
+        given:
+        def headers = new SimpleHttpHeaders()
+        headers.add("Accept-Language", "*;q=0.1, fr")
+
+        expect:
+        JaxRsHttpHeaders.forRequest(headers).getAcceptableLanguages() == [Locale.forLanguageTag("fr"), Locale.of("*")]
+    }
+
+    void "the acceptable media types are trimmed and a bare '*' is any type"() {
+        given:
+        def headers = new SimpleHttpHeaders()
+        headers.add("Accept", "text/html, image/gif, *; q=.2, , application/json")
+
+        expect:
+        JaxRsHttpHeaders.forRequest(headers).getAcceptableMediaTypes()*.toString() == ["text/html", "image/gif", "application/json", "*/*;q=.2"]
+    }
+
+    void "an invalid media range is ignored"() {
+        given:
+        def headers = new SimpleHttpHeaders()
+        headers.add("Accept", "foo, text/*")
+        def invalid = new SimpleHttpHeaders()
+        invalid.add("Accept", "foo")
+
+        expect:
+        JaxRsHttpHeaders.forRequest(headers).getAcceptableMediaTypes()*.toString() == ["text/*"]
+        JaxRsHttpHeaders.forRequest(invalid).getAcceptableMediaTypes() == [MediaType.WILDCARD_TYPE]
     }
 }

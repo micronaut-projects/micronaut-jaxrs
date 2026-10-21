@@ -17,19 +17,10 @@ final class Explainers {
 
     /** HeaderConformanceTest. */
     static String headers(String category, String input, Object ours, Object jersey) {
-        if (String.valueOf(ours).equalsIgnoreCase(String.valueOf(jersey))) {
-            return "BUG MediaType.toString caches the instance it serialized (ClientFindingsTest.serializationDoesNotChangeLaterParsing)";
-        }
         if (category.equals("quoted-string") && input.equals(ours)) {
             return "JERSEY MediaType.toString does not escape a backslash in a quoted parameter";
         }
         if (category.startsWith("media:")) {
-            if (input.contains("\\")) {
-                return "BUG MediaType.valueOf keeps the quoted-pair backslashes (ClientFindingsTest.quotedPairIsUnescaped)";
-            }
-            if (!input.equals(input.trim()) || input.contains(" ;")) {
-                return "BUG MediaType.valueOf keeps the OWS in the type (ClientFindingsTest.mediaTypeWhitespaceIsNotPartOfTheType)";
-            }
             if (throwsIn(jersey)) {
                 return "IMPL MediaType.valueOf accepts characters that are not token characters";
             }
@@ -41,9 +32,6 @@ final class Explainers {
     static String uris(String category, String input, Object ours, Object jersey) {
         String o = String.valueOf(ours);
         String j = String.valueOf(jersey);
-        if (category.equals("mode=13") || category.equals("mode=14")) {
-            return "BUG UriBuilder.userInfo/host do not encode (ClientFindingsTest.userInfoAndHostAreEncoded)";
-        }
         if (o.replace(";", "%3B").equals(j) || o.replace(";", "%3B").replace("%253B", "%3B").equals(j)) {
             return "IMPL ';' in a path value is not encoded (RFC 3986 allows it in a segment, Jersey encodes it)";
         }
@@ -52,9 +40,6 @@ final class Explainers {
         }
         if (input.startsWith("value=") && category.equals("mode=8") || !input.startsWith("value=") && category.equals("mode=16")) {
             return "IMPL replaceQueryParam appends the replaced parameter (Jersey keeps its position)";
-        }
-        if (input.startsWith("value=") && category.equals("mode=9") && input.matches("value=[^,]*/.*")) {
-            return "BUG-LOW resolveTemplateFromEncoded encodes '/' in a path (buildFromEncoded keeps it) (ClientFindingsTest.resolveTemplateFromEncodedKeepsSlash)";
         }
         if (o.contains(";") && j.contains("%3B")) {
             return "IMPL ';' in a path value is not encoded (RFC 3986 allows it in a segment, Jersey encodes it)";
@@ -70,17 +55,13 @@ final class Explainers {
 
     /** ClientApiConformanceTest.seededHeaderDelegateRoundTrips. */
     static String delegates(String category, String input, Object ours, Object jersey) {
-        if (String.valueOf(ours).equalsIgnoreCase(String.valueOf(jersey))) {
-            return "BUG MediaType.toString caches the instance it serialized: a later valueOf returns its upper-case type "
-                + "(ClientFindingsTest.serializationDoesNotChangeLaterParsing)";
-        }
         switch (category) {
             case "link" -> {
                 if (input.contains("< ")) {
-                    return "BUG Link.valueOf throws UriBuilderException, not IllegalArgumentException (ClientFindingsTest.linkSyntaxErrorIsAnIllegalArgument)";
+                    return "JERSEY Link.valueOf accepts whitespace within <> (RFC 8288 3: a syntax error)";
                 }
                 if (input.indexOf("rel=") != input.lastIndexOf("rel=")) {
-                    return "BUG Link.valueOf merges a repeated rel (ClientFindingsTest.repeatedRelIsIgnored); Jersey keeps the last one, also wrong";
+                    return "JERSEY Link.valueOf keeps the last of a repeated rel (RFC 8288 3.3: the first)";
                 }
                 return null;
             }
@@ -91,9 +72,6 @@ final class Explainers {
                 return throwsIn(ours) ? "IMPL no HeaderDelegate<Locale> (Jersey has one; JAX-RS does not require it)" : null;
             }
             case "media-type", "media-type-toString" -> {
-                if (input.endsWith("\"\"")) {
-                    return "BUG an empty quoted parameter value is null (ClientFindingsTest.emptyQuotedParameterIsEmpty)";
-                }
                 return throwsIn(jersey) ? "IMPL MediaType.valueOf is lenient (accepts '*', spaces, empty parameter names/values)" : null;
             }
             default -> {
@@ -105,14 +83,14 @@ final class Explainers {
     /** ClientApiConformanceTest.seededResponseBuilder: the index of the first differing property. */
     static String responses(String category, String input, Object ours, Object jersey) {
         if (throwsIn(jersey) && !throwsIn(ours)) {
-            if (input.startsWith("status=99 ") || input.startsWith("status=600 ")) {
-                return "BUG Response.status accepts a status out of 100..599 (ClientFindingsTest.statusOutOfRangeIsRejected)";
-            }
             return "IMPL Jersey parses typed headers eagerly in the getters, Micronaut tolerates invalid values";
         }
         if (throwsIn(ours) && !throwsIn(jersey)) {
             if (input.startsWith("status=-1 ")) {
                 return "JERSEY Response.status(-1) is accepted";
+            }
+            if (input.startsWith("status=99 ") || input.startsWith("status=600 ")) {
+                return "JERSEY Response.status accepts a status out of 100..599";
             }
             return input.endsWith("Set-Cookie: ") ? "IMPL an empty Set-Cookie header value is rejected (IllegalArgumentException)" : null;
         }
@@ -123,35 +101,16 @@ final class Explainers {
         List<?> b = (List<?>) jersey;
         for (int i = 0; i < a.size(); i++) {
             if (!String.valueOf(a.get(i)).equals(String.valueOf(b.get(i)))) {
-                String av = String.valueOf(a.get(i));
-                if (av.equalsIgnoreCase(String.valueOf(b.get(i)))) {
-                    return "BUG MediaType.toString caches the instance it serialized: a later valueOf returns its upper-case type "
-                        + "(ClientFindingsTest.serializationDoesNotChangeLaterParsing)";
-                }
-                if (i == 17 && av.contains("1970 00:00:00 GMT,")) {
-                    return "BUG Response.fromResponse duplicates a date header set raw then with lastModified()/expires() (ClientFindingsTest.fromResponseDoesNotDuplicateDateHeaders)";
-                }
                 switch (i) {
                     case 1:
                         return "IMPL reason phrase of a status without a Response.Status constant";
-                    case 4:
-                        return "BUG ResponseBuilder.language/variant add a Content-Language value instead of replacing it (ClientFindingsTest.variantReplacesTheLanguage)";
                     case 9:
                     case 10:
                         return "IMPL parsing of an invalid Allow/Set-Cookie value set as a raw header";
                     case 13:
                     case 17:
-                        if (i == 17 && input.contains("Set-Cookie: ") && category.contains("extra=1")) {
-                            return "BUG Response.fromResponse drops a raw Set-Cookie header when cookie() was used (ClientFindingsTest.fromResponseKeepsRawSetCookie)";
-                        }
                         if (i == 13 && input.contains("Link: ")) {
                             return "IMPL a raw Link header is kept as written (Jersey re-serializes it)";
-                        }
-                        if (av.contains(", 1 Jan 1970")) {
-                            return "BUG Date headers are not IMF-fixdate (ClientFindingsTest.datesAreImfFixdate)";
-                        }
-                        if (input.contains("Content-Language")) {
-                            return "BUG ResponseBuilder.language/variant add a Content-Language value instead of replacing it (ClientFindingsTest.variantReplacesTheLanguage)";
                         }
                         return null;
                     default:

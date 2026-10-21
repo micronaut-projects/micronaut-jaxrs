@@ -9,10 +9,8 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The minimized reproducers of the server discrepancies found by {@link ServerConformanceTest}, asserting what
@@ -49,34 +47,6 @@ class ServerFindingsTest {
     void plusInPathParamIsAPlus() throws Exception {
         assertEquals("name:a+b|a+b", send("GET", "/r/t/a+b").text());
         assertEquals("deep:a+b", send("GET", "/r/t/a+b/z").text());
-    }
-
-    /** HttpHeaders.getAcceptableMediaTypes(): RFC 9110 OWS around the list elements is not part of the types. */
-    @Test
-    void acceptableMediaTypesAreTrimmed() throws Exception {
-        String body = send("GET", "/r/headers", "Accept: application/json, text/*").text();
-        assertTrue(body.startsWith("headers:[<application>/<json>{}, <text>/<*>{}]"), body);
-    }
-
-    /** RFC 9110 15.5.1 / 15.6.1: an unparseable Accept header is a client error, not a server error. */
-    @Test
-    void invalidAcceptIsNotAServerError() throws Exception {
-        Res res = send("GET", "/r/headers", "Accept: foo");
-        assertTrue(res.status() < 500, res.status() + " " + res.text());
-    }
-
-    /** The default Accept header of java.net.HttpURLConnection, with OWS before the parameters of each element. */
-    @Test
-    void jdkDefaultAcceptHeader() throws Exception {
-        Res res = send("GET", "/r/headers", "Accept: text/html, image/gif, image/jpeg, *; q=.2, */*; q=.2");
-        assertEquals(200, res.status(), res.text());
-    }
-
-    /** HttpHeaders.getAcceptableLanguages(): the wildcard is a Locale whose language is "*". */
-    @Test
-    void wildcardLanguageWithQuality() throws Exception {
-        String body = send("GET", "/r/headers", "Accept-Language: *;q=0.1, fr").text();
-        assertTrue(body.contains("|[fr, *]|"), body);
     }
 
     /** JAX-RS 3.7.2: the 405 Allow header lists the methods of the matched resource only. */

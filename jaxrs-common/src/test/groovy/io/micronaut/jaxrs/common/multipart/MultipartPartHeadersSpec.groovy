@@ -157,4 +157,32 @@ class MultipartPartHeadersSpec extends Specification {
         then:
         thrown(IllegalArgumentException)
     }
+
+    void "Content-Disposition parameters are quoted-strings and a filename cannot supply the name"() {
+        when:
+        def parts = read("--B\r\nContent-Disposition: form-data; filename=\"x; name=evil\"; name=\"real\"\r\n\r\nv\r\n" +
+            "--B\r\nContent-Disposition: form-data; name=\"a;b\"; filename=\"c\\\"d\\\\e\"\r\n\r\nw\r\n--B--\r\n", "B")
+
+        then:
+        parts[0].name == "real"
+        parts[0].fileName.orElse(null) == "x; name=evil"
+        parts[1].name == "a;b"
+        parts[1].fileName.orElse(null) == "c\"d\\e"
+    }
+
+    void "quotes, backslashes and semicolons in a name or filename survive writing and reading"() {
+        given:
+        def out = new ByteArrayOutputStream()
+        def type = new GenericType<List<EntityPart>>() {}
+        def written = [EntityPart.withName("a;b\"c\\").fileName("f\\\"; name=evil").content("v").build()]
+
+        when:
+        new JaxRsMultipartMessageBodyWriter().writeTo(written, List, type.type, [] as java.lang.annotation.Annotation[],
+            MediaType.valueOf("multipart/form-data; boundary=B"), new MultivaluedHashMap<String, Object>(), out)
+        def parts = read(out.toString(StandardCharsets.UTF_8), "B")
+
+        then:
+        parts[0].name == "a;b\"c\\"
+        parts[0].fileName.orElse(null) == "f\\\"; name=evil"
+    }
 }

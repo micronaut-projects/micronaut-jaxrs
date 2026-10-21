@@ -255,6 +255,21 @@ public final class JaxRsResponseMetadata extends AbstractMap<String, List<Object
         }
 
         /**
+         * Take the values of a header that were not written from objects, e.g. a raw
+         * {@code Set-Cookie} header, as its objects, before one more object is recorded.
+         *
+         * @param headers The headers of the response
+         * @param name    The name of the header
+         */
+        public void sync(MutableHeaders headers, String name) {
+            List<String> current = headers.getAll(name);
+            if (!current.equals(written.get(name))) {
+                objects.put(name, new ArrayList<>(current));
+                written.put(name, current);
+            }
+        }
+
+        /**
          * Record one more object a header was written from, e.g. a {@code NewCookie}.
          *
          * @param headers The headers the value was written to
