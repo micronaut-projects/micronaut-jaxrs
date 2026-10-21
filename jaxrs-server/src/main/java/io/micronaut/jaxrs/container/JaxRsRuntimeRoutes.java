@@ -69,6 +69,7 @@ import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.container.AsyncResponse;
+import jakarta.ws.rs.container.ResourceContext;
 import jakarta.ws.rs.container.Suspended;
 import jakarta.ws.rs.core.Application;
 import jakarta.ws.rs.core.Context;
@@ -83,6 +84,7 @@ import org.slf4j.LoggerFactory;
 import java.lang.annotation.Annotation;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -463,6 +465,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                                 Instances<L, B> instances, boolean rootUsesForm, Map<Class<?>, Integer> visited,
                                 boolean chainUsesForm, boolean chainEncodedForm) {
         AnnotationMetadata classMetadata = classMetadata(type);
+        boolean typeUsesResourceContext = usesResourceContext(type);
         for (JaxRsMethod<B> method : methods) {
             AnnotationMetadata metadata = method.metadata();
             String httpMethod = httpMethod(metadata);
@@ -471,7 +474,9 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 String template = template(path, methodPath == null ? "" : methodPath);
                 ResourceMethod<B> resourceMethod = resourceMethod(type, classMetadata, rootClass, method, httpMethod, template);
                 if (resourceMethod != null) {
-                    route(routes, resourceMethod, instances, rootUsesForm || chainUsesForm, chainEncodedForm);
+                    boolean usesResourceContext = typeUsesResourceContext
+                        || Arrays.stream(method.arguments()).anyMatch(argument -> argument.getType() == ResourceContext.class);
+                    route(routes, resourceMethod, instances, rootUsesForm || chainUsesForm, chainEncodedForm, usesResourceContext);
                 }
             } else if (methodPath != null) {
                 // a resource method is selected before a locator: the end of its @Path is marked
@@ -690,7 +695,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     }
 
     private <L, B> void route(Routes<L> routes, ResourceMethod<B> method, Instances<L, B> instances, boolean chainUsesForm,
-                              boolean chainEncodedForm) {
+                              boolean chainEncodedForm, boolean usesResourceContext) {
         String name = method.httpMethod();
         Declaration declaration = new Declaration(name, method.template(), method.metadata(), method.responseType());
         boolean body = method.entity() >= 0 && !method.formEntity() && !"GET".equals(name);
@@ -699,8 +704,12 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         boolean encodedForm = method.encodedForm() || chainEncodedForm;
         // a form is read for a method that can have one and reads no entity
         boolean form = method.form() || (usesForm && !NO_BODY_METHODS.contains(name) && method.entity() < 0);
+        // the resources of the ResourceContext read the form of the entity: a method that reads
+        // neither reads the entity for them, whatever its type
+        boolean contextEntity = usesResourceContext && !form && !body && !NO_BODY_METHODS.contains(name);
+        body |= contextEntity;
         // a route that reads the entity and form parameters: the form is parsed from the entity
-        boolean entityForm = body && !form && usesForm;
+        boolean entityForm = body && !form && (usesForm || contextEntity);
         if (method.async()) {
             if (form) {
                 routes.handleAsync(declaration, (request, pathVariables, target, requestBody) -> support.formAsync(request, pathVariables, requestBody,
@@ -1096,6 +1105,24 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             member.property().set(instance, reader == null ? null : reader.read(request, pathVariables, form));
         }
         return instance;
+    }
+
+    /**
+     * @param type A resource class
+     * @return Whether it has a {@link ResourceContext} injected in a constructor, field or setter
+     */
+    private boolean usesResourceContext(Class<?> type) {
+        BeanDefinition<?> definition = beanContext.findBeanDefinition(type).orElse(null);
+        if (definition != null && (definition.getInjectedFields().stream().anyMatch(field -> field.getType() == ResourceContext.class)
+            || definition.getInjectedMethods().stream()
+                .anyMatch(injected -> Arrays.stream(injected.getArguments()).anyMatch(argument -> argument.getType() == ResourceContext.class))
+            || Arrays.stream(definition.getConstructor().getArguments()).anyMatch(argument -> argument.getType() == ResourceContext.class))) {
+            return true;
+        }
+        BeanIntrospection<?> introspection = introspection(type);
+        return introspection != null
+            && (introspection.getBeanProperties().stream().anyMatch(property -> ResourceContext.class.equals(property.getType()))
+            || Arrays.stream(introspection.getConstructorArguments()).anyMatch(argument -> argument.getType() == ResourceContext.class));
     }
 
     private static boolean usesForm(Argument<?> argument) {
