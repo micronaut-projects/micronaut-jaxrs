@@ -67,13 +67,78 @@ class RequestPreconditionsTest {
         assertEquals("gzip", response.body());
     }
 
+    @Test
+    void unmodifiedSinceIsEvaluatedBeforeIfNoneMatch() {
+        // RFC 9110, 13.2.2: step 2 before step 3
+        assertEquals(412, status(HttpRequest.GET("/preconditions/cond")
+            .header("If-None-Match", "\"v1\"")
+            .header("If-Unmodified-Since", "Sat, 31 Dec 2022 23:59:59 GMT")));
+    }
+
+    @Test
+    void emptyIfMatchFails() {
+        // an empty list matches no entity tag
+        assertEquals(412, status(HttpRequest.GET("/preconditions/cond")
+            .header("If-Match", "")
+            .header("If-Unmodified-Since", "Sat, 31 Dec 2022 23:59:59 GMT")));
+    }
+
+    @Test
+    void obsoleteDateFormatsAreAccepted() {
+        // RFC 9110, 5.6.7: RFC 850 and asctime too
+        assertEquals(304, status(HttpRequest.GET("/preconditions/date").header("If-Modified-Since", "Sunday, 01-Jan-23 00:00:00 GMT")));
+        assertEquals(304, status(HttpRequest.GET("/preconditions/date").header("If-Modified-Since", "Sun Jan  1 00:00:00 2023")));
+        assertEquals(412, status(HttpRequest.GET("/preconditions/date").header("If-Unmodified-Since", "Sat Dec 31 00:00:00 2022")));
+        assertEquals(200, status(HttpRequest.GET("/preconditions/date").header("If-Unmodified-Since", "Sun Jan  1 00:00:00 2023")));
+    }
+
+    @Test
+    void identityEncodingIsAcceptableWhenNotExcluded() {
+        // RFC 9110, 12.5.3
+        HttpResponse<String> response = client.toBlocking().exchange(HttpRequest.GET("/preconditions/encodings")
+            .header("Accept-Encoding", "gzip;q=0"), String.class);
+        assertEquals("identity", response.body());
+    }
+
+    private int status(HttpRequest<?> request) {
+        try {
+            return client.toBlocking().exchange(request, String.class).getStatus().getCode();
+        } catch (HttpClientResponseException e) {
+            return e.getStatus().getCode();
+        }
+    }
+
     @Requires(property = "spec.name", value = "RequestPreconditionsTest")
     @Path("/preconditions")
     public static class PreconditionsResource {
+        // Sun, 01 Jan 2023 00:00:00 GMT
+        private static final Date LAST_MODIFIED = new Date(1672531200000L);
+
         @PUT
         public Response put(@Context Request request) {
             Response.ResponseBuilder builder = request.evaluatePreconditions(new Date(), new EntityTag("a"));
             return builder != null ? builder.build() : Response.ok("updated").build();
+        }
+
+        @GET
+        @Path("cond")
+        public Response cond(@Context Request request) {
+            Response.ResponseBuilder builder = request.evaluatePreconditions(LAST_MODIFIED, new EntityTag("v1"));
+            return builder != null ? builder.build() : Response.ok("ok").build();
+        }
+
+        @GET
+        @Path("date")
+        public Response date(@Context Request request) {
+            Response.ResponseBuilder builder = request.evaluatePreconditions(LAST_MODIFIED);
+            return builder != null ? builder.build() : Response.ok("ok").build();
+        }
+
+        @GET
+        @Path("encodings")
+        public String encodings(@Context Request request) {
+            Variant variant = request.selectVariant(Variant.encodings("gzip", "identity").build());
+            return variant == null ? "none" : String.valueOf(variant.getEncoding());
         }
 
         @GET

@@ -26,9 +26,9 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Request;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.Variant;
+import jakarta.ws.rs.ext.RuntimeDelegate;
 import org.jspecify.annotations.Nullable;
 
-import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -99,17 +99,10 @@ final class JaxRsContextRequest implements Request {
             throw new IllegalArgumentException("No entity tag");
         }
         HttpRequest<?> request = request();
-        List<String> ifMatch = tags(request.getHeaders().getAll(HttpHeaders.IF_MATCH));
-        if (!ifMatch.isEmpty() && !ifMatch.contains("*") && ifMatch.stream().noneMatch(tag -> strongMatch(tag, eTag))) {
+        if (!ifMatch(request, eTag)) {
             return Response.status(Response.Status.PRECONDITION_FAILED);
         }
-        List<String> ifNoneMatch = tags(request.getHeaders().getAll(HttpHeaders.IF_NONE_MATCH));
-        if (!ifNoneMatch.isEmpty() && (ifNoneMatch.contains("*") || ifNoneMatch.stream().anyMatch(tag -> weakMatch(tag, eTag)))) {
-            return readOnly(request)
-                ? Response.notModified(eTag)
-                : Response.status(Response.Status.PRECONDITION_FAILED);
-        }
-        return null;
+        return ifNoneMatch(request, eTag);
     }
 
     @Override
@@ -119,15 +112,10 @@ final class JaxRsContextRequest implements Request {
         }
         HttpRequest<?> request = request();
         long modified = lastModified.getTime() / 1000;
-        ZonedDateTime ifUnmodifiedSince = request.getHeaders().findDate(HttpHeaders.IF_UNMODIFIED_SINCE).orElse(null);
-        if (ifUnmodifiedSince != null && modified > ifUnmodifiedSince.toEpochSecond()) {
+        if (!ifUnmodifiedSince(request, modified)) {
             return Response.status(Response.Status.PRECONDITION_FAILED);
         }
-        ZonedDateTime ifModifiedSince = request.getHeaders().findDate(HttpHeaders.IF_MODIFIED_SINCE).orElse(null);
-        if (ifModifiedSince != null && readOnly(request) && modified <= ifModifiedSince.toEpochSecond()) {
-            return Response.notModified();
-        }
-        return null;
+        return ifModifiedSince(request, modified) ? null : Response.notModified();
     }
 
     @Override
@@ -135,28 +123,20 @@ final class JaxRsContextRequest implements Request {
         if (lastModified == null || eTag == null) {
             throw new IllegalArgumentException("No last modification date or entity tag");
         }
-        Response.ResponseBuilder byTag = evaluatePreconditions(eTag);
-        if (byTag != null) {
-            return byTag;
-        }
+        // in the order of RFC 9110, 13.2.2: If-Unmodified-Since is ignored when If-Match is present,
+        // and If-Modified-Since when If-None-Match is
         HttpRequest<?> request = request();
         long modified = lastModified.getTime() / 1000;
-        // If-Unmodified-Since is ignored when If-Match is present (RFC 9110, 13.1.4)
-        if (!request.getHeaders().contains(HttpHeaders.IF_MATCH)) {
-            ZonedDateTime ifUnmodifiedSince = request.getHeaders().findDate(HttpHeaders.IF_UNMODIFIED_SINCE).orElse(null);
-            if (ifUnmodifiedSince != null && modified > ifUnmodifiedSince.toEpochSecond()) {
-                return Response.status(Response.Status.PRECONDITION_FAILED);
-            }
+        boolean unmodified = request.getHeaders().contains(HttpHeaders.IF_MATCH)
+            ? ifMatch(request, eTag)
+            : ifUnmodifiedSince(request, modified);
+        if (!unmodified) {
+            return Response.status(Response.Status.PRECONDITION_FAILED);
         }
         if (request.getHeaders().contains(HttpHeaders.IF_NONE_MATCH)) {
-            // If-Modified-Since is ignored when If-None-Match is present
-            return null;
+            return ifNoneMatch(request, eTag);
         }
-        ZonedDateTime ifModifiedSince = request.getHeaders().findDate(HttpHeaders.IF_MODIFIED_SINCE).orElse(null);
-        if (ifModifiedSince != null && readOnly(request) && modified <= ifModifiedSince.toEpochSecond()) {
-            return Response.notModified(eTag);
-        }
-        return null;
+        return ifModifiedSince(request, modified) ? null : Response.notModified(eTag);
     }
 
     @Override
@@ -170,6 +150,65 @@ final class JaxRsContextRequest implements Request {
     private static HttpRequest<?> request() {
         return ServerRequestContext.currentRequest()
             .orElseThrow(() -> new IllegalStateException("No request in the current context"));
+    }
+
+    /**
+     * @return Whether the If-Match condition holds: true without the header, false when it lists no tag
+     */
+    private static boolean ifMatch(HttpRequest<?> request, EntityTag eTag) {
+        if (!request.getHeaders().contains(HttpHeaders.IF_MATCH)) {
+            return true;
+        }
+        List<String> ifMatch = tags(request.getHeaders().getAll(HttpHeaders.IF_MATCH));
+        return ifMatch.contains("*") || ifMatch.stream().anyMatch(tag -> strongMatch(tag, eTag));
+    }
+
+    /**
+     * @return The response when the If-None-Match condition does not hold, else {@code null}
+     */
+    private static Response.@Nullable ResponseBuilder ifNoneMatch(HttpRequest<?> request, EntityTag eTag) {
+        List<String> ifNoneMatch = tags(request.getHeaders().getAll(HttpHeaders.IF_NONE_MATCH));
+        if (ifNoneMatch.contains("*") || ifNoneMatch.stream().anyMatch(tag -> weakMatch(tag, eTag))) {
+            return readOnly(request)
+                ? Response.notModified(eTag)
+                : Response.status(Response.Status.PRECONDITION_FAILED);
+        }
+        return null;
+    }
+
+    /**
+     * @return Whether the If-Unmodified-Since condition holds: true without a valid date
+     */
+    private static boolean ifUnmodifiedSince(HttpRequest<?> request, long modified) {
+        Long ifUnmodifiedSince = date(request, HttpHeaders.IF_UNMODIFIED_SINCE);
+        return ifUnmodifiedSince == null || modified <= ifUnmodifiedSince;
+    }
+
+    /**
+     * @return Whether the If-Modified-Since condition holds: true without a valid date or for an
+     * unsafe method
+     */
+    private static boolean ifModifiedSince(HttpRequest<?> request, long modified) {
+        Long ifModifiedSince = date(request, HttpHeaders.IF_MODIFIED_SINCE);
+        return ifModifiedSince == null || !readOnly(request) || modified > ifModifiedSince;
+    }
+
+    /**
+     * The epoch seconds of a date header, in any of the formats of RFC 9110, 5.6.7.
+     *
+     * @return The seconds, {@code null} if the header is missing or not a valid date
+     */
+    private static @Nullable Long date(HttpRequest<?> request, String name) {
+        String value = request.getHeaders().get(name);
+        if (value == null) {
+            return null;
+        }
+        try {
+            return RuntimeDelegate.getInstance().createHeaderDelegate(Date.class).fromString(value).getTime() / 1000;
+        } catch (IllegalArgumentException e) {
+            // an invalid date is ignored
+            return null;
+        }
     }
 
     private static boolean readOnly(HttpRequest<?> request) {
