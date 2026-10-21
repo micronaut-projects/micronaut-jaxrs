@@ -82,4 +82,11 @@ public class HeadersResource {
         });
         return ok.build();
     }
+
+    @GET
+    @Path("/acceptable")
+    @Produces("text/plain")
+    public String acceptable(HttpHeaders httpHeaders) {
+        return httpHeaders.getAcceptableMediaTypes() + "|" + httpHeaders.getAcceptableLanguages();
+    }
 }

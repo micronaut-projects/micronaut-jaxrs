@@ -192,4 +192,31 @@ class HeadersTest {
             acceptableLanguages.get(0).getLanguage()
         );
     }
+
+    @Test
+    void testDefaultAcceptHeaderOfHttpUrlConnection() {
+        final MutableHttpRequest<Object> request = HttpRequest.GET("/headers/acceptable");
+        request.header(HttpHeaders.ACCEPT, "text/html, image/gif, image/jpeg, *; q=.2, */*; q=.2");
+        final HttpResponse<String> response = httpClient.toBlocking().exchange(request, String.class);
+
+        assertEquals("[text/html, image/gif, image/jpeg, */*;q=.2, */*;q=.2]|[*]", response.body());
+    }
+
+    @Test
+    void testInvalidMediaRangeIsIgnored() {
+        final MutableHttpRequest<Object> request = HttpRequest.GET("/headers/acceptable");
+        request.header(HttpHeaders.ACCEPT, "foo, text/*");
+        final HttpResponse<String> response = httpClient.toBlocking().exchange(request, String.class);
+
+        assertEquals("[text/*]|[*]", response.body());
+    }
+
+    @Test
+    void testWildcardAcceptLanguageWithQuality() {
+        final MutableHttpRequest<Object> request = HttpRequest.GET("/headers/acceptable");
+        request.header(HttpHeaders.ACCEPT_LANGUAGE, "*;q=0.1, fr");
+        final HttpResponse<String> response = httpClient.toBlocking().exchange(request, String.class);
+
+        assertEquals("[*/*]|[fr, *]", response.body());
+    }
 }

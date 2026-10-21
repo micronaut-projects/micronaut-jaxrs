@@ -116,35 +116,28 @@ public sealed class JaxRsHttpHeaders implements HttpHeaders permits JaxRsMutable
     @Override
     public List<MediaType> getAcceptableMediaTypes() {
         List<String> accept = httpHeaders.getAll(io.micronaut.http.HttpHeaders.ACCEPT);
-        if (accept.isEmpty()) {
-            // any type is acceptable without an Accept header
-            return List.of(MediaType.WILDCARD_TYPE);
-        }
-        return accept
+        List<MediaType> types = accept
             .stream()
-            .flatMap(text -> {
-                int len = text.length();
-                if (len == 0) {
-                    return Stream.of(MediaType.valueOf(io.micronaut.http.MediaType.ALL));
+            .flatMap(text -> Arrays.stream(text.split(",")))
+            .map(String::trim)
+            // RFC 9110 5.6.1: empty list elements are ignored
+            .filter(element -> !element.isEmpty())
+            .<Weighted<MediaType>>mapMulti((element, consumer) -> {
+                MediaType type;
+                try {
+                    // a bare '*' (sent by java.net.HttpURLConnection) is read as */*
+                    type = MediaType.valueOf(element);
+                } catch (IllegalArgumentException e) {
+                    // an invalid media range is ignored, as by the route negotiation
+                    return;
                 }
-                if (text.indexOf(',') > -1) {
-                    return Arrays.stream(text.split(","))
-                        .map(str -> {
-                            final int i = str.indexOf(';');
-                            final MediaType mt = MediaType.valueOf(str);
-                            if (i > -1) {
-                                return new Weighted<>(mt, mt.getParameters());
-                            } else {
-                                return new Weighted<>(mt);
-                            }
-                        })
-                        .sorted()
-                        .map(Weighted::getObject)
-                        .toList()
-                        .stream();
-                }
-                return Stream.of(MediaType.valueOf(text));
-            }).toList();
+                consumer.accept(element.indexOf(';') > -1 ? new Weighted<>(type, type.getParameters()) : new Weighted<>(type));
+            })
+            .sorted()
+            .map(Weighted::getObject)
+            .toList();
+        // any type is acceptable without an Accept header, or without a valid media range
+        return types.isEmpty() ? List.of(MediaType.WILDCARD_TYPE) : types;
     }
 
     @Override
@@ -162,27 +155,25 @@ public sealed class JaxRsHttpHeaders implements HttpHeaders permits JaxRsMutable
                 if (len == 0 || (len == 1 && text.charAt(0) == '*')) {
                     return Stream.of();
                 }
-                if (text.indexOf(',') > -1) {
-                    return Arrays.stream(text.split(","))
-                        .map(str -> {
-                            final int i = str.indexOf(';');
-                            if (i > -1) {
-                                final String tag = str.substring(0, i).trim();
-                                final Map<String, String> params = Weighted.parseParameters(str);
-                                return new Weighted<>(Locale.forLanguageTag(tag), params);
-                            } else {
-                                return new Weighted<>(Locale.forLanguageTag(str.trim()));
-                            }
-                        })
-                        .sorted()
-                        .map(Weighted::getObject)
-                        .toList()
-                        .stream();
-                }
-                return Stream.of(
-                    Locale.forLanguageTag(text)
-                );
+                return Arrays.stream(text.split(","))
+                    .map(String::trim)
+                    .filter(str -> !str.isEmpty())
+                    .map(str -> {
+                        final int i = str.indexOf(';');
+                        if (i > -1) {
+                            final Locale locale = language(str.substring(0, i).trim());
+                            return new Weighted<>(locale, Weighted.parseParameters(str));
+                        } else {
+                            return new Weighted<>(language(str));
+                        }
+                    })
+                    .sorted()
+                    .map(Weighted::getObject);
             }).toList();
+    }
+
+    private static Locale language(String tag) {
+        return "*".equals(tag) ? WILDCARD_LOCALE : Locale.forLanguageTag(tag);
     }
 
     @Override

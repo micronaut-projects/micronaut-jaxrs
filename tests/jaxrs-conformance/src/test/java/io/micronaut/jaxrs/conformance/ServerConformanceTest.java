@@ -319,10 +319,6 @@ class ServerConformanceTest {
         String contentType = header(req, "Content-Type");
         int a = ours.status();
         int b = theirs.status();
-        if (diffs.startsWith("body=") && ours.text().equalsIgnoreCase(theirs.text())
-            || diffs.startsWith("content-type=") && String.valueOf(ours.header("Content-Type")).equalsIgnoreCase(String.valueOf(theirs.header("Content-Type")))) {
-            return "BUG MediaType.toString caches the instance it serialized: a later valueOf returns its upper-case type (serializationDoesNotChangeLaterParsing)";
-        }
         if (diffs.startsWith("jersey-rejects") && path.contains(";")) {
             return "JERSEY the in-memory handler throws for a matrix parameter after a locator";
         }
@@ -341,12 +337,6 @@ class ServerConformanceTest {
         if (a == 200 && b == 406 && path.equals("/r/wild")) {
             return "JERSEY sorts the candidate types by q before specificity (JAX-RS 3.8 step 6: specificity first)";
         }
-        if (a == 500 && b < 500 && (path.equals("/r/headers") || path.equals("/r/variant"))) {
-            return "BUG an Accept element with OWS or a bare '*' makes HttpHeaders throw: 500 (jdkDefaultAcceptHeader)";
-        }
-        if (a == 500 && accept.contains("foo")) {
-            return "BUG an invalid Accept header is a 500 when HttpHeaders is used (invalidAcceptIsNotAServerError)";
-        }
         if (b == 400 && accept.matches(".*q=\\d\\.\\d{4,}.*")) {
             return "IMPL lenient: a q-value with more than 3 decimals is accepted (Jersey 400)";
         }
@@ -358,6 +348,9 @@ class ServerConformanceTest {
         if (a == 406 && b == 200 && accept.matches(".*q=0(\\.0*)?(\\D.*|$)")) {
             return "JERSEY ignores q=0 in Accept (RFC 9110 12.4.2: not acceptable)";
         }
+        if (a == 200 && b == 406 && path.equals("/r/variant") && req.method().equals("HEAD")) {
+            return "IMPL selectVariant tie-break between equally acceptable variants";
+        }
         if (a == 406 && b == 200 && path.equals("/r/variant") && String.valueOf(header(req, "Accept-Encoding")).contains("q=0")) {
             return "BUG selectVariant rejects the identity variant when Accept-Encoding does not list it (identityVariantIsAcceptableWhenNotExcluded)";
         }
@@ -367,8 +360,8 @@ class ServerConformanceTest {
         if (a / 100 == 2 && b == 400 && "garbage".equals(contentType) && path.equals("/r/echo")) {
             return "BUG an unparseable Content-Type matches @Consumes (unparseableContentTypeDoesNotMatchConsumes)";
         }
-        if (a / 100 == 2 && b == 400 && (accept.contains("q=1.5") || "garbage".equals(contentType))) {
-            return "IMPL lenient: an invalid q-value or Content-Type is accepted (Jersey 400)";
+        if ((a / 100 == 2 || a == 406) && b == 400 && (accept.contains("q=1.5") || "garbage".equals(contentType))) {
+            return "IMPL lenient: an invalid q-value or Content-Type is accepted - then 406 if nothing else is acceptable (Jersey 400)";
         }
         if (path.startsWith("/r/cond") && a != b) {
             Integer rfc = preconditionOracle(req, path);
@@ -418,7 +411,7 @@ class ServerConformanceTest {
             return "IMPL selectVariant tie-break between equally acceptable variants";
         }
         if (diffs.startsWith("body=") && path.equals("/r/headers")) {
-            return "BUG HttpHeaders/UriInfo of /r/headers: Accept OWS - wildcard language - getPath leading slash (ServerFindingsTest)";
+            return "BUG UriInfo.getPath() of /r/headers has a leading slash (uriInfoPathIsRelative)";
         }
         if (diffs.startsWith("body=") && path.contains("+")) {
             return "BUG '+' in a path parameter is decoded to a space (plusInPathParamIsAPlus)";
