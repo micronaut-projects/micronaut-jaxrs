@@ -58,6 +58,8 @@ class FeatureContractRegistrationTest {
         assertEquals("fallback:x", client.toBlocking().retrieve(HttpRequest.GET("/param?dual=x")));
     }
 
+    // introspected: its constructor converts a parameter without reflection
+    @io.micronaut.core.annotation.Introspected
     public record Dual(String value) {
     }
 
