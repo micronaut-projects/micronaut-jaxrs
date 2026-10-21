@@ -2,7 +2,6 @@ package io.micronaut.jaxrs.conformance;
 
 import jakarta.ws.rs.core.Link;
 import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriBuilder;
 import jakarta.ws.rs.ext.RuntimeDelegate;
 import org.junit.jupiter.api.AfterAll;
@@ -30,14 +29,6 @@ class ClientFindingsTest {
     @AfterAll
     static void restore() {
         RuntimeDelegate.setInstance(previous);
-    }
-
-    /** Response.fromResponse(): a copy of the response headers, a raw Set-Cookie header included. */
-    @Test
-    void fromResponseKeepsRawSetCookie() {
-        Response original = Response.ok().header("Set-Cookie", "n=v").cookie(new jakarta.ws.rs.core.NewCookie.Builder("c").value("v").build()).build();
-        Response copy = Response.fromResponse(original).build();
-        assertEquals(original.getHeaderString("Set-Cookie"), copy.getHeaderString("Set-Cookie"));
     }
 
     /** An encoded template value is not re-encoded: the same path as buildFromEncoded, a '/' kept. */

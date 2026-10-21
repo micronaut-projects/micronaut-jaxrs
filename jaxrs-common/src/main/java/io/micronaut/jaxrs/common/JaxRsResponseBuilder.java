@@ -268,6 +268,8 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
             return this;
         }
         RuntimeDelegate.HeaderDelegate<NewCookie> delegate = getInstance().createHeaderDelegate(NewCookie.class);
+        // the cookies set as a raw header are kept
+        metadata.sync(response.getHeaders(), HttpHeaders.SET_COOKIE);
         for (NewCookie cookie : cookies) {
             // all the attributes of the cookie, e.g. its max age in seconds, an expiry in the past (a deletion), its version
             response.getHeaders().add(HttpHeaders.SET_COOKIE, delegate.toString(cookie));

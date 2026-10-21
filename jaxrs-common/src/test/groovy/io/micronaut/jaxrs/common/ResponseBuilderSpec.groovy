@@ -169,4 +169,12 @@ class ResponseBuilderSpec extends Specification {
         Response.fromResponse(original).build().getHeaderString(HttpHeaders.LAST_MODIFIED) == original.getHeaderString(HttpHeaders.LAST_MODIFIED)
     }
 
+    void "fromResponse keeps a raw Set-Cookie header"() {
+        given:
+        def original = Response.ok().header(HttpHeaders.SET_COOKIE, "n=v").cookie(new NewCookie.Builder("c").value("v").build()).build()
+
+        expect:
+        original.headers.get(HttpHeaders.SET_COOKIE).size() == 2
+        Response.fromResponse(original).build().getHeaderString(HttpHeaders.SET_COOKIE) == original.getHeaderString(HttpHeaders.SET_COOKIE)
+    }
 }

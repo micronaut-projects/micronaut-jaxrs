@@ -136,9 +136,6 @@ final class Explainers {
                         return "IMPL parsing of an invalid Allow/Set-Cookie value set as a raw header";
                     case 13:
                     case 17:
-                        if (i == 17 && input.contains("Set-Cookie: ") && category.contains("extra=1")) {
-                            return "BUG Response.fromResponse drops a raw Set-Cookie header when cookie() was used (ClientFindingsTest.fromResponseKeepsRawSetCookie)";
-                        }
                         if (i == 13 && input.contains("Link: ")) {
                             return "IMPL a raw Link header is kept as written (Jersey re-serializes it)";
                         }
