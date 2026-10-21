@@ -332,9 +332,6 @@ class ServerConformanceTest {
         if (diffs.startsWith("jersey-throws") && (contentType == null || !contentType.toLowerCase().startsWith("application/x-www-form"))) {
             return "IMPL @FormParam without a form entity is empty (Jersey IllegalStateException)";
         }
-        if (a == 406 && b == 500 && path.startsWith("/p/lit/")) {
-            return "BUG no writer for the entity is a 406 instead of a 500 (noWriterIsAServerError)";
-        }
         if (a == 406 && b == 200 && (path.equals("/r/none") || path.equals("/r/variant")) && accept.contains("text/*")) {
             return "IMPL no @Produces and Accept text/*: 406 per JAX-RS 3.8 (M not concrete) - Jersey's String writer offers text/plain";
         }
@@ -355,19 +352,24 @@ class ServerConformanceTest {
             .equals(theirs.text().replaceAll("\\|\\[[^|]*\\]$", ""))) {
             return "JERSEY getMatchedURIs() truncated when the path has matrix parameters";
         }
-        if (a == 406 && b == 200 && accept.matches(".*q=0(\\.0*)?(\\D.*|$)")) {
+        if (a == 406 && (b == 200 || b == 500 && path.startsWith("/p/lit/")) && accept.matches(".*q=0(\\.0*)?(\\D.*|$)")) {
             return "JERSEY ignores q=0 in Accept (RFC 9110 12.4.2: not acceptable)";
         }
-        if (a == 406 && b == 200 && path.equals("/r/variant") && String.valueOf(header(req, "Accept-Encoding")).contains("q=0")) {
-            return "BUG selectVariant rejects the identity variant when Accept-Encoding does not list it (identityVariantIsAcceptableWhenNotExcluded)";
+        if (a == 200 && b == 406 && path.equals("/r/variant") && header(req, "Accept-Encoding") != null
+            && !header(req, "Accept-Encoding").toLowerCase(Locale.ROOT).matches(".*(identity|\\*)\\s*;\\s*q=0(\\.0*)?\\s*(,.*|;.*)?")) {
+            return "JERSEY selectVariant rejects the identity variant when Accept-Encoding does not list it (RFC 9110 12.5.3: acceptable unless excluded)";
+        }
+        if (a == 406 && b == 200 && path.equals("/r/variant") && String.valueOf(header(req, "Accept-Encoding")).matches(".*\\*\\s*;\\s*q=0(\\.0*)?\\s*(,.*|;.*)?")
+            && !header(req, "Accept-Encoding").toLowerCase(Locale.ROOT).contains("identity")) {
+            return "JERSEY selectVariant accepts the identity variant that '*;q=0' excludes (RFC 9110 12.5.3)";
         }
         if (a == 406 && b == 200 && path.equals("/r/variant") && String.valueOf(header(req, "Accept-Language")).contains("q=0")) {
             return "IMPL selectVariant: a language the Accept-Language header does not list is not acceptable (Jersey accepts it)";
         }
-        if (a / 100 == 2 && b == 400 && "garbage".equals(contentType) && path.equals("/r/echo")) {
-            return "BUG an unparseable Content-Type matches @Consumes (unparseableContentTypeDoesNotMatchConsumes)";
+        if (a == 415 && b == 400 && "garbage".equals(contentType)) {
+            return "IMPL an unparseable Content-Type matches no @Consumes: 415 (Jersey 400)";
         }
-        if (a / 100 == 2 && b == 400 && (accept.contains("q=1.5") || "garbage".equals(contentType))) {
+        if ((a / 100 == 2 || a == 500 && path.startsWith("/p/lit/")) && b == 400 && (accept.contains("q=1.5") || "garbage".equals(contentType))) {
             return "IMPL lenient: an invalid q-value or Content-Type is accepted (Jersey 400)";
         }
         if (path.startsWith("/r/cond") && a != b) {
@@ -378,13 +380,6 @@ class ServerConformanceTest {
             if (rfc == a) {
                 return "JERSEY precondition result differs from RFC 9110 13.2.2 (Micronaut agrees with the RFC)";
             }
-            String ims = String.valueOf(header(req, "If-Modified-Since")) + String.valueOf(header(req, "If-Unmodified-Since"));
-            if (ims.contains("Sunday,") || ims.contains("Sun Jan") || ims.contains("Sat Dec")) {
-                return "BUG obsolete HTTP date formats are ignored in preconditions (obsoleteDateFormatsAreAccepted)";
-            }
-            if (a == 304 && rfc == 412 && header(req, "If-Match") == null) {
-                return "BUG If-None-Match is evaluated before If-Unmodified-Since (ifUnmodifiedSinceBeforeIfNoneMatch)";
-            }
             if (a == 412 && header(req, "If-Match") != null && header(req, "If-Unmodified-Since") != null) {
                 return "KNOWN review item 12: If-Unmodified-Since applied together with If-Match";
             }
@@ -392,12 +387,6 @@ class ServerConformanceTest {
         }
         if (path.startsWith("/r/cond")) {
             String ims = String.valueOf(header(req, "If-Modified-Since")) + String.valueOf(header(req, "If-Unmodified-Since"));
-            if (ims.contains("Sunday,") || ims.contains("Sun Jan") || ims.contains("Sat Dec")) {
-                return "BUG obsolete HTTP date formats are ignored in preconditions (obsoleteDateFormatsAreAccepted)";
-            }
-            if (a == 304 && b == 412 && header(req, "If-None-Match") != null && header(req, "If-Unmodified-Since") != null) {
-                return "BUG If-None-Match is evaluated before If-Unmodified-Since (ifUnmodifiedSinceBeforeIfNoneMatch)";
-            }
             if (b == 400 || a == 412 && header(req, "If-Match") != null && header(req, "If-Unmodified-Since") != null) {
                 return "IMPL malformed entity tags or the known If-Match/If-Unmodified-Since issue (review item 12)";
             }
@@ -418,7 +407,7 @@ class ServerConformanceTest {
             return "IMPL selectVariant tie-break between equally acceptable variants";
         }
         if (diffs.startsWith("body=") && path.equals("/r/headers")) {
-            return "BUG HttpHeaders/UriInfo of /r/headers: Accept OWS - wildcard language - getPath leading slash (ServerFindingsTest)";
+            return "BUG HttpHeaders of /r/headers: Accept OWS - wildcard language (ServerFindingsTest)";
         }
         if (diffs.startsWith("body=") && path.contains("+")) {
             return "BUG '+' in a path parameter is decoded to a space (plusInPathParamIsAPlus)";
@@ -429,7 +418,7 @@ class ServerConformanceTest {
         if (a / 100 == 2 && b == 406 && accept.contains("foo")) {
             return "IMPL an invalid Accept media range is ignored by route negotiation (Jersey 406)";
         }
-        if (a == 406 && b / 100 == 2 && java.util.regex.Pattern.compile("(^|,)\\s*\\*\\s*(;|,|$)").matcher(accept).find()) {
+        if (a == 406 && (b / 100 == 2 || b == 500 && path.startsWith("/p/lit/")) && java.util.regex.Pattern.compile("(^|,)\\s*\\*\\s*(;|,|$)").matcher(accept).find()) {
             return "IMPL a bare '*' (invalid - sent by java.net.HttpURLConnection) is a wildcard alone but not within a list (Jersey: always)";
         }
         if (diffs.startsWith("content-type=") && (path.equals("/r/none") || path.equals("/r/variant"))) {
@@ -438,18 +427,8 @@ class ServerConformanceTest {
         if (a == 406 && b == 415) {
             return "IMPL a request without Content-Type is */* for @Consumes (Jersey 415)";
         }
-        if (diffs.startsWith("body=") && path.startsWith("/r/q") && (query.contains("=v") || query.matches(".*(^|&)[^&=]*=?(&.*|$)"))) {
-            return "BUG-LOW getQueryParameters(false) drops empty values and names =v as =v (decoded: v) (encodedQueryParametersKeepEmptyValues)";
-        }
         if (diffs.startsWith("body=") && path.startsWith("/r/rest/") && ours.text().contains("=[null]")) {
             return "IMPL UriInfo path segment matrix parameter without value is [null] (Jersey [\"\"] - PathSegment of @PathParam is [\"\"])";
-        }
-        if (diffs.startsWith("body=") && query.contains(";")) {
-            return "BUG ';' splits the decoded query parameters (semicolonDoesNotSplitQueryParameters)";
-        }
-        if (diffs.startsWith("body=") && path.startsWith("/r/rest/")
-            && ours.text().replace("|/r/rest/", "|r/rest/").equals(theirs.text())) {
-            return "BUG UriInfo.getPath() has a leading slash (uriInfoPathIsRelative)";
         }
         if (diffs.startsWith("body=") && (path.equals("/r/formmap") || path.equals("/r/form"))) {
             return "IMPL form key without '=' is an empty list (Jersey [null]); @Encoded form value re-encoded by Jersey";
