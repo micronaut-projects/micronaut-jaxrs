@@ -304,6 +304,10 @@ class JaxRsClientConformanceTest {
         assertNull(JaxRsSseEventSource.retryAfter("soon"));
         assertNull(JaxRsSseEventSource.retryAfter("-1"));
         assertEquals(0L, JaxRsSseEventSource.retryAfter("Sun, 06 Nov 1994 08:49:37 GMT"));
+        // the obsolete formats of RFC 9110, 5.6.7
+        assertEquals(0L, JaxRsSseEventSource.retryAfter("Sunday, 06-Nov-94 08:49:37 GMT"));
+        assertEquals(0L, JaxRsSseEventSource.retryAfter("Sun Nov  6 08:49:37 1994"));
+        assertTrue(JaxRsSseEventSource.retryAfter("Fri Jan  1 00:00:00 2100") > 0);
     }
 
     @Test

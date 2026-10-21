@@ -31,6 +31,7 @@ import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import jakarta.ws.rs.ProcessingException;
 import jakarta.ws.rs.client.ClientRequestFilter;
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.ext.RuntimeDelegate;
 import jakarta.ws.rs.sse.InboundSseEvent;
 import jakarta.ws.rs.sse.SseEventSource;
 import org.jspecify.annotations.Nullable;
@@ -39,9 +40,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
@@ -426,9 +425,10 @@ final class JaxRsSseEventSource implements SseEventSource {
             // an HTTP date
         }
         try {
-            ZonedDateTime date = ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME);
-            return Math.max(0, Duration.between(ZonedDateTime.now(date.getZone()), date).toMillis());
-        } catch (DateTimeParseException e) {
+            // any of the formats of RFC 9110, 5.6.7
+            Date date = RuntimeDelegate.getInstance().createHeaderDelegate(Date.class).fromString(value);
+            return Math.max(0, date.getTime() - System.currentTimeMillis());
+        } catch (IllegalArgumentException e) {
             return null;
         }
     }
