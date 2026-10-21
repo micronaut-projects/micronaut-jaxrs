@@ -72,7 +72,7 @@ public final class JaxRsMutableObjectHeadersMultivaluedMap extends JaxRsObjectHe
             headers.remove(key);
         }
         addAll(key, value);
-        return prev.isEmpty() ? null : prev;
+        return prev == null || prev.isEmpty() ? null : prev;
     }
 
 }

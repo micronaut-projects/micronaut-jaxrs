@@ -221,6 +221,8 @@ public final class JaxRsRouteSupport {
             JaxRsContainerMessageBodyHandlerRegistry registry = beanContext.getBean(JaxRsContainerMessageBodyHandlerRegistry.class);
             return beanContext.getBeanRegistrations(ParamConverterProvider.class).stream()
                 .filter(registration -> registry.isRegistered(registration.getBeanDefinition().getBeanType(), ParamConverterProvider.class))
+                // not the ones constrained to the client (@ConstrainedTo)
+                .filter(registration -> JaxRsUtils.isServerProvider(registration.getBeanDefinition().getAnnotationMetadata()))
                 // the one of the highest priority, the lowest value, first
                 .sorted(java.util.Comparator.comparingInt(JaxRsUtils::getPriorityOrder))
                 .map(BeanRegistration::getBean)

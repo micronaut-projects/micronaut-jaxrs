@@ -26,6 +26,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -67,6 +68,19 @@ class HeadersMultivaluedMapViewTest {
         assertFalse(headers.contains("B"));
         map.entrySet().clear();
         assertTrue(headers.names().isEmpty());
+    }
+
+    @Test
+    void objectViewOfAnAbsentHeaderIsNull() {
+        SimpleHttpHeaders headers = headers();
+        MultivaluedMap<String, Object> map = new JaxRsMutableObjectHeadersMultivaluedMap(headers);
+        assertNull(map.get("X-Trace"));
+        // the default insertion methods of a map depend on it (Map.get)
+        assertNull(map.putIfAbsent("X-Trace", List.of("id")));
+        assertEquals(List.of("id"), headers.getAll("X-Trace"));
+        map.computeIfAbsent("X-Other", k -> List.of("other"));
+        assertEquals(List.of("other"), headers.getAll("X-Other"));
+        assertEquals(List.of("1"), map.putIfAbsent("A", List.of("x")));
     }
 
     @Test

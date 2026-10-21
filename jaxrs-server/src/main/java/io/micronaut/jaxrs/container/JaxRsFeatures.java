@@ -504,6 +504,11 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors {
                 if (contracts != null) {
                     this.contracts.put(instance, contracts);
                 }
+                if (instance instanceof Feature feature) {
+                    // a feature registered by a dynamic feature configures the same resource
+                    // method (DynamicFeature.configure)
+                    feature.configure(this);
+                }
             }
             return this;
         }

@@ -21,6 +21,7 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.type.Argument;
 import io.micronaut.inject.qualifiers.MatchArgumentQualifier;
 import io.micronaut.jaxrs.common.JaxRsContainerMessageBodyHandlerRegistry;
+import io.micronaut.jaxrs.common.JaxRsUtils;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.WebApplicationException;
@@ -113,9 +114,12 @@ final class JaxRsProviders implements Providers {
         JaxRsContainerMessageBodyHandlerRegistry registry = registry();
         ExceptionMapper<T> nearest = null;
         int nearestDistance = Integer.MAX_VALUE;
+        int nearestPriority = Integer.MAX_VALUE;
         for (BeanRegistration<ExceptionMapper> registration : beanContext.getBeanRegistrations(ExceptionMapper.class,
                 MatchArgumentQualifier.contravariant(ExceptionMapper.class, Argument.of(type)))) {
-            if (!registry.isRegistered(registration.getBeanDefinition().getBeanType(), ExceptionMapper.class)) {
+            if (!registry.isRegistered(registration.getBeanDefinition().getBeanType(), ExceptionMapper.class)
+                || !JaxRsUtils.isServerProvider(registration.getBeanDefinition().getAnnotationMetadata())) {
+                // not registered, or constrained to the client (@ConstrainedTo)
                 continue;
             }
             List<Argument<?>> arguments = registration.getBeanDefinition().getTypeArguments(ExceptionMapper.class);
@@ -124,9 +128,12 @@ final class JaxRsProviders implements Providers {
             for (Class<?> t = type; t != null && t != mapped; t = t.getSuperclass()) {
                 distance++;
             }
-            if (distance < nearestDistance) {
+            // equally near ones by the priority they are registered with, else their @Priority
+            int priority = registry.priority(registration, ExceptionMapper.class);
+            if (distance < nearestDistance || distance == nearestDistance && priority < nearestPriority) {
                 nearest = registration.getBean();
                 nearestDistance = distance;
+                nearestPriority = priority;
             }
         }
         return nearest;
@@ -142,7 +149,9 @@ final class JaxRsProviders implements Providers {
         List<Candidate<T>> candidates = new ArrayList<>();
         for (BeanRegistration<ContextResolver> registration : beanContext.getBeanRegistrations(ContextResolver.class,
                 MatchArgumentQualifier.covariant(ContextResolver.class, Argument.of(contextType)))) {
-            if (!registry.isRegistered(registration.getBeanDefinition().getBeanType(), ContextResolver.class)) {
+            if (!registry.isRegistered(registration.getBeanDefinition().getBeanType(), ContextResolver.class)
+                || !JaxRsUtils.isServerProvider(registration.getBeanDefinition().getAnnotationMetadata())) {
+                // not registered, or constrained to the client (@ConstrainedTo)
                 continue;
             }
             int specificity = specificity(registration.getBeanDefinition().getAnnotationMetadata().stringValues(Produces.class), mediaType);
