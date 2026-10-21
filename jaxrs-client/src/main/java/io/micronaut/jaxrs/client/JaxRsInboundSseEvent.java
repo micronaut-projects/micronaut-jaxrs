@@ -114,13 +114,16 @@ final class JaxRsInboundSseEvent implements InboundSseEvent {
 
     private <T> @Nullable T readData(Argument<T> type, MediaType mediaType) {
         io.micronaut.http.MediaType micronautType = Objects.requireNonNull(JaxRsUtils.convert(mediaType));
-        MessageBodyReader<T> reader = configuration.findReader(type, micronautType);
-        if (reader == null) {
-            throw new ProcessingException("No reader reads the data of the event as " + type + " and " + mediaType);
-        }
         byte[] bytes = data == null ? new byte[0] : data.getBytes(StandardCharsets.UTF_8);
-        // the reader finds the context resolvers of the client, like for a response (JAX-RS 4.3)
-        return configuration.withProviders(() -> reader.read(type, micronautType, new SimpleHttpHeaders(), new ByteArrayInputStream(bytes)));
+        // the reader is selected and reads with the providers of the client as the current ones, like
+        // for a response: isReadable and readFrom can look up its context resolvers (JAX-RS 4.3)
+        return configuration.withProviders(() -> {
+            MessageBodyReader<T> reader = configuration.findReader(type, micronautType);
+            if (reader == null) {
+                throw new ProcessingException("No reader reads the data of the event as " + type + " and " + mediaType);
+            }
+            return reader.read(type, micronautType, new SimpleHttpHeaders(), new ByteArrayInputStream(bytes));
+        });
     }
 
     @Override
