@@ -139,7 +139,6 @@ class MultipartConformanceTest {
         Random r = new Random(seed);
         Map<String, String> failures = new LinkedHashMap<>();
         int cases = 600;
-        int known = 0;
         for (int i = 0; i < cases; i++) {
             String boundary = boundary(r);
             List<Part> parts = new ArrayList<>();
@@ -167,11 +166,7 @@ class MultipartConformanceTest {
                 new JaxRsMultipartMessageBodyWriter().writeTo(entityParts, List.class, LIST, new Annotation[0], MediaType.valueOf(contentType),
                     new MultivaluedHashMap<>(), out);
                 List<Part> back = read(contentType, out.toByteArray());
-                if (!back.equals(parts) && parts.stream().anyMatch(p -> p.name.contains(";") || p.fileName != null && p.fileName.contains(";"))) {
-                    // BUG: Content-Disposition parameters split on ';' inside quoted strings
-                    // (ClientFindingsTest.multipartDispositionParametersAreQuotedStrings)
-                    known++;
-                } else if (!back.equals(parts)) {
+                if (!back.equals(parts)) {
                     category = "write-read mismatch " + differingField(parts, back);
                     failures.putIfAbsent(category, input + "\n    read back " + back);
                 }
@@ -179,7 +174,6 @@ class MultipartConformanceTest {
                 failures.putIfAbsent(category + " " + e.getClass().getSimpleName(), input + "\n    " + e);
             }
         }
-        System.out.println("known Content-Disposition quoting mismatches: " + known);
         report(seed, cases, failures);
     }
 

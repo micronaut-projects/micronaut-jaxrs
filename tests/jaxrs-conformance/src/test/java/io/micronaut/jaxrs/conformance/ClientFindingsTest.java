@@ -115,25 +115,6 @@ class ClientFindingsTest {
             () -> assertEquals("a\\b", MediaType.valueOf("text/plain;x=\"a\\\\b\"").getParameters().get("x")));
     }
 
-    /**
-     * RFC 7578 4.2 / RFC 2183: Content-Disposition parameters are quoted-strings, a semicolon inside one does not
-     * end it, and a filename cannot supply the name of the part.
-     */
-    @Test
-    void multipartDispositionParametersAreQuotedStrings() throws Exception {
-        String entity = "--B\r\nContent-Disposition: form-data; filename=\"x; name=evil\"; name=\"real\"\r\n\r\nv\r\n"
-            + "--B\r\nContent-Disposition: form-data; name=\"a;b\"\r\n\r\nw\r\n--B--\r\n";
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        java.util.List<jakarta.ws.rs.core.EntityPart> parts = new io.micronaut.jaxrs.common.multipart.JaxRsMultipartMessageBodyReader().readFrom(
-            (Class) java.util.List.class, new jakarta.ws.rs.core.GenericType<java.util.List<jakarta.ws.rs.core.EntityPart>>() { }.getType(),
-            new java.lang.annotation.Annotation[0], MediaType.valueOf("multipart/form-data;boundary=B"), new jakarta.ws.rs.core.MultivaluedHashMap<>(),
-            new java.io.ByteArrayInputStream(entity.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
-        assertAll(
-            () -> assertEquals("real", parts.get(0).getName()),
-            () -> assertEquals("x; name=evil", parts.get(0).getFileName().orElse(null)),
-            () -> assertEquals("a;b", parts.get(1).getName()));
-    }
-
     /** RFC 9110 5.6.4: a quote or backslash in a quoted parameter value is escaped when serialized. */
     @Test
     void quotedParameterIsEscaped() {
