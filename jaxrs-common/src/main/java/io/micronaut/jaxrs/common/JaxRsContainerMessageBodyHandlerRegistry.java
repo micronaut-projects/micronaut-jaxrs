@@ -22,6 +22,7 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.inject.QualifiedBeanType;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
+import io.micronaut.core.reflect.ReflectionUtils;
 import io.micronaut.core.type.Argument;
 import io.micronaut.core.type.Headers;
 import io.micronaut.core.type.MutableHeaders;
@@ -140,8 +141,12 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
     /**
      * The priority of a provider for a contract: the one a feature registered it with
      * ({@code Configurable#register(Class, int)}), else its {@code @Priority} (JAX-RS 4.1.3).
+     *
+     * @param registration The registration of the provider
+     * @param contract     The contract, e.g. {@code ExceptionMapper}
+     * @return The priority, the lowest value first
      */
-    private int priority(BeanRegistration<?> registration, Class<?> contract) {
+    public int priority(BeanRegistration<?> registration, Class<?> contract) {
         Class<?> providerClass = registration.getBeanDefinition().getBeanType();
         for (Configuration configuration : beanLocator.getBeansOfType(Configuration.class)) {
             if (configuration.getRuntimeType() == RuntimeType.SERVER && configuration.isRegistered(providerClass)) {
@@ -191,13 +196,25 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
      */
     @SuppressWarnings("unchecked")
     private <T> SelectingReader<T> selectingReader(Argument<T> type, List<MediaType> mediaTypes) {
-        Argument<T> lookup = type;
+        Argument<T> lookup = boxed(type);
         if (InputStream.class.isAssignableFrom(type.getType())) {
             lookup = (Argument<T>) Argument.of(InputStream.class, type.getAnnotationMetadata());
         }
         Argument<T> candidatesType = lookup;
         return (SelectingReader<T>) cached(readers, new HandlerKey<>(lookup, mediaTypes),
             () -> new SelectingReader<>(findJaxRsReaders(candidatesType, mediaTypes)));
+    }
+
+    /**
+     * The argument of the wrapper type of a primitive type, which the readers of the wrapper read
+     * (JAX-RS 4.2.4), else the argument.
+     */
+    @SuppressWarnings("unchecked")
+    private static <T> Argument<T> boxed(Argument<T> type) {
+        if (!type.isPrimitive()) {
+            return type;
+        }
+        return (Argument<T>) Argument.of(ReflectionUtils.getWrapperType(type.getType()), type.getAnnotationMetadata());
     }
 
     /**
@@ -536,10 +553,11 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
             this.candidates = candidates;
         }
 
-        @Nullable MessageBodyReader<T> find(Argument<T> type, List<MediaType> mediaTypes) {
+        @Nullable MessageBodyReader<T> find(Argument<T> argument, List<MediaType> mediaTypes) {
             if (candidates.isEmpty()) {
                 return null;
             }
+            Argument<T> type = boxed(argument);
             Class<T> theType = type.getType();
             Type genericType = type.asType();
             for (MediaType mediaType : mediaTypes) {
@@ -561,7 +579,7 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
             if (reader == null) {
                 throw new CodecException("No JAX-RS reader reads " + type + " as " + mediaType);
             }
-            return new JaxRsMessageBodyReader<>(reader).read(type, mediaType, httpHeaders, inputStream);
+            return new JaxRsMessageBodyReader<>(reader).read(boxed(type), mediaType, httpHeaders, inputStream);
         }
     }
 

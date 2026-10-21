@@ -15,17 +15,26 @@ import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.RuntimeType;
 import jakarta.ws.rs.container.ContainerResponseContext;
 import jakarta.ws.rs.container.ContainerRequestContext;
 import jakarta.ws.rs.container.ContainerResponseFilter;
+import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.Feature;
 import jakarta.ws.rs.core.FeatureContext;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
+import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.ext.ContextResolver;
+import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.MessageBodyReader;
 import jakarta.ws.rs.ext.MessageBodyWriter;
+import jakarta.ws.rs.ext.ParamConverter;
+import jakarta.ws.rs.ext.ParamConverterProvider;
 import jakarta.ws.rs.ext.Provider;
+import jakarta.ws.rs.ext.Providers;
 import jakarta.ws.rs.ext.WriterInterceptor;
 import jakarta.ws.rs.ext.WriterInterceptorContext;
 import org.junit.jupiter.api.Test;
@@ -38,6 +47,7 @@ import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
@@ -71,7 +81,113 @@ class ServerProviderSelectionTest {
             HttpRequest.POST("/integer", "ff").contentType(MediaType.TEXT_PLAIN)));
     }
 
+    @Test
+    void theReaderOfTheApplicationReadsAPrimitiveInt() {
+        // the reader of Integer reads an int entity parameter
+        assertEquals("255", client.toBlocking().retrieve(
+            HttpRequest.POST("/int", "ff").contentType(MediaType.TEXT_PLAIN)));
+    }
+
+    @Test
+    void thePriorityOfAFeatureOrdersTheExceptionMappers() {
+        assertEquals("feature", client.toBlocking().retrieve(HttpRequest.GET("/mapped")));
+    }
+
+    @Test
+    void clientExceptionMappersDoNotRunOnTheServer() {
+        var e = assertThrows(io.micronaut.http.client.exceptions.HttpClientResponseException.class,
+            () -> client.toBlocking().retrieve(HttpRequest.GET("/client-mapped")));
+        assertEquals(418, e.getStatus().getCode());
+    }
+
+    @Test
+    void clientContextResolversAndParamConvertersDoNotRunOnTheServer() {
+        assertEquals("none:raw", client.toBlocking().retrieve(HttpRequest.GET("/resolved?value=raw")));
+    }
+
     public record Thing(String value) {
+    }
+
+    public static class MappedException extends RuntimeException {
+    }
+
+    public static class ClientMappedException extends WebApplicationException {
+        public ClientMappedException() {
+            super(418);
+        }
+    }
+
+    public abstract static class NamedMapper implements ExceptionMapper<MappedException> {
+        private final String name;
+
+        NamedMapper(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public Response toResponse(MappedException exception) {
+            return Response.ok(name, MediaType.TEXT_PLAIN).build();
+        }
+    }
+
+    @Requires(property = "spec.name", value = "ServerProviderSelectionTest")
+    @Provider
+    @Priority(100)
+    public static class AnnotatedMapper extends NamedMapper {
+        public AnnotatedMapper() {
+            super("annotated");
+        }
+    }
+
+    @Priority(5000)
+    public static class FeatureMapper extends NamedMapper {
+        public FeatureMapper() {
+            super("feature");
+        }
+    }
+
+    @Requires(property = "spec.name", value = "ServerProviderSelectionTest")
+    @Provider
+    @ConstrainedTo(RuntimeType.CLIENT)
+    public static class ClientMapper implements ExceptionMapper<ClientMappedException> {
+        @Override
+        public Response toResponse(ClientMappedException exception) {
+            return Response.ok("client").build();
+        }
+    }
+
+    @Requires(property = "spec.name", value = "ServerProviderSelectionTest")
+    @Provider
+    @ConstrainedTo(RuntimeType.CLIENT)
+    public static class ClientResolver implements ContextResolver<StringBuilder> {
+        @Override
+        public StringBuilder getContext(Class<?> type) {
+            return new StringBuilder("client");
+        }
+    }
+
+    @Requires(property = "spec.name", value = "ServerProviderSelectionTest")
+    @Provider
+    @ConstrainedTo(RuntimeType.CLIENT)
+    public static class ClientConverters implements ParamConverterProvider {
+        @SuppressWarnings("unchecked")
+        @Override
+        public <T> ParamConverter<T> getConverter(Class<T> rawType, Type genericType, Annotation[] annotations) {
+            if (rawType != String.class) {
+                return null;
+            }
+            return (ParamConverter<T>) new ParamConverter<String>() {
+                @Override
+                public String fromString(String value) {
+                    return "client:" + value;
+                }
+
+                @Override
+                public String toString(String value) {
+                    return value;
+                }
+            };
+        }
     }
 
     @Requires(property = "spec.name", value = "ServerProviderSelectionTest")
@@ -132,6 +248,7 @@ class ServerProviderSelectionTest {
         public boolean configure(FeatureContext context) {
             // the priority of the registration precedes the one of the annotation
             context.register(FeatureWriter.class, 1);
+            context.register(FeatureMapper.class, 1);
             return true;
         }
     }
@@ -176,6 +293,36 @@ class ServerProviderSelectionTest {
         @Produces(MediaType.TEXT_PLAIN)
         public String integer(Integer value) {
             return String.valueOf(value);
+        }
+
+        @POST
+        @Path("int")
+        @Consumes(MediaType.TEXT_PLAIN)
+        @Produces(MediaType.TEXT_PLAIN)
+        public String primitive(int value) {
+            return String.valueOf(value);
+        }
+
+        @GET
+        @Path("mapped")
+        @Produces(MediaType.TEXT_PLAIN)
+        public String mapped() {
+            throw new MappedException();
+        }
+
+        @GET
+        @Path("client-mapped")
+        @Produces(MediaType.TEXT_PLAIN)
+        public String clientMapped() {
+            throw new ClientMappedException();
+        }
+
+        @GET
+        @Path("resolved")
+        @Produces(MediaType.TEXT_PLAIN)
+        public String resolved(@Context Providers providers, @QueryParam("value") String value) {
+            ContextResolver<StringBuilder> resolver = providers.getContextResolver(StringBuilder.class, MediaType.WILDCARD_TYPE);
+            return (resolver == null ? "none" : resolver.getContext(String.class).toString()) + ":" + value;
         }
     }
 }
