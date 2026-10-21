@@ -25,4 +25,17 @@ class LinkHeaderSpec extends Specification {
         then:
         thrown(IllegalArgumentException)
     }
+
+    void "occurrences of rel after the first are ignored"() {
+        expect:
+        Link.valueOf('<http://x.test/a>; rel=next; rel=last').getRels() == ["next"]
+    }
+
+    void "an invalid link is an IllegalArgumentException"() {
+        when:
+        Link.valueOf('< http://x.test >; rel=next')
+
+        then:
+        thrown(IllegalArgumentException)
+    }
 }
