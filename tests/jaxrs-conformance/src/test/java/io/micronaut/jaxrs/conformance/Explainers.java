@@ -83,14 +83,14 @@ final class Explainers {
     /** ClientApiConformanceTest.seededResponseBuilder: the index of the first differing property. */
     static String responses(String category, String input, Object ours, Object jersey) {
         if (throwsIn(jersey) && !throwsIn(ours)) {
-            if (input.startsWith("status=99 ") || input.startsWith("status=600 ")) {
-                return "BUG Response.status accepts a status out of 100..599 (ClientFindingsTest.statusOutOfRangeIsRejected)";
-            }
             return "IMPL Jersey parses typed headers eagerly in the getters, Micronaut tolerates invalid values";
         }
         if (throwsIn(ours) && !throwsIn(jersey)) {
             if (input.startsWith("status=-1 ")) {
                 return "JERSEY Response.status(-1) is accepted";
+            }
+            if (input.startsWith("status=99 ") || input.startsWith("status=600 ")) {
+                return "JERSEY Response.status accepts a status out of 100..599";
             }
             return input.endsWith("Set-Cookie: ") ? "IMPL an empty Set-Cookie header value is rejected (IllegalArgumentException)" : null;
         }
@@ -101,31 +101,16 @@ final class Explainers {
         List<?> b = (List<?>) jersey;
         for (int i = 0; i < a.size(); i++) {
             if (!String.valueOf(a.get(i)).equals(String.valueOf(b.get(i)))) {
-                String av = String.valueOf(a.get(i));
-                if (i == 17 && av.contains("1970 00:00:00 GMT,")) {
-                    return "BUG Response.fromResponse duplicates a date header set raw then with lastModified()/expires() (ClientFindingsTest.fromResponseDoesNotDuplicateDateHeaders)";
-                }
                 switch (i) {
                     case 1:
                         return "IMPL reason phrase of a status without a Response.Status constant";
-                    case 4:
-                        return "BUG ResponseBuilder.language/variant add a Content-Language value instead of replacing it (ClientFindingsTest.variantReplacesTheLanguage)";
                     case 9:
                     case 10:
                         return "IMPL parsing of an invalid Allow/Set-Cookie value set as a raw header";
                     case 13:
                     case 17:
-                        if (i == 17 && input.contains("Set-Cookie: ") && category.contains("extra=1")) {
-                            return "BUG Response.fromResponse drops a raw Set-Cookie header when cookie() was used (ClientFindingsTest.fromResponseKeepsRawSetCookie)";
-                        }
                         if (i == 13 && input.contains("Link: ")) {
                             return "IMPL a raw Link header is kept as written (Jersey re-serializes it)";
-                        }
-                        if (av.contains(", 1 Jan 1970")) {
-                            return "BUG Date headers are not IMF-fixdate (ClientFindingsTest.datesAreImfFixdate)";
-                        }
-                        if (input.contains("Content-Language")) {
-                            return "BUG ResponseBuilder.language/variant add a Content-Language value instead of replacing it (ClientFindingsTest.variantReplacesTheLanguage)";
                         }
                         return null;
                     default:

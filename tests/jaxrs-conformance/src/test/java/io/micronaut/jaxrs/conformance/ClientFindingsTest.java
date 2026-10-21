@@ -1,20 +1,8 @@
 package io.micronaut.jaxrs.conformance;
 
-import jakarta.ws.rs.core.HttpHeaders;
-import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.Response;
-import jakarta.ws.rs.core.Variant;
 import jakarta.ws.rs.ext.RuntimeDelegate;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
-
-import java.util.Date;
-import java.util.Locale;
-
-import static org.junit.jupiter.api.Assertions.assertAll;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * The minimized reproducers of the client API discrepancies found by {@link ClientApiConformanceTest},
@@ -33,50 +21,5 @@ class ClientFindingsTest {
     @AfterAll
     static void restore() {
         RuntimeDelegate.setInstance(previous);
-    }
-
-    /** Response.status(int): IllegalArgumentException if status is less than 100 or greater than 599. */
-    @Test
-    void statusOutOfRangeIsRejected() {
-        assertAll(
-            () -> assertThrows(IllegalArgumentException.class, () -> Response.status(99)),
-            () -> assertThrows(IllegalArgumentException.class, () -> Response.status(600)),
-            () -> assertThrows(IllegalArgumentException.class, () -> Response.status(600, "x")));
-    }
-
-    /** ResponseBuilder.variant(): equivalent to setting content type, language and encoding separately (they replace). */
-    @Test
-    void variantReplacesTheLanguage() {
-        Response r = Response.ok().language("en").variant(new Variant(MediaType.TEXT_HTML_TYPE, "fr", "gzip")).build();
-        assertAll(
-            () -> assertEquals(Locale.FRENCH, r.getLanguage()),
-            () -> assertEquals("fr", r.getHeaderString(HttpHeaders.CONTENT_LANGUAGE)),
-            () -> assertEquals("gzip", r.getHeaderString(HttpHeaders.CONTENT_ENCODING)));
-    }
-
-    /** RFC 9110 5.6.7: IMF-fixdate has a two-digit day. */
-    @Test
-    void datesAreImfFixdate() {
-        assertAll(
-            () -> assertEquals("Thu, 01 Jan 1970 00:00:00 GMT", RuntimeDelegate.getInstance().createHeaderDelegate(Date.class).toString(new Date(0))),
-            () -> assertEquals("Thu, 01 Jan 1970 00:00:00 GMT", Response.ok().lastModified(new Date(0)).build().getHeaderString("Last-Modified")));
-    }
-
-    /** Response.fromResponse() copies the headers: it does not duplicate them. */
-    @Test
-    void fromResponseDoesNotDuplicateDateHeaders() {
-        // the sequence of ClientApiConformanceTest.seededResponseBuilder "status=301 extra=1 ... Last-Modified: garbage"
-        Response original = Response.status(301).header("Last-Modified", "garbage").allow("PUT", "get")
-            .cookie(new jakarta.ws.rs.core.NewCookie.Builder("c").value("v").build()).tag("t").lastModified(new Date(0)).build();
-        Response copy = Response.fromResponse(original).build();
-        assertEquals(original.getHeaderString("Last-Modified"), copy.getHeaderString("Last-Modified"));
-    }
-
-    /** Response.fromResponse(): a copy of the response headers, a raw Set-Cookie header included. */
-    @Test
-    void fromResponseKeepsRawSetCookie() {
-        Response original = Response.ok().header("Set-Cookie", "n=v").cookie(new jakarta.ws.rs.core.NewCookie.Builder("c").value("v").build()).build();
-        Response copy = Response.fromResponse(original).build();
-        assertEquals(original.getHeaderString("Set-Cookie"), copy.getHeaderString("Set-Cookie"));
     }
 }

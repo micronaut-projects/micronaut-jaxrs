@@ -34,8 +34,6 @@ import jakarta.ws.rs.ext.RuntimeDelegate;
 
 import java.lang.annotation.Annotation;
 import java.net.URI;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
@@ -98,6 +96,7 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
 
     @Override
     public Response.ResponseBuilder status(int status) {
+        checkStatus(status);
         response.status(status);
         statusSet = true;
         return this;
@@ -105,9 +104,16 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
 
     @Override
     public Response.ResponseBuilder status(int status, String reasonPhrase) {
+        checkStatus(status);
         response.status(status, reasonPhrase);
         statusSet = true;
         return this;
+    }
+
+    private static void checkStatus(int status) {
+        if (status < 100 || status > 599) {
+            throw new IllegalArgumentException("Status out of the range 100..599: " + status);
+        }
     }
 
     @Override
@@ -160,7 +166,8 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
     public Response.ResponseBuilder header(String name, @Nullable Object value) {
         if (value != null) {
             if (value instanceof Date date) {
-                response.getHeaders().add(name, ZonedDateTime.ofInstant(date.toInstant(), ZoneId.systemDefault()));
+                // an IMF-fixdate (RFC 9110 5.6.7)
+                response.getHeaders().add(name, DateHeaderDelegate.INSTANCE.toString(date));
                 metadata.set(response.getHeaders(), name, date);
             } else {
                 RuntimeDelegate.HeaderDelegate headerDelegate = getInstance().createHeaderDelegate(value.getClass());
@@ -201,7 +208,8 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
         if (language == null) {
             response.getHeaders().remove(io.micronaut.http.HttpHeaders.CONTENT_LANGUAGE);
         } else {
-            response.header(io.micronaut.http.HttpHeaders.CONTENT_LANGUAGE, language);
+            // replaces the language, e.g. of a variant
+            response.getHeaders().set(io.micronaut.http.HttpHeaders.CONTENT_LANGUAGE, language);
         }
         return this;
     }
@@ -260,6 +268,8 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
             return this;
         }
         RuntimeDelegate.HeaderDelegate<NewCookie> delegate = getInstance().createHeaderDelegate(NewCookie.class);
+        // the cookies set as a raw header are kept
+        metadata.sync(response.getHeaders(), HttpHeaders.SET_COOKIE);
         for (NewCookie cookie : cookies) {
             // all the attributes of the cookie, e.g. its max age in seconds, an expiry in the past (a deletion), its version
             response.getHeaders().add(HttpHeaders.SET_COOKIE, delegate.toString(cookie));
@@ -275,7 +285,7 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
         if (expires == null) {
             headers.remove(io.micronaut.http.HttpHeaders.EXPIRES);
         } else {
-            headers.expires(expires.getTime());
+            headers.set(io.micronaut.http.HttpHeaders.EXPIRES, DateHeaderDelegate.INSTANCE.toString(expires));
         }
         metadata.set(headers, io.micronaut.http.HttpHeaders.EXPIRES, expires);
         return this;
@@ -287,7 +297,7 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
         if (lastModified == null) {
             headers.remove(io.micronaut.http.HttpHeaders.LAST_MODIFIED);
         } else {
-            headers.lastModified(lastModified.getTime());
+            headers.set(io.micronaut.http.HttpHeaders.LAST_MODIFIED, DateHeaderDelegate.INSTANCE.toString(lastModified));
         }
         metadata.set(headers, io.micronaut.http.HttpHeaders.LAST_MODIFIED, lastModified);
         return this;
