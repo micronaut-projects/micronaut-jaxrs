@@ -21,6 +21,7 @@ import jakarta.ws.rs.core.Variant;
 import org.junit.jupiter.api.Test;
 
 import java.util.Date;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -51,6 +52,21 @@ class RequestPreconditionsTest {
         assertEquals("application/json", response.body());
     }
 
+    @Test
+    void unmodifiedSinceIsIgnoredWhenIfMatchIsPresent() {
+        HttpResponse<String> response = client.toBlocking().exchange(HttpRequest.PUT("/preconditions", "x")
+            .header("If-Match", "\"a\"")
+            .header("If-Unmodified-Since", "Thu, 01 Jan 1970 00:00:01 GMT"), String.class);
+        assertEquals("updated", response.body());
+    }
+
+    @Test
+    void rejectedIdentityEncodingIsNotSelected() {
+        HttpResponse<String> response = client.toBlocking().exchange(HttpRequest.GET("/preconditions/encoding")
+            .header("Accept-Encoding", "gzip, identity;q=0"), String.class);
+        assertEquals("gzip", response.body());
+    }
+
     @Requires(property = "spec.name", value = "RequestPreconditionsTest")
     @Path("/preconditions")
     public static class PreconditionsResource {
@@ -65,6 +81,15 @@ class RequestPreconditionsTest {
         public String variant(@Context Request request) {
             Variant variant = request.selectVariant(Variant.mediaTypes(MediaType.TEXT_PLAIN_TYPE, MediaType.APPLICATION_JSON_TYPE).build());
             return variant == null ? "none" : variant.getMediaType().toString();
+        }
+
+        @GET
+        @Path("encoding")
+        public String encoding(@Context Request request) {
+            Variant variant = request.selectVariant(List.of(
+                new Variant(MediaType.TEXT_PLAIN_TYPE, (String) null, null),
+                new Variant(MediaType.TEXT_PLAIN_TYPE, (String) null, "gzip")));
+            return variant == null ? "none" : String.valueOf(variant.getEncoding());
         }
     }
 }
