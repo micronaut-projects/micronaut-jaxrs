@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 @MicronautTest
 class UriInfoTest {
@@ -28,7 +29,7 @@ class UriInfoTest {
         HttpRequest<String> request = HttpRequest.GET("/api/uri-info");
         //In the HTTP response body the endpoint prints the path from the injected UriInfo
         String respBody = client.toBlocking().retrieve(request, String.class);
-        Assertions.assertEquals("test path: /uri-info", respBody);
+        Assertions.assertEquals("test path: uri-info", respBody);
     }
 
     @Inject
@@ -48,6 +49,21 @@ class UriInfoTest {
         Assertions.assertEquals("%", uriInfo.getQueryParameters().getFirst("p"));
         Assertions.assertEquals("a b", uriInfo.getQueryParameters().getFirst("s"));
         Assertions.assertEquals("%252F", uriInfo.getQueryParameters(false).getFirst("q"));
+    }
+
+    @Test
+    void semicolonDoesNotSplitQueryParameters() {
+        UriInfo uriInfo = new UriInfoImpl(HttpRequest.GET("http://example.com/foo?x=a;b"));
+        Assertions.assertEquals(Map.of("x", List.of("a;b")), uriInfo.getQueryParameters());
+        Assertions.assertEquals(Map.of("x", List.of("a;b")), uriInfo.getQueryParameters(false));
+    }
+
+    @Test
+    void queryParametersKeepEmptyValues() {
+        UriInfo uriInfo = new UriInfoImpl(HttpRequest.GET("http://example.com/foo?x=a&x=&y&=v"));
+        // a parameter without a name is ignored
+        Assertions.assertEquals(Map.of("x", List.of("a", ""), "y", List.of("")), uriInfo.getQueryParameters());
+        Assertions.assertEquals(Map.of("x", List.of("a", ""), "y", List.of("")), uriInfo.getQueryParameters(false));
     }
 
     @Test
@@ -83,7 +99,9 @@ class UriInfoTest {
         Assertions.assertEquals("x y", uriInfo.getPathSegments().get(1).getMatrixParameters().getFirst("m"));
         Assertions.assertEquals(List.of("items", "a%2Fb", "7+8"),
             uriInfo.getPathSegments(false).stream().map(jakarta.ws.rs.core.PathSegment::getPath).toList());
-        Assertions.assertEquals("/items/a/b;m=x y/7+8", uriInfo.getPath());
+        // relative to the base URI, without a leading slash
+        Assertions.assertEquals("items/a/b;m=x y/7+8", uriInfo.getPath());
+        Assertions.assertEquals("items/a%2Fb;m=x%20y/7+8", uriInfo.getPath(false));
     }
 
     @Test

@@ -38,7 +38,7 @@ class ResourceContextTest {
 
     @Test
     void getResourceInitializesTheResource() {
-        assertEquals("a q1 h1 /resource-context/get/a",
+        assertEquals("a q1 h1 resource-context/get/a",
             client.toBlocking().retrieve(HttpRequest.GET("/get/a?q=q1").header("X-H", "h1")));
     }
 
@@ -54,7 +54,7 @@ class ResourceContextTest {
 
     @Test
     void initResourceInitializesTheResource() {
-        assertEquals("c q3 h3 /resource-context/init/c",
+        assertEquals("c q3 h3 resource-context/init/c",
             client.toBlocking().retrieve(HttpRequest.GET("/init/c?q=q3").header("X-H", "h3")));
     }
 

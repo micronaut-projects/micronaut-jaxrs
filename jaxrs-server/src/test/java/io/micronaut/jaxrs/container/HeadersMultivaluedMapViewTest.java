@@ -101,7 +101,7 @@ class HeadersMultivaluedMapViewTest {
     public static class ClearingFilter implements ContainerRequestFilter {
         @Override
         public void filter(ContainerRequestContext requestContext) {
-            if (requestContext.getUriInfo().getPath().startsWith("/headers-view")) {
+            if (requestContext.getUriInfo().getPath().startsWith("headers-view")) {
                 requestContext.getHeaders().clear();
             }
         }

@@ -37,9 +37,9 @@ class ConstructorParamTest {
 
     @Test
     void resourceIsCreatedForEveryRequestWithItsValues() {
-        assertEquals("1 7 Fred header /constructor-param/7/abc abc",
+        assertEquals("1 7 Fred header constructor-param/7/abc abc",
             client.toBlocking().retrieve(HttpRequest.GET("/7/abc?name=Fred").header("X-Value", "header")));
-        assertEquals("2 8 unknown none /constructor-param/8/xyz xyz",
+        assertEquals("2 8 unknown none constructor-param/8/xyz xyz",
             client.toBlocking().retrieve(HttpRequest.GET("/8/xyz")));
     }
 

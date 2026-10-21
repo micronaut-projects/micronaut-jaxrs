@@ -118,7 +118,9 @@ public final class UriInfoImpl implements UriInfo {
 
     @Override
     public String getPath(boolean decode) {
+        // relative to the base URI, which ends with a slash
         String path = relativeRawPath();
+        path = path.startsWith("/") ? path.substring(1) : path;
         return decode ? decodePath(path) : path;
     }
 
@@ -225,32 +227,53 @@ public final class UriInfoImpl implements UriInfo {
     @Override
     public MultivaluedMap<String, String> getQueryParameters(boolean decode) {
         var map = new MultivaluedHashMap<String, String>();
-        if (decode) {
-            // the parameters are decoded once, from the query
-            request.getParameters().forEach((name, values) -> values.forEach(value -> map.add(name, value)));
-        } else {
-            getEncodedParameters(request.getUri()).forEach(
-                (str, vals) -> vals.forEach(
-                    val -> map.add(str, val)));
-        }
+        queryParameters(request.getUri(), decode).forEach((name, values) -> values.forEach(value -> map.add(name, value)));
         return unmodifiable(map);
     }
 
-    public static Map<String, List<String>> getEncodedParameters(URI url) {
-        final var map = new LinkedHashMap<String, List<String>>();
-        String query = url.getRawQuery();
+    /**
+     * The query parameters of a URI: only {@code &} separates them, a semicolon is a part of a value. A parameter
+     * without {@code =} has an empty value, and one with an empty name is ignored.
+     *
+     * @param uri    The URI
+     * @param decode Whether the names and values are decoded, a plus being a space
+     * @return The values of each parameter, in the order of the query
+     */
+    public static Map<String, List<String>> queryParameters(URI uri, boolean decode) {
+        var map = new LinkedHashMap<String, List<String>>();
+        String query = uri.getRawQuery();
         if (query == null || query.isEmpty()) {
             return map;
         }
-        final String[] pairs = query.split("&");
-        for (String pair : pairs) {
-            final int idx = pair.indexOf("=");
-            final String key = idx > 0 ? pair.substring(0, idx) : pair;
-            final String value = idx > 0 && pair.length() > idx + 1 ? pair.substring(idx + 1) : null;
-            List<String> list = map.computeIfAbsent(key, k -> new ArrayList<>());
-            list.add(value);
+        for (String pair : query.split("&")) {
+            int equals = pair.indexOf('=');
+            String name = equals < 0 ? pair : pair.substring(0, equals);
+            if (name.isEmpty()) {
+                continue;
+            }
+            String value = equals < 0 ? "" : pair.substring(equals + 1);
+            map.computeIfAbsent(decode ? decodeQuery(name) : name, k -> new ArrayList<>(1))
+                .add(decode ? decodeQuery(value) : value);
         }
         return map;
+    }
+
+    /**
+     * Decode a part of a query, a plus being a space.
+     *
+     * @param raw The name or value as it appears in the query
+     * @return The decoded name or value, or as it is when it is not well encoded
+     */
+    public static String decodeQuery(String raw) {
+        if (raw.indexOf('%') < 0 && raw.indexOf('+') < 0) {
+            return raw;
+        }
+        try {
+            return URLDecoder.decode(raw, StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException e) {
+            // not well encoded: as it is
+            return raw;
+        }
     }
 
     @Override

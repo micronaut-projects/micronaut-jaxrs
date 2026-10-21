@@ -38,8 +38,8 @@ class DynamicFeatureInjectionTest {
 
     @Test
     void registeredInstanceIsInjected() {
-        assertEquals("/dynamic-injection/a", client.toBlocking().retrieve(HttpRequest.GET("/a")));
-        assertEquals("/dynamic-injection/b", client.toBlocking().retrieve(HttpRequest.GET("/b")));
+        assertEquals("dynamic-injection/a", client.toBlocking().retrieve(HttpRequest.GET("/a")));
+        assertEquals("dynamic-injection/b", client.toBlocking().retrieve(HttpRequest.GET("/b")));
     }
 
     @Requires(property = "spec.name", value = "DynamicFeatureInjectionTest")

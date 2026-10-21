@@ -57,7 +57,7 @@ class FilterFormStreamTest {
     public static class ReplacingFilter implements ContainerRequestFilter {
         @Override
         public void filter(ContainerRequestContext requestContext) {
-            if (requestContext.getUriInfo().getPath().startsWith("/filter-form-stream")) {
+            if (requestContext.getUriInfo().getPath().startsWith("filter-form-stream")) {
                 requestContext.setEntityStream(new ByteArrayInputStream("x=new".getBytes(StandardCharsets.UTF_8)));
             }
         }

@@ -48,13 +48,13 @@ class ProviderContextInjectionTest {
 
     @Test
     void readerOfAnEmptyEntitySeesTheRequest() {
-        assertEquals("/provider-context/reader 1111111",
+        assertEquals("provider-context/reader 1111111",
             client.toBlocking().retrieve(HttpRequest.POST("/reader", "").contentType(MediaType.WILDCARD)));
     }
 
     @Test
     void writerSeesTheRequest() {
-        assertEquals("/provider-context/writer 1111111",
+        assertEquals("provider-context/writer 1111111",
             client.toBlocking().retrieve(HttpRequest.POST("/writer", "x").contentType(MediaType.TEXT_PLAIN)));
     }
 

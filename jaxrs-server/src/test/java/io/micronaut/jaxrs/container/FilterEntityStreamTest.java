@@ -55,7 +55,7 @@ class FilterEntityStreamTest {
     public static class PreMatchingReadingFilter implements ContainerRequestFilter {
         @Override
         public void filter(ContainerRequestContext requestContext) throws IOException {
-            if (requestContext.getUriInfo().getPath().endsWith("/filter-entity-stream")) {
+            if (requestContext.getUriInfo().getPath().endsWith("filter-entity-stream")) {
                 requestContext.getHeaders().putSingle("X-Pre", String.valueOf(read(requestContext).length()));
             }
         }
@@ -66,7 +66,7 @@ class FilterEntityStreamTest {
     public static class ReadingFilter implements ContainerRequestFilter {
         @Override
         public void filter(ContainerRequestContext requestContext) throws IOException {
-            if (requestContext.getUriInfo().getPath().endsWith("/filter-entity-stream")) {
+            if (requestContext.getUriInfo().getPath().endsWith("filter-entity-stream")) {
                 // read twice: each stream is a copy
                 read(requestContext);
                 requestContext.getHeaders().putSingle("X-Post", String.valueOf(read(requestContext).length()));

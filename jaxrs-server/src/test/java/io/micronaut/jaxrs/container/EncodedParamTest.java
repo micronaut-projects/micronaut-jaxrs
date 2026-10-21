@@ -14,6 +14,7 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
@@ -26,6 +27,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 
@@ -70,6 +72,12 @@ class EncodedParamTest {
     @Test
     void encodedMatrixParam() throws Exception {
         assertEquals("a%20b+c%2F|a b+c/", get("/api/encoded/matrix;m=a%20b+c%2F"));
+    }
+
+    @Test
+    void queryParamWithASemicolon() throws Exception {
+        // only '&' separates the parameters of a query
+        assertEquals("[a%3Bb, c;d]|[a;b, c;d]|[]", get("/api/encoded/query?x=a%3Bb&x=c;d&y="));
     }
 
     @Test
@@ -135,6 +143,12 @@ class EncodedParamTest {
         @Path("/path/{p}")
         public String path(@Encoded @PathParam("p") String raw, @PathParam("p") String decoded, @Context UriInfo uriInfo) {
             return raw + "|" + decoded + "|" + uriInfo.getPathParameters(false).getFirst("p");
+        }
+
+        @GET
+        @Path("/query")
+        public String query(@Encoded @QueryParam("x") List<String> raw, @QueryParam("x") List<String> decoded, @QueryParam("d") List<String> missing) {
+            return raw + "|" + decoded + "|" + missing;
         }
 
         @GET

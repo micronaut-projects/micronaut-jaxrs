@@ -46,7 +46,7 @@ class ResourceLifecycleTest {
     @Test
     void singletonResourceKeepsItsStateAndSeesTheCurrentRequest() {
         int first = Integer.parseInt(client.toBlocking().retrieve(HttpRequest.GET("/singleton/count")).split(" ")[0]);
-        assertEquals((first + 1) + " /lifecycle/singleton/count", client.toBlocking().retrieve(HttpRequest.GET("/singleton/count")));
+        assertEquals((first + 1) + " lifecycle/singleton/count", client.toBlocking().retrieve(HttpRequest.GET("/singleton/count")));
     }
 
     @Test
