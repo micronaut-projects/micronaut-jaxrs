@@ -75,6 +75,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -1096,6 +1097,7 @@ final class JaxRsConfiguration implements Configuration {
             // a resolver is asked for the context of an entity type, and may have none for it
             MediaType micronautMediaType = mediaType == null ? null : JaxRsUtils.convert(mediaType);
             List<BeanRegistration<ContextResolver>> candidates = new ArrayList<>();
+            Set<BeanRegistration<ContextResolver>> untyped = new HashSet<>();
             for (BeanRegistration<ContextResolver> registration : registrationsOfType(ContextResolver.class)) {
                 ContextResolver<?> resolver = registration.getBean();
                 Argument<?> resolved = JaxRsReflection.get().resolveGeneric(resolver.getClass(), ContextResolver.class);
@@ -1103,12 +1105,17 @@ final class JaxRsConfiguration implements Configuration {
                 if ((arguments.length == 0 || contextType.isAssignableFrom(arguments[0].getType()))
                     && isCompatible(registration.getBeanDefinition().getAnnotationMetadata(), Produces.class, micronautMediaType)) {
                     candidates.add(registration);
+                    if (arguments.length == 0) {
+                        untyped.add(registration);
+                    }
                 }
             }
             // a stable sort: equal ones keep the order of their priorities
             candidates.sort(Comparator.comparingInt((BeanRegistration<ContextResolver> r) -> micronautMediaType == null ? 0
                 : JaxRsUtils.mediaTypeSpecificity(r.getBeanDefinition().getAnnotationMetadata().stringValues(Produces.class), List.of(micronautMediaType))).reversed());
-            List<ContextResolver<T>> resolvers = candidates.stream().map(r -> (ContextResolver<T>) r.getBean()).toList();
+            List<ContextResolver<T>> resolvers = candidates.stream()
+                .map(r -> untyped.contains(r) ? ofType(contextType, (ContextResolver<?>) r.getBean()) : (ContextResolver<T>) r.getBean())
+                .toList();
             if (resolvers.isEmpty()) {
                 return null;
             }
@@ -1124,6 +1131,17 @@ final class JaxRsConfiguration implements Configuration {
                     }
                 }
                 return null;
+            };
+        }
+
+        /**
+         * A resolver whose context type is not known, e.g. a raw one or one whose generic
+         * hierarchy was not recorded: its contexts of another type are none.
+         */
+        private static <T> ContextResolver<T> ofType(Class<T> contextType, ContextResolver<?> resolver) {
+            return type -> {
+                Object context = resolver.getContext(type);
+                return contextType.isInstance(context) ? contextType.cast(context) : null;
             };
         }
     }

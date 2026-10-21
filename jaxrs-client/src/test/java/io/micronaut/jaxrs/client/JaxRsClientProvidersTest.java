@@ -34,6 +34,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The selection of the entity providers of the client and the context they are injected with.
@@ -161,6 +162,20 @@ class JaxRsClientProvidersTest {
         var event = new JaxRsInboundSseEvent(null, null, null, InboundSseEvent.RECONNECT_NOT_SET, "x", target.getConfiguration());
 
         assertEquals(new Thing("xml"), event.readData(Thing.class, MediaType.APPLICATION_XML_TYPE));
+    }
+
+    @Test
+    void aResolverOfAnUnknownContextTypeHasNoContextOfAnotherType() {
+        String echoed = echo()
+            .register(new IntegerContextWriter())
+            .register(RawResolver.class)
+            .request()
+            .post(Entity.entity(new Thing("x"), MediaType.APPLICATION_XML), String.class);
+
+        // with reflection its type argument is Object, which is not Integer: no resolver; with the
+        // metadata only it is not known: a resolver that has no context of the type, not a
+        // ClassCastException
+        assertTrue(echoed.equals("application/xml|none") || echoed.equals("application/xml|null"), echoed);
     }
 
     public record Thing(String value) {
@@ -321,6 +336,39 @@ class JaxRsClientProvidersTest {
         @Override
         public String getContext(Class<?> type) {
             return "xml";
+        }
+    }
+
+    /**
+     * Writes the context of the context resolver of integers for the media type.
+     */
+    public static final class IntegerContextWriter implements MessageBodyWriter<Thing> {
+
+        @Context
+        Providers providers;
+
+        @Override
+        public boolean isWriteable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+            return type == Thing.class;
+        }
+
+        @Override
+        public void writeTo(Thing thing, Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType,
+                            MultivaluedMap<String, Object> httpHeaders, OutputStream entityStream) throws IOException {
+            ContextResolver<Integer> resolver = providers.getContextResolver(Integer.class, mediaType);
+            Integer context = resolver == null ? null : resolver.getContext(Thing.class);
+            write(resolver == null ? "none" : String.valueOf(context), entityStream);
+        }
+    }
+
+    /**
+     * A resolver without a type argument: its context type is not known.
+     */
+    @SuppressWarnings("rawtypes")
+    public static final class RawResolver implements ContextResolver {
+        @Override
+        public Object getContext(Class type) {
+            return "raw";
         }
     }
 }
