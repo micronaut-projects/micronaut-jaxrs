@@ -1239,6 +1239,18 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         return segments;
     }
 
+    private static String strip(String path) {
+        int start = 0;
+        int end = path.length();
+        while (start < end && path.charAt(start) == '/') {
+            start++;
+        }
+        while (end > start && path.charAt(end - 1) == '/') {
+            end--;
+        }
+        return path.substring(start, end);
+    }
+
     /**
      * The number of path segments a template matched: its segments, plus the further segments
      * the values of its variables with a regular expression span, e.g. two for {@code a/b} of
@@ -1302,18 +1314,6 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             }
             return count;
         }
-    }
-
-    private static String strip(String path) {
-        int start = 0;
-        int end = path.length();
-        while (start < end && path.charAt(start) == '/') {
-            start++;
-        }
-        while (end > start && path.charAt(end - 1) == '/') {
-            end--;
-        }
-        return path.substring(start, end);
     }
 
     /**
