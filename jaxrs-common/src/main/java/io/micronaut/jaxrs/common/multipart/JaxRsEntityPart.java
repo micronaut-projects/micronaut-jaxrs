@@ -173,18 +173,19 @@ public final class JaxRsEntityPart implements EntityPart {
         }
         // the content stream is closed once read (EntityPart.getContent)
         try (InputStream stream = stream()) {
+            // a reader is selected first, so that an application reader takes precedence (EntityPart.getContent)
+            MessageBodyReader<T> reader = providers == null ? null
+                : providers.getMessageBodyReader(rawType, type.getType(), NO_ANNOTATIONS, mediaType);
+            if (reader != null) {
+                return reader.readFrom(rawType, type.getType(), NO_ANNOTATIONS, mediaType, headers, stream);
+            }
             if (rawType == byte[].class) {
                 return (T) stream.readAllBytes();
             }
             if (rawType == String.class) {
                 return (T) new String(stream.readAllBytes(), charset());
             }
-            MessageBodyReader<T> reader = providers == null ? null
-                : providers.getMessageBodyReader(rawType, type.getType(), NO_ANNOTATIONS, mediaType);
-            if (reader == null) {
-                throw new IllegalArgumentException("No reader of " + type.getType() + " for the media type " + mediaType);
-            }
-            return reader.readFrom(rawType, type.getType(), NO_ANNOTATIONS, mediaType, headers, stream);
+            throw new IllegalArgumentException("No reader of " + type.getType() + " for the media type " + mediaType);
         }
     }
 
