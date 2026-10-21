@@ -168,17 +168,20 @@ final class JaxRsSseEventSource implements SseEventSource {
         Future<?> reconnect;
         BodyElements<Event<String>> current;
         DefaultHttpClient client;
+        boolean closedAgain;
         synchronized (this) {
-            if (closed) {
-                // closed again: true only once the processing completed (JAX-RS, SseEventSource#close)
-                return awaitProcessed(timeout, unit);
-            }
-            closed = true;
-            open = false;
+            closedAgain = closed;
             reconnect = pendingReconnect;
             current = events;
             client = httpClient;
+            closed = true;
+            open = false;
             httpClient = null;
+        }
+        if (closedAgain) {
+            // closed again: true only once the processing completed (JAX-RS, SseEventSource#close),
+            // waited for without the lock, which a callback closing the source would wait for
+            return awaitProcessed(timeout, unit);
         }
         target.client().closed(this);
         if (reconnect != null) {

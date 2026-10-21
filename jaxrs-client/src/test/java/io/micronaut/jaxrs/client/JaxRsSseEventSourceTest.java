@@ -216,4 +216,33 @@ class JaxRsSseEventSourceTest {
             client.close();
         }
     }
+
+    @Test
+    void aConsumerClosesWhileAnotherCloseWaits() throws Exception {
+        Client client = ClientBuilder.newClient();
+        try {
+            SseEventSource source = SseEventSource.target(target(client, "endless")).build();
+            CountDownLatch received = new CountDownLatch(1);
+            CountDownLatch release = new CountDownLatch(1);
+            source.register(event -> {
+                received.countDown();
+                try {
+                    release.await(10, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                // needs the source while the other close waits for this consumer
+                source.close();
+            });
+            source.open();
+            assertTrue(received.await(10, TimeUnit.SECONDS));
+            assertFalse(source.close(50, TimeUnit.MILLISECONDS));
+            CompletableFuture<Boolean> closedAgain = CompletableFuture.supplyAsync(() -> source.close(10, TimeUnit.SECONDS));
+            Thread.sleep(200);
+            release.countDown();
+            assertTrue(closedAgain.get(5, TimeUnit.SECONDS));
+        } finally {
+            client.close();
+        }
+    }
 }
