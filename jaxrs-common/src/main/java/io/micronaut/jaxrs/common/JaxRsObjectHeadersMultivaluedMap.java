@@ -81,7 +81,11 @@ public class JaxRsObjectHeadersMultivaluedMap extends AbstractMap<String, List<O
     }
 
     @Override
-    public List<Object> get(Object key) {
+    public @Nullable List<Object> get(Object key) {
+        // null for an absent header, like any map (Map.get), e.g. for putIfAbsent
+        if (key == null || !headers.contains(key.toString())) {
+            return null;
+        }
         return new ArrayList<>(headers.getAll(key.toString()));
     }
 
@@ -124,7 +128,7 @@ public class JaxRsObjectHeadersMultivaluedMap extends AbstractMap<String, List<O
         for (String key : otherMap.keySet()) {
             List<Object> l = get(key);
             List<Object> r = otherMap.get(key);
-            if (l.size() != r.size()) {
+            if (l == null || r == null || l.size() != r.size()) {
                 return false;
             }
             if (!counts(l).equals(counts(r))) {
