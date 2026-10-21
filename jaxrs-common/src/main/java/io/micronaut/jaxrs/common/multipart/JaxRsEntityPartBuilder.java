@@ -53,20 +53,22 @@ public final class JaxRsEntityPartBuilder implements EntityPart.Builder {
     }
 
     @Override
-    public EntityPart.Builder mediaType(@Nullable MediaType mediaType) throws IllegalArgumentException {
+    public EntityPart.Builder mediaType(MediaType mediaType) throws IllegalArgumentException {
+        if (mediaType == null) {
+            throw new IllegalArgumentException("The media type is null");
+        }
         this.mediaType = mediaType;
         // the media type is the Content-Type header of the part (EntityPart.Builder.mediaType)
-        if (mediaType == null) {
-            headers.remove(HttpHeaders.CONTENT_TYPE);
-        } else {
-            headers.putSingle(HttpHeaders.CONTENT_TYPE, mediaType.toString());
-        }
+        headers.putSingle(HttpHeaders.CONTENT_TYPE, mediaType.toString());
         return this;
     }
 
     @Override
     public EntityPart.Builder mediaType(String mediaTypeString) throws IllegalArgumentException {
-        return mediaType(mediaTypeString == null ? null : MediaType.valueOf(mediaTypeString));
+        if (mediaTypeString == null) {
+            throw new IllegalArgumentException("The media type is null");
+        }
+        return mediaType(MediaType.valueOf(mediaTypeString));
     }
 
     @Override
