@@ -375,7 +375,7 @@ final class JaxRsUriBuilder extends UriBuilder {
 
     @Override
     public UriBuilder userInfo(String ui) {
-        this.userInfo = ui;
+        this.userInfo = ui == null || ui.isEmpty() ? null : Encode.encodeUserInfo(ui);
         return this;
     }
 
@@ -384,7 +384,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         if (host != null && host.isEmpty()) {
             throw new IllegalArgumentException("invalid host");
         }
-        this.host = host;
+        this.host = host == null ? null : Encode.encodeHost(host);
         return this;
     }
 
@@ -1248,7 +1248,7 @@ final class JaxRsUriBuilder extends UriBuilder {
             throw new IllegalArgumentException("Value parameter is null");
         }
 
-        return uriTemplate(buildCharSequence(Map.of(name, value), true, true, true));
+        return uriTemplate(buildCharSequence(Map.of(name, value), true, true, false));
     }
 
     @Override
@@ -1268,7 +1268,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         }
         checkForNullKeysOrValues(templateValues);
 
-        return uriTemplate(buildCharSequence(templateValues, true, true, true));
+        return uriTemplate(buildCharSequence(templateValues, true, true, false));
     }
 
     private void checkForNullKeysOrValues(Map<?, ?> map) {

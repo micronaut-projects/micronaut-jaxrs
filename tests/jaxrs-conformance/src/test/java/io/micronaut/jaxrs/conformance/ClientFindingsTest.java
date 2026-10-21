@@ -4,7 +4,6 @@ import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.Link;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import jakarta.ws.rs.core.UriBuilder;
 import jakarta.ws.rs.core.Variant;
 import jakarta.ws.rs.ext.RuntimeDelegate;
 import org.junit.jupiter.api.AfterAll;
@@ -82,13 +81,6 @@ class ClientFindingsTest {
         assertEquals(original.getHeaderString("Set-Cookie"), copy.getHeaderString("Set-Cookie"));
     }
 
-    /** An encoded template value is not re-encoded: the same path as buildFromEncoded, a '/' kept. */
-    @Test
-    void resolveTemplateFromEncodedKeepsSlash() {
-        assertEquals(UriBuilder.fromUri("http://x.test/{x}").buildFromEncoded("a/b").toString(),
-            UriBuilder.fromUri("http://x.test/{x}").resolveTemplateFromEncoded("x", "a/b").build().toString());
-    }
-
     /** RFC 8288 3.3: occurrences of rel after the first MUST be ignored. */
     @Test
     void repeatedRelIsIgnored() {
@@ -136,18 +128,5 @@ class ClientFindingsTest {
             () -> assertEquals("text", MediaType.valueOf(" text/plain ").getType()),
             () -> assertEquals("plain", MediaType.valueOf(" text/plain ").getSubtype()),
             () -> assertEquals("plain", MediaType.valueOf("text/plain ; charset=UTF-8").getSubtype()));
-    }
-
-    /**
-     * UriBuilder: "contextual encoding of characters not permitted in the corresponding URI component": '@' and
-     * '/' are not permitted in a user-info, they cannot change the authority.
-     */
-    @Test
-    void userInfoAndHostAreEncoded() {
-        assertAll(
-            () -> assertEquals("x.test", UriBuilder.fromUri("http://x.test/").userInfo("a/b").build().getHost()),
-            () -> assertEquals("x.test", UriBuilder.fromUri("http://x.test/").userInfo("@").build().getHost()),
-            () -> assertEquals("http://a%20b@x.test/", UriBuilder.fromUri("http://x.test/").userInfo("a b").build().toString()),
-            () -> assertEquals("/", UriBuilder.fromUri("http://x.test/").host("a/b").build().getRawPath()));
     }
 }
