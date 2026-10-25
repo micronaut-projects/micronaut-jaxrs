@@ -1,8 +1,8 @@
 [versions]
 managed-jaxrs-api = "4.0.0"
-micronaut = "5.2.16"
-micronaut-security = "5.5.0"
-micronaut-serde = "3.2.4"
+micronaut = "5.2.20"
+micronaut-security = "5.5.1"
+micronaut-serde = "3.2.6"
 micronaut-logging = "2.0.0"
 micronaut-servlet = "6.2.2"
 micronaut-validation = "5.2.1"
