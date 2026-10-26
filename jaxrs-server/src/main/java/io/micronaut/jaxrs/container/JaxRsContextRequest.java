@@ -66,6 +66,10 @@ final class JaxRsContextRequest implements Request {
         List<Weighted> accept = weighted(headers.getAll(HttpHeaders.ACCEPT));
         List<Weighted> languages = weighted(headers.getAll(HttpHeaders.ACCEPT_LANGUAGE));
         List<Weighted> encodings = weighted(headers.getAll(HttpHeaders.ACCEPT_ENCODING));
+        if (encodings.isEmpty() && headers.contains(HttpHeaders.ACCEPT_ENCODING)) {
+            // an empty field accepts the identity coding only, unlike an absent one (RFC 9110, 12.5.3)
+            encodings = List.of(new Weighted("identity", 1));
+        }
         // the response varies with the headers of the dimensions the variants specify
         List<String> vary = new ArrayList<>(3);
         if (variants.stream().anyMatch(v -> v.getMediaType() != null)) {
