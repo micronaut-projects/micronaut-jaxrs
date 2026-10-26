@@ -99,9 +99,30 @@ class MediaTypeSelectionTest {
         assertEquals(415, response.statusCode());
     }
 
+    @Test
+    void wildcardDistancesAreCountedPerComponent() {
+        // JAX-RS 3.7.2: text/plain is at distance 1 from text/* and 2 from */*
+        HttpResponse<String> response = client.toBlocking().exchange(HttpRequest.GET("/distance").accept("text/plain"), String.class);
+        assertEquals("text/*", response.body());
+    }
+
     @Requires(property = "spec.name", value = "MediaTypeSelectionTest")
     @Path("/media")
     public static class WeightResource {
+        @GET
+        @Path("distance")
+        @Produces("*/*")
+        public String any() {
+            return "*/*";
+        }
+
+        @GET
+        @Path("distance")
+        @Produces("text/*")
+        public String text() {
+            return "text/*";
+        }
+
         @POST
         @Path("weight")
         @Produces("text/plain;qs=0.9")

@@ -107,6 +107,14 @@ class RequestPreconditionsTest {
         assertEquals("identity", response.body());
     }
 
+    @Test
+    void emptyAcceptEncodingAcceptsTheIdentityCodingOnly() {
+        // RFC 9110, 12.5.3: an empty field value, unlike an absent field
+        HttpResponse<String> response = client.toBlocking().exchange(HttpRequest.GET("/preconditions/gzip")
+            .header("Accept-Encoding", ""), String.class);
+        assertEquals("none", response.body());
+    }
+
     private int status(HttpRequest<?> request) {
         try {
             return client.toBlocking().exchange(request, String.class).getStatus().getCode();
@@ -145,6 +153,13 @@ class RequestPreconditionsTest {
         @Path("encodings")
         public String encodings(@Context Request request) {
             Variant variant = request.selectVariant(Variant.encodings("gzip", "identity").build());
+            return variant == null ? "none" : String.valueOf(variant.getEncoding());
+        }
+
+        @GET
+        @Path("gzip")
+        public String gzip(@Context Request request) {
+            Variant variant = request.selectVariant(Variant.encodings("gzip").build());
             return variant == null ? "none" : String.valueOf(variant.getEncoding());
         }
 

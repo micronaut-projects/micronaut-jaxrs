@@ -59,7 +59,6 @@ import jakarta.inject.Singleton;
 import jakarta.ws.rs.BeanParam;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.CookieParam;
-import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.Encoded;
 import jakarta.ws.rs.FormParam;
 import jakarta.ws.rs.HeaderParam;
@@ -499,10 +498,14 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     }
 
     /**
-     * Route a sub-resource locator. A locator whose target class is known is followed: the
-     * routes of the class are declared under its prefix, and call the locator. A target known
-     * only at runtime, or a locator that repeats, is located by the router, which routes the
-     * rest of the path with the routes of the class of the target.
+     * Route a sub-resource locator. A locator is located by the router, which matches the rest
+     * of the path with the routes of the class of the target it returns, once it selected the
+     * locator (JAX-RS 3.7.2, step 2): the target may be of a subclass of the declared type
+     * (JAX-RS 3.4.1), and the locator reads its parameters from its own prefix. A locator that
+     * reads a form parameter, or one of a resource that does, is followed instead, as a located
+     * locator reads no body: the routes of its known target class are declared under its prefix,
+     * and call the locator. A locator that returns a class creates an instance of exactly
+     * that class.
      */
     private <L, B> void locator(Routes<L> routes, AnnotationMetadata classMetadata, Class<?> rootClass, JaxRsMethod<B> method, String prefix,
                                 Instances<L, B> instances, boolean rootUsesForm, Map<Class<?>, Integer> visited, boolean chainUsesForm,
@@ -531,7 +534,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         int occurrences = visited.getOrDefault(target, 0);
         boolean known = !target.isPrimitive() && target != Object.class && !Response.class.isAssignableFrom(target)
             && occurrences < MAX_LOCATOR_REPEAT;
-        if (known && follow(routes, rootClass, method, readers, prefix, instances, target, rootUsesForm, visited, usesForm, encodedForm)) {
+        if (known && (classReturn || usesForm || rootUsesForm) && follow(routes, rootClass, method, readers, prefix, instances, target, rootUsesForm, visited, usesForm, encodedForm)) {
             return;
         }
         // known only at runtime, or recursive: the paths cannot be enumerated
@@ -546,10 +549,17 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 method.name());
             return;
         }
-        @Nullable MatchedSegments matchedSegments = routes.located() ? null : MatchedSegments.of(prefix);
+        MatchedSegments matchedSegments = MatchedSegments.of(prefix);
+        boolean located = routes.located();
         routes.locate(executor(method.metadata(), classMetadata), routes.prefix(prefix), (request, pathVariables, target1) -> {
             B instance = instances.get(request, pathVariables, null, target1);
-            int segments = matchedSegments == null ? -1 : matchedSegments.count(pathVariables);
+            int segments = matchedSegments.count(pathVariables);
+            if (located) {
+                // the prefix is relative to the one of the locator that located the resource
+                JaxRsMatched matched = JaxRsMatched.get(request);
+                int base = matched == null ? -1 : matched.segments().get(0);
+                segments = base < 0 ? -1 : base + segments;
+            }
             return support.matched(request, locate(method, instance, readers, request, pathVariables, null, segments), segments);
         });
     }
@@ -962,11 +972,8 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 continue;
             }
             if (metadata.hasAnnotation(FormParam.class) && NO_BODY_METHODS.contains(httpMethod)) {
-                // no form without a body: read from the query, like the controllers did
-                String name = metadata.stringValue(FormParam.class).orElse(argument.getName());
-                String defaultValue = metadata.stringValue(DefaultValue.class).orElse(null);
-                boolean encoded = encoded(argument, method.metadata(), classMetadata);
-                readers[i] = (request, pathVariables, f, body) -> support.queryParam(request, name, argument, defaultValue, encoded);
+                // no form without a body: the default, never the query (FormParam javadoc)
+                readers[i] = reader(argument, method.metadata(), classMetadata);
             } else if (isRequestAnnotated(metadata)) {
                 readers[i] = reader(argument, method.metadata(), classMetadata);
                 form |= metadata.hasAnnotation(FormParam.class);

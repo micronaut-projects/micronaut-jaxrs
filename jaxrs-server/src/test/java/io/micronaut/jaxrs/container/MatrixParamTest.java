@@ -89,7 +89,8 @@ class MatrixParamTest {
             return new Details(color);
         }
 
-        @Path("rest/{rest: .+}")
+        // two segments: a greedy .+ would take the rest of the path too (JAX-RS 3.7.2, step 2)
+        @Path("rest/{rest: [^/]+/[^/]+}")
         public Details rest(@MatrixParam("color") String color) {
             return new Details(color);
         }

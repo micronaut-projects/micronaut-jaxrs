@@ -319,6 +319,9 @@ class ServerConformanceTest {
         String contentType = header(req, "Content-Type");
         int a = ours.status();
         int b = theirs.status();
+        if (java.util.regex.Pattern.compile("(^|/)\\.\\.?(/|$)").matcher(path).find()) {
+            return "JERSEY the dot segments of the request path are kept (JAX-RS 3.7.1 - RFC 3986 6.2.2: removed before matching)";
+        }
         if (diffs.startsWith("jersey-rejects") && path.contains(";")) {
             return "JERSEY the in-memory handler throws for a matrix parameter after a locator";
         }

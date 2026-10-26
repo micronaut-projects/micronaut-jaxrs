@@ -23,6 +23,7 @@ import io.micronaut.http.uri.RouteTemplate;
 import io.micronaut.http.uri.RouteTemplateParser;
 import io.micronaut.http.uri.RouteTemplateVariable;
 import io.micronaut.http.uri.UriTemplateMatcher;
+import io.micronaut.web.router.RouteLocator;
 import io.micronaut.web.router.UriRouteInfo;
 import io.micronaut.web.router.UriRouteMatch;
 import io.micronaut.web.router.spi.RouteMatchSelector;
@@ -100,7 +101,12 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
         return SPECIFICITY.compare(a, b);
     };
 
-    private static final Comparator<UriRouteInfo<?, ?>> ROUTE_ORDER = (a, b) -> ORDER.compare(a.getRouteTemplate(), b.getRouteTemplate());
+    /**
+     * The order of the routes: a locator route by the template of its prefix, which has the mark
+     * of the locator, so that a resource method is selected before a locator with the same
+     * template (section 3.7.2, step 2).
+     */
+    private static final Comparator<UriRouteInfo<?, ?>> ROUTE_ORDER = (a, b) -> ORDER.compare(template(a), template(b));
 
     private static final Parsed EMPTY = new Parsed(null, "", List.of(), null, 0);
 
@@ -114,11 +120,16 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
      */
     private final Map<String, Parsed> mountedRoots = new ConcurrentHashMap<>();
 
+    private static RouteTemplate template(UriRouteInfo<?, ?> route) {
+        RouteTemplate prefix = RouteLocator.locatorPrefix(route);
+        return prefix == null ? route.getRouteTemplate() : prefix;
+    }
+
     @Override
     public RouteTemplate parse(String expression) {
         Parsed parsed = parsed(this, expression, "");
         if (parsed.rootPart != null) {
-            addRoot(parsed.rootPart, null);
+            addRoot(parsed.rootPart, null, hasSubResource(expression));
         }
         return parsed;
     }
@@ -230,7 +241,9 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
             if (path == null) {
                 path = UriTemplateMatcher.normalizeForMatching(withoutMatrixParameters(request.getUri().getRawPath()));
             }
-            if (candidate.pattern.matcher(path).matches()) {
+            Matcher matcher = candidate.pattern.matcher(path);
+            if (matcher.matches() && (candidate.subResources || matcher.group(matcher.groupCount()) == null)) {
+                // a class with no sub-resource methods or locators matches its path only (step 1(c))
                 return false;
             }
         }
@@ -261,27 +274,46 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
     /**
      * Record the root resource class of a route.
      *
-     * @param root     The template of the root resource class
-     * @param replaced The template it replaces, the unmounted one of a mounted template, or {@code null}
+     * @param root          The template of the root resource class
+     * @param replaced      The template it replaces, the unmounted one of a mounted template, or {@code null}
+     * @param subResources  Whether the route is one of a sub-resource method or locator of the class
      */
-    private synchronized void addRoot(Parsed root, @Nullable Parsed replaced) {
+    private synchronized void addRoot(Parsed root, @Nullable Parsed replaced, boolean subResources) {
         List<Root> added = new ArrayList<>(roots.size() + 1);
         boolean present = false;
         for (Root existing : roots) {
             if (replaced != null && existing.template.expression.equals(replaced.expression)) {
+                subResources |= existing.subResources;
                 continue;
             }
-            present |= existing.template.expression.equals(root.expression);
+            if (existing.template.expression.equals(root.expression)) {
+                present = true;
+                added.add(new Root(existing.template, existing.pattern, existing.subResources || subResources));
+                continue;
+            }
             added.add(existing);
         }
         if (!present) {
             // the path of the class, followed by anything (JAX-RS 3.7.3)
             StringBuilder regex = regex(withoutTrailingSlash(root.parts), new ArrayList<>());
             regex.append("(/.*)?");
-            added.add(new Root(root, Pattern.compile(regex.toString())));
+            added.add(new Root(root, Pattern.compile(regex.toString()), subResources));
         }
         added.sort(Comparator.comparing(Root::template, SPECIFICITY));
         roots = List.copyOf(added);
+    }
+
+    /**
+     * @return Whether a template is the one of a sub-resource method or locator: it has a path
+     * after the {@code @Path} of its root resource class
+     */
+    private static boolean hasSubResource(String expression) {
+        int rootMark = expression.indexOf(ROOT_MARK);
+        if (rootMark < 0) {
+            return false;
+        }
+        String rest = strip(withoutMarks(expression.substring(rootMark + 1)));
+        return !rest.isEmpty() && !rest.equals("/");
     }
 
     /**
@@ -336,7 +368,8 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
                 if (overridden(accepted, accept, type)) {
                     continue;
                 }
-                int distance = (specificity(produce) == specificity(accept) ? 0 : 1);
+                // the wildcard components of one matched against concrete ones of the other (JAX-RS 3.7.2)
+                int distance = Math.abs(specificity(produce) - specificity(accept));
                 Negotiated negotiated = new Negotiated(withoutQuality(type), quality, qs(produce), distance);
                 if (best == null || negotiated.compareTo(best) > 0) {
                     best = negotiated;
@@ -678,10 +711,11 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
     /**
      * A root resource class: its template, and the pattern of the paths it matches.
      *
-     * @param template The template
-     * @param pattern  The pattern of the paths it matches
+     * @param template     The template
+     * @param pattern      The pattern of the paths it matches
+     * @param subResources Whether the class has sub-resource methods or locators
      */
-    private record Root(Parsed template, Pattern pattern) {
+    private record Root(Parsed template, Pattern pattern, boolean subResources) {
     }
 
     /**
@@ -806,7 +840,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
             Parsed mounted = parsed(engine, prefix + expression, prefix);
             if (engine != null && mounted.rootPart != null) {
                 // the root resource class is matched under the prefix
-                engine.addRoot(mounted.rootPart, rootPart);
+                engine.addRoot(mounted.rootPart, rootPart, hasSubResource(mounted.expression));
                 if (rootPart != null && !rootPart.expression.equals(mounted.rootPart.expression)) {
                     engine.mountedRoots.put(rootPart.expression, mounted.rootPart);
                 }
