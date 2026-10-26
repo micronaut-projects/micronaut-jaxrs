@@ -147,8 +147,14 @@ final class JaxRsProviders implements Providers {
         // application replace, see JaxRsApplicationSingletons
         JaxRsContainerMessageBodyHandlerRegistry registry = registry();
         List<Candidate<T>> candidates = new ArrayList<>();
-        for (BeanRegistration<ContextResolver> registration : beanContext.getBeanRegistrations(ContextResolver.class,
-                MatchArgumentQualifier.covariant(ContextResolver.class, Argument.of(contextType)))) {
+        for (BeanRegistration<ContextResolver> registration : beanContext.getBeanRegistrations(ContextResolver.class)) {
+            List<Argument<?>> arguments = registration.getBeanDefinition().getTypeArguments(ContextResolver.class);
+            Class<?> resolved = arguments.isEmpty() ? Object.class : arguments.get(0).getType();
+            if (!contextType.isAssignableFrom(resolved) && !resolved.isAssignableFrom(contextType)) {
+                // the generic type of the resolver is assignable to the context type, or a
+                // supertype of it, which may resolve it too
+                continue;
+            }
             if (!registry.isRegistered(registration.getBeanDefinition().getBeanType(), ContextResolver.class)
                 || !JaxRsUtils.isServerProvider(registration.getBeanDefinition().getAnnotationMetadata())) {
                 // not registered, or constrained to the client (@ConstrainedTo)
