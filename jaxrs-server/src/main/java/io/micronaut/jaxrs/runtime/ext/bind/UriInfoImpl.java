@@ -297,9 +297,10 @@ public final class UriInfoImpl implements UriInfo {
             // nothing is matched before the matching
             return List.of();
         }
-        String path = trimSlashes(getPath(decode));
+        // the prefixes are taken from the encoded path, a decoded slash is not a separator
+        String path = trimSlashes(getPath(false));
         List<String> uris = new ArrayList<>();
-        uris.add(path);
+        uris.add(decode ? decodePath(path) : path);
         JaxRsMatched matched = JaxRsMatched.get(request);
         if (matched != null) {
             for (int segments : matched.segments()) {
@@ -308,6 +309,7 @@ public final class UriInfoImpl implements UriInfo {
                     continue;
                 }
                 String uri = firstSegments(path, segments);
+                uri = decode ? decodePath(uri) : uri;
                 if (!uri.equals(uris.get(uris.size() - 1))) {
                     uris.add(uri);
                 }
