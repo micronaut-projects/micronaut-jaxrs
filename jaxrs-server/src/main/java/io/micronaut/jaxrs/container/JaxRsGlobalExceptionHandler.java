@@ -29,6 +29,8 @@ import jakarta.inject.Singleton;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Providers;
 import io.micronaut.jaxrs.common.JaxRsIOException;
+import jakarta.ws.rs.BadRequestException;
+import jakarta.ws.rs.core.NoContentException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -77,6 +79,12 @@ final class JaxRsGlobalExceptionHandler implements ExceptionHandler<Throwable, H
         if (exception instanceof JaxRsIOException && exception.getCause() != null) {
             // the IOException a provider threw, wrapped to cross Micronaut's reader and writer API
             exception = exception.getCause();
+        }
+        if (exception instanceof NoContentException) {
+            // the one of a reader of an empty entity is a bad request, which the mappers map
+            // (JAX-RS 4.2.4)
+            exception = new BadRequestException(exception);
+            clientError = true;
         }
         ExceptionMapper exceptionMapper = providers.getExceptionMapper(exception.getClass());
         if (exceptionMapper != null) {
