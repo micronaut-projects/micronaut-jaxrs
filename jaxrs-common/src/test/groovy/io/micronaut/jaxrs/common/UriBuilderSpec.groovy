@@ -6,6 +6,15 @@ import spock.lang.Specification
 
 class UriBuilderSpec extends Specification {
 
+    void "the templates of an opaque URI are resolved"() {
+        expect:
+        UriBuilder.fromUri("mailto:{user}@example.org").build("alice").toString() == "mailto:alice@example.org"
+        UriBuilder.fromUri("mailto:{user}@example.org").buildFromMap([user: "bob"]).toString() == "mailto:bob@example.org"
+        UriBuilder.fromUri("mailto:x@example.org").scheme("mailto").schemeSpecificPart("{user}@example.org").build("alice").toString() == "mailto:alice@example.org"
+        UriBuilder.fromUri("mailto:{user}@example.org").toTemplate() == "mailto:{user}@example.org"
+        UriBuilder.fromUri("mailto:x@example.org").schemeSpecificPart("y@example.org").build().toString() == "mailto:y@example.org"
+    }
+
     void "a matrix parameter with a name to encode is replaced"() {
         expect:
         UriBuilder.fromPath("/p").matrixParam("a b", 1).replaceMatrixParam("a b", 2).build().toString() == "/p;a%20b=2"
