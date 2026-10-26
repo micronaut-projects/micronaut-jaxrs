@@ -151,14 +151,23 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
 
     @Override
     public Response.ResponseBuilder cacheControl(CacheControl cacheControl) {
-        header(io.micronaut.http.HttpHeaders.CACHE_CONTROL, cacheControl);
+        replaceHeader(io.micronaut.http.HttpHeaders.CACHE_CONTROL, cacheControl);
         return this;
     }
 
     @Override
     public Response.ResponseBuilder encoding(@Nullable String encoding) {
-        header(io.micronaut.http.HttpHeaders.CONTENT_ENCODING, encoding);
+        replaceHeader(io.micronaut.http.HttpHeaders.CONTENT_ENCODING, encoding);
         return this;
+    }
+
+    /**
+     * Sets a header: unlike {@link #header(String, Object)}, which adds a value, it replaces the
+     * values of the header, removed for a null value.
+     */
+    private void replaceHeader(String name, @Nullable Object value) {
+        response.getHeaders().remove(name);
+        header(name, value);
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -256,7 +265,7 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
 
     @Override
     public Response.ResponseBuilder contentLocation(URI location) {
-        header(HttpHeaders.CONTENT_LOCATION, location);
+        replaceHeader(HttpHeaders.CONTENT_LOCATION, location);
         return this;
     }
 

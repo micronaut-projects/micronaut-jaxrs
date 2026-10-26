@@ -12,6 +12,27 @@ import spock.lang.Specification
 
 class ResponseBuilderSpec extends Specification {
 
+    void "encoding, contentLocation and cacheControl replace the header, header adds a value"() {
+        given:
+        def first = new jakarta.ws.rs.core.CacheControl()
+        first.noStore = true
+        def second = new jakarta.ws.rs.core.CacheControl()
+        second.maxAge = 5
+        second.noTransform = false
+        def response = Response.ok()
+                .encoding("gzip").encoding("br")
+                .contentLocation(URI.create("/one")).contentLocation(URI.create("/two"))
+                .cacheControl(first).cacheControl(second)
+                .header("X-A", "1").header("X-A", "2")
+                .build()
+
+        expect:
+        response.getStringHeaders().get(HttpHeaders.CONTENT_ENCODING) == ['br']
+        response.getStringHeaders().get(HttpHeaders.CONTENT_LOCATION) == ['/two']
+        response.getStringHeaders().get(HttpHeaders.CACHE_CONTROL) == ['max-age=5']
+        response.getStringHeaders().get("X-A") == ['1', '2']
+    }
+
     void "replaceAll writes the values with the header delegates"() {
         given:
         def headers = new MultivaluedHashMap<String, Object>()
