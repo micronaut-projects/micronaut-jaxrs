@@ -218,14 +218,25 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
 
     @Override
     public ClientBuilder connectTimeout(long timeout, TimeUnit unit) {
-        this.connectTimeout = Duration.ofMillis(unit.toMillis(timeout));
+        this.connectTimeout = timeout(timeout, unit);
         return this;
     }
 
     @Override
     public ClientBuilder readTimeout(long timeout, TimeUnit unit) {
-        this.readTimeout = Duration.of(timeout, unit.toChronoUnit());
+        this.readTimeout = timeout(timeout, unit);
         return this;
+    }
+
+    /**
+     * A timeout of the builder: zero is infinite, none, and a negative one is rejected (JAX-RS,
+     * {@code ClientBuilder#readTimeout}).
+     */
+    private static @Nullable Duration timeout(long timeout, TimeUnit unit) {
+        if (timeout < 0) {
+            throw new IllegalArgumentException("Negative timeout: " + timeout);
+        }
+        return timeout == 0 ? null : Duration.of(timeout, unit.toChronoUnit());
     }
 
 }
