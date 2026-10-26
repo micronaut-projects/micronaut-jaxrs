@@ -60,6 +60,7 @@ public final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
     /**
      * @param httpClient       The HTTP client
      * @param httpClients      Creates the other HTTP clients of the client, configured like its own
+     *                         and on the event loop of its own, which owns it
      * @param config           The configuration
      * @param executorService  The executor service of the builder
      * @param scheduledExecutorService The scheduled executor service of the builder
@@ -122,11 +123,23 @@ public final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
         // closing again has no effect
         if (!closed) {
             closed = true;
-            httpClient.close();
+            // the event sources and their HTTP clients first: the main HTTP client shuts down the
+            // event loop they run on
             for (SseEventSource source : eventSources) {
                 source.close();
             }
             eventSources.clear();
+            httpClient.close();
+        }
+    }
+
+    /**
+     * Release a client that the tests left open, unless an event source of it is open: closing
+     * it would shut down the event loop of the event source.
+     */
+    void closeForTesting() {
+        if (eventSources.isEmpty()) {
+            close();
         }
     }
 

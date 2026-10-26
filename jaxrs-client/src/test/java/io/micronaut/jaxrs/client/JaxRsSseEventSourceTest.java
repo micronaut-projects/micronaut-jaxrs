@@ -1,6 +1,7 @@
 package io.micronaut.jaxrs.client;
 
 import io.micronaut.context.annotation.Property;
+import io.micronaut.http.client.HttpClient;
 import io.micronaut.runtime.server.EmbeddedServer;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
@@ -72,6 +73,51 @@ class JaxRsSseEventSourceTest {
         } finally {
             client.close();
             executor.shutdown();
+        }
+    }
+
+    @Test
+    void closingTheClientShutsDownTheEventLoopOfItsEventSources() throws Exception {
+        JaxRsClient client = (JaxRsClient) ClientBuilder.newClient();
+        CountDownLatch received = new CountDownLatch(1);
+        WebTarget target = target(client, "events")
+            .register((ClientRequestFilter) context -> context.getHeaders().putSingle("Authorization", "Bearer token"));
+        JaxRsSseEventSource source = (JaxRsSseEventSource) SseEventSource.target(target).build();
+        source.register(event -> received.countDown());
+        source.open();
+        assertTrue(received.await(10, TimeUnit.SECONDS));
+        // the HTTP client of the event source runs on the event loop of the main HTTP client
+        HttpClient sourceClient = source.httpClient();
+        HttpClient mainClient = client.getHttpClient();
+        assertTrue(sourceClient.isRunning());
+        client.close();
+        assertFalse(source.isOpen());
+        assertFalse(mainClient.isRunning());
+        assertFalse(sourceClient.isRunning());
+    }
+
+    @Test
+    void releasingAClientForTestingKeepsItsOpenEventSources() throws Exception {
+        JaxRsClient client = (JaxRsClient) ClientBuilder.newClient();
+        try {
+            CountDownLatch received = new CountDownLatch(1);
+            WebTarget target = target(client, "events")
+                .register((ClientRequestFilter) context -> context.getHeaders().putSingle("Authorization", "Bearer token"));
+            JaxRsSseEventSource source = (JaxRsSseEventSource) SseEventSource.target(target).build();
+            source.register(event -> received.countDown());
+            source.open();
+            assertTrue(received.await(10, TimeUnit.SECONDS));
+            HttpClient sourceClient = source.httpClient();
+            // the event loop of the event source is the one of the main HTTP client: both stay open
+            client.closeForTesting();
+            assertTrue(source.isOpen());
+            assertTrue(client.getHttpClient().isRunning());
+            assertTrue(sourceClient.isRunning());
+            source.close();
+            client.closeForTesting();
+            assertFalse(client.getHttpClient().isRunning());
+        } finally {
+            client.close();
         }
     }
 

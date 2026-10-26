@@ -64,7 +64,7 @@ import java.util.function.Supplier;
 public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConfigurable<ClientBuilder> {
 
     // Only for testing
-    private static final List<WeakReference<DefaultHttpClient>> TESTING_CLIENTS = new ArrayList<>();
+    private static final List<WeakReference<JaxRsClient>> TESTING_CLIENTS = new ArrayList<>();
     private static final int TESTING_MIN_CLIENTS = Optional.ofNullable(System.getProperty("micronaut.testing.jaxrs.min.clients")).map(Integer::parseInt).orElse(-1);
 
     private final JaxRsConfiguration config = new JaxRsConfiguration();
@@ -96,8 +96,13 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
         if (clientSslContext != null) {
             JaxRsClientSsl.configure(configuration.getSslConfiguration(), clientSslContext, hostnameVerifier);
         }
-        Supplier<DefaultHttpClient> httpClients = () -> DefaultHttpClient.builder().configuration(configuration).build();
-        DefaultHttpClient httpClient = httpClients.get();
+        // the main HTTP client owns the event loop: the other HTTP clients of the client, e.g. of
+        // its event sources, run on it, and it shuts it down when it closes
+        DefaultHttpClient httpClient = DefaultHttpClient.builder().configuration(configuration).build();
+        Supplier<DefaultHttpClient> httpClients = () -> DefaultHttpClient.builder()
+            .configuration(configuration)
+            .eventLoopOf(httpClient)
+            .build();
         ContextlessMessageBodyHandlerRegistry handlerRegistry = (ContextlessMessageBodyHandlerRegistry) httpClient.getHandlerRegistry();
         // the properties and components registered on this builder, then the standard ones
         JaxRsConfiguration jaxRsConfiguration = config.copy();
@@ -135,17 +140,19 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
             standardProviders.providers().forEach(jaxRsConfiguration::registerStandard);
         }
 
+        JaxRsClient client = new JaxRsClient(httpClient, httpClients, jaxRsConfiguration, executorService, scheduledExecutorService,
+            clientSslContext, hostnameVerifier);
         if (TESTING_MIN_CLIENTS > 0) {
             TESTING_CLIENTS.removeIf(w -> w.get() == null);
-            TESTING_CLIENTS.add(new WeakReference<>(httpClient));
+            TESTING_CLIENTS.add(new WeakReference<>(client));
             if (TESTING_CLIENTS.size() > TESTING_MIN_CLIENTS) {
-                DefaultHttpClient client = TESTING_CLIENTS.remove(0).get();
-                if (client != null) {
-                    client.close();
+                JaxRsClient oldest = TESTING_CLIENTS.remove(0).get();
+                if (oldest != null) {
+                    oldest.closeForTesting();
                 }
             }
         }
-        return new JaxRsClient(httpClient, httpClients, jaxRsConfiguration, executorService, scheduledExecutorService, clientSslContext, hostnameVerifier);
+        return client;
     }
 
     @Override
