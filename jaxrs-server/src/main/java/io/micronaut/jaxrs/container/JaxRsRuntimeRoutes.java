@@ -953,9 +953,13 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         }
         Argument<?> returnType = method.returnType();
         Class<?> returnClass = returnType.getType();
-        boolean async = returnClass == CompletionStage.class
-            || (CompletionStage.class.isAssignableFrom(returnClass) && returnClass.getName().startsWith("java.util.concurrent."));
-        Argument<?> valueType = async ? returnType.getFirstTypeVariable().orElse(Argument.OBJECT_ARGUMENT) : returnType;
+        // any stage, of the JDK or a subclass of the application (JAX-RS 8.2.2)
+        boolean async = CompletionStage.class.isAssignableFrom(returnClass);
+        // the type of the value of a stage of the JDK, whose type parameter is the one of the
+        // stage; a subclass may have none or others, the writer is selected for its value
+        boolean jdkStage = returnClass.getName().startsWith("java.util.concurrent.");
+        Argument<?> valueType = !async ? returnType
+            : jdkStage ? returnType.getFirstTypeVariable().orElse(Argument.OBJECT_ARGUMENT) : Argument.OBJECT_ARGUMENT;
         if (valueType.getType() == Void.class && async) {
             valueType = Argument.VOID;
         }
