@@ -93,6 +93,10 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
     private Argument<?> readBodyArgument;
     @Nullable
     private Object readBody;
+    // readEntity returned an entity other than the stream, which getEntity returns
+    private boolean entityRead;
+    @Nullable
+    private Object readEntity;
 
     public JaxRsResponse(HttpResponse<?> response) {
         this(response, HttpMessageEntityReader.DEFAULT);
@@ -155,6 +159,11 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
 
     @Override
     public @Nullable Object getEntity() {
+        checkNotClosed();
+        if (entityRead) {
+            // the last entity read is cached (JAX-RS, Response#readEntity)
+            return readEntity;
+        }
         checkCanReadEntity();
         Object body = body();
         if (body instanceof GenericEntity<?> genericEntity) {
@@ -214,12 +223,24 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
             }
             readBodyArgument = entityType;
             readBody = value;
+            cacheEntity(entityType, value);
             return value;
         }
         if (value == null && empty) {
             value = emptyEntity(entityType.getType());
         }
+        cacheEntity(entityType, value);
         return value;
+    }
+
+    /**
+     * Cache an entity that was read for {@link #getEntity()}: not a stream, which is consumed.
+     */
+    private void cacheEntity(Argument<?> entityType, @Nullable Object value) {
+        if (entityType.getType() != InputStream.class) {
+            entityRead = true;
+            readEntity = value;
+        }
     }
 
     /**

@@ -56,15 +56,22 @@ class ResponseEntitySpec extends Specification {
         def response = received("ignored")
         response.setEntityStream(stream)
 
-        expect:
+        expect: "the entity read is cached for getEntity"
         response.readEntity(String) == "abc"
         closed
+        response.getEntity() == "abc"
+    }
 
-        when:
-        response.getEntity()
+    void "getEntity returns the entity read last from a buffered entity"() {
+        given:
+        def response = received("abc")
 
-        then:
-        thrown(IllegalStateException)
+        expect:
+        response.bufferEntity()
+        response.readEntity(String) == "abc"
+        response.getEntity() == "abc"
+        response.readEntity(byte[]) == "abc".bytes
+        response.getEntity() == "abc".bytes
     }
 
     void "a buffered entity cannot be read after close"() {
