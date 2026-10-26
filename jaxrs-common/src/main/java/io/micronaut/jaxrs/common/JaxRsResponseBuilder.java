@@ -22,6 +22,7 @@ import io.micronaut.http.MutableHttpHeaders;
 import io.micronaut.http.MutableHttpResponse;
 import org.jspecify.annotations.Nullable;
 import jakarta.ws.rs.core.CacheControl;
+import jakarta.ws.rs.core.GenericEntity;
 import jakarta.ws.rs.core.EntityTag;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.Link;
@@ -125,7 +126,12 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
 
     @Override
     public Response.ResponseBuilder entity(Object entity, Annotation[] annotations) {
-        entity(new JaxRsGenericEntity<>(entity, annotations));
+        if (entity instanceof GenericEntity<?> genericEntity) {
+            // the entity with its generic type, not the wrapper
+            entity(new JaxRsGenericEntity<>(genericEntity.getEntity(), genericEntity.getType(), annotations));
+        } else {
+            entity(new JaxRsGenericEntity<>(entity, annotations));
+        }
         return this;
     }
 

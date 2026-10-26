@@ -33,6 +33,21 @@ class ResponseBuilderSpec extends Specification {
         response.getStringHeaders().get("X-A") == ['1', '2']
     }
 
+    void "a generic entity given with annotations keeps its generic type"() {
+        given:
+        def generic = new jakarta.ws.rs.core.GenericEntity<List<String>>(['a'], new jakarta.ws.rs.core.GenericType<List<String>>() {}.type)
+        def annotation = Deprecated.getAnnotation(java.lang.annotation.Documented)
+        def response = (JaxRsResponse) Response.ok().entity(generic, [annotation] as java.lang.annotation.Annotation[]).build()
+        def body = (JaxRsGenericEntity) response.getResponse().body()
+
+        expect:
+        response.getEntity() == ['a']
+        body.type == generic.type
+        body.asArgument().type == List
+        body.asArgument().typeParameters*.type == [String]
+        body.annotations.toList() == [annotation]
+    }
+
     void "replaceAll writes the values with the header delegates"() {
         given:
         def headers = new MultivaluedHashMap<String, Object>()
