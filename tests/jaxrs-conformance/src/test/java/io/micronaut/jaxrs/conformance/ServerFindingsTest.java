@@ -42,13 +42,6 @@ class ServerFindingsTest {
         return servers.micronaut(new Req(method, target, list, body));
     }
 
-    /** RFC 3986: '+' is not an encoding of a space in a path; @PathParam is percent-decoded only (JAX-RS 3.2). */
-    @Test
-    void plusInPathParamIsAPlus() throws Exception {
-        assertEquals("name:a+b|a+b", send("GET", "/r/t/a+b").text());
-        assertEquals("deep:a+b", send("GET", "/r/t/a+b/z").text());
-    }
-
     /** JAX-RS 3.7.2: the 405 Allow header lists the methods of the matched resource only. */
     @Test
     void allowListsTheMethodsOfTheMatchedResource() throws Exception {

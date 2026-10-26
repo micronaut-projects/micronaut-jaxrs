@@ -405,9 +405,6 @@ class ServerConformanceTest {
         if (diffs.startsWith("body=") && path.equals("/r/headers") && accept.contains("foo")) {
             return "IMPL HttpHeaders.getAcceptableMediaTypes(): an invalid media range is ignored (Jersey: foo/*)";
         }
-        if (diffs.startsWith("body=") && path.contains("+")) {
-            return "BUG '+' in a path parameter is decoded to a space (plusInPathParamIsAPlus)";
-        }
         if (diffs.startsWith("body=") && path.startsWith("/r/loc/")) {
             return "JERSEY @MatrixParam of a locator taken from the last request segment";
         }

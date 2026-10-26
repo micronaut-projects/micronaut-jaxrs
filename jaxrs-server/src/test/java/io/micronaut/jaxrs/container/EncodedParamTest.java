@@ -65,6 +65,14 @@ class EncodedParamTest {
     }
 
     @Test
+    void plusInPathParamIsAPlus() throws Exception {
+        // RFC 3986: a '+' in a path is not a space, a path parameter is only percent-decoded (JAX-RS 3.2)
+        assertEquals("a+b|a+b|a+b", get("/api/encoded/path/a+b"));
+        assertEquals("a%2Bb|a+b|a%2Bb", get("/api/encoded/path/a%2Bb"));
+        assertEquals("a+b", get("/api/plus/a+b/z"));
+    }
+
+    @Test
     void encodedClass() throws Exception {
         assertEquals("a%2Fb!+", get("/api/encoded-class/a%2Fb!+"));
     }
@@ -176,6 +184,17 @@ class EncodedParamTest {
         @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
         public String formDecoded(@FormParam("g") String decoded) {
             return decoded;
+        }
+    }
+
+    @Requires(property = "spec.name", value = "EncodedParamTest")
+    @Path("/plus/{any}/z")
+    @Produces(MediaType.TEXT_PLAIN)
+    static class PlusResource {
+
+        @GET
+        public String get(@PathParam("any") String any) {
+            return any;
         }
     }
 
