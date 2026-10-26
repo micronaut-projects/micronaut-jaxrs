@@ -31,6 +31,17 @@ class LinkHeaderSpec extends Specification {
         response.getLink("alternate").getUri() == URI.create("http://example.org/next")
     }
 
+    void "the quoted strings of a link are escaped and unescaped"() {
+        given:
+        def link = Link.fromUri("http://x/").title('a"b\\c').build()
+
+        expect:
+        link.toString() == '<http://x/>; title="a\\"b\\\\c"'
+        Link.valueOf(link.toString()).title == 'a"b\\c'
+        Link.valueOf('<http://x/>; rel=next; title="a\\"b"').title == 'a"b'
+        Link.valueOf('<http://x/>; rel=next; title="a\\"b"').rel == 'next'
+    }
+
     void "a header of several links is not a single link"() {
         when:
         Link.valueOf('</a>; rel="first", </b>; rel="last"')
