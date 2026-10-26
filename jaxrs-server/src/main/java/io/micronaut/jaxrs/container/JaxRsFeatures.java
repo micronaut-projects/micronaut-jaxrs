@@ -105,8 +105,13 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
     JaxRsFeatures(ApplicationContext context, List<BeanRegistration<Feature>> features, List<BeanRegistration<DynamicFeature>> dynamicFeatures) {
         this.context = context;
         Application application = context.findBean(Application.class).orElse(null);
-        this.features = collect(Feature.class, features, application);
-        this.dynamicFeatures = collect(DynamicFeature.class, dynamicFeatures, application);
+        // not the ones constrained to the client (@ConstrainedTo)
+        this.features = collect(Feature.class, features, application).stream()
+            .filter(this::isServerComponent)
+            .toList();
+        this.dynamicFeatures = collect(DynamicFeature.class, dynamicFeatures, application).stream()
+            .filter(this::isServerComponent)
+            .toList();
     }
 
     /**
@@ -188,6 +193,13 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
         return context.findBeanDefinition(componentClass)
             .<AnnotationMetadata>map(BeanDefinition::getAnnotationMetadata)
             .orElseGet(() -> JaxRsRouteInterceptors.metadata(componentClass));
+    }
+
+    /**
+     * Whether a component is not constrained to the client (@ConstrainedTo).
+     */
+    private boolean isServerComponent(Object component) {
+        return JaxRsUtils.isServerProvider(annotationMetadata(component.getClass()));
     }
 
     @Override
@@ -522,9 +534,9 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
                 if (contracts != null) {
                     this.contracts.put(instance, contracts);
                 }
-                if (instance instanceof Feature feature) {
+                if (instance instanceof Feature feature && isServerComponent(feature)) {
                     // a feature registered by a dynamic feature configures the same resource
-                    // method (DynamicFeature.configure)
+                    // method (DynamicFeature.configure), unless constrained to the client
                     feature.configure(this);
                 }
             }
@@ -545,6 +557,10 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
         private void registerClass(Class<?> componentClass) {
             registeredClasses.add(componentClass);
             if (Feature.class.isAssignableFrom(componentClass)) {
+                if (!JaxRsUtils.isServerProvider(annotationMetadata(componentClass))) {
+                    // constrained to the client (@ConstrainedTo)
+                    return;
+                }
                 // a feature registered by another one is configured too
                 Feature feature = (Feature) instance(componentClass);
                 registeredInstances.add(feature);
@@ -562,7 +578,10 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
         private void registerInstance(Object component) {
             registeredInstances.add(component);
             if (component instanceof Feature feature) {
-                feature.configure(this);
+                if (isServerComponent(feature)) {
+                    // unless constrained to the client (@ConstrainedTo)
+                    feature.configure(this);
+                }
             } else if (context.containsBean(component.getClass())) {
                 context.registerSingleton(component);
             } else {
