@@ -75,6 +75,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -217,8 +218,30 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
                                            @Nullable InvocationCallback<T> callback) {
         var result = new CompletableFuture<T>();
         Executor executor = client.getExecutorService();
+        // the exchange in progress, cancelled with the future (JAX-RS, AsyncInvoker; Future#cancel)
+        var sending = new AtomicReference<@Nullable CompletableFuture<Exchanged>>();
+        result.whenComplete((ignored, failure) -> {
+            CompletableFuture<Exchanged> exchange = sending.get();
+            if (result.isCancelled() && exchange != null) {
+                exchange.cancel(false);
+            }
+        });
         Runnable invocation = () -> {
-            var _ = send(method, entity).whenComplete((exchanged, throwable) -> execute(executor, () -> {
+            if (result.isDone()) {
+                // cancelled before it ran: it is not sent
+                return;
+            }
+            CompletableFuture<Exchanged> exchange = send(method, entity);
+            sending.set(exchange);
+            if (result.isCancelled()) {
+                exchange.cancel(false);
+                return;
+            }
+            var _ = exchange.whenComplete((exchanged, throwable) -> execute(executor, () -> {
+                if (result.isDone()) {
+                    // cancelled
+                    return;
+                }
                 T value = null;
                 Throwable failure = throwable;
                 if (failure == null) {
@@ -312,6 +335,12 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
                 .subscribe(new Subscriber<>() {
                     @Override
                     public void onSubscribe(Subscription subscription) {
+                        // the exchange of a cancelled invocation is cancelled
+                        future.whenComplete((ignored, failure) -> {
+                            if (future.isCancelled()) {
+                                subscription.cancel();
+                            }
+                        });
                         subscription.request(1L);
                     }
 
