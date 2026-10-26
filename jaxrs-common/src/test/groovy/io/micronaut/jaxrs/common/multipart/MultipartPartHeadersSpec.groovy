@@ -45,6 +45,34 @@ class MultipartPartHeadersSpec extends Specification {
         part.headers.getFirst("x-custom") == "1"
     }
 
+    void "headers replaces only the given header names"() {
+        given:
+        MultivaluedMap<String, String> headers = new MultivaluedHashMap<>()
+        headers.add("Y", "2")
+        headers.add("x-other", "3")
+
+        when:
+        def part = EntityPart.withName("x").header("X", "1").header("X-Other", "0").headers(headers).content("v").build()
+
+        then:
+        part.headers.getFirst("X") == "1"
+        part.headers.getFirst("Y") == "2"
+        part.headers.get("X-Other") == ["3"]
+    }
+
+    void "a Content-Type set with headers is the media type of the part"() {
+        given:
+        MultivaluedMap<String, String> headers = new MultivaluedHashMap<>()
+        headers.add("content-type", "text/html")
+
+        when:
+        def part = EntityPart.withName("x").mediaType(MediaType.APPLICATION_JSON_TYPE).headers(headers).content("v").build()
+
+        then:
+        part.mediaType == MediaType.TEXT_HTML_TYPE
+        part.headers.get("Content-Type") == ["text/html"]
+    }
+
     private static List<EntityPart> read(String body, String boundary) {
         def type = new GenericType<List<EntityPart>>() {}
         new JaxRsMultipartMessageBodyReader().readFrom((Class) List, type.type, [] as java.lang.annotation.Annotation[],

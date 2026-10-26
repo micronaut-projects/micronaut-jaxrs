@@ -85,7 +85,8 @@ public final class JaxRsEntityPartBuilder implements EntityPart.Builder {
         if (newHeaders == null) {
             throw new IllegalArgumentException("The headers are null");
         }
-        headers.clear();
+        // the values of the given names are replaced, the other headers are kept
+        // (EntityPart.Builder.headers): a Content-Type is the media type of the part, see build()
         headers.putAll(newHeaders);
         return this;
     }
