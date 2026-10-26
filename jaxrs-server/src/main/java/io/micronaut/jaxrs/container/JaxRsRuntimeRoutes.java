@@ -857,7 +857,8 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             return (request, result) -> support.genericEntityResponse(request, (GenericEntity<?>) result);
         }
         // the declared type of the route selects the message body writer, see responseType
-        return (request, result) -> support.entityResponse(result);
+        // with the class of the entity as its raw type, see genericEntityResponse
+        return (request, result) -> support.genericEntityResponse(request, result, type);
     }
 
     /**

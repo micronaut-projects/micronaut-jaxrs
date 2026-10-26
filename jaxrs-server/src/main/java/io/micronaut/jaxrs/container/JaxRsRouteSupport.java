@@ -1041,10 +1041,13 @@ public final class JaxRsRouteSupport {
     }
 
     /**
+     * The response of an entity of a declared type: the writers are given the class of the entity
+     * as its raw type and the declared type as its generic type (JAX-RS 3.3.3), so an entity of a
+     * subclass of the declared type is written as a generic entity of both.
+     *
      * @param request    The request
      * @param entity     The entity returned by a resource method
-     * @param returnType The declared type, with its type arguments, which selects the message body
-     *                   writer
+     * @param returnType The declared type, with its type arguments
      * @return The response
      */
     @SuppressWarnings("unchecked")
@@ -1052,7 +1055,12 @@ public final class JaxRsRouteSupport {
         if (entity == null) {
             return HttpResponse.noContent();
         }
-        Argument<Object> argument = (Argument<Object>) Argument.of(returnType.getType(), routeAnnotations(request), returnType.getTypeParameters());
+        Class<?> declared = returnType.getType();
+        if (entity.getClass() == declared || !declared.isInstance(entity)) {
+            // the declared type selects the message body writer
+            return HttpResponse.ok(entity);
+        }
+        Argument<Object> argument = (Argument<Object>) JaxRsArgumentUtil.of(entity.getClass(), returnType, routeAnnotations(request));
         return HttpResponse.ok(new JaxRsGenericEntity<>(entity, argument, null, null));
     }
 
