@@ -70,6 +70,12 @@ class ResourceContextTest {
             .contentType(io.micronaut.http.MediaType.APPLICATION_FORM_URLENCODED_TYPE)));
     }
 
+    @Test
+    void formMembersAreReadFromTheEntityOfAMethodWithAnEntityParameter() {
+        assertEquals("body body x=body", client.toBlocking().retrieve(HttpRequest.POST("/context-form-entity", "x=body")
+            .contentType(io.micronaut.http.MediaType.APPLICATION_FORM_URLENCODED_TYPE)));
+    }
+
     @Requires(property = "spec.name", value = "ResourceContextTest")
     @Path("/resource-context")
     public static class RootResource {
@@ -84,6 +90,12 @@ class ResourceContextTest {
         @Path("/context-form")
         public String contextForm() {
             return resourceContext.getResource(FormMember.class).x + " " + resourceContext.initResource(new FormMember()).x;
+        }
+
+        @POST
+        @Path("/context-form-entity")
+        public String contextFormEntity(String body) {
+            return resourceContext.getResource(FormMember.class).x + " " + resourceContext.initResource(new FormMember()).x + " " + body;
         }
 
         @Context

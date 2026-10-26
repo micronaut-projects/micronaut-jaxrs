@@ -720,8 +720,9 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         // neither reads the entity for them, whatever its type
         boolean contextEntity = usesResourceContext && !form && !body && !NO_BODY_METHODS.contains(name);
         body |= contextEntity;
-        // a route that reads the entity and form parameters: the form is parsed from the entity
-        boolean entityForm = body && !form && (usesForm || contextEntity);
+        // a route that reads the entity and form parameters, or the entity of a method that uses
+        // the ResourceContext: the form is parsed from the bytes of the entity, read once
+        boolean entityForm = body && !form && (usesForm || usesResourceContext);
         if (method.async()) {
             if (form) {
                 routes.handleAsync(declaration, (request, pathVariables, target, requestBody) -> support.formAsync(request, pathVariables, requestBody,
