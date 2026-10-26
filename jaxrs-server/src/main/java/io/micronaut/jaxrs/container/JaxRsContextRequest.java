@@ -270,9 +270,18 @@ final class JaxRsContextRequest implements Request {
             return 1;
         }
         // the most specific accepted range determines the quality (RFC 9110, 12.5.1); a range with
-        // parameters is more specific than the same range without them, and covers only a type
-        // with the same parameters
-        double best = 0;
+        // parameters is more specific than the same range without them, and determines the
+        // quality of a type with the same parameters
+        double score = mediaTypeScore(accept, mediaType, true);
+        // else, as by the route negotiation, the parameters of the ranges are not matched
+        return score >= 0 ? score : Math.max(mediaTypeScore(accept, mediaType, false), 0);
+    }
+
+    /**
+     * @return The score of the most specific matching range, -1 if none matches
+     */
+    private static double mediaTypeScore(List<Weighted> accept, MediaType mediaType, boolean withParameters) {
+        double best = -1;
         int bestSpecificity = -1;
         for (Weighted weighted : accept) {
             MediaType accepted;
@@ -282,9 +291,9 @@ final class JaxRsContextRequest implements Request {
                 // an invalid media range is ignored, as by the route negotiation
                 continue;
             }
-            if (accepted.isCompatible(mediaType) && parametersMatch(accepted, mediaType)) {
+            if (accepted.isCompatible(mediaType) && (!withParameters || parametersMatch(accepted, mediaType))) {
                 int level = accepted.isWildcardType() ? 0 : accepted.isWildcardSubtype() ? 1 : 2;
-                int specificity = level * 1000 + parameterCount(accepted);
+                int specificity = withParameters ? level * 1000 + parameterCount(accepted) : level;
                 // a more specific accepted type counts more
                 double score = weighted.quality * (level == 0 ? 0.98 : level == 1 ? 0.99 : 1);
                 if (specificity > bestSpecificity) {
