@@ -65,6 +65,8 @@ final class JaxRsSseEventSink implements SseEventSink, Publisher<Event<String>>,
     private boolean cancelled;
     private boolean draining;
     private boolean missed;
+    // called once on the first event sent, to start the response, see #onFirstSend
+    private @Nullable Runnable firstSend;
 
     /**
      * @param dataWriter Writes the data of an event as text, with the message body writers
@@ -183,6 +185,16 @@ final class JaxRsSseEventSink implements SseEventSink, Publisher<Event<String>>,
         }
     }
 
+    /**
+     * @param callback Called once, when the first event is sent: the response starts then, or
+     *                 when the resource method returns, whichever comes first (JAX-RS 9.5)
+     */
+    void onFirstSend(Runnable callback) {
+        synchronized (this) {
+            firstSend = callback;
+        }
+    }
+
     @Override
     public boolean isClosed() {
         return closed;
@@ -203,6 +215,7 @@ final class JaxRsSseEventSink implements SseEventSink, Publisher<Event<String>>,
                 sent = sent.retry(Duration.ofMillis(event.getReconnectDelay()));
             }
             Pending pending = new Pending(sent, new CompletableFuture<>());
+            Runnable started;
             synchronized (this) {
                 if (cancelled) {
                     return CompletableFuture.failedFuture(new IOException("The client disconnected"));
@@ -216,6 +229,11 @@ final class JaxRsSseEventSink implements SseEventSink, Publisher<Event<String>>,
                     pending.sent.complete(null);
                 }
                 buffer.add(pending);
+                started = firstSend;
+                firstSend = null;
+            }
+            if (started != null) {
+                started.run();
             }
             drain();
             return pending.sent;

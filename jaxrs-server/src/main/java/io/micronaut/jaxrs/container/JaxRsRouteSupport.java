@@ -479,7 +479,7 @@ public final class JaxRsRouteSupport {
      * on the event loop: the one of its route, e.g. of its {@code @ExecuteOn}, else the blocking
      * one, as the readers and the method may block like the ones of a synchronous method.
      */
-    private Executor executor(HttpRequest<?> request) {
+    Executor executor(HttpRequest<?> request) {
         ExecutorService executor = RouteAttributes.getRouteInfo(request)
             .map(route -> route.getExecutor(threadSelection.get()))
             .orElse(null);
@@ -902,7 +902,7 @@ public final class JaxRsRouteSupport {
      * The event sink of a request, whose events are the body of its response, see
      * {@link JaxRsServerFilters}.
      */
-    private SseEventSink sseEventSink(HttpRequest<?> request) {
+    JaxRsSseEventSink sseEventSink(HttpRequest<?> request) {
         Optional<JaxRsSseEventSink> existing = request.getAttribute(SSE_EVENT_SINK, JaxRsSseEventSink.class);
         if (existing.isPresent()) {
             return existing.get();
