@@ -21,6 +21,7 @@ import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpStatus;
 import io.micronaut.http.MediaType;
+import io.micronaut.http.MutableHttpRequest;
 import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.jaxrs.runtime.ext.bind.UriInfoImpl;
 import io.micronaut.web.router.RouteAttributes;
@@ -33,6 +34,7 @@ import jakarta.ws.rs.Path;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.ArrayDeque;
 
 /**
  * The container filters of JAX-RS that are not the ones of a resource method: the pre-matching
@@ -58,7 +60,10 @@ final class JaxRsServerFilters implements HttpRoutes {
     @Override
     public void routes(HttpRouteBuilder routes) {
         routes.serverFilter("/**").preMatching()
-            .beforeReplacingAsync(filters::filterPreMatchingRequestAsync).and()
+            .beforeReplacingAsync(request -> {
+                normalize(request);
+                return filters.filterPreMatchingRequestAsync(request);
+            }).and()
             .after((request, response) -> {
                 try {
                     filterResponse(request, response);
@@ -68,6 +73,98 @@ final class JaxRsServerFilters implements HttpRoutes {
                     JaxRsAsyncResponse.completed(request);
                 }
             });
+    }
+
+    /**
+     * Normalize the request URI before it is matched, the one {@code UriInfo} reflects (JAX-RS
+     * 3.7.1): the syntax-based normalization of RFC 3986, 6.2.2.
+     */
+    private static void normalize(MutableHttpRequest<?> request) {
+        URI uri = request.getUri();
+        String rawPath = uri.getRawPath();
+        if (rawPath == null || rawPath.indexOf('%') < 0 && rawPath.indexOf('.') < 0) {
+            return;
+        }
+        String normalized = normalizePath(rawPath);
+        if (normalized.equals(rawPath)) {
+            return;
+        }
+        StringBuilder target = new StringBuilder();
+        if (uri.getRawAuthority() != null) {
+            target.append(uri.getScheme()).append("://").append(uri.getRawAuthority());
+        }
+        target.append(normalized);
+        if (uri.getRawQuery() != null) {
+            target.append('?').append(uri.getRawQuery());
+        }
+        try {
+            request.uri(new URI(target.toString()));
+        } catch (URISyntaxException e) {
+            // left as it is
+        }
+    }
+
+    /**
+     * A raw path normalized (RFC 3986, 6.2.2): the percent-encoded unreserved characters decoded,
+     * the hexadecimal digits of the other percent-encodings in upper case, then the dot segments
+     * removed (RFC 3986, 5.2.4).
+     *
+     * @param rawPath The raw path
+     * @return The normalized path
+     */
+    static String normalizePath(String rawPath) {
+        StringBuilder decoded = new StringBuilder(rawPath.length());
+        for (int i = 0; i < rawPath.length(); i++) {
+            char c = rawPath.charAt(i);
+            if (c == '%' && i + 2 < rawPath.length()) {
+                int high = Character.digit(rawPath.charAt(i + 1), 16);
+                int low = Character.digit(rawPath.charAt(i + 2), 16);
+                if (high >= 0 && low >= 0) {
+                    char value = (char) (high << 4 | low);
+                    if (isUnreserved(value)) {
+                        decoded.append(value);
+                    } else {
+                        decoded.append('%').append(Character.toUpperCase(rawPath.charAt(i + 1)))
+                            .append(Character.toUpperCase(rawPath.charAt(i + 2)));
+                    }
+                    i += 2;
+                    continue;
+                }
+            }
+            decoded.append(c);
+        }
+        return removeDotSegments(decoded.toString());
+    }
+
+    private static boolean isUnreserved(char c) {
+        return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-' || c == '.' || c == '_' || c == '~';
+    }
+
+    /**
+     * RFC 3986, 5.2.4: the segments {@code .} and {@code ..} of an absolute path.
+     */
+    private static String removeDotSegments(String path) {
+        if (!path.startsWith("/") || path.indexOf('.') < 0) {
+            return path;
+        }
+        String[] segments = path.substring(1).split("/", -1);
+        ArrayDeque<String> output = new ArrayDeque<>();
+        for (int i = 0; i < segments.length; i++) {
+            String segment = segments[i];
+            boolean last = i == segments.length - 1;
+            if (segment.equals(".") || segment.equals("..")) {
+                if (segment.equals("..") && !output.isEmpty()) {
+                    output.removeLast();
+                }
+                if (last) {
+                    // a path that ends with a dot segment ends with a slash
+                    output.addLast("");
+                }
+            } else {
+                output.addLast(segment);
+            }
+        }
+        return "/" + String.join("/", output);
     }
 
     /**
