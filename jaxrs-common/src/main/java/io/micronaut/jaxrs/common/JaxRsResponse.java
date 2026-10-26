@@ -93,7 +93,7 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
     private Argument<?> readBodyArgument;
     @Nullable
     private Object readBody;
-    // readEntity returned an entity other than the stream, which getEntity returns
+    // readEntity returned an entity of the buffered entity, other than the stream, which getEntity returns
     private boolean entityRead;
     @Nullable
     private Object readEntity;
@@ -223,7 +223,6 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
             }
             readBodyArgument = entityType;
             readBody = value;
-            cacheEntity(entityType, value);
             return value;
         }
         if (value == null && empty) {
@@ -234,7 +233,8 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
     }
 
     /**
-     * Cache an entity that was read for {@link #getEntity()}: not a stream, which is consumed.
+     * Cache an entity read from the buffered entity for {@link #getEntity()}: not a stream. An
+     * entity read without being buffered is consumed, getEntity throws, as the TCK expects.
      */
     private void cacheEntity(Argument<?> entityType, @Nullable Object value) {
         if (entityType.getType() != InputStream.class) {
