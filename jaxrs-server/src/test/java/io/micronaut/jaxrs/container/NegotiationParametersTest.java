@@ -43,6 +43,21 @@ class NegotiationParametersTest {
         assertEquals("text/plain;charset=ISO-8859-1", response.getContentType().orElseThrow().toString());
     }
 
+    @Test
+    void rangeWithParametersRejectedWithQualityZeroIsNotRevivedByTheBroaderRange() {
+        HttpClientResponseException e = assertThrows(HttpClientResponseException.class,
+            () -> client.toBlocking().exchange(HttpRequest.GET("/flowed")
+                .accept("text/plain;format=flowed;q=0, text/plain;q=1"), String.class));
+        assertEquals(406, e.code());
+    }
+
+    @Test
+    void rangeWithOtherParametersDoesNotRejectTheType() {
+        HttpResponse<String> response = client.toBlocking().exchange(HttpRequest.GET("/flowed")
+            .accept("text/plain;format=fixed;q=0, text/plain;q=1"), String.class);
+        assertEquals("flowed", response.body());
+    }
+
     @Requires(property = "spec.name", value = "NegotiationParametersTest")
     @Path("/negotiation-parameters")
     public static class NegotiationResource {
@@ -52,6 +67,13 @@ class NegotiationParametersTest {
         @Produces("text/plain")
         public String plain() {
             return "plain";
+        }
+
+        @GET
+        @Path("/flowed")
+        @Produces("text/plain;format=flowed")
+        public String flowed() {
+            return "flowed";
         }
 
         @GET

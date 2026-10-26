@@ -349,16 +349,54 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
     /**
      * Whether an accepted range more specific than the matching one also covers a type: the most
      * specific range determines the quality (RFC 9110, 12.5.1), also a nonzero one, so the
-     * matching range does not apply.
+     * matching range does not apply. A range with parameters is more specific than the same
+     * range without them, and covers only a type with the same parameters.
      */
     private static boolean overridden(List<MediaType> accepted, MediaType matching, MediaType type) {
         for (MediaType accept : accepted) {
-            if (specificity(accept) > specificity(matching)
-                && accept.matches(type)) {
+            if (moreSpecific(accept, matching)
+                && accept.matches(type)
+                && parametersMatch(accept, type)) {
                 return true;
             }
         }
         return false;
+    }
+
+    private static boolean moreSpecific(MediaType range, MediaType other) {
+        int specificity = Integer.compare(specificity(range), specificity(other));
+        if (specificity != 0) {
+            return specificity > 0;
+        }
+        return parameterCount(range) > parameterCount(other);
+    }
+
+    /**
+     * Whether a type has every parameter of a range, but {@code q} and {@code qs}.
+     */
+    private static boolean parametersMatch(MediaType range, MediaType type) {
+        for (CharSequence parameter : range.getParameters()) {
+            String name = parameter.toString();
+            if (MediaType.Q_PARAMETER.equals(name) || QS.equals(name)) {
+                continue;
+            }
+            String value = type.getParameters().get(name).orElse(null);
+            if (value == null || !value.equalsIgnoreCase(range.getParameters().get(name).orElse(null))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static int parameterCount(MediaType type) {
+        int count = 0;
+        for (CharSequence parameter : type.getParameters()) {
+            String name = parameter.toString();
+            if (!MediaType.Q_PARAMETER.equals(name) && !QS.equals(name)) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private static MediaType withoutQuality(MediaType type) {

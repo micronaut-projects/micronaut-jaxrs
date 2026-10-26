@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * The JAX-RS {@link Request} of the current request: its method, content negotiation of variants,
@@ -268,7 +269,9 @@ final class JaxRsContextRequest implements Request {
         if (mediaType == null || accept.isEmpty()) {
             return 1;
         }
-        // the most specific accepted range determines the quality (RFC 9110, 12.5.1)
+        // the most specific accepted range determines the quality (RFC 9110, 12.5.1); a range with
+        // parameters is more specific than the same range without them, and covers only a type
+        // with the same parameters
         double best = 0;
         int bestSpecificity = -1;
         for (Weighted weighted : accept) {
@@ -279,10 +282,11 @@ final class JaxRsContextRequest implements Request {
                 // an invalid media range is ignored, as by the route negotiation
                 continue;
             }
-            if (accepted.isCompatible(mediaType)) {
-                int specificity = accepted.isWildcardType() ? 0 : accepted.isWildcardSubtype() ? 1 : 2;
+            if (accepted.isCompatible(mediaType) && parametersMatch(accepted, mediaType)) {
+                int level = accepted.isWildcardType() ? 0 : accepted.isWildcardSubtype() ? 1 : 2;
+                int specificity = level * 1000 + parameterCount(accepted);
                 // a more specific accepted type counts more
-                double score = weighted.quality * (specificity == 0 ? 0.98 : specificity == 1 ? 0.99 : 1);
+                double score = weighted.quality * (level == 0 ? 0.98 : level == 1 ? 0.99 : 1);
                 if (specificity > bestSpecificity) {
                     bestSpecificity = specificity;
                     best = score;
@@ -342,6 +346,32 @@ final class JaxRsContextRequest implements Request {
             return wildcard;
         }
         return value.equalsIgnoreCase("identity") ? 1 : 0;
+    }
+
+    /**
+     * Whether a type has every parameter of an accepted range, but the quality.
+     */
+    private static boolean parametersMatch(MediaType range, MediaType type) {
+        for (Map.Entry<String, String> parameter : range.getParameters().entrySet()) {
+            if ("q".equalsIgnoreCase(parameter.getKey())) {
+                continue;
+            }
+            String value = type.getParameters().get(parameter.getKey());
+            if (value == null || !value.equalsIgnoreCase(parameter.getValue())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static int parameterCount(MediaType range) {
+        int count = 0;
+        for (String name : range.getParameters().keySet()) {
+            if (!"q".equalsIgnoreCase(name)) {
+                count++;
+            }
+        }
+        return Math.min(count, 999);
     }
 
     private static List<Weighted> weighted(List<String> headers) {

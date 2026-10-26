@@ -53,6 +53,13 @@ class RequestPreconditionsTest {
     }
 
     @Test
+    void variantRejectedWithParametersIsNotRevivedByTheBroaderRange() {
+        HttpResponse<String> response = client.toBlocking().exchange(HttpRequest.GET("/preconditions/flowed")
+            .accept("text/plain;format=flowed;q=0, text/plain;q=1"), String.class);
+        assertEquals("text/plain", response.body());
+    }
+
+    @Test
     void unmodifiedSinceIsIgnoredWhenIfMatchIsPresent() {
         HttpResponse<String> response = client.toBlocking().exchange(HttpRequest.PUT("/preconditions", "x")
             .header("If-Match", "\"a\"")
@@ -145,6 +152,14 @@ class RequestPreconditionsTest {
         @Path("variant")
         public String variant(@Context Request request) {
             Variant variant = request.selectVariant(Variant.mediaTypes(MediaType.TEXT_PLAIN_TYPE, MediaType.APPLICATION_JSON_TYPE).build());
+            return variant == null ? "none" : variant.getMediaType().toString();
+        }
+
+        @GET
+        @Path("flowed")
+        public String flowed(@Context Request request) {
+            Variant variant = request.selectVariant(Variant.mediaTypes(
+                MediaType.valueOf("text/plain;format=flowed"), MediaType.valueOf("text/plain")).build());
             return variant == null ? "none" : variant.getMediaType().toString();
         }
 
