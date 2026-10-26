@@ -336,7 +336,8 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
                 if (overridden(accepted, accept, type)) {
                     continue;
                 }
-                int distance = (specificity(produce) == specificity(accept) ? 0 : 1);
+                // the wildcard components of one matched against concrete ones of the other (JAX-RS 3.7.2)
+                int distance = Math.abs(specificity(produce) - specificity(accept));
                 Negotiated negotiated = new Negotiated(withoutQuality(type), quality, qs(produce), distance);
                 if (best == null || negotiated.compareTo(best) > 0) {
                     best = negotiated;
