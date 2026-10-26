@@ -58,6 +58,11 @@ import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
 import io.micronaut.jaxrs.common.JaxRsContainerMessageBodyHandlerRegistry;
 import io.micronaut.context.BeanRegistration;
 import io.micronaut.core.util.SupplierUtil;
+import io.micronaut.http.server.HttpServerConfiguration;
+import io.micronaut.scheduling.TaskExecutors;
+import io.micronaut.scheduling.executor.ThreadSelection;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import io.micronaut.http.form.FormData;
@@ -207,6 +212,12 @@ public final class JaxRsRouteSupport {
 
     private volatile @Nullable Set<Class<?>> registeredClasses;
 
+    // the thread selection of the server, resolved when first used
+    private final Supplier<ThreadSelection> threadSelection;
+
+    // the executor of the asynchronous routes that run on the event loop, resolved when first used
+    private final Supplier<@Nullable Executor> blockingExecutor;
+
     JaxRsRouteSupport(ApplicationProvider applicationProvider,
                       ConversionService conversionService,
                       RequestBinderRegistry binderRegistry,
@@ -232,6 +243,12 @@ public final class JaxRsRouteSupport {
         });
         this.binderRegistry = binderRegistry;
         this.beanContext = beanContext;
+        this.threadSelection = SupplierUtil.memoized(() -> beanContext.findBean(HttpServerConfiguration.class)
+            .map(HttpServerConfiguration::getThreadSelection).orElse(ThreadSelection.MANUAL));
+        this.blockingExecutor = SupplierUtil.memoized(() ->
+            beanContext.findBean(ExecutorService.class, Qualifiers.byName(TaskExecutors.BLOCKING))
+                .or(() -> beanContext.findBean(ExecutorService.class, Qualifiers.byName(TaskExecutors.IO)))
+                .orElse(null));
     }
 
     /**
@@ -428,7 +445,7 @@ public final class JaxRsRouteSupport {
      */
     public CompletionStage<? extends HttpResponse<?>> entityAsync(HttpRequest<?> request, PathVariables pathVariables,
                                                                   AsyncRequestBody body, JaxRsAsyncHandler<byte[]> handler) {
-        return body.body(ENTITY).thenCompose(entity -> call(handler, request, pathVariables, entity));
+        return body.body(ENTITY).thenComposeAsync(entity -> call(handler, request, pathVariables, entity), executor(request));
     }
 
     /**
@@ -450,10 +467,27 @@ public final class JaxRsRouteSupport {
         } else {
             read = body.form();
         }
+        Executor executor = executor(request);
         return read
-            .thenApply(form -> filteredForm(request, form))
+            .thenApplyAsync(form -> filteredForm(request, form), executor)
             .thenCompose(form -> readParts(request, form))
-            .thenCompose(form -> call(handler, request, pathVariables, form));
+            .thenComposeAsync(form -> call(handler, request, pathVariables, form), executor);
+    }
+
+    /**
+     * The executor an asynchronous resource method runs on once its entity is read, which may be
+     * on the event loop: the one of its route, e.g. of its {@code @ExecuteOn}, else the blocking
+     * one, as the readers and the method may block like the ones of a synchronous method.
+     */
+    private Executor executor(HttpRequest<?> request) {
+        ExecutorService executor = RouteAttributes.getRouteInfo(request)
+            .map(route -> route.getExecutor(threadSelection.get()))
+            .orElse(null);
+        if (executor != null) {
+            return executor;
+        }
+        Executor blocking = blockingExecutor.get();
+        return blocking == null ? Runnable::run : blocking;
     }
 
     /**
