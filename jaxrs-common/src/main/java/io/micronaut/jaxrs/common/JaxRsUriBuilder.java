@@ -357,6 +357,10 @@ final class JaxRsUriBuilder extends UriBuilder {
         if (fragment != null && !fragment.isEmpty()) {
             sb.append('#').append(fragment);
         }
+        if (ssp.indexOf('{') != -1) {
+            // a template, which is not a URI yet: parsed like the template of a URI
+            return uriTemplate(sb);
+        }
         URI uri = URI.create(sb.toString());
 
         if (uri.getRawSchemeSpecificPart() != null && uri.getRawPath() == null) {
@@ -622,7 +626,8 @@ final class JaxRsUriBuilder extends UriBuilder {
             replaceParameter(paramMap, fromEncodedMap, isTemplate, scheme, builder, encodeSlash).append(":");
         }
         if (ssp != null) {
-            builder.append(ssp);
+            // the scheme-specific part of an opaque URI may have templates, e.g. mailto:{user}@example.org
+            replaceParameter(paramMap, fromEncodedMap, isTemplate, ssp, builder, encodeSlash);
         } else if (userInfo != null || host != null || port != -1) {
             builder.append("//");
             if (userInfo != null) {
@@ -796,6 +801,9 @@ final class JaxRsUriBuilder extends UriBuilder {
         HashSet<String> set = new HashSet<>();
         if (scheme != null) {
             addToPathParamList(params, set, scheme);
+        }
+        if (ssp != null) {
+            addToPathParamList(params, set, ssp);
         }
         if (userInfo != null) {
             addToPathParamList(params, set, userInfo);

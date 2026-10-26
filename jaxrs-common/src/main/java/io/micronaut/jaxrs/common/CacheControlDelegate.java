@@ -17,9 +17,11 @@ package io.micronaut.jaxrs.common;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.util.ArgumentUtils;
+import org.jspecify.annotations.Nullable;
 import jakarta.ws.rs.core.CacheControl;
 import jakarta.ws.rs.ext.RuntimeDelegate;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -51,36 +53,20 @@ class CacheControlDelegate implements RuntimeDelegate.HeaderDelegate<CacheContro
         CacheControl result = new CacheControl();
         result.setNoTransform(false);
 
-        String[] directives = value.split(",");
-        for (String directive : directives) {
-            directive = directive.trim();
-
-            String[] nv = directive.split("=");
-            String name = nv[0].trim();
-            String val = null;
-            if (nv.length > 1) {
-                val = nv[1].trim();
-                if (val.startsWith("\"")) {
-                    val = val.substring(1);
-                }
-                if (val.endsWith("\"")) {
-                    val = val.substring(0, val.length() - 1);
-                }
-            }
+        for (String directive : directives(value)) {
+            int eq = directive.indexOf('=');
+            String name = (eq < 0 ? directive : directive.substring(0, eq)).trim();
+            String val = eq < 0 ? null : unquote(directive.substring(eq + 1).trim());
 
             String lowercase = name.toLowerCase();
             switch (lowercase) {
                 case NO_CACHE -> {
                     result.setNoCache(true);
-                    if (val != null && !val.isEmpty()) {
-                        result.getNoCacheFields().add(val);
-                    }
+                    addFields(val, result.getNoCacheFields());
                 }
                 case PRIVATE -> {
                     result.setPrivate(true);
-                    if (val != null && !val.isEmpty()) {
-                        result.getPrivateFields().add(val);
-                    }
+                    addFields(val, result.getPrivateFields());
                 }
                 case "no-store" -> result.setNoStore(true);
                 case "max-age" -> {
@@ -107,6 +93,62 @@ class CacheControlDelegate implements RuntimeDelegate.HeaderDelegate<CacheContro
             }
         }
         return result;
+    }
+
+    /**
+     * Splits the directives at the commas outside of quoted strings: the field names of a quoted
+     * {@code private} or {@code no-cache} value are separated by commas as well (RFC 9111 5.2.2.7).
+     */
+    private static List<String> directives(String value) {
+        var directives = new ArrayList<String>();
+        boolean quoted = false;
+        int start = 0;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (quoted && c == '\\') {
+                i++;
+            } else if (c == '"') {
+                quoted = !quoted;
+            } else if (c == ',' && !quoted) {
+                addDirective(value.substring(start, i), directives);
+                start = i + 1;
+            }
+        }
+        addDirective(value.substring(start), directives);
+        return directives;
+    }
+
+    private static void addDirective(String directive, List<String> directives) {
+        String trimmed = directive.trim();
+        if (!trimmed.isEmpty()) {
+            directives.add(trimmed);
+        }
+    }
+
+    private static String unquote(String value) {
+        if (value.length() < 2 || !value.startsWith("\"") || !value.endsWith("\"")) {
+            return value;
+        }
+        var buffer = new StringBuilder(value.length());
+        for (int i = 1; i < value.length() - 1; i++) {
+            char c = value.charAt(i);
+            if (c == '\\' && i + 1 < value.length() - 1) {
+                c = value.charAt(++i);
+            }
+            buffer.append(c);
+        }
+        return buffer.toString();
+    }
+
+    private static void addFields(@Nullable String value, List<String> fields) {
+        if (value != null) {
+            for (String field : value.split(",")) {
+                String trimmed = field.trim();
+                if (!trimmed.isEmpty()) {
+                    fields.add(trimmed);
+                }
+            }
+        }
     }
 
     @Override

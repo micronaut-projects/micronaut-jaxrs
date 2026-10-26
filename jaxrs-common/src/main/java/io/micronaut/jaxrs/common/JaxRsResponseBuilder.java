@@ -22,6 +22,7 @@ import io.micronaut.http.MutableHttpHeaders;
 import io.micronaut.http.MutableHttpResponse;
 import org.jspecify.annotations.Nullable;
 import jakarta.ws.rs.core.CacheControl;
+import jakarta.ws.rs.core.GenericEntity;
 import jakarta.ws.rs.core.EntityTag;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.Link;
@@ -125,7 +126,12 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
 
     @Override
     public Response.ResponseBuilder entity(Object entity, Annotation[] annotations) {
-        entity(new JaxRsGenericEntity<>(entity, annotations));
+        if (entity instanceof GenericEntity<?> genericEntity) {
+            // the entity with its generic type, not the wrapper
+            entity(new JaxRsGenericEntity<>(genericEntity.getEntity(), genericEntity.getType(), annotations));
+        } else {
+            entity(new JaxRsGenericEntity<>(entity, annotations));
+        }
         return this;
     }
 
@@ -151,14 +157,23 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
 
     @Override
     public Response.ResponseBuilder cacheControl(CacheControl cacheControl) {
-        header(io.micronaut.http.HttpHeaders.CACHE_CONTROL, cacheControl);
+        replaceHeader(io.micronaut.http.HttpHeaders.CACHE_CONTROL, cacheControl);
         return this;
     }
 
     @Override
     public Response.ResponseBuilder encoding(@Nullable String encoding) {
-        header(io.micronaut.http.HttpHeaders.CONTENT_ENCODING, encoding);
+        replaceHeader(io.micronaut.http.HttpHeaders.CONTENT_ENCODING, encoding);
         return this;
+    }
+
+    /**
+     * Sets a header: unlike {@link #header(String, Object)}, which adds a value, it replaces the
+     * values of the header, removed for a null value.
+     */
+    private void replaceHeader(String name, @Nullable Object value) {
+        response.getHeaders().remove(name);
+        header(name, value);
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -256,7 +271,7 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
 
     @Override
     public Response.ResponseBuilder contentLocation(URI location) {
-        header(HttpHeaders.CONTENT_LOCATION, location);
+        replaceHeader(HttpHeaders.CONTENT_LOCATION, location);
         return this;
     }
 

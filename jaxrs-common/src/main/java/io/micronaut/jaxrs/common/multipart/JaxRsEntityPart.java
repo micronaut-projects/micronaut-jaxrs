@@ -149,6 +149,13 @@ public final class JaxRsEntityPart implements EntityPart {
         if (content instanceof InputStream stream) {
             return stream;
         }
+        // the content of the part itself, which is read, e.g. the bytes received
+        if (content instanceof byte[] bytes) {
+            return new ByteArrayInputStream(bytes);
+        }
+        if (content instanceof String string) {
+            return new ByteArrayInputStream(string.getBytes(charset()));
+        }
         return new ByteArrayInputStream(bytes(providers));
     }
 
@@ -206,13 +213,22 @@ public final class JaxRsEntityPart implements EntityPart {
      * @param providers The providers that write the content of another type than the standard ones
      * @throws IOException if the content cannot be written
      */
+    @SuppressWarnings({"unchecked", "rawtypes"})
     void write(OutputStream out, @Nullable Providers providers) throws IOException {
+        Providers available = providers != null ? providers : this.providers;
         if (content instanceof InputStream stream) {
+            // a writer of the application selected first, also for a stream
+            MessageBodyWriter writer = writer(available);
             try (stream) {
-                stream.transferTo(out);
+                if (writer == null) {
+                    stream.transferTo(out);
+                } else {
+                    GenericType<?> type = type();
+                    writer.writeTo(content, type.getRawType(), type.getType(), NO_ANNOTATIONS, mediaType, new MultivaluedHashMap<String, Object>(headers), out);
+                }
             }
         } else {
-            out.write(bytes(providers != null ? providers : this.providers));
+            out.write(bytes(available));
         }
     }
 
@@ -227,6 +243,13 @@ public final class JaxRsEntityPart implements EntityPart {
         if (content instanceof InputStream stream) {
             return stream;
         }
+        // the content of the part itself, which is read, e.g. the bytes received
+        if (content instanceof byte[] bytes) {
+            return new ByteArrayInputStream(bytes);
+        }
+        if (content instanceof String string) {
+            return new ByteArrayInputStream(string.getBytes(charset()));
+        }
         return new ByteArrayInputStream(bytes(providers));
     }
 
@@ -237,18 +260,19 @@ public final class JaxRsEntityPart implements EntityPart {
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     private byte[] bytes(@Nullable Providers providers) {
-        if (content instanceof byte[] bytes) {
-            return bytes;
-        }
-        if (content instanceof String string) {
-            return string.getBytes(charset());
-        }
-        GenericType<?> type = contentType == null ? new GenericType<>(content.getClass()) : contentType;
-        MessageBodyWriter writer = providers == null ? null
-            : providers.getMessageBodyWriter(type.getRawType(), type.getType(), NO_ANNOTATIONS, mediaType);
+        // the writer the providers select, e.g. one of the application, else the standard
+        // serialization of a string or of bytes (EntityPart.Builder#content)
+        MessageBodyWriter writer = writer(providers);
         if (writer == null) {
-            throw new ProcessingException("No writer of " + type.getType() + " for the media type " + mediaType);
+            if (content instanceof byte[] bytes) {
+                return bytes;
+            }
+            if (content instanceof String string) {
+                return string.getBytes(charset());
+            }
+            throw new ProcessingException("No writer of " + type().getType() + " for the media type " + mediaType);
         }
+        GenericType<?> type = type();
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try {
             writer.writeTo(content, type.getRawType(), type.getType(), NO_ANNOTATIONS, mediaType, new MultivaluedHashMap<String, Object>(headers), out);
@@ -256,6 +280,17 @@ public final class JaxRsEntityPart implements EntityPart {
             throw new ProcessingException(e);
         }
         return out.toByteArray();
+    }
+
+    private GenericType<?> type() {
+        return contentType == null ? new GenericType<>(content.getClass()) : contentType;
+    }
+
+    @SuppressWarnings("rawtypes")
+    private @Nullable MessageBodyWriter writer(@Nullable Providers providers) {
+        GenericType<?> type = type();
+        return providers == null ? null
+            : providers.getMessageBodyWriter(type.getRawType(), type.getType(), NO_ANNOTATIONS, mediaType);
     }
 
     @Override

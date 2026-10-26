@@ -172,6 +172,34 @@ class MultipartPartHeadersSpec extends Specification {
         JaxRsEntityPart.read("x", null, MediaType.TEXT_PLAIN_TYPE, "abc".bytes, providers).getContent(byte[]) == "abc".bytes
     }
 
+    void "the content of a built part is written by the writer the providers select"() {
+        given:
+        def writer = [
+            isWriteable: { Class t, java.lang.reflect.Type g, java.lang.annotation.Annotation[] a, MediaType m -> true },
+            writeTo    : { Object o, Class t, java.lang.reflect.Type g, java.lang.annotation.Annotation[] a, MediaType m, MultivaluedMap h, OutputStream out ->
+                out.write(("CUSTOM:" + (o instanceof byte[] ? new String((byte[]) o, StandardCharsets.UTF_8) : o)).getBytes(StandardCharsets.UTF_8)) }
+        ] as jakarta.ws.rs.ext.MessageBodyWriter
+        def providers = [
+            getMessageBodyWriter: { Class t, java.lang.reflect.Type g, java.lang.annotation.Annotation[] a, MediaType m -> writer }
+        ] as Providers
+        def none = [
+            getMessageBodyWriter: { Class t, java.lang.reflect.Type g, java.lang.annotation.Annotation[] a, MediaType m -> null }
+        ] as Providers
+
+        expect:
+        written(EntityPart.withName("x").content("hello").build(), providers) == "CUSTOM:hello"
+        written(EntityPart.withName("x").content("hello".bytes).build(), providers) == "CUSTOM:hello"
+        written(EntityPart.withName("x").content("hello").build(), none) == "hello"
+        written(EntityPart.withName("x").content("hello".bytes).build(), none) == "hello"
+        written(EntityPart.withName("x").content("hello").build(), null) == "hello"
+    }
+
+    private static String written(EntityPart part, Providers providers) {
+        def out = new ByteArrayOutputStream()
+        ((JaxRsEntityPart) part).write(out, providers)
+        return out.toString(StandardCharsets.UTF_8)
+    }
+
     void "a null media type of a built part is rejected"() {
         when:
         EntityPart.withName("x").mediaType((MediaType) null)

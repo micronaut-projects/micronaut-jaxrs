@@ -60,11 +60,23 @@ class ResponseEntitySpec extends Specification {
         response.readEntity(String) == "abc"
         closed
 
-        when:
+        when: "the entity was consumed, as the TCK expects"
         response.getEntity()
 
         then:
         thrown(IllegalStateException)
+    }
+
+    void "getEntity returns the entity read last from a buffered entity"() {
+        given:
+        def response = received("abc")
+
+        expect:
+        response.bufferEntity()
+        response.readEntity(String) == "abc"
+        response.getEntity() == "abc"
+        response.readEntity(byte[]) == "abc".bytes
+        response.getEntity() == "abc".bytes
     }
 
     void "a buffered entity cannot be read after close"() {

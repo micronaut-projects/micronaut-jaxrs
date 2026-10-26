@@ -12,6 +12,42 @@ import spock.lang.Specification
 
 class ResponseBuilderSpec extends Specification {
 
+    void "encoding, contentLocation and cacheControl replace the header, header adds a value"() {
+        given:
+        def first = new jakarta.ws.rs.core.CacheControl()
+        first.noStore = true
+        def second = new jakarta.ws.rs.core.CacheControl()
+        second.maxAge = 5
+        second.noTransform = false
+        def response = Response.ok()
+                .encoding("gzip").encoding("br")
+                .contentLocation(URI.create("/one")).contentLocation(URI.create("/two"))
+                .cacheControl(first).cacheControl(second)
+                .header("X-A", "1").header("X-A", "2")
+                .build()
+
+        expect:
+        response.getStringHeaders().get(HttpHeaders.CONTENT_ENCODING) == ['br']
+        response.getStringHeaders().get(HttpHeaders.CONTENT_LOCATION) == ['/two']
+        response.getStringHeaders().get(HttpHeaders.CACHE_CONTROL) == ['max-age=5']
+        response.getStringHeaders().get("X-A") == ['1', '2']
+    }
+
+    void "a generic entity given with annotations keeps its generic type"() {
+        given:
+        def generic = new jakarta.ws.rs.core.GenericEntity<List<String>>(['a'], new jakarta.ws.rs.core.GenericType<List<String>>() {}.type)
+        def annotation = Deprecated.getAnnotation(java.lang.annotation.Documented)
+        def response = (JaxRsResponse) Response.ok().entity(generic, [annotation] as java.lang.annotation.Annotation[]).build()
+        def body = (JaxRsGenericEntity) response.getResponse().body()
+
+        expect:
+        response.getEntity() == ['a']
+        body.type == generic.type
+        body.asArgument().type == List
+        body.asArgument().typeParameters*.type == [String]
+        body.annotations.toList() == [annotation]
+    }
+
     void "replaceAll writes the values with the header delegates"() {
         given:
         def headers = new MultivaluedHashMap<String, Object>()

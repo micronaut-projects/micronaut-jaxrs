@@ -23,6 +23,7 @@ import org.jspecify.annotations.Nullable;
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Type;
 
 /**
  * The simple variation of {@link GenericEntity}.
@@ -53,7 +54,19 @@ public final class JaxRsGenericEntity<T> extends GenericEntity<T> {
     }
 
     JaxRsGenericEntity(T entity, Annotation[] annotations) {
-        super(entity, entity.getClass());
+        this(entity, entity.getClass(), annotations);
+    }
+
+    /**
+     * An entity of a generic type with annotations, e.g. the entity of a {@link GenericEntity}
+     * given with annotations, {@code Response.ok().entity(genericEntity, annotations)}.
+     *
+     * @param entity      The entity
+     * @param type        The generic type of the entity
+     * @param annotations The annotations
+     */
+    JaxRsGenericEntity(T entity, Type type, Annotation[] annotations) {
+        super(entity, type);
         this.argument = JaxRsArgumentUtil.from(this, annotations);
         this.delegateEntityStream = null;
         this.customEntityStream = null;
