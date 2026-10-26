@@ -472,12 +472,12 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
 
     @Override
     public boolean hasLink(String relation) {
-        return getLinks().stream().anyMatch(link -> link.getRel().equals(relation));
+        return getLinks().stream().anyMatch(link -> link.getRels().contains(relation));
     }
 
     @Override
     public @Nullable Link getLink(String relation) {
-        return getLinks().stream().filter(link -> link.getRel().equals(relation)).findFirst().orElse(null);
+        return getLinks().stream().filter(link -> link.getRels().contains(relation)).findFirst().orElse(null);
     }
 
     @Override
