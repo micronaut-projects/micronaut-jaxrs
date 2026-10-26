@@ -224,8 +224,9 @@ public final class JaxRsRouteSupport {
                 .filter(registration -> registry.isRegistered(registration.getBeanDefinition().getBeanType(), ParamConverterProvider.class))
                 // not the ones constrained to the client (@ConstrainedTo)
                 .filter(registration -> JaxRsUtils.isServerProvider(registration.getBeanDefinition().getAnnotationMetadata()))
-                // the one of the highest priority, the lowest value, first
-                .sorted(java.util.Comparator.comparingInt(JaxRsUtils::getPriorityOrder))
+                // the one of the highest priority, the lowest value, first: the priority a feature
+                // registered it with, else its @Priority
+                .sorted(java.util.Comparator.comparingInt(registration -> registry.priority(registration, ParamConverterProvider.class)))
                 .map(BeanRegistration::getBean)
                 .toList();
         });

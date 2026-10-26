@@ -105,7 +105,61 @@ class ServerProviderSelectionTest {
         assertEquals("none:raw", client.toBlocking().retrieve(HttpRequest.GET("/resolved?value=raw")));
     }
 
+    @Test
+    void thePriorityOfAFeatureOrdersTheParamConverterProviders() {
+        assertEquals("feature:x", client.toBlocking().retrieve(HttpRequest.GET("/code?value=x")));
+    }
+
     public record Thing(String value) {
+    }
+
+    public record Code(String value) {
+    }
+
+    public abstract static class CodeConverters implements ParamConverterProvider {
+        private final String name;
+
+        CodeConverters(String name) {
+            this.name = name;
+        }
+
+        @SuppressWarnings("unchecked")
+        @Override
+        public <T> ParamConverter<T> getConverter(Class<T> rawType, Type genericType, Annotation[] annotations) {
+            if (rawType != Code.class) {
+                return null;
+            }
+            return (ParamConverter<T>) new ParamConverter<Code>() {
+                @Override
+                public Code fromString(String value) {
+                    return new Code(name + ":" + value);
+                }
+
+                @Override
+                public String toString(Code value) {
+                    return value.value();
+                }
+            };
+        }
+    }
+
+    @Requires(property = "spec.name", value = "ServerProviderSelectionTest")
+    @Provider
+    @Priority(100)
+    public static class AnnotatedCodeConverters extends CodeConverters {
+        public AnnotatedCodeConverters() {
+            super("annotated");
+        }
+    }
+
+    // a bean: a feature registers a class that is not one only with reflection, see JaxRsReflection
+    @Requires(property = "spec.name", value = "ServerProviderSelectionTest")
+    @jakarta.inject.Singleton
+    @Priority(5000)
+    public static class FeatureCodeConverters extends CodeConverters {
+        public FeatureCodeConverters() {
+            super("feature");
+        }
     }
 
     public static class MappedException extends RuntimeException {
@@ -255,6 +309,7 @@ class ServerProviderSelectionTest {
             // the priority of the registration precedes the one of the annotation
             context.register(FeatureWriter.class, 1);
             context.register(FeatureMapper.class, 1);
+            context.register(FeatureCodeConverters.class, 1);
             return true;
         }
     }
@@ -321,6 +376,13 @@ class ServerProviderSelectionTest {
         @Produces(MediaType.TEXT_PLAIN)
         public String clientMapped() {
             throw new ClientMappedException();
+        }
+
+        @GET
+        @Path("code")
+        @Produces(MediaType.TEXT_PLAIN)
+        public String code(@QueryParam("value") Code code) {
+            return code.value();
         }
 
         @GET
