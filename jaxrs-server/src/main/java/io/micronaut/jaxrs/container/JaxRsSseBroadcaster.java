@@ -77,7 +77,14 @@ final class JaxRsSseBroadcaster implements SseBroadcaster {
                 closed(sink);
                 return CompletableFuture.completedFuture(null);
             }
-            return sink.send(event).toCompletableFuture().whenComplete((result, failure) -> {
+            CompletionStage<?> stage;
+            try {
+                stage = sink.send(event);
+            } catch (RuntimeException e) {
+                // e.g. closed since: reported like a failed send, the other sinks still get the event
+                stage = CompletableFuture.failedFuture(e);
+            }
+            return stage.toCompletableFuture().whenComplete((result, failure) -> {
                 if (failure != null) {
                     for (BiConsumer<SseEventSink, Throwable> callback : onError) {
                         callback.accept(sink, failure);

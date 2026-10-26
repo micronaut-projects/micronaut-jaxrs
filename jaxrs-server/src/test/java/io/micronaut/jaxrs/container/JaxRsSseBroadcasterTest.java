@@ -4,6 +4,10 @@ import jakarta.ws.rs.sse.OutboundSseEvent;
 import jakarta.ws.rs.sse.SseEventSink;
 import org.junit.jupiter.api.Test;
 
+import org.junit.jupiter.api.Assertions;
+
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CyclicBarrier;
@@ -45,9 +49,30 @@ class JaxRsSseBroadcasterTest {
         }
     }
 
-    private static final class TestSink implements SseEventSink {
+    @Test
+    void aSinkFailingToSendDoesNotStopTheBroadcast() {
+        var broadcaster = new JaxRsSseBroadcaster();
+        List<Throwable> errors = new ArrayList<>();
+        broadcaster.onError((sink, error) -> errors.add(error));
+        var failing = new TestSink() {
+            @Override
+            public CompletionStage<?> send(OutboundSseEvent event) {
+                throw new IllegalStateException("closed");
+            }
+        };
+        var other = new TestSink();
+        broadcaster.register(failing);
+        broadcaster.register(other);
+        CompletionStage<?> sent = broadcaster.broadcast(new JaxRsSse().newEvent("data"));
+        Assertions.assertEquals(1, other.sent);
+        Assertions.assertEquals(1, errors.size());
+        assertTrue(sent.toCompletableFuture().isCompletedExceptionally());
+    }
+
+    private static class TestSink implements SseEventSink {
 
         private volatile boolean closed;
+        int sent;
 
         @Override
         public boolean isClosed() {
@@ -56,6 +81,7 @@ class JaxRsSseBroadcasterTest {
 
         @Override
         public CompletionStage<?> send(OutboundSseEvent event) {
+            sent++;
             return CompletableFuture.completedFuture(null);
         }
 
