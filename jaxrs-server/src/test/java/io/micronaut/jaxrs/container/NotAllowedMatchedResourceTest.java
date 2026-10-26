@@ -10,6 +10,7 @@ import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -54,6 +55,21 @@ class NotAllowedMatchedResourceTest {
             .filter(method -> !method.equals("OPTIONS"))
             .collect(Collectors.toSet());
         assertEquals(Set.of("GET", "HEAD"), allowed);
+    }
+
+    @Test
+    void allowListsTheAutomaticOptions() throws Exception {
+        // RFC 9110, 15.5.6: OPTIONS is answered automatically (JAX-RS 3.3.5)
+        HttpResponse<String> response = client.send(HttpRequest.newBuilder(URI.create(server.getURL() + "/api/allow/lit"))
+                .method("POST", HttpRequest.BodyPublishers.ofString("b"))
+                .build(),
+            HttpResponse.BodyHandlers.ofString());
+        assertEquals(405, response.statusCode());
+        Set<String> allowed = response.headers().allValues("Allow").stream()
+            .flatMap(value -> Arrays.stream(value.split(",")))
+            .map(String::trim)
+            .collect(Collectors.toSet());
+        assertEquals(Set.of("GET", "HEAD", "OPTIONS"), allowed);
     }
 
     @Requires(property = "spec.name", value = "NotAllowedMatchedResourceTest")

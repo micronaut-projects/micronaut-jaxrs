@@ -57,11 +57,13 @@ final class JaxRsNotAllowedExceptionHandler implements ExceptionHandler<NotAllow
     @Override
     public HttpResponse<?> handle(HttpRequest request, NotAllowedException exception) {
         var allowedMethods = new ArrayList<>(exception.getAllowedMethods());
+        // OPTIONS is answered automatically without a resource method (JAX-RS 3.3.5), so it is
+        // allowed in a 405 response too (RFC 9110, 15.5.6)
+        if (!allowedMethods.contains(HttpMethod.OPTIONS.name())) {
+            allowedMethods.add(HttpMethod.OPTIONS.name());
+        }
         if (request.getMethod() == HttpMethod.OPTIONS) {
             // the automatic response of an OPTIONS request without a resource method (JAX-RS 3.3.5)
-            if (!allowedMethods.contains(HttpMethod.OPTIONS.name())) {
-                allowedMethods.add(HttpMethod.OPTIONS.name());
-            }
             return HttpResponse.ok().headers(headers -> headers.allowGeneric(allowedMethods));
         }
         var notAllowedException = new jakarta.ws.rs.NotAllowedException(
