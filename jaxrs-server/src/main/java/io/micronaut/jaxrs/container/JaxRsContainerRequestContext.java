@@ -37,8 +37,10 @@ import jakarta.ws.rs.core.UriInfo;
 import org.jspecify.annotations.Nullable;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.List;
@@ -72,6 +74,8 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
      * resource and the later filters see it.
      */
     static final String SECURITY_CONTEXT = JaxRsContainerRequestContext.class.getName() + ".securityContext";
+    // the entity streams the request filters set, closed once the request is processed
+    private static final String ENTITY_STREAMS = JaxRsContainerRequestContext.class.getName() + ".entityStreams";
 
     private final Map<String, Object> properties;
     // the request the filters continue with: a pre-matching filter may change its method
@@ -287,6 +291,36 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
     public void setEntityStream(InputStream input) {
         checkRequestFilteringInProgress();
         mutableHttpRequest.setAttribute(ENTITY_STREAM, input);
+        // closed once the request is processed, see #closeEntityStreams
+        @SuppressWarnings("unchecked")
+        List<InputStream> streams = mutableHttpRequest.getAttribute(ENTITY_STREAMS, List.class).orElse(null);
+        if (streams == null) {
+            streams = new ArrayList<>(1);
+            mutableHttpRequest.setAttribute(ENTITY_STREAMS, streams);
+        }
+        streams.add(input);
+    }
+
+    /**
+     * Close the entity streams the request filters of a request set, once it is processed: the
+     * runtime owns them, whether an entity was read from them or not.
+     *
+     * @param request The request
+     */
+    @SuppressWarnings("unchecked")
+    static void closeEntityStreams(HttpRequest<?> request) {
+        List<InputStream> streams = request.getAttribute(ENTITY_STREAMS, List.class).orElse(null);
+        if (streams == null) {
+            return;
+        }
+        request.removeAttribute(ENTITY_STREAMS, List.class);
+        for (InputStream stream : streams) {
+            try {
+                stream.close();
+            } catch (IOException e) {
+                // the response is processed: nothing reads it anymore
+            }
+        }
     }
 
     @Override
