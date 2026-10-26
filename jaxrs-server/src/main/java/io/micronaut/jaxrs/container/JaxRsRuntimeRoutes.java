@@ -39,6 +39,7 @@ import io.micronaut.inject.annotation.AnnotationMetadataHierarchy;
 import io.micronaut.inject.qualifiers.Qualifiers;
 import io.micronaut.scheduling.TaskExecutors;
 import io.micronaut.scheduling.TaskScheduler;
+import io.micronaut.scheduling.annotation.ExecuteOn;
 import io.micronaut.http.PathVariables;
 import io.micronaut.web.router.builder.AsyncBodyRequestHandler;
 import io.micronaut.web.router.builder.BodyRequestHandler;
@@ -544,11 +545,22 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             return;
         }
         @Nullable MatchedSegments matchedSegments = routes.located() ? null : MatchedSegments.of(prefix);
-        routes.locate(routes.prefix(prefix), (request, pathVariables, target1) -> {
+        routes.locate(executor(method.metadata(), classMetadata), routes.prefix(prefix), (request, pathVariables, target1) -> {
             B instance = instances.get(request, pathVariables, null, target1);
             int segments = matchedSegments == null ? -1 : matchedSegments.count(pathVariables);
             return support.matched(request, locate(method, instance, readers, request, pathVariables, null, segments), segments);
         });
+    }
+
+    /**
+     * The name of the executor a locator known only at runtime runs on, off the event loop as it
+     * may block: the one of its {@code @ExecuteOn}, or of its class, like a resource method,
+     * otherwise {@link TaskExecutors#BLOCKING}.
+     */
+    private static String executor(AnnotationMetadata methodMetadata, AnnotationMetadata classMetadata) {
+        return methodMetadata.stringValue(ExecuteOn.class)
+            .or(() -> classMetadata.stringValue(ExecuteOn.class))
+            .orElse(TaskExecutors.BLOCKING);
     }
 
     /**
@@ -1418,7 +1430,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
 
         void handleAsync(Declaration route, AsyncHandler<L> handler);
 
-        void locate(String prefix, Locator<L> locator);
+        void locate(String executor, String prefix, Locator<L> locator);
     }
 
     /**
@@ -1471,10 +1483,10 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         }
 
         @Override
-        public void locate(String prefix, Locator<@Nullable Void> locator) {
+        public void locate(String executor, String prefix, Locator<@Nullable Void> locator) {
             // the router does not select a locator route as JAX-RS does: a root resource class with a more
             // specific @Path that matches the path, but none of whose routes does, answers 404
-            routes.<Object>locate(prefix, (request, pathVariables) -> support.commitsToLocator(request, prefix)
+            routes.<Object>locateOn(executor, prefix, (request, pathVariables) -> support.commitsToLocator(request, prefix)
                 ? locator.locate(request, pathVariables, null) : null, support.locatedRoutes());
         }
     }
@@ -1534,8 +1546,8 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         }
 
         @Override
-        public void locate(String prefix, Locator<L> locator) {
-            routes.<Object>locate(prefix, (LocatedLocatorHandler<L, Object>) (request, pathVariables, target) -> locator.locate(request, pathVariables, target),
+        public void locate(String executor, String prefix, Locator<L> locator) {
+            routes.<Object>locateOn(executor, prefix, (LocatedLocatorHandler<L, Object>) (request, pathVariables, target) -> locator.locate(request, pathVariables, target),
                 support.locatedRoutes());
         }
     }
