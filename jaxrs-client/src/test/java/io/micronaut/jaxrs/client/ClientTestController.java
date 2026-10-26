@@ -19,11 +19,26 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.GZIPInputStream;
+import reactor.core.publisher.Mono;
 
 @Requires(property = "spec.name", value = "JaxRsClient")
 @Controller("/client")
 class ClientTestController {
+
+    static final AtomicInteger POSTED = new AtomicInteger();
+
+    @Get(value = "/slow", produces = MediaType.TEXT_PLAIN)
+    Mono<String> slow() {
+        return Mono.just("slow").delayElement(Duration.ofMillis(1500));
+    }
+
+    @Post(value = "/posted", consumes = MediaType.ALL, produces = MediaType.TEXT_PLAIN)
+    String posted(@Body byte @Nullable [] body) {
+        return String.valueOf(POSTED.incrementAndGet());
+    }
 
     @Get(value = "/hello", produces = MediaType.TEXT_PLAIN)
     String hello() {

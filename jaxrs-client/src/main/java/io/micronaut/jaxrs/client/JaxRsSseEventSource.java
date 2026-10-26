@@ -23,6 +23,7 @@ import io.micronaut.http.HttpResponse;
 import io.micronaut.http.HttpStatus;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.MutableHttpRequest;
+import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.http.body.BodyElements;
 import io.micronaut.http.client.exceptions.HttpClientResponseException;
 import io.micronaut.http.client.netty.DefaultHttpClient;
@@ -30,6 +31,8 @@ import io.micronaut.http.sse.Event;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import jakarta.ws.rs.ProcessingException;
 import jakarta.ws.rs.client.ClientRequestFilter;
+import jakarta.ws.rs.client.ClientResponseFilter;
+import jakarta.ws.rs.client.ResponseProcessingException;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.RuntimeDelegate;
 import jakarta.ws.rs.sse.InboundSseEvent;
@@ -232,7 +235,8 @@ final class JaxRsSseEventSource implements SseEventSource {
         if (id != null) {
             request.header("Last-Event-ID", id);
         }
-        if (!filtered(request)) {
+        JaxRsClientRequestContext requestContext = filtered(request);
+        if (requestContext == null) {
             return;
         }
         DefaultHttpClient client;
@@ -250,9 +254,9 @@ final class JaxRsSseEventSource implements SseEventSource {
         }
         client.toAsyncStreaming().exchangeEventStream(request, Argument.STRING).whenComplete((response, error) -> {
             if (error != null) {
-                failed(error instanceof CompletionException && error.getCause() != null ? error.getCause() : error);
+                failed(error instanceof CompletionException && error.getCause() != null ? error.getCause() : error, requestContext);
             } else {
-                receive(response);
+                receive(response, requestContext);
             }
         });
     }
@@ -261,7 +265,7 @@ final class JaxRsSseEventSource implements SseEventSource {
      * Receive the events of a response: a {@code 204 No Content} has none and ends the
      * processing, and a response that is not an event stream is an error (JAX-RS 9.4).
      */
-    private void receive(HttpResponse<BodyElements<Event<String>>> response) {
+    private void receive(HttpResponse<BodyElements<Event<String>>> response, JaxRsClientRequestContext requestContext) {
         BodyElements<Event<String>> body = response.body();
         if (!open) {
             if (body != null) {
@@ -269,7 +273,21 @@ final class JaxRsSseEventSource implements SseEventSource {
             }
             return;
         }
-        int status = response.code();
+        // the response filters see the status and the headers of each connection, before its
+        // events (JAX-RS 6.1), and may change them: the events are not an entity they can read
+        MutableHttpResponse<?> head = HttpResponse.status(response.status(), response.reason());
+        response.getHeaders().forEachValue(head::header);
+        JaxRsMutableResponse filtered = new JaxRsMutableResponse(head);
+        try {
+            filterResponse(filtered, requestContext);
+        } catch (IOException | RuntimeException e) {
+            if (body != null) {
+                body.closeAsync();
+            }
+            error(new ResponseProcessingException(filtered, e));
+            return;
+        }
+        int status = filtered.getStatus();
         if (status != HttpStatus.OK.getCode() && status != HttpStatus.NO_CONTENT.getCode()) {
             // another status is an error, e.g. a 201 (JAX-RS, SseEventSource)
             if (body != null) {
@@ -286,7 +304,7 @@ final class JaxRsSseEventSource implements SseEventSource {
             complete();
             return;
         }
-        MediaType contentType = response.getContentType().orElse(null);
+        MediaType contentType = head.getContentType().orElse(null);
         if (contentType == null || !MediaType.TEXT_EVENT_STREAM_TYPE.matches(contentType)) {
             body.closeAsync();
             error(new ProcessingException("The response is not an event stream: " + contentType));
@@ -317,9 +335,9 @@ final class JaxRsSseEventSource implements SseEventSource {
     /**
      * Run the request filters of the target, e.g. one adding credentials.
      *
-     * @return Whether the request is sent, else a filter aborted it
+     * @return The context of the request to send, {@code null} if a filter aborted it
      */
-    private boolean filtered(MutableHttpRequest<Object> request) {
+    private @Nullable JaxRsClientRequestContext filtered(MutableHttpRequest<Object> request) {
         JaxRsConfiguration configuration = target.getConfiguration();
         var requestContext = new JaxRsClientRequestContext(target.client(), configuration, request, null, Argument.OBJECT_ARGUMENT, Map.of());
         try {
@@ -334,14 +352,27 @@ final class JaxRsSseEventSource implements SseEventSource {
                     } else {
                         error(JaxRsInvocation.exception(response));
                     }
-                    return false;
+                    return null;
                 }
             }
         } catch (IOException | RuntimeException e) {
             error(new ProcessingException(e));
-            return false;
+            return null;
         }
-        return true;
+        return requestContext;
+    }
+
+    /**
+     * Run the response filters of the target on the response of a connection.
+     */
+    private void filterResponse(JaxRsMutableResponse response, JaxRsClientRequestContext requestContext) throws IOException {
+        List<ClientResponseFilter> filters = target.getConfiguration().getResponseFilters();
+        if (!filters.isEmpty()) {
+            var responseContext = new JaxRsClientResponseContext(response);
+            for (ClientResponseFilter filter : filters) {
+                filter.filter(requestContext, responseContext);
+            }
+        }
     }
 
     /**
@@ -386,17 +417,31 @@ final class JaxRsSseEventSource implements SseEventSource {
         }
     }
 
-    private void failed(Throwable throwable) {
+    private void failed(Throwable throwable, JaxRsClientRequestContext requestContext) {
         if (throwable instanceof HttpClientResponseException responseException) {
-            if (responseException.getStatus() == HttpStatus.SERVICE_UNAVAILABLE) {
+            // the response filters see an error response like any other (JAX-RS 6.1)
+            JaxRsMutableResponse response = new JaxRsMutableResponse(responseException.getResponse().toMutableResponse());
+            try {
+                filterResponse(response, requestContext);
+            } catch (IOException | RuntimeException e) {
+                error(new ResponseProcessingException(response, e));
+                return;
+            }
+            if (response.getStatus() == HttpStatus.SERVICE_UNAVAILABLE.getCode()) {
                 // the server is not available yet: retry after the time it asked for
-                Long delay = retryAfter(responseException.getResponse().getHeaders().get(HttpHeaders.RETRY_AFTER));
+                Long delay = retryAfter(response.getHeaderString(HttpHeaders.RETRY_AFTER));
                 if (delay != null) {
                     reconnect(delay);
                     return;
                 }
             }
-            error(JaxRsInvocation.exception(new JaxRsMutableResponse(responseException.getResponse().toMutableResponse())));
+            if (response.getStatusInfo().getFamily() == Response.Status.Family.SUCCESSFUL) {
+                // a filter turned the error into a success, without events
+                open = false;
+                complete();
+                return;
+            }
+            error(JaxRsInvocation.exception(response));
             return;
         }
         if (connected) {

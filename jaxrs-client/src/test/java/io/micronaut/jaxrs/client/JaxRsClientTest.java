@@ -291,6 +291,66 @@ class JaxRsClientTest {
     }
 
     @Test
+    void zeroReadTimeoutIsInfinite() {
+        Client timeoutClient = ClientBuilder.newBuilder().readTimeout(0, TimeUnit.MILLISECONDS).build();
+        try {
+            assertEquals("slow", timeoutClient.target(server.getURI()).path("client").path("slow").request().get(String.class));
+        } finally {
+            timeoutClient.close();
+        }
+    }
+
+    @Test
+    void negativeTimeoutsAreRejected() {
+        assertThrows(IllegalArgumentException.class, () -> ClientBuilder.newBuilder().readTimeout(-1, TimeUnit.SECONDS));
+        assertThrows(IllegalArgumentException.class, () -> ClientBuilder.newBuilder().connectTimeout(-1, TimeUnit.SECONDS));
+    }
+
+    @Test
+    void invocationCancelledBeforeItRunsIsNotSent() throws Exception {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Client executorClient = ClientBuilder.newBuilder().executorService(executor).build();
+        try {
+            CountDownLatch release = new CountDownLatch(1);
+            // the only thread of the executor is busy
+            executor.execute(() -> {
+                try {
+                    release.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            int before = ClientTestController.POSTED.get();
+            var future = executorClient.target(server.getURI()).path("client").path("posted").request()
+                .async().post(Entity.text("x"));
+            assertTrue(future.cancel(true));
+            release.countDown();
+            // a later invocation on the same executor is sent: the cancelled one would be before it
+            executorClient.target(server.getURI()).path("client").path("posted").request()
+                .async().post(Entity.text("y")).get(10, TimeUnit.SECONDS);
+            assertEquals(before + 1, ClientTestController.POSTED.get());
+        } finally {
+            executorClient.close();
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void eventSourceRunsTheResponseFilters() throws Exception {
+        AtomicInteger filtered = new AtomicInteger();
+        WebTarget target = target("events")
+            .register((ClientRequestFilter) context -> context.getHeaders().putSingle("Authorization", "Bearer token"))
+            .register((ClientResponseFilter) (request, response) -> filtered.incrementAndGet());
+        CountDownLatch received = new CountDownLatch(1);
+        try (SseEventSource source = SseEventSource.target(target).build()) {
+            source.register(event -> received.countDown());
+            source.open();
+            assertTrue(received.await(10, TimeUnit.SECONDS));
+        }
+        assertEquals(1, filtered.get());
+    }
+
+    @Test
     void derivedTargetsHaveTheirOwnConfiguration() {
         WebTarget parent = target("header/X-Filter");
         WebTarget child = parent.path("child");
