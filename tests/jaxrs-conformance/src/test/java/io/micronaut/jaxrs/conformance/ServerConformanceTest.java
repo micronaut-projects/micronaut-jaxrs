@@ -390,9 +390,6 @@ class ServerConformanceTest {
                 return "IMPL a non IMF-fixdate '+0000' date";
             }
         }
-        if (diffs.startsWith("allow=") && String.valueOf(ours.header("Allow")).contains("DELETE") && path.startsWith("/p/lit")) {
-            return "BUG the 405 Allow header lists a method of another resource class (allowListsTheMethodsOfTheMatchedResource)";
-        }
         if (diffs.startsWith("content-type=ours application/json") && (path.equals("/r/none") || path.equals("/r/variant"))) {
             return "IMPL without @Produces a String is application/json (a JSON writer accepts String); Jersey text/plain";
         }

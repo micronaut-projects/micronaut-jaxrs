@@ -129,10 +129,24 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
     }
 
     /**
+     * JAX-RS selects by the path first, then by the media types (section 3.7.2): the selector is
+     * given the matches of every media type, and answers {@code 415} or {@code 406} with the
+     * routes of the most specific path, not with the ones of a less specific path whose types
+     * are compatible.
+     */
+    @Override
+    public boolean selectsMediaTypes() {
+        return true;
+    }
+
+    /**
      * Select the resource method of JAX-RS (section 3.7.2): the most specific templates, then the
      * content type of the request against the consumed types, then the accepted types, with their
      * quality, against the produced types, with their {@code qs}. The response type is the
      * combined type of the selected method, when the method declares the types it produces.
+     * When no method of the most specific templates consumes the content type of the request, the
+     * request is answered with {@code 415}, and when none produces an accepted type, with
+     * {@code 406}.
      */
     @Override
     public List<Selection> select(HttpRequest<?> request, List<UriRouteMatch<?, ?>> matches) {
@@ -160,12 +174,23 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
         UriRouteMatch<?, ?> selected = null;
         Negotiated selectedType = null;
         int selectedConsumes = -1;
+        UriRouteMatch<?, ?> unsupported = null;
+        UriRouteMatch<?, ?> notAcceptable = null;
         for (UriRouteMatch<?, ?> candidate : candidates) {
             // a request without a content type is */*: the most specific consumed type is the
             // best match (JAX-RS 3.7.2, step 3b)
             int consumes = consumes(contentType == null ? MediaType.ALL_TYPE : contentType, candidate.getRouteInfo().getConsumes());
+            if (consumes < 0) {
+                if (candidate.getRouteInfo().getHttpMethod().permitsRequestBody()) {
+                    unsupported = unsupported == null ? candidate : unsupported;
+                    continue;
+                }
+                // the content type of a request without a body does not select the method
+                consumes = 0;
+            }
             Negotiated negotiated = negotiate(accepted, candidate.getRouteInfo().getProduces());
             if (negotiated == null) {
+                notAcceptable = notAcceptable == null ? candidate : notAcceptable;
                 continue;
             }
             if (selectedType == null || consumes > selectedConsumes
@@ -176,7 +201,10 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
             }
         }
         if (selected == null || selectedType == null) {
-            return List.of();
+            if (notAcceptable != null) {
+                return List.of(Selection.notAcceptable(notAcceptable));
+            }
+            return unsupported == null ? List.of() : List.of(Selection.unsupportedMediaType(unsupported));
         }
         List<MediaType> produces = selected.getRouteInfo().getProduces();
         boolean declared = !(produces.size() == 1 && produces.get(0).equals(MediaType.ALL_TYPE));
@@ -279,10 +307,10 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
 
     /**
      * How closely a content type matches the consumed types: 2 for a type, 1 for a type with a
-     * wildcard subtype, 0 for any type.
+     * wildcard subtype, 0 for any type, -1 when no consumed type matches.
      */
     private static int consumes(MediaType contentType, List<MediaType> consumes) {
-        int best = 0;
+        int best = -1;
         for (MediaType consumed : consumes) {
             if (consumed.matches(contentType) || contentType.matches(consumed)) {
                 best = Math.max(best, specificity(consumed));

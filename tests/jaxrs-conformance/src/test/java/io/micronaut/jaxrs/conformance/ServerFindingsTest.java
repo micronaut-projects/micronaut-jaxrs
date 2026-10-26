@@ -4,13 +4,9 @@ import io.micronaut.jaxrs.conformance.Servers.Req;
 import io.micronaut.jaxrs.conformance.Servers.Res;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
  * The minimized reproducers of the server discrepancies found by {@link ServerConformanceTest}, asserting what
@@ -40,13 +36,5 @@ class ServerFindingsTest {
             }
         }
         return servers.micronaut(new Req(method, target, list, body));
-    }
-
-    /** JAX-RS 3.7.2: the 405 Allow header lists the methods of the matched resource only. */
-    @Test
-    void allowListsTheMethodsOfTheMatchedResource() throws Exception {
-        Res res = send("PATCH", "/p/lit", "Accept: text/plain;q=0", "Content-Type: text/plain", "BODY=b");
-        assertEquals(405, res.status());
-        assertFalse(res.header("Allow").contains("DELETE"), res.header("Allow"));
     }
 }
