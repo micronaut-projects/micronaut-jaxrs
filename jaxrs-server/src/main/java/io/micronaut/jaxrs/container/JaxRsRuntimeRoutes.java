@@ -59,7 +59,6 @@ import jakarta.inject.Singleton;
 import jakarta.ws.rs.BeanParam;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.CookieParam;
-import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.Encoded;
 import jakarta.ws.rs.FormParam;
 import jakarta.ws.rs.HeaderParam;
