@@ -3,14 +3,18 @@ package io.micronaut.jaxrs.container;
 import io.micronaut.context.annotation.Property;
 import io.micronaut.context.annotation.Requires;
 import io.micronaut.http.HttpRequest;
+import io.micronaut.http.MediaType;
 import io.micronaut.http.client.HttpClient;
 import io.micronaut.http.client.annotation.Client;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
+import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.FormParam;
 import jakarta.ws.rs.GET;
+import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -38,8 +42,14 @@ class FormParamTest {
         "/long-list"
     })
     void checkParams(String path) {
-        String retrieve = client.toBlocking().retrieve(HttpRequest.GET(path + "?a=1&a=10&a=11"), String.class);
+        String retrieve = client.toBlocking().retrieve(HttpRequest.POST(path, "a=1&a=10&a=11")
+            .contentType(MediaType.APPLICATION_FORM_URLENCODED_TYPE), String.class);
         assertEquals(methodCase(path) + " -> 1,10,11", retrieve);
+    }
+
+    @Test
+    void formParamWithoutAFormEntityIsNotReadFromTheQuery() {
+        assertEquals("absent", client.toBlocking().retrieve(HttpRequest.GET("/no-entity?x=query"), String.class));
     }
 
     private String methodCase(String path) {
@@ -58,32 +68,39 @@ class FormParamTest {
             this.resourceInfo = resourceInfo;
         }
 
-        @GET
+        @POST
         @Path("/string-array")
         @Produces("text/plain")
         public String stringArray(@FormParam("a") String[] values) {
             return content(Arrays.stream(values));
         }
 
-        @GET
+        @POST
         @Path("/string-list")
         @Produces("text/plain")
         public String stringList(@FormParam("a") List<String> values) {
             return content(values.stream());
         }
 
-        @GET
+        @POST
         @Path("/long-array")
         @Produces("text/plain")
         public String longArray(@FormParam("a") Long[] values) {
             return content(Arrays.stream(values).map(String::valueOf));
         }
 
-        @GET
+        @POST
         @Path("/long-list")
         @Produces("text/plain")
         public String longList(@FormParam("a") List<Long> values) {
             return content(values.stream().map(String::valueOf));
+        }
+
+        @GET
+        @Path("/no-entity")
+        @Produces("text/plain")
+        public String noEntity(@FormParam("x") @DefaultValue("absent") String x) {
+            return x;
         }
 
         private String content(Stream<String> body) {

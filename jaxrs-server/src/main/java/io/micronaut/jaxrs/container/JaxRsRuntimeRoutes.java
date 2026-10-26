@@ -913,11 +913,8 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 continue;
             }
             if (metadata.hasAnnotation(FormParam.class) && NO_BODY_METHODS.contains(httpMethod)) {
-                // no form without a body: read from the query, like the controllers did
-                String name = metadata.stringValue(FormParam.class).orElse(argument.getName());
-                String defaultValue = metadata.stringValue(DefaultValue.class).orElse(null);
-                boolean encoded = encoded(argument, method.metadata(), classMetadata);
-                readers[i] = (request, pathVariables, f, body) -> support.queryParam(request, name, argument, defaultValue, encoded);
+                // no form without a body: the default, never the query (FormParam javadoc)
+                readers[i] = reader(argument, method.metadata(), classMetadata);
             } else if (isRequestAnnotated(metadata)) {
                 readers[i] = reader(argument, method.metadata(), classMetadata);
                 form |= metadata.hasAnnotation(FormParam.class);

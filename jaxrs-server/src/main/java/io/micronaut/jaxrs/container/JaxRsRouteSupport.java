@@ -625,8 +625,9 @@ public final class JaxRsRouteSupport {
     public @Nullable Object formParam(HttpRequest<?> request, @Nullable FormData form, String name, Argument<?> argument,
                                       @Nullable String defaultValue, boolean encoded) {
         if (form == null) {
-            // no form read by the route
-            return queryParam(request, name, argument, defaultValue, encoded);
+            // no form entity: the default, never the query (FormParam javadoc)
+            Class<?> type = argument.getType();
+            return type == EntityPart.class || type == InputStream.class ? null : convert(List.of(), argument, defaultValue, false);
         }
         Class<?> type = argument.getType();
         if (type == EntityPart.class || type == InputStream.class) {
