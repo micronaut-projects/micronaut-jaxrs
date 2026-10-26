@@ -15,6 +15,7 @@
  */
 package io.micronaut.jaxrs.processor;
 
+import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.AnnotationUtil;
 import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.AnnotationValueBuilder;
@@ -30,6 +31,7 @@ import io.micronaut.http.annotation.Consumes;
 import io.micronaut.http.annotation.Controller;
 import io.micronaut.http.annotation.CookieValue;
 import io.micronaut.http.annotation.Header;
+import io.micronaut.http.annotation.HttpMethodMapping;
 import io.micronaut.http.annotation.PathVariable;
 import io.micronaut.http.annotation.Produces;
 import io.micronaut.http.annotation.UriMapping;
@@ -37,6 +39,7 @@ import io.micronaut.inject.ast.ClassElement;
 import io.micronaut.inject.ast.ConstructorElement;
 import io.micronaut.inject.ast.ElementQuery;
 import io.micronaut.inject.ast.FieldElement;
+import io.micronaut.inject.ast.annotation.MutableAnnotationMetadataDelegate;
 import io.micronaut.inject.ast.MethodElement;
 import io.micronaut.inject.ast.ParameterElement;
 import io.micronaut.inject.ast.TypedElement;
@@ -82,6 +85,8 @@ import java.util.Set;
 public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Object> {
 
     public static final int POSITION = 200;
+    private static final String JAX_RS_PACKAGE = "jakarta.ws.rs.";
+    private static final String HTTP_ANNOTATION_PACKAGE = "io.micronaut.http.annotation.";
     private static final Class<?>[] BINDABLE_TYPES = new Class<?>[] {Context.class, SecurityContext.class, UriInfo.class};
     @Nullable
     private ClassElement currentClassElement;
@@ -215,6 +220,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
 
     @Override
     public void visitMethod(MethodElement element, VisitorContext context) {
+        discardInheritedAnnotations(element);
         if (runtimeRoutes && element.hasAnnotation(Context.class) && !element.hasStereotype(HttpMethod.class)
             && JaxRsResources.isCreatedPerRequest(element.getOwningType())) {
             // a setter injected by the runtime routes
@@ -286,6 +292,47 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             element.hasAnnotation(BeanParam.class)
         ) {
             context.fail("Request scoped bean parameters are currently not supported", element); // todo
+        }
+    }
+
+    /**
+     * The annotations of a super method are inherited only when the method declares no JAX-RS
+     * annotation, on itself or on its parameters, otherwise they are all ignored (JAX-RS 3.6): the
+     * method, and its parameters, lose the JAX-RS annotations they inherit, and the Micronaut ones
+     * these are mapped to.
+     */
+    private static void discardInheritedAnnotations(MethodElement element) {
+        if (element.getOverriddenMethods().isEmpty()) {
+            return;
+        }
+        boolean declares = declaresJaxRsAnnotation(element.getDeclaredMethodAnnotationMetadata());
+        for (ParameterElement parameter : element.getParameters()) {
+            declares |= declaresJaxRsAnnotation(parameter.getAnnotationMetadata().getDeclaredMetadata());
+        }
+        if (!declares) {
+            return;
+        }
+        discardInherited(element, element.getMethodAnnotationMetadata(), element.getDeclaredMethodAnnotationMetadata());
+        for (ParameterElement parameter : element.getParameters()) {
+            discardInherited(parameter, parameter, parameter.getAnnotationMetadata().getDeclaredMetadata());
+        }
+    }
+
+    private static boolean declaresJaxRsAnnotation(AnnotationMetadata declared) {
+        return declared.getDeclaredAnnotationNames().stream().anyMatch(name -> name.startsWith(JAX_RS_PACKAGE));
+    }
+
+    private static void discardInherited(MutableAnnotationMetadataDelegate<?> element, AnnotationMetadata metadata, AnnotationMetadata declared) {
+        Set<String> declaredNames = declared.getDeclaredAnnotationNames();
+        for (String name : metadata.getAnnotationNames()) {
+            if (!declaredNames.contains(name) && (name.startsWith(JAX_RS_PACKAGE) || name.startsWith(HTTP_ANNOTATION_PACKAGE))) {
+                element.removeAnnotation(name);
+            }
+        }
+        for (String stereotype : List.of(HttpMethod.class.getName(), HttpMethodMapping.class.getName(), UriMapping.class.getName())) {
+            if (!declared.hasStereotype(stereotype)) {
+                element.removeStereotype(stereotype);
+            }
         }
     }
 
