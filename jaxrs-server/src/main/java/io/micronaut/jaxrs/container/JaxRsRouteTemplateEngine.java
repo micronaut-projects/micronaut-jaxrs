@@ -23,6 +23,7 @@ import io.micronaut.http.uri.RouteTemplate;
 import io.micronaut.http.uri.RouteTemplateParser;
 import io.micronaut.http.uri.RouteTemplateVariable;
 import io.micronaut.http.uri.UriTemplateMatcher;
+import io.micronaut.web.router.RouteLocator;
 import io.micronaut.web.router.UriRouteInfo;
 import io.micronaut.web.router.UriRouteMatch;
 import io.micronaut.web.router.spi.RouteMatchSelector;
@@ -100,7 +101,12 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
         return SPECIFICITY.compare(a, b);
     };
 
-    private static final Comparator<UriRouteInfo<?, ?>> ROUTE_ORDER = (a, b) -> ORDER.compare(a.getRouteTemplate(), b.getRouteTemplate());
+    /**
+     * The order of the routes: a locator route by the template of its prefix, which has the mark
+     * of the locator, so that a resource method is selected before a locator with the same
+     * template (section 3.7.2, step 2).
+     */
+    private static final Comparator<UriRouteInfo<?, ?>> ROUTE_ORDER = (a, b) -> ORDER.compare(template(a), template(b));
 
     private static final Parsed EMPTY = new Parsed(null, "", List.of(), null, 0);
 
@@ -113,6 +119,11 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
      * The templates of the root resource classes mounted by the router, by the template they mount.
      */
     private final Map<String, Parsed> mountedRoots = new ConcurrentHashMap<>();
+
+    private static RouteTemplate template(UriRouteInfo<?, ?> route) {
+        RouteTemplate prefix = RouteLocator.locatorPrefix(route);
+        return prefix == null ? route.getRouteTemplate() : prefix;
+    }
 
     @Override
     public RouteTemplate parse(String expression) {

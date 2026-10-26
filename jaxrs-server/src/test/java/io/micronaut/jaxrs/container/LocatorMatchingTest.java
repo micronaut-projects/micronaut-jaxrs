@@ -51,6 +51,40 @@ class LocatorMatchingTest {
         assertEquals(404, e.getStatus().getCode());
     }
 
+    @Test
+    void resourceMethodIsSelectedBeforeALocatorWithTheSamePath() {
+        // JAX-RS 3.7.2, step 2(f): a sub-resource method before a locator
+        assertEquals("method", client.toBlocking().retrieve(HttpRequest.GET("/prec/locator")));
+        // the path selects the resource method, whatever the HTTP method
+        HttpClientResponseException e = assertThrows(HttpClientResponseException.class,
+            () -> client.toBlocking().retrieve(HttpRequest.DELETE("/prec/locator")));
+        assertEquals(405, e.getStatus().getCode());
+    }
+
+    @Requires(property = "spec.name", value = "LocatorMatchingTest")
+    @Path("/prec")
+    public static class PrecedenceResource {
+        @Path("locator")
+        public PrecedenceTarget locator() {
+            return new PrecedenceTarget();
+        }
+
+        @GET
+        @Path("locator")
+        @Produces("text/plain")
+        public String method() {
+            return "method";
+        }
+    }
+
+    public static class PrecedenceTarget {
+        @GET
+        @Produces("text/plain")
+        public String get() {
+            return "located";
+        }
+    }
+
     @Requires(property = "spec.name", value = "LocatorMatchingTest")
     @Path("/repeat/{id}")
     public static class RepeatResource {
