@@ -19,12 +19,14 @@ import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.type.Argument;
+import io.micronaut.core.type.DefaultArgument;
 import jakarta.ws.rs.client.Entity;
 import jakarta.ws.rs.client.InvocationCallback;
 import jakarta.ws.rs.core.GenericEntity;
 import jakarta.ws.rs.core.GenericType;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Type;
 
 /**
  * An argument util class.
@@ -74,6 +76,29 @@ public final class JaxRsArgumentUtil {
         AnnotationMetadata annotationMetadata = createAnnotationMetadata(annotations);
         Argument<T> argument = (Argument<T>) JaxRsReflection.get().argument(genericEntity.getType());
         return Argument.of(argument.getType(), annotationMetadata, argument.getTypeParameters());
+    }
+
+    /**
+     * The argument of an entity whose raw type, its class, differs from its generic type, the
+     * declared one, as JAX-RS gives them to the writers (3.3.3): {@link Argument#getType()} is the
+     * raw type, {@link Argument#asType()} the generic type.
+     *
+     * @param rawType     The class of the entity
+     * @param declared    The declared type
+     * @param annotations The annotations
+     * @param <T>         The type
+     * @return The argument
+     */
+    public static <T> Argument<T> of(Class<T> rawType, Argument<?> declared, AnnotationMetadata annotations) {
+        // the type arguments of the declared type, e.g. the ones of a List for an ArrayList
+        Argument<?>[] typeParameters = declared.getTypeParameters();
+        Type genericType = declared.asType();
+        return new DefaultArgument<>(rawType, annotations, typeParameters) {
+            @Override
+            public Type asType() {
+                return genericType;
+            }
+        };
     }
 
     public static <T> Argument<T> from(Class<T> entityType, Annotation[] annotations) {

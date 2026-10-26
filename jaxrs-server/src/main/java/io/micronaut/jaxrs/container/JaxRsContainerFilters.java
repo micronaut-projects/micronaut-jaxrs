@@ -189,6 +189,8 @@ final class JaxRsContainerFilters {
         } else {
             bodyArgument = Argument.OBJECT_ARGUMENT;
         }
+        // the declared type is the generic type of the entity, see below
+        Argument<?> declared = declaredType ? bodyArgument : null;
         if (body != null && !declaredType && !bodyArgument.getType().equals(body.getClass())) {
             bodyArgument = Argument.of(body.getClass(), bodyArgument.getAnnotationMetadata());
         }
@@ -214,6 +216,11 @@ final class JaxRsContainerFilters {
             mutableAnnotationMetadata.addAnnotationMetadata(MutableAnnotationMetadata.of(returnType.getAnnotationMetadata()));
             mutableAnnotationMetadata.addAnnotationMetadata(MutableAnnotationMetadata.of(bodyArgument.getAnnotationMetadata()));
             bodyArgument = Argument.of(bodyArgument.getType(), mutableAnnotationMetadata, bodyArgument.getTypeParameters());
+        }
+        if (declared != null && body != null && body.getClass() != declared.asType()) {
+            // the class of the entity is the raw type, the declared type the generic type
+            // (JAX-RS 3.3.3), e.g. ArrayList and List<Item>
+            bodyArgument = JaxRsArgumentUtil.of(body.getClass(), declared, bodyArgument.getAnnotationMetadata());
         }
         ByteArrayOutputStream delegateEntityStream = null;
         OutputStream customEntityStream = null;

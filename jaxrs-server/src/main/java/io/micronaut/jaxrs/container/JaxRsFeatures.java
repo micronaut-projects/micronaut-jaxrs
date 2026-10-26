@@ -25,6 +25,7 @@ import io.micronaut.context.event.ApplicationEventListener;
 import io.micronaut.context.event.StartupEvent;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.context.ServerRequestContext;
+import io.micronaut.jaxrs.common.JaxRsContainerMessageBodyHandlerRegistry;
 import io.micronaut.jaxrs.common.JaxRsRouteInterceptors;
 import io.micronaut.jaxrs.common.JaxRsUtils;
 import io.micronaut.web.router.RouteAttributes;
@@ -51,6 +52,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -62,6 +64,7 @@ import java.util.Objects;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Supplier;
 
 /**
@@ -82,36 +85,51 @@ import java.util.function.Supplier;
 @Singleton
 public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationEventListener<StartupEvent> {
 
-    private static final Logger LOG = LoggerFactory.getLogger(JaxRsFeatures.class);
     // the contracts of the providers of the server, see Configuration#getContracts
-    private static final List<Class<?>> CONTRACTS = List.of(
+    static final List<Class<?>> CONTRACTS = List.of(
         ContainerRequestFilter.class, ContainerResponseFilter.class, ReaderInterceptor.class, WriterInterceptor.class,
         jakarta.ws.rs.ext.MessageBodyReader.class, jakarta.ws.rs.ext.MessageBodyWriter.class,
         jakarta.ws.rs.ext.ExceptionMapper.class, jakarta.ws.rs.ext.ContextResolver.class,
         jakarta.ws.rs.ext.ParamConverterProvider.class, DynamicFeature.class, Feature.class);
 
+    /**
+     * The property of an {@link Application} that disables the features and dynamic features of
+     * the Java service loader (JAX-RS 4.1.2).
+     */
+    static final String LOAD_SERVICES = "jakarta.ws.rs.loadServices";
+
+    private static final Logger LOG = LoggerFactory.getLogger(JaxRsFeatures.class);
+
     private final ApplicationContext context;
+    private final JaxRsContainerMessageBodyHandlerRegistry registry;
     private final List<Feature> features;
+    // the dynamic features the features register are added when they are configured
     private final List<DynamicFeature> dynamicFeatures;
     private final Set<Class<?>> registeredClasses = ConcurrentHashMap.newKeySet();
     private final Set<Object> registeredInstances = ConcurrentHashMap.newKeySet();
+    // the features whose configure returned true, see Configuration#isEnabled
+    private final Set<Feature> enabledFeatures = ConcurrentHashMap.newKeySet();
     private final Map<Object, Components> components = new ConcurrentHashMap<>();
     // the contracts and priorities of the components the features registered globally, by class
     private final Map<Class<?>, Registration> registrations = new ConcurrentHashMap<>();
     // the properties the features set, see Configuration#getProperty
     private final Map<String, Object> properties = new ConcurrentHashMap<>();
+    // the properties of the application the features removed
+    private final Set<String> removedProperties = ConcurrentHashMap.newKeySet();
     private volatile boolean configured;
 
-    JaxRsFeatures(ApplicationContext context, List<BeanRegistration<Feature>> features, List<BeanRegistration<DynamicFeature>> dynamicFeatures) {
+    JaxRsFeatures(ApplicationContext context, JaxRsContainerMessageBodyHandlerRegistry registry,
+                  List<BeanRegistration<Feature>> features, List<BeanRegistration<DynamicFeature>> dynamicFeatures) {
         this.context = context;
+        this.registry = registry;
         Application application = context.findBean(Application.class).orElse(null);
         // not the ones constrained to the client (@ConstrainedTo)
         this.features = collect(Feature.class, features, application).stream()
             .filter(this::isServerComponent)
             .toList();
-        this.dynamicFeatures = collect(DynamicFeature.class, dynamicFeatures, application).stream()
+        this.dynamicFeatures = new CopyOnWriteArrayList<>(collect(DynamicFeature.class, dynamicFeatures, application).stream()
             .filter(this::isServerComponent)
-            .toList();
+            .toList());
     }
 
     /**
@@ -126,8 +144,60 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
             Context featureContext = new Context(true);
             if (feature.configure(featureContext)) {
                 registeredInstances.add(feature);
+                enabledFeatures.add(feature);
             }
         }
+        // the dynamic features the features registered configure the resource methods too
+        Set<Class<?>> known = new HashSet<>();
+        dynamicFeatures.forEach(feature -> known.add(feature.getClass()));
+        List<DynamicFeature> registered = new ArrayList<>();
+        for (Object instance : registeredInstances) {
+            if (instance instanceof DynamicFeature feature && isServerComponent(feature) && known.add(feature.getClass())) {
+                registered.add(feature);
+            }
+        }
+        for (Class<?> componentClass : registeredClasses) {
+            if (DynamicFeature.class.isAssignableFrom(componentClass) && known.add(componentClass)
+                && JaxRsUtils.isServerProvider(annotationMetadata(componentClass))) {
+                registered.add((DynamicFeature) instance(componentClass));
+            }
+        }
+        dynamicFeatures.addAll(registered);
+    }
+
+    /**
+     * @param feature A feature
+     * @return Whether it was configured and its {@code configure} returned true
+     */
+    boolean isEnabled(Feature feature) {
+        return enabledFeatures.contains(feature);
+    }
+
+    /**
+     * @param featureClass A feature class
+     * @return Whether a feature of the class was configured and its {@code configure} returned true
+     */
+    boolean isEnabled(Class<? extends Feature> featureClass) {
+        for (Feature feature : enabledFeatures) {
+            if (feature.getClass() == featureClass) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @return The classes the features registered
+     */
+    Set<Class<?>> registeredClasses() {
+        return Collections.unmodifiableSet(registeredClasses);
+    }
+
+    /**
+     * @return The instances the features registered, and the features that are enabled
+     */
+    Set<Object> registeredInstances() {
+        return Collections.unmodifiableSet(registeredInstances);
     }
 
     /**
@@ -159,6 +229,13 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
      */
     Map<String, Object> properties() {
         return properties;
+    }
+
+    /**
+     * @return The names of the properties of the application the features removed
+     */
+    Set<String> removedProperties() {
+        return removedProperties;
     }
 
     /**
@@ -210,7 +287,12 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
                 // constrained to the client (@ConstrainedTo)
                 continue;
             }
-            Registration registration = registrations.get(bean.getBeanDefinition().getBeanType());
+            Class<?> beanType = bean.getBeanDefinition().getBeanType();
+            if (!registry.isRegistered(beanType)) {
+                // not listed by an application that lists its classes (JAX-RS 2.3)
+                continue;
+            }
+            Registration registration = registrations.get(beanType);
             if (registration == null) {
                 registered.add(bean);
             } else if (registration.isFor(contract)) {
@@ -278,6 +360,14 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
             listed.addAll(application.getClasses());
             application.getSingletons().forEach(singleton -> listed.add(singleton.getClass()));
         }
+        if (application != null) {
+            // the instances of the application, not the beans of their classes (JAX-RS 2.3.2)
+            for (Object singleton : application.getSingletons()) {
+                if (type.isInstance(singleton)) {
+                    instances.putIfAbsent(singleton.getClass(), type.cast(injected(singleton)));
+                }
+            }
+        }
         for (BeanRegistration<T> bean : beans) {
             // an application that lists its classes or instances registers only those (JAX-RS 2.3)
             Class<?> beanType = bean.getBeanDefinition().getBeanType();
@@ -291,11 +381,10 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
                     instances.put(c, type.cast(instance(c)));
                 }
             }
-            for (Object singleton : application.getSingletons()) {
-                if (type.isInstance(singleton)) {
-                    instances.putIfAbsent(singleton.getClass(), type.cast(singleton));
-                }
-            }
+        }
+        if (application != null && "false".equalsIgnoreCase(String.valueOf(application.getProperties().get(LOAD_SERVICES)))) {
+            // the application disabled the ones of the service loader (JAX-RS 4.1.2)
+            return new ArrayList<>(instances.values());
         }
         ClassLoader classLoader = application == null ? context.getClassLoader() : application.getClass().getClassLoader();
         for (T loaded : ServiceLoader.load(type, classLoader)) {
@@ -313,7 +402,17 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
         }
         // a class the annotation processors never saw
         Object instance = JaxRsReflection.get().instantiate(type);
-        return context.inject(instance);
+        return injected(instance);
+    }
+
+    /**
+     * The {@code @Context} members of an instance, like the ones of a bean of its class: proxies
+     * of the current request.
+     */
+    private Object injected(Object component) {
+        Object injected = context.inject(component);
+        JaxRsReflection.get().injectFields(injected, jakarta.ws.rs.core.Context.class, type -> context.findBean(type).orElse(null));
+        return injected;
     }
 
     @Override
@@ -421,9 +520,14 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
      * The context a feature registers its components with.
      */
     private final class Context implements FeatureContext {
+        // a property a dynamic feature removed for the resource method
+        private static final Object REMOVED = new Object();
+
         private final boolean global;
         private final Map<String, Object> properties = new LinkedHashMap<>();
         private final Set<Object> instances = new LinkedHashSet<>();
+        // the instances a dynamic feature registered as a class
+        private final Set<Object> classInstances = new HashSet<>();
         private final Map<Object, Map<@Nullable Class<?>, Integer>> priorities = new HashMap<>();
         private final Map<Object, Integer> defaultPriorities = new HashMap<>();
         private final Map<Object, Set<Class<?>>> contracts = new HashMap<>();
@@ -526,6 +630,9 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
                 return this;
             }
             Object instance = component != null ? component : instance(componentClass);
+            if (component == null) {
+                classInstances.add(instance);
+            }
             if (instances.add(instance)) {
                 defaultPriorities.put(instance, JaxRsUtils.getPriorityOrder(metadata(componentClass)));
                 if (!priorities.isEmpty()) {
@@ -543,16 +650,6 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
             return this;
         }
 
-        /**
-         * The {@code @Context} members of an instance, like the ones of a bean of its class: proxies
-         * of the current request.
-         */
-        private Object injected(Object component) {
-            Object injected = context.inject(component);
-            JaxRsReflection.get().injectFields(injected, jakarta.ws.rs.core.Context.class, type -> context.findBean(type).orElse(null));
-            return injected;
-        }
-
         @SuppressWarnings({"unchecked", "rawtypes"})
         private void registerClass(Class<?> componentClass) {
             registeredClasses.add(componentClass);
@@ -564,7 +661,9 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
                 // a feature registered by another one is configured too
                 Feature feature = (Feature) instance(componentClass);
                 registeredInstances.add(feature);
-                feature.configure(this);
+                if (feature.configure(this)) {
+                    enabledFeatures.add(feature);
+                }
                 return;
             }
             RuntimeBeanDefinition<?> definition = context.containsBean(componentClass) ? null
@@ -578,9 +677,9 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
         private void registerInstance(Object component) {
             registeredInstances.add(component);
             if (component instanceof Feature feature) {
-                if (isServerComponent(feature)) {
+                if (isServerComponent(feature) && feature.configure(this)) {
                     // unless constrained to the client (@ConstrainedTo)
-                    feature.configure(this);
+                    enabledFeatures.add(feature);
                 }
             } else if (context.containsBean(component.getClass())) {
                 context.registerSingleton(component);
@@ -615,17 +714,25 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
 
         @Override
         public Configuration getConfiguration() {
-            return context.getBean(Configuration.class);
+            Configuration configuration = context.getBean(Configuration.class);
+            // the one of a dynamic feature has the properties and components of the method too
+            return global ? configuration : new MethodConfiguration(configuration, this);
         }
 
         @Override
         public FeatureContext property(String name, @Nullable Object value) {
+            if (!global) {
+                // removed for the resource method: a null value hides the global one
+                properties.put(name, value == null ? REMOVED : value);
+                return this;
+            }
             // the ones of a global feature are the ones of the configuration
-            Map<String, Object> target = global ? JaxRsFeatures.this.properties : properties;
             if (value == null) {
-                target.remove(name);
+                JaxRsFeatures.this.properties.remove(name);
+                removedProperties.add(name);
             } else {
-                target.put(name, value);
+                JaxRsFeatures.this.properties.put(name, value);
+                removedProperties.remove(name);
             }
             return this;
         }
@@ -680,6 +787,100 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
                 priorities.put(contract, contracts.get(contract));
             }
             return priorities;
+        }
+    }
+
+    /**
+     * The configuration a dynamic feature sees for a resource method: the one of the application,
+     * with the properties and components registered for the method (Configurable#getConfiguration).
+     *
+     * @param global The configuration of the application
+     * @param local  The context of the resource method
+     */
+    private record MethodConfiguration(Configuration global, Context local) implements Configuration {
+
+        @Override
+        public jakarta.ws.rs.RuntimeType getRuntimeType() {
+            return global.getRuntimeType();
+        }
+
+        @Override
+        public Map<String, Object> getProperties() {
+            Map<String, Object> properties = new LinkedHashMap<>(global.getProperties());
+            local.properties.forEach((name, value) -> {
+                if (value == Context.REMOVED) {
+                    properties.remove(name);
+                } else {
+                    properties.put(name, value);
+                }
+            });
+            return Collections.unmodifiableMap(properties);
+        }
+
+        @Override
+        public @Nullable Object getProperty(String name) {
+            return getProperties().get(name);
+        }
+
+        @Override
+        public Collection<String> getPropertyNames() {
+            return getProperties().keySet();
+        }
+
+        @Override
+        public boolean isEnabled(Feature feature) {
+            return global.isEnabled(feature);
+        }
+
+        @Override
+        public boolean isEnabled(Class<? extends Feature> featureClass) {
+            return global.isEnabled(featureClass);
+        }
+
+        @Override
+        public boolean isRegistered(Object component) {
+            return local.instances.contains(component) || global.isRegistered(component);
+        }
+
+        @Override
+        public boolean isRegistered(Class<?> componentClass) {
+            return local.classes.contains(componentClass) || global.isRegistered(componentClass);
+        }
+
+        @Override
+        public Map<Class<?>, Integer> getContracts(Class<?> componentClass) {
+            for (Object instance : local.instances) {
+                if (instance.getClass() == componentClass) {
+                    Set<Class<?>> registered = local.contracts.get(instance);
+                    Collection<Class<?>> contracts = registered != null ? registered
+                        : CONTRACTS.stream().filter(contract -> contract.isInstance(instance)).toList();
+                    Map<Class<?>, Integer> byContract = new LinkedHashMap<>();
+                    Components components = local.components();
+                    for (Class<?> contract : contracts) {
+                        byContract.put(contract, components.priority(instance, contract));
+                    }
+                    return byContract;
+                }
+            }
+            return global.getContracts(componentClass);
+        }
+
+        @Override
+        public Set<Class<?>> getClasses() {
+            Set<Class<?>> classes = new LinkedHashSet<>(global.getClasses());
+            local.classInstances.forEach(instance -> classes.add(instance.getClass()));
+            return Collections.unmodifiableSet(classes);
+        }
+
+        @Override
+        public Set<Object> getInstances() {
+            Set<Object> instances = new LinkedHashSet<>(global.getInstances());
+            for (Object instance : local.instances) {
+                if (!local.classInstances.contains(instance)) {
+                    instances.add(instance);
+                }
+            }
+            return Collections.unmodifiableSet(instances);
         }
     }
 }

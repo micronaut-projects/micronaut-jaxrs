@@ -77,7 +77,35 @@ final class JaxRsApplicationSingletons implements BeanCreatedEventListener<Appli
                 register(context.inject(singleton));
             }
         }
+        for (Class<?> type : application.getClasses()) {
+            if (isProviderClass(type) && !context.containsBean(type)) {
+                registerClass(type);
+            }
+        }
         return application;
+    }
+
+    /**
+     * Register a provider class the application lists that is not a bean (JAX-RS 2.3, 4.1.1): a
+     * class the annotation processors never saw, which needs reflection.
+     */
+    private void registerClass(Class<?> type) {
+        RuntimeBeanDefinition<?> definition = JaxRsReflection.get().beanDefinition(type);
+        if (definition == null) {
+            throw new IllegalStateException("The provider class " + type.getName() + " the application lists is not a bean: "
+                + (JaxRsReflection.get().isReflective() ? "it cannot be instantiated"
+                    : "annotate it with @Provider, or add io.micronaut:micronaut-reflection to the runtime classpath"));
+        }
+        context.registerBeanDefinition(definition);
+    }
+
+    private static boolean isProviderClass(Class<?> type) {
+        for (Class<?> contract : PROVIDER_CONTRACTS) {
+            if (contract.isAssignableFrom(type)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

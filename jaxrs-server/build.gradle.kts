@@ -67,6 +67,8 @@ val testWithoutReflection by tasks.registering(Test::class) {
         excludeTestsMatching("io.micronaut.jaxrs.container.FeatureTest")
         excludeTestsMatching("io.micronaut.jaxrs.container.FormParamTest")
         excludeTestsMatching("io.micronaut.jaxrs.container.DynamicFeatureDeploymentTest")
+        excludeTestsMatching("example.extension.FeatureExtensionsTest")
+        excludeTestsMatching("example.extension.ApplicationListedProviderTest")
     }
     systemProperty("micronaut.jaxrs.test.reflection", "false")
 }

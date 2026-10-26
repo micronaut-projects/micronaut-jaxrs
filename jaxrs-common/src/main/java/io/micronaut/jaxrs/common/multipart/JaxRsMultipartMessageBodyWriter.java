@@ -70,7 +70,8 @@ public final class JaxRsMultipartMessageBodyWriter implements MessageBodyWriter<
 
     @Override
     public boolean isWriteable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
-        return Multipart.isEntityPartList(type, genericType);
+        // the class of the entity is a list, e.g. of List.of, its generic type a List<EntityPart>
+        return List.class.isAssignableFrom(type) && Multipart.isEntityPartList(List.class, genericType);
     }
 
     @Override

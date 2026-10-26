@@ -99,13 +99,13 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
             .filter(br -> isRegistered(br.getBeanDefinition().getBeanType(), MessageBodyReader.class))
             // the readers of the type, a supertype, including Object, or a subtype
             .filter(br -> typeDistance(br, MessageBodyReader.class, theType) != Integer.MAX_VALUE || readsSubtype(br, theType))
-            // the order of the writers (JAX-RS 4.2.2, step 4), which 4.2.1 leaves open: the nearest
-            // type first, then the most specific media type, then the providers of the application
-            // before the standard ones (4.1.3)
-            .sorted(Comparator.<BeanRegistration<MessageBodyReader<T>>>comparingInt(br -> typeDistance(br, MessageBodyReader.class, theType))
-                .thenComparing(Comparator.<BeanRegistration<MessageBodyReader<T>>>comparingInt(br -> mediaTypeSpecificity(br, Consumes.class, mediaTypes)).reversed())
-                .thenComparing(br -> br.getBeanDefinition().getBeanType().getName().startsWith("io.micronaut."))
-                .thenComparingInt(br -> priority(br, MessageBodyReader.class)))
+            // JAX-RS 4.2.1: the most specific media type (step 3), then the providers of the
+            // application before the standard ones (4.1.3), then the highest priority (step 5),
+            // then, which it leaves open, the nearest type
+            .sorted(Comparator.<BeanRegistration<MessageBodyReader<T>>>comparingInt(br -> mediaTypeSpecificity(br, Consumes.class, mediaTypes)).reversed()
+                .thenComparing(br -> isStandard(br))
+                .thenComparingInt(br -> priority(br, MessageBodyReader.class))
+                .thenComparingInt(br -> typeDistance(br, MessageBodyReader.class, theType)))
             .map(BeanRegistration::getBean)
             .toList();
     }
@@ -133,7 +133,7 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
             // the providers of the application before the standard ones (4.1.3)
             .sorted(Comparator.<BeanRegistration<MessageBodyWriter<T>>>comparingInt(br -> typeDistance(br, MessageBodyWriter.class, theType))
                 .thenComparing(Comparator.<BeanRegistration<MessageBodyWriter<T>>>comparingInt(br -> mediaTypeSpecificity(br, Produces.class, mediaTypes)).reversed())
-                .thenComparing(br -> br.getBeanDefinition().getBeanType().getName().startsWith("io.micronaut."))
+                .thenComparing(br -> isStandard(br))
                 .thenComparingInt(br -> priority(br, MessageBodyWriter.class)))
             .toList();
     }
@@ -157,6 +157,14 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
             }
         }
         return JaxRsUtils.getPriorityOrder(registration);
+    }
+
+    /**
+     * Whether a provider is a standard one, of this module, which the ones of the application
+     * come before (JAX-RS 4.1.3).
+     */
+    private static boolean isStandard(BeanRegistration<?> registration) {
+        return registration.getBeanDefinition().getBeanType().getName().startsWith("io.micronaut.");
     }
 
     /**
