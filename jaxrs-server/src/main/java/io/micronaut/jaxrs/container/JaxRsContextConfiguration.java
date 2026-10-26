@@ -15,7 +15,12 @@
  */
 package io.micronaut.jaxrs.container;
 
+import io.micronaut.context.BeanContext;
 import io.micronaut.context.BeanProvider;
+import io.micronaut.inject.BeanDefinition;
+import io.micronaut.inject.qualifiers.Qualifiers;
+import io.micronaut.jaxrs.common.JaxRsUtils;
+import jakarta.ws.rs.Path;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.util.SupplierUtil;
 import jakarta.inject.Singleton;
@@ -28,6 +33,7 @@ import org.jspecify.annotations.Nullable;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -45,9 +51,11 @@ final class JaxRsContextConfiguration implements Configuration {
 
     private final Supplier<@Nullable Application> application;
     private final BeanProvider<JaxRsFeatures> features;
+    private final Supplier<Set<Class<?>>> discovered;
 
-    JaxRsContextConfiguration(BeanProvider<Application> application, BeanProvider<JaxRsFeatures> features) {
+    JaxRsContextConfiguration(BeanProvider<Application> application, BeanProvider<JaxRsFeatures> features, BeanContext context) {
         this.features = features;
+        this.discovered = SupplierUtil.memoized(() -> discovered(context));
         // the Application may itself be injected with this configuration
         this.application = SupplierUtil.memoized(() -> application.isPresent() ? application.get() : null);
     }
@@ -61,14 +69,17 @@ final class JaxRsContextConfiguration implements Configuration {
     public Map<String, Object> getProperties() {
         Application app = application.get();
         Map<String, Object> set = features.get().properties();
-        if (set.isEmpty()) {
+        Set<String> removed = features.get().removedProperties();
+        if (set.isEmpty() && removed.isEmpty()) {
             return app == null ? Map.of() : app.getProperties();
         }
-        // the ones of the application, and the ones the features set (FeatureContext#property)
+        // the ones of the application, without the ones the features removed, and the ones the
+        // features set (FeatureContext#property)
         Map<String, Object> properties = new LinkedHashMap<>();
         if (app != null) {
             properties.putAll(app.getProperties());
         }
+        properties.keySet().removeAll(removed);
         properties.putAll(set);
         return Collections.unmodifiableMap(properties);
     }
@@ -85,27 +96,32 @@ final class JaxRsContextConfiguration implements Configuration {
 
     @Override
     public boolean isEnabled(Feature feature) {
-        return isRegistered(feature);
+        // configured, and its configure returned true
+        return features.get().isEnabled(feature);
     }
 
     @Override
     public boolean isEnabled(Class<? extends Feature> featureClass) {
-        return isRegistered(featureClass);
+        return features.get().isEnabled(featureClass);
     }
 
     @Override
     public boolean isRegistered(Object instance) {
-        return getInstances().contains(instance) || features.get().isRegistered(instance);
+        Application app = application.get();
+        return app != null && app.getSingletons().contains(instance) || features.get().isRegistered(instance);
     }
 
     @Override
     public boolean isRegistered(Class<?> componentClass) {
-        if (getClasses().contains(componentClass)) {
+        Application app = application.get();
+        if (app != null && app.getClasses().contains(componentClass)) {
             return true;
         }
-        for (Object instance : getInstances()) {
-            if (instance.getClass() == componentClass) {
-                return true;
+        if (app != null) {
+            for (Object instance : app.getSingletons()) {
+                if (instance.getClass() == componentClass) {
+                    return true;
+                }
             }
         }
         // registered by a feature
@@ -120,12 +136,48 @@ final class JaxRsContextConfiguration implements Configuration {
     @Override
     public Set<Class<?>> getClasses() {
         Application app = application.get();
-        return app == null ? Set.of() : app.getClasses();
+        Set<Class<?>> classes = new LinkedHashSet<>();
+        if (app != null) {
+            classes.addAll(app.getClasses());
+        }
+        if (classes.isEmpty() && (app == null || app.getSingletons().isEmpty())) {
+            // an application that lists none registers the ones that are discovered (JAX-RS 2.3)
+            classes.addAll(discovered.get());
+        }
+        // and the ones the features registered
+        classes.addAll(features.get().registeredClasses());
+        return Collections.unmodifiableSet(classes);
     }
 
     @Override
     public Set<Object> getInstances() {
         Application app = application.get();
-        return app == null ? Set.of() : app.getSingletons();
+        Set<Object> instances = new LinkedHashSet<>();
+        if (app != null) {
+            instances.addAll(app.getSingletons());
+        }
+        // and the ones the features registered, the enabled features included
+        instances.addAll(features.get().registeredInstances());
+        return Collections.unmodifiableSet(instances);
+    }
+
+    /**
+     * The component classes that are discovered: the resources and the server providers and
+     * features of the application, without the ones of this module.
+     */
+    private static Set<Class<?>> discovered(BeanContext context) {
+        Set<Class<?>> classes = new LinkedHashSet<>();
+        for (BeanDefinition<?> definition : context.getBeanDefinitions(Qualifiers.byStereotype(Path.class))) {
+            classes.add(definition.getBeanType());
+        }
+        for (Class<?> contract : JaxRsFeatures.CONTRACTS) {
+            for (BeanDefinition<?> definition : context.getBeanDefinitions(contract)) {
+                Class<?> type = definition.getBeanType();
+                if (!type.getName().startsWith("io.micronaut.") && JaxRsUtils.isServerProvider(definition.getAnnotationMetadata())) {
+                    classes.add(type);
+                }
+            }
+        }
+        return Collections.unmodifiableSet(classes);
     }
 }
