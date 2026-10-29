@@ -396,20 +396,23 @@ final class JaxRsContextRequest implements Request {
                     continue;
                 }
                 double quality = 1;
+                // keep the parameters of a media type except the quality, whatever the whitespace
+                // around them (RFC 9110, 5.6.6)
+                StringBuilder value = new StringBuilder(parameters[0].trim());
                 for (int i = 1; i < parameters.length; i++) {
                     String parameter = parameters[i].trim();
-                    if (parameter.startsWith("q=")) {
+                    int equals = parameter.indexOf('=');
+                    if (equals > 0 && parameter.substring(0, equals).trim().equalsIgnoreCase("q")) {
                         try {
-                            quality = Double.parseDouble(parameter.substring(2));
+                            quality = Double.parseDouble(parameter.substring(equals + 1).trim());
                         } catch (NumberFormatException e) {
                             quality = 0;
                         }
+                    } else {
+                        value.append(';').append(parameter);
                     }
                 }
-                String value = part.trim();
-                // keep the parameters of a media type except the quality
-                int q = value.indexOf(";q=");
-                values.add(new Weighted(q < 0 ? value : value.substring(0, q), quality));
+                values.add(new Weighted(value.toString(), quality));
             }
         }
         return values;
