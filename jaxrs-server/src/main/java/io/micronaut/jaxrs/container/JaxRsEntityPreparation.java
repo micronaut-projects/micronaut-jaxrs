@@ -34,7 +34,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * The entity of a response, prepared for the response filters and the writers: the response of
+ * Prepares the entity of a response for the response filters and the writers: not the entity
+ * lifecycle of {@link io.micronaut.jaxrs.common.JaxRsResponseEntity}, but the response of
  * the application unwrapped, the entity of a {@link GenericEntity}, the raw and generic types the
  * writers see (JAX-RS 3.3.3, 4.2.2), and the annotations given with the entity followed by the
  * ones of the resource method.
@@ -42,7 +43,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * @author Denis Stepanov
  * @since 5.2.0
  */
-final class JaxRsResponseEntity {
+final class JaxRsEntityPreparation {
 
     private static final Annotation[] NONE = new Annotation[0];
 

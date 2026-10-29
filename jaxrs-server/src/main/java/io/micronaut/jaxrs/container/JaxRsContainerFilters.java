@@ -84,7 +84,7 @@ final class JaxRsContainerFilters {
     private final List<BeanRegistration<ContainerResponseFilter>> containerResponseFilters;
     private final NameBindingPredicate nameBindingPredicate;
     private final JaxRsFeatures features;
-    private final JaxRsResponseEntity responseEntity = new JaxRsResponseEntity();
+    private final JaxRsEntityPreparation entityPreparation = new JaxRsEntityPreparation();
 
     JaxRsContainerFilters(ApplicationProvider applicationProvider,
                  BeanContext beanContext,
@@ -171,7 +171,7 @@ final class JaxRsContainerFilters {
             // the headers Request#selectVariant negotiated with, beside the ones of the response
             mergeVary(mutableHttpResponse, vary);
         }
-        JaxRsResponseEntity.Prepared prepared = responseEntity.prepare(routeInfo, request, mutableHttpResponse);
+        JaxRsEntityPreparation.Prepared prepared = entityPreparation.prepare(routeInfo, request, mutableHttpResponse);
         mutableHttpResponse = prepared.response();
         Object body = prepared.body();
         Argument<?> bodyArgument = prepared.bodyArgument();
