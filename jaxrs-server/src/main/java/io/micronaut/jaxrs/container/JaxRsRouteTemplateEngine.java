@@ -177,6 +177,12 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
         if (best instanceof Parsed parsed && parsed.rootPart != null && !committed(request, parsed.root())) {
             return List.of();
         }
+        if (candidates.size() > 1 && candidates.stream().anyMatch(c -> !c.getRouteInfo().isImplicitHead())) {
+            // a HEAD request selects among the HEAD methods, and only without one among the GET
+            // methods (JAX-RS 3.3.5): the implicit HEAD routes of the GET methods are not candidates
+            // beside an explicit HEAD method, whatever the media types they produce
+            candidates.removeIf(c -> c.getRouteInfo().isImplicitHead());
+        }
         MediaType contentType = request.getContentType().orElse(null);
         List<MediaType> accepted = request.getHeaders().accept();
         if (accepted.isEmpty()) {
