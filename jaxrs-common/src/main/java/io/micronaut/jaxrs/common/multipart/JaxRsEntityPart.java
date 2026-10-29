@@ -147,17 +147,7 @@ public final class JaxRsEntityPart implements EntityPart {
     @Override
     public InputStream getContent() {
         consume();
-        if (content instanceof InputStream stream) {
-            return stream;
-        }
-        // the content of the part itself, which is read, e.g. the bytes received
-        if (content instanceof byte[] bytes) {
-            return new ByteArrayInputStream(bytes);
-        }
-        if (content instanceof String string) {
-            return new ByteArrayInputStream(string.getBytes(charset()));
-        }
-        return new ByteArrayInputStream(bytes(providers, new MultivaluedHashMap<>(headers)));
+        return stream();
     }
 
     @Override
@@ -256,7 +246,7 @@ public final class JaxRsEntityPart implements EntityPart {
         consumed = true;
     }
 
-    private InputStream stream() throws IOException {
+    private InputStream stream() {
         if (content instanceof InputStream stream) {
             return stream;
         }
