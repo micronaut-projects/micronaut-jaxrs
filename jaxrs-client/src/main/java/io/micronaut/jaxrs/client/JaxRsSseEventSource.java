@@ -393,85 +393,6 @@ final class JaxRsSseEventSource implements SseEventSource {
         reconnect(reconnectDelay());
     }
 
-    /**
-     * The events of a connection as the entity stream the response filters see: written back in
-     * the event stream format when a filter reads them, e.g. through a stream wrapping it.
-     */
-    private static final class EventsInputStream extends InputStream {
-        private final BodyElements<Event<String>> events;
-        private byte[] pending = new byte[0];
-        private int position;
-        private boolean ended;
-
-        EventsInputStream(BodyElements<Event<String>> events) {
-            this.events = events;
-        }
-
-        @Override
-        public int read() throws IOException {
-            byte[] one = new byte[1];
-            return read(one, 0, 1) == -1 ? -1 : one[0] & 0xFF;
-        }
-
-        @Override
-        public int read(byte[] b, int off, int len) throws IOException {
-            if (len == 0) {
-                return 0;
-            }
-            while (position == pending.length) {
-                if (ended) {
-                    return -1;
-                }
-                Optional<Event<String>> next;
-                try {
-                    // read on the executor of the client, like the stream a filter set
-                    next = events.next().toCompletableFuture().join();
-                } catch (CompletionException | CancellationException e) {
-                    throw new IOException(e.getCause() == null ? e : e.getCause());
-                }
-                if (next.isEmpty()) {
-                    ended = true;
-                    return -1;
-                }
-                pending = encode(next.get());
-                position = 0;
-            }
-            int n = Math.min(len, pending.length - position);
-            System.arraycopy(pending, position, b, off, n);
-            position += n;
-            return n;
-        }
-
-        private static byte[] encode(Event<String> event) {
-            var text = new StringBuilder();
-            if (event.getComment() != null) {
-                for (String line : event.getComment().split("\n", -1)) {
-                    text.append(':').append(line).append('\n');
-                }
-            }
-            if (event.getId() != null) {
-                text.append("id:").append(event.getId()).append('\n');
-            }
-            if (event.getName() != null) {
-                text.append("event:").append(event.getName()).append('\n');
-            }
-            if (event.getRetry() != null) {
-                text.append("retry:").append(event.getRetry().toMillis()).append('\n');
-            }
-            if (event.getData() != null) {
-                for (String line : event.getData().split("\n", -1)) {
-                    text.append("data:").append(line).append('\n');
-                }
-            }
-            return text.append('\n').toString().getBytes(StandardCharsets.UTF_8);
-        }
-
-        @Override
-        public void close() {
-            events.closeAsync();
-        }
-    }
-
     private static void closeReplaced(JaxRsMutableResponse response, InputStream unchanged) {
         InputStream stream = response.getEntityStream();
         if (stream != unchanged) {
@@ -650,6 +571,85 @@ final class JaxRsSseEventSource implements SseEventSource {
      */
     int pendingCallbacks() {
         return callbacks.pendingCallbacks();
+    }
+
+    /**
+     * The events of a connection as the entity stream the response filters see: written back in
+     * the event stream format when a filter reads them, e.g. through a stream wrapping it.
+     */
+    private static final class EventsInputStream extends InputStream {
+        private final BodyElements<Event<String>> events;
+        private byte[] pending = new byte[0];
+        private int position;
+        private boolean ended;
+
+        EventsInputStream(BodyElements<Event<String>> events) {
+            this.events = events;
+        }
+
+        @Override
+        public int read() throws IOException {
+            byte[] one = new byte[1];
+            return read(one, 0, 1) == -1 ? -1 : one[0] & 0xFF;
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            if (len == 0) {
+                return 0;
+            }
+            while (position == pending.length) {
+                if (ended) {
+                    return -1;
+                }
+                Optional<Event<String>> next;
+                try {
+                    // read on the executor of the client, like the stream a filter set
+                    next = events.next().toCompletableFuture().join();
+                } catch (CompletionException | CancellationException e) {
+                    throw new IOException(e.getCause() == null ? e : e.getCause());
+                }
+                if (next.isEmpty()) {
+                    ended = true;
+                    return -1;
+                }
+                pending = encode(next.get());
+                position = 0;
+            }
+            int n = Math.min(len, pending.length - position);
+            System.arraycopy(pending, position, b, off, n);
+            position += n;
+            return n;
+        }
+
+        private static byte[] encode(Event<String> event) {
+            var text = new StringBuilder();
+            if (event.getComment() != null) {
+                for (String line : event.getComment().split("\n", -1)) {
+                    text.append(':').append(line).append('\n');
+                }
+            }
+            if (event.getId() != null) {
+                text.append("id:").append(event.getId()).append('\n');
+            }
+            if (event.getName() != null) {
+                text.append("event:").append(event.getName()).append('\n');
+            }
+            if (event.getRetry() != null) {
+                text.append("retry:").append(event.getRetry().toMillis()).append('\n');
+            }
+            if (event.getData() != null) {
+                for (String line : event.getData().split("\n", -1)) {
+                    text.append("data:").append(line).append('\n');
+                }
+            }
+            return text.append('\n').toString().getBytes(StandardCharsets.UTF_8);
+        }
+
+        @Override
+        public void close() {
+            events.closeAsync();
+        }
     }
 
     /**
