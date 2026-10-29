@@ -584,6 +584,26 @@ final class JaxRsConfiguration implements Configuration {
         }
     }
 
+    /**
+     * Make the providers of this configuration the current ones until the returned scope is
+     * closed, e.g. while the filters run: a filter shared by the copies of a configuration is
+     * injected with the configuration of the current invocation (JAX-RS 10.2.8).
+     *
+     * @return The scope, which restores the previous providers once closed
+     */
+    CurrentScope current() {
+        Providers previous = JaxRsCurrentProviders.set(providers);
+        return () -> JaxRsCurrentProviders.restore(previous);
+    }
+
+    /**
+     * The scope of the current providers, see {@link #current()}.
+     */
+    interface CurrentScope extends AutoCloseable {
+        @Override
+        void close();
+    }
+
     public HttpMessageEntityReader createHttpMessageEntityReader() {
         return createHttpMessageEntityReader(new LinkedHashMap<>());
     }
