@@ -120,6 +120,9 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
      */
     private final Map<String, Parsed> mountedRoots = new ConcurrentHashMap<>();
 
+    // the templates of the root resource classes of the prefixes of the locator routes, parsed once
+    private final Map<String, Optional<Parsed>> locatorRoots = new ConcurrentHashMap<>();
+
     private static RouteTemplate template(UriRouteInfo<?, ?> route) {
         RouteTemplate prefix = RouteLocator.locatorPrefix(route);
         return prefix == null ? route.getRouteTemplate() : prefix;
@@ -266,7 +269,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
      * @return Whether the root resource class of the locator is the one JAX-RS commits to
      */
     boolean commitsToLocator(HttpRequest<?> request, String prefix) {
-        Parsed root = parsed(null, prefix, "").rootPart;
+        Parsed root = locatorRoots.computeIfAbsent(prefix, p -> Optional.ofNullable(parsed(null, p, "").rootPart)).orElse(null);
         if (root == null) {
             return true;
         }
@@ -772,6 +775,23 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
     }
 
     /**
+     * The compiled pattern of a template, published as a whole.
+     *
+     * @param pattern The pattern
+     * @param groups  The groups of the variables in the pattern, in the order of the variables
+     */
+    private record Compiled(Pattern pattern, List<Integer> groups) {
+
+        RouteCaptures captures(String path, Matcher matcher, List<RouteTemplateVariable> variables) {
+            List<@Nullable String> values = new ArrayList<>(groups.size());
+            for (int group : groups) {
+                values.add(matcher.group(group));
+            }
+            return RouteCaptures.of(path, variables, values);
+        }
+    }
+
+    /**
      * A parsed template: it matches the paths of its language.
      */
     private static final class Parsed implements RouteTemplate {
@@ -782,9 +802,10 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
         private final @Nullable Parsed rootPart;
         private final int locators;
         private final List<RouteTemplateVariable> variables;
-        private @Nullable Pattern pattern;
-        private @Nullable Pattern prefixPattern;
-        private @Nullable List<Integer> groups;
+        private final int rawLength;
+        private final int patternVariableCount;
+        private volatile @Nullable Compiled compiled;
+        private volatile @Nullable Pattern prefixPattern;
         private volatile @Nullable JaxRsTemplateDescription description;
 
         /**
@@ -801,6 +822,16 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
             this.rootPart = rootPart;
             this.locators = locators;
             this.variables = variables(parts);
+            int length = 0;
+            int regexVariables = 0;
+            for (Part part : parts) {
+                length += part.text != null ? part.text.length() : 0;
+                if (part.regex != null) {
+                    regexVariables++;
+                }
+            }
+            this.rawLength = length;
+            this.patternVariableCount = regexVariables;
         }
 
         /**
@@ -835,8 +866,9 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
         @Override
         public @Nullable RouteCaptures match(String rawPath) {
             String normalized = UriTemplateMatcher.normalizeForMatching(withoutMatrixParameters(rawPath));
-            Matcher matcher = pattern().matcher(normalized);
-            return matcher.matches() ? captures(normalized, matcher) : null;
+            Compiled c = compiled();
+            Matcher matcher = c.pattern.matcher(normalized);
+            return matcher.matches() ? c.captures(normalized, matcher, variables) : null;
         }
 
         /**
@@ -861,31 +893,27 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
             int end = matcher.start(rest) < 0 ? path.length() : matcher.start(rest);
             int rawEnd = indexes[end];
             String matched = rawEnd == 0 ? "/" : rawPath.substring(0, rawEnd);
-            Matcher variables = pattern().matcher(UriTemplateMatcher.normalizeForMatching(path.substring(0, end)));
-            if (!variables.matches()) {
+            Compiled c = compiled();
+            Matcher variableMatcher = c.pattern.matcher(UriTemplateMatcher.normalizeForMatching(path.substring(0, end)));
+            if (!variableMatcher.matches()) {
                 return null;
             }
-            return captures(matched, variables);
+            return c.captures(matched, variableMatcher, variables);
         }
 
-        private RouteCaptures captures(String path, Matcher matcher) {
-            List<Integer> g = Objects.requireNonNull(groups);
-            List<@Nullable String> values = new ArrayList<>(g.size());
-            for (int group : g) {
-                values.add(matcher.group(group));
+        /**
+         * The compiled pattern, when first used: compiling it validates the regular expressions
+         * of the template.
+         */
+        private Compiled compiled() {
+            Compiled c = compiled;
+            if (c == null) {
+                List<Integer> groups = new ArrayList<>();
+                Pattern pattern = Pattern.compile(regex(withoutTrailingSlash(parts), groups).toString());
+                c = new Compiled(pattern, List.copyOf(groups));
+                compiled = c;
             }
-            return RouteCaptures.of(path, variables, values);
-        }
-
-        private Pattern pattern() {
-            Pattern p = pattern;
-            if (p == null) {
-                List<Integer> g = new ArrayList<>();
-                p = Pattern.compile(regex(withoutTrailingSlash(parts), g).toString());
-                groups = List.copyOf(g);
-                pattern = p;
-            }
-            return p;
+            return c;
         }
 
         @Override
@@ -940,11 +968,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
 
         @Override
         public int rawLength() {
-            int length = 0;
-            for (Part part : parts) {
-                length += part.text != null ? part.text.length() : 0;
-            }
-            return length;
+            return rawLength;
         }
 
         @Override
@@ -954,13 +978,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
 
         @Override
         public int patternVariableCount() {
-            int count = 0;
-            for (Part part : parts) {
-                if (part.regex != null) {
-                    count++;
-                }
-            }
-            return count;
+            return patternVariableCount;
         }
 
         @Override
