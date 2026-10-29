@@ -116,11 +116,7 @@ class RequestPreconditionsTest {
     }
 
     private int status(HttpRequest<?> request) {
-        try {
-            return client.toBlocking().exchange(request, String.class).getStatus().getCode();
-        } catch (HttpClientResponseException e) {
-            return e.getStatus().getCode();
-        }
+        return TestResponses.status(client, request);
     }
 
     @Requires(property = "spec.name", value = "RequestPreconditionsTest")
