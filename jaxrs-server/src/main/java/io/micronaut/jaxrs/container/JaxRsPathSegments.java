@@ -223,8 +223,11 @@ final class JaxRsPathSegments {
 
     /**
      * Percent-decode a part of a path: a {@code +} of a path is not a space.
+     *
+     * @param value The raw part of a path
+     * @return The decoded part
      */
-    private static String decode(String value) {
+    static String decode(String value) {
         return value.indexOf('+') < 0 ? URLDecoder.decode(value, StandardCharsets.UTF_8)
             : URLDecoder.decode(value.replace("+", "%2B"), StandardCharsets.UTF_8);
     }

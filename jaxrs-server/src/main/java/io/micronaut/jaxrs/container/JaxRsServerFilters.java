@@ -62,7 +62,15 @@ final class JaxRsServerFilters implements HttpRoutes {
         routes.serverFilter("/**").preMatching()
             .beforeReplacingAsync(request -> {
                 normalize(request);
-                return filters.filterPreMatchingRequestAsync(request);
+                return filters.filterPreMatchingRequestAsync(request).thenApply(message -> {
+                    // the request URI a pre-matching filter set is normalized too
+                    if (message == null) {
+                        normalize(request);
+                    } else if (message instanceof MutableHttpRequest<?> changed) {
+                        normalize(changed);
+                    }
+                    return message;
+                });
             }).and()
             .after((request, response) -> {
                 try {
@@ -94,6 +102,9 @@ final class JaxRsServerFilters implements HttpRoutes {
         StringBuilder target = new StringBuilder();
         if (uri.getRawAuthority() != null) {
             target.append(uri.getScheme()).append("://").append(uri.getRawAuthority());
+        } else if (normalized.startsWith("//")) {
+            // an empty authority: a path that starts with two slashes is not an authority and a path
+            target.append("//");
         }
         target.append(normalized);
         if (uri.getRawQuery() != null) {

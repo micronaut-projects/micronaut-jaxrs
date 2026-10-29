@@ -105,9 +105,9 @@ final class JaxRsContextRequest implements Request {
         }
         HttpRequest<?> request = request();
         if (!ifMatch(request, eTag)) {
-            return Response.status(Response.Status.PRECONDITION_FAILED);
+            return withVary(request, Response.status(Response.Status.PRECONDITION_FAILED));
         }
-        return ifNoneMatch(request, eTag);
+        return withVary(request, ifNoneMatch(request, eTag));
     }
 
     @Override
@@ -118,9 +118,9 @@ final class JaxRsContextRequest implements Request {
         HttpRequest<?> request = request();
         long modified = lastModified.getTime() / 1000;
         if (!ifUnmodifiedSince(request, modified)) {
-            return Response.status(Response.Status.PRECONDITION_FAILED);
+            return withVary(request, Response.status(Response.Status.PRECONDITION_FAILED));
         }
-        return ifModifiedSince(request, modified) ? null : Response.notModified();
+        return ifModifiedSince(request, modified) ? null : withVary(request, Response.notModified());
     }
 
     @Override
@@ -136,20 +136,32 @@ final class JaxRsContextRequest implements Request {
             ? ifMatch(request, eTag)
             : ifUnmodifiedSince(request, modified);
         if (!unmodified) {
-            return Response.status(Response.Status.PRECONDITION_FAILED);
+            return withVary(request, Response.status(Response.Status.PRECONDITION_FAILED));
         }
         if (request.getHeaders().contains(HttpHeaders.IF_NONE_MATCH)) {
-            return ifNoneMatch(request, eTag);
+            return withVary(request, ifNoneMatch(request, eTag));
         }
-        return ifModifiedSince(request, modified) ? null : Response.notModified(eTag);
+        return ifModifiedSince(request, modified) ? null : withVary(request, Response.notModified(eTag));
     }
 
     @Override
     public Response.@Nullable ResponseBuilder evaluatePreconditions() {
         // the resource does not exist: any If-Match fails
-        return request().getHeaders().contains(HttpHeaders.IF_MATCH)
-            ? Response.status(Response.Status.PRECONDITION_FAILED)
+        HttpRequest<?> request = request();
+        return request.getHeaders().contains(HttpHeaders.IF_MATCH)
+            ? withVary(request, Response.status(Response.Status.PRECONDITION_FAILED))
             : null;
+    }
+
+    /**
+     * A response of a precondition with the {@code Vary} header {@link #selectVariant} computed.
+     */
+    private static Response.@Nullable ResponseBuilder withVary(HttpRequest<?> request, Response.@Nullable ResponseBuilder builder) {
+        if (builder == null) {
+            return null;
+        }
+        request.getAttribute(VARY, String.class).ifPresent(vary -> builder.header(HttpHeaders.VARY, vary));
+        return builder;
     }
 
     private static HttpRequest<?> request() {
@@ -396,20 +408,23 @@ final class JaxRsContextRequest implements Request {
                     continue;
                 }
                 double quality = 1;
+                // keep the parameters of a media type except the quality, whatever the whitespace
+                // around them (RFC 9110, 5.6.6)
+                StringBuilder value = new StringBuilder(parameters[0].trim());
                 for (int i = 1; i < parameters.length; i++) {
                     String parameter = parameters[i].trim();
-                    if (parameter.startsWith("q=")) {
+                    int equals = parameter.indexOf('=');
+                    if (equals > 0 && parameter.substring(0, equals).trim().equalsIgnoreCase("q")) {
                         try {
-                            quality = Double.parseDouble(parameter.substring(2));
+                            quality = Double.parseDouble(parameter.substring(equals + 1).trim());
                         } catch (NumberFormatException e) {
                             quality = 0;
                         }
+                    } else {
+                        value.append(';').append(parameter);
                     }
                 }
-                String value = part.trim();
-                // keep the parameters of a media type except the quality
-                int q = value.indexOf(";q=");
-                values.add(new Weighted(q < 0 ? value : value.substring(0, q), quality));
+                values.add(new Weighted(value.toString(), quality));
             }
         }
         return values;
