@@ -54,9 +54,10 @@ final class JaxRsResources {
 
     private static final String ROUTER = "io.micronaut.web.router.builder.";
 
-    private static final List<Class<? extends java.lang.annotation.Annotation>> REQUEST_ANNOTATIONS = List.of(
+    // the JAX-RS parameter annotations: the values of the request, but the @Context ones
+    private static final List<Class<? extends java.lang.annotation.Annotation>> PARAMETER_ANNOTATIONS = List.of(
         PathParam.class, QueryParam.class, MatrixParam.class, HeaderParam.class, CookieParam.class,
-        FormParam.class, BeanParam.class, Context.class
+        FormParam.class, BeanParam.class
     );
 
     private JaxRsResources() {
@@ -92,7 +93,28 @@ final class JaxRsResources {
         if (!isPerRequest(type) || isShared(type)) {
             return false;
         }
-        return type.hasAnnotation(Path.class) || !type.getEnclosedElements(ElementQuery.ALL_METHODS.onlyInstance()
+        return type.hasAnnotation(Path.class) || isRouted(type);
+    }
+
+    /**
+     * Analyze a class once: its routing and the members it reads from the request.
+     *
+     * @param type The class
+     * @return The analysis
+     */
+    public static Analysis analyze(ClassElement type) {
+        boolean resourceMethods = !type.getEnclosedElements(ElementQuery.ALL_METHODS.onlyInstance()
+            .annotated(metadata -> metadata.hasStereotype(HttpMethod.class))).isEmpty();
+        return new Analysis(type.hasAnnotation(Path.class), resourceMethods, resourceMethods || isRouted(type), isShared(type),
+            requestConstructor(type), requestMembers(type));
+    }
+
+    /**
+     * @param type A class
+     * @return Whether it has a resource method or a sub-resource locator
+     */
+    private static boolean isRouted(ClassElement type) {
+        return !type.getEnclosedElements(ElementQuery.ALL_METHODS.onlyInstance()
             .annotated(metadata -> metadata.hasStereotype(HttpMethod.class) || metadata.hasDeclaredAnnotation(Path.class))).isEmpty();
     }
 
@@ -137,7 +159,15 @@ final class JaxRsResources {
      * annotation or {@code @Context}
      */
     public static boolean isRequestAnnotated(Element element) {
-        for (Class<? extends java.lang.annotation.Annotation> annotation : REQUEST_ANNOTATIONS) {
+        return isParameterAnnotated(element) || element.hasAnnotation(Context.class);
+    }
+
+    /**
+     * @param element A parameter, field or setter
+     * @return Whether it is annotated with a JAX-RS parameter annotation, e.g. {@code @QueryParam}
+     */
+    public static boolean isParameterAnnotated(Element element) {
+        for (Class<? extends java.lang.annotation.Annotation> annotation : PARAMETER_ANNOTATIONS) {
             if (element.hasAnnotation(annotation)) {
                 return true;
             }
@@ -165,5 +195,37 @@ final class JaxRsResources {
             }
         }
         return members;
+    }
+
+    /**
+     * The analysis of a class.
+     *
+     * @param path               Whether it is annotated with {@code @Path}
+     * @param resourceMethods    Whether it has resource methods
+     * @param routed             Whether it has resource methods or sub-resource locators
+     * @param shared             Whether it is a singleton, see {@link #isShared(ClassElement)}
+     * @param requestConstructor The constructor of an instance created per request, see {@link #requestConstructor(ClassElement)}
+     * @param requestMembers     The fields and setters that read values of the request
+     */
+    record Analysis(boolean path,
+                    boolean resourceMethods,
+                    boolean routed,
+                    boolean shared,
+                    @Nullable ConstructorElement requestConstructor,
+                    List<MemberElement> requestMembers) {
+
+        /**
+         * @return Whether it is a resource: annotated with {@code @Path}, or with resource methods
+         */
+        boolean resource() {
+            return path || resourceMethods;
+        }
+
+        /**
+         * @return Whether it is created for every request, see {@link JaxRsResources#isCreatedPerRequest(ClassElement)}
+         */
+        boolean createdPerRequest() {
+            return (requestConstructor != null || !requestMembers.isEmpty()) && !shared && (path || routed);
+        }
     }
 }

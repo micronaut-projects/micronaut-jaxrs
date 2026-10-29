@@ -87,17 +87,6 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     private ClassElement currentClassElement;
     private boolean runtimeRoutes;
 
-    private final List<Class<? extends Annotation>> JAX_RS_BINDING_ANNOTATIONS = List.of(
-        HeaderParam.class,
-        QueryParam.class,
-        FormParam.class,
-        MatrixParam.class,
-        PathParam.class,
-        CookieParam.class,
-        BeanParam.class,
-        Context.class
-    );
-
     // Backwards compatibility
     @NextMajorVersion("Allow only inject values annotated with @Context")
     private final List<String> JAX_RS_BINDING_TYPES = List.of(
@@ -172,32 +161,29 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             }
             return;
         }
-        boolean resource = element.hasAnnotation(Path.class) || !element.getEnclosedElements(ElementQuery.ALL_METHODS.onlyInstance()
-            .annotated(metadata -> metadata.hasStereotype(HttpMethod.class))).isEmpty();
-        boolean routed = !element.getEnclosedElements(ElementQuery.ALL_METHODS.onlyInstance()
-            .annotated(metadata -> metadata.hasStereotype(HttpMethod.class) || metadata.hasDeclaredAnnotation(Path.class))).isEmpty();
-        if ((routed || JaxRsResources.isCreatedPerRequest(element)) && !element.isInterface()) {
+        // the members and methods of the class, read once: the mutations below do not change them
+        JaxRsResources.Analysis analysis = JaxRsResources.analyze(element);
+        boolean resource = analysis.resource();
+        if ((analysis.routed() || analysis.createdPerRequest()) && !element.isInterface()) {
             // the target of a sub-resource locator, or a resource created per request, also one
             // without resource methods: the runtime routes read its resource methods, locators,
             // constructor and request members
             introspect(element);
         }
-        if (!resource && !element.isAbstract() && !element.isInterface() && !JaxRsResources.requestMembers(element).isEmpty()) {
+        if (!resource && !element.isAbstract() && !element.isInterface() && !analysis.requestMembers().isEmpty()) {
             // a @BeanParam type: initialized at runtime from its introspection, with the values of the request
             introspect(element);
             return;
         }
-        if (!element.isAbstract() && !element.isInterface() && !element.hasStereotype(Controller.class)
-            && (element.hasAnnotation(Path.class) || !element.getEnclosedElements(ElementQuery.ALL_METHODS.onlyInstance()
-                .annotated(metadata -> metadata.hasStereotype(HttpMethod.class))).isEmpty())) {
+        if (!element.isAbstract() && !element.isInterface() && !element.hasStereotype(Controller.class) && resource) {
             // a resource or a sub-resource: a bean whose methods are routed at runtime. JAX-RS
             // creates a resource for every request, unless it has a scope, e.g. a singleton
-            ConstructorElement requestConstructor = JaxRsResources.requestConstructor(element);
-            boolean shared = JaxRsResources.isShared(element);
+            ConstructorElement requestConstructor = analysis.requestConstructor();
+            boolean shared = analysis.shared();
             if (!element.hasStereotype(AnnotationUtil.SCOPE)) {
                 element.annotate(Prototype.class);
             }
-            if (shared && !JaxRsResources.requestMembers(element).stream().allMatch(member -> member.hasAnnotation(Context.class))) {
+            if (shared && !analysis.requestMembers().stream().allMatch(member -> member.hasAnnotation(Context.class))) {
                 context.warn("The values of the request in the fields and setters of a singleton resource are not injected: only its @Context ones are, with proxies of the current request", element);
             }
             if (requestConstructor != null) {
@@ -281,7 +267,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
                 }
                 visitParamOrField(parameter);
                 String parameterTypeName = parameter.getType().getName();
-                if (JAX_RS_BINDING_ANNOTATIONS.stream().noneMatch(parameter::hasAnnotation)
+                if (!JaxRsResources.isRequestAnnotated(parameter)
                     && JAX_RS_BINDING_TYPES.stream().noneMatch(cl -> cl.equals(parameterTypeName))) {
                     // unannotated, implicit @Body
                     parameter.annotate(Body.class);
@@ -301,14 +287,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             }
             return;
         }
-        if (element.hasAnnotation(HeaderParam.class) ||
-            element.hasAnnotation(QueryParam.class) ||
-            element.hasAnnotation(FormParam.class) ||
-            element.hasAnnotation(MatrixParam.class) ||
-            element.hasAnnotation(PathParam.class) ||
-            element.hasAnnotation(CookieParam.class) ||
-            element.hasAnnotation(BeanParam.class)
-        ) {
+        if (JaxRsResources.isParameterAnnotated(element)) {
             context.fail("Request scoped bean parameters are currently not supported", element); // todo
         }
     }
