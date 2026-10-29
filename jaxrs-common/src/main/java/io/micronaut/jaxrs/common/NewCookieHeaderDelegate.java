@@ -61,14 +61,15 @@ class NewCookieHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Object> 
         NewCookie.SameSite sameSite = null;
 
         // the first name=value pair is the cookie, the others are its attributes
-        for (String part : newCookie.split(";")) {
+        // a semicolon in a quoted value is part of the value (RFC 2109 4.2.2)
+        for (String part : JaxRsHeaderUtil.split(newCookie, ";")) {
             String trimmed = part.trim();
             if (trimmed.isEmpty()) {
                 continue;
             }
             int eq = trimmed.indexOf('=');
             String name = eq < 0 ? trimmed : trimmed.substring(0, eq).trim();
-            String value = eq < 0 ? null : unquote(trimmed.substring(eq + 1).trim());
+            String value = eq < 0 ? null : JaxRsHeaderUtil.unquote(trimmed.substring(eq + 1).trim());
             if (cookieName == null) {
                 cookieName = name;
                 cookieValue = value;
@@ -187,18 +188,12 @@ class NewCookieHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Object> 
         return null;
     }
 
-    private static String unquote(String value) {
-        if (value.length() >= 2 && value.charAt(0) == '"' && value.charAt(value.length() - 1) == '"') {
-            return value.substring(1, value.length() - 1);
-        }
-        return value;
-    }
-
     private void quote(StringBuilder b, String value) {
 
         if (MediaTypeHeaderDelegate.quoted(value)) {
+            // a quote or a backslash in a quoted string is a quoted-pair
             b.append('"');
-            b.append(value);
+            b.append(value.replace("\\", "\\\\").replace("\"", "\\\""));
             b.append('"');
         } else {
             b.append(value);
