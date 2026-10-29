@@ -20,37 +20,30 @@ import io.micronaut.context.BeanRegistration;
 import io.micronaut.core.annotation.Internal;
 import org.jspecify.annotations.Nullable;
 import io.micronaut.core.type.Argument;
-import io.micronaut.http.HttpMethod;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpMessage;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.MutableHttpRequest;
 import io.micronaut.http.MutableHttpResponse;
-import io.micronaut.inject.annotation.MutableAnnotationMetadata;
-import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
 import io.micronaut.core.propagation.PropagatedContext;
 import io.micronaut.http.ServerHttpRequest;
 import io.micronaut.http.body.ByteBody;
 import io.micronaut.jaxrs.common.JaxRsContainerMessageBodyHandlerRegistry;
 import io.micronaut.jaxrs.common.JaxRsGenericEntity;
-import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import io.micronaut.jaxrs.common.JaxRsUtils;
 import io.micronaut.jaxrs.common.NameBindingPredicate;
 import io.micronaut.jaxrs.runtime.ext.bind.HttpHeadersBinder;
 import io.micronaut.jaxrs.runtime.ext.bind.UriInfoImpl;
-import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.RouteInfo;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.container.ContainerRequestFilter;
 import jakarta.ws.rs.container.ContainerResponseFilter;
 import jakarta.ws.rs.container.PreMatching;
-import jakarta.ws.rs.core.GenericEntity;
 import jakarta.ws.rs.core.Response;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.io.OutputStream;
 import java.util.ArrayList;
@@ -91,6 +84,7 @@ final class JaxRsContainerFilters {
     private final List<BeanRegistration<ContainerResponseFilter>> containerResponseFilters;
     private final NameBindingPredicate nameBindingPredicate;
     private final JaxRsFeatures features;
+    private final JaxRsResponseEntity responseEntity = new JaxRsResponseEntity();
 
     JaxRsContainerFilters(ApplicationProvider applicationProvider,
                  BeanContext beanContext,
@@ -177,82 +171,11 @@ final class JaxRsContainerFilters {
             // the headers Request#selectVariant negotiated with, beside the ones of the response
             mergeVary(mutableHttpResponse, vary);
         }
-        Object body;
-        if (request.getMethod() == HttpMethod.HEAD) {
-            body = RouteAttributes.getHeadBody(mutableHttpResponse).orElse(null);
-        } else {
-            body = mutableHttpResponse.getBody().orElse(null);
-        }
-        if (body instanceof JaxRsMutableResponse jrs) {
-            final MutableHttpResponse<?> jaxRsResponse = jrs.getResponse();
-            mutableHttpResponse.getAttributes().forEach(jaxRsResponse::setAttribute);
-            mutableHttpResponse.getHeaders().forEach((name, value) -> {
-                for (String val : value) {
-                    jaxRsResponse.header(name, val);
-                }
-            });
-            mutableHttpResponse = jaxRsResponse;
-            body = mutableHttpResponse.getBody().orElse(null);
-        }
-        Argument<?> bodyArgument;
-        // the annotations given with the entity
-        Annotation[] entityAnnotations = null;
-        // the type of a GenericEntity of the application is the one the writers see (JAX-RS 4.2.2)
-        boolean declaredType = false;
-        if (body instanceof JaxRsGenericEntity<?> genericEntity) {
-            bodyArgument = genericEntity.asArgument();
-            entityAnnotations = genericEntity.getAnnotations();
-            mutableHttpResponse.body(genericEntity.getEntity());
-            body = genericEntity.getEntity();
-            // e.g. the GenericEntity a resource method returns, with its type arguments: the
-            // class of the entity otherwise, like for the writers of JAX-RS
-            declaredType = bodyArgument.getTypeParameters().length > 0 && bodyArgument.getType().isInstance(body);
-        } else if (body instanceof GenericEntity<?> genericEntity) {
-            body = genericEntity.getEntity();
-            bodyArgument = JaxRsArgumentUtil.from(genericEntity);
-            mutableHttpResponse.body(genericEntity.getEntity());
-            declaredType = true;
-        } else if (body != null && routeInfo != null) {
-            bodyArgument = routeInfo.getResponseBodyType();
-            // the declared type of the route, with its type arguments, e.g. List<Item> for an
-            // ArrayList, is the generic type the writers see (JAX-RS 4.2.2)
-            declaredType = bodyArgument.getTypeParameters().length > 0 && bodyArgument.getType().isInstance(body);
-        } else {
-            bodyArgument = Argument.OBJECT_ARGUMENT;
-        }
-        // the declared type is the generic type of the entity, see below
-        Argument<?> declared = declaredType ? bodyArgument : null;
-        if (body != null && !declaredType && !bodyArgument.getType().equals(body.getClass())) {
-            bodyArgument = Argument.of(body.getClass(), bodyArgument.getAnnotationMetadata());
-        }
-
-        Argument<?> returnType = routeInfo == null ? Argument.VOID : routeInfo.getReturnType().asArgument();
-        Annotation[] methodAnnotations = JaxRsRouteSupport.resourceMethodAnnotationObjects(routeInfo);
-        if (methodAnnotations != null) {
-            // the writers see the annotations given with the entity, then the Java annotations of
-            // the resource method, like JAX-RS passes them
-            if (entityAnnotations == null) {
-                entityAnnotations = methodAnnotations;
-            } else {
-                Annotation[] all = Arrays.copyOf(entityAnnotations, entityAnnotations.length + methodAnnotations.length);
-                System.arraycopy(methodAnnotations, 0, all, entityAnnotations.length, methodAnnotations.length);
-                entityAnnotations = all;
-            }
-            Argument<?> type = bodyArgument == null ? returnType : bodyArgument;
-            bodyArgument = Argument.of(type.getType(), JaxRsArgumentUtil.createAnnotationMetadata(entityAnnotations), type.getTypeParameters());
-        } else if (bodyArgument == null) {
-            bodyArgument = returnType;
-        } else {
-            MutableAnnotationMetadata mutableAnnotationMetadata = new MutableAnnotationMetadata();
-            mutableAnnotationMetadata.addAnnotationMetadata(MutableAnnotationMetadata.of(returnType.getAnnotationMetadata()));
-            mutableAnnotationMetadata.addAnnotationMetadata(MutableAnnotationMetadata.of(bodyArgument.getAnnotationMetadata()));
-            bodyArgument = Argument.of(bodyArgument.getType(), mutableAnnotationMetadata, bodyArgument.getTypeParameters());
-        }
-        if (declared != null && body != null && body.getClass() != declared.asType()) {
-            // the class of the entity is the raw type, the declared type the generic type
-            // (JAX-RS 3.3.3), e.g. ArrayList and List<Item>
-            bodyArgument = JaxRsArgumentUtil.of(body.getClass(), declared, bodyArgument.getAnnotationMetadata());
-        }
+        JaxRsResponseEntity.Prepared prepared = responseEntity.prepare(routeInfo, request, mutableHttpResponse);
+        mutableHttpResponse = prepared.response();
+        Object body = prepared.body();
+        Argument<?> bodyArgument = prepared.bodyArgument();
+        Annotation[] entityAnnotations = prepared.entityAnnotations();
         ByteArrayOutputStream delegateEntityStream = null;
         OutputStream customEntityStream = null;
         JaxRsBoundProviders bound = features.bound(routeInfo);
