@@ -107,7 +107,14 @@ public abstract class JaxRsInterceptedRead<T> {
                     inputStream,
                     properties
                 );
-                Object value = iterator.next().aroundReadFrom(context);
+                Object value;
+                try {
+                    value = iterator.next().aroundReadFrom(context);
+                } catch (IOException | RuntimeException e) {
+                    context.closeReplacedStreams(null);
+                    throw e;
+                }
+                context.closeReplacedStreams(value);
                 if (value == null) {
                     // e.g. a reader of an empty entity
                     return null;

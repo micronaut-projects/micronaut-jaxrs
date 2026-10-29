@@ -26,7 +26,9 @@ import org.jspecify.annotations.Nullable;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -42,6 +44,8 @@ public final class JaxRsReaderInterceptorContext extends AbstractJaxRsIntercepto
     private final IOProceedSupplier<Object> interceptedSupplier;
     private final MultivaluedMap<String, String> headers;
     private InputStream inputStream;
+    // the streams the interceptors set, the runtime closes them
+    private @Nullable List<InputStream> replacedStreams;
 
     public JaxRsReaderInterceptorContext(Iterator<ReaderInterceptor> interceptors,
                                          IOProceedSupplier<Object> interceptedSupplier,
@@ -72,7 +76,34 @@ public final class JaxRsReaderInterceptorContext extends AbstractJaxRsIntercepto
 
     @Override
     public void setInputStream(InputStream is) {
+        if (is != inputStream) {
+            if (replacedStreams == null) {
+                replacedStreams = new ArrayList<>(1);
+            }
+            replacedStreams.add(is);
+        }
         this.inputStream = is;
+    }
+
+    /**
+     * Close the streams the interceptors set, once the entity was read of them.
+     *
+     * @param entity The entity read, or null if the read failed: a stream entity, e.g. an
+     *               {@link InputStream} or a {@link java.io.Reader}, still reads of them, so they
+     *               stay open
+     */
+    void closeReplacedStreams(@Nullable Object entity) {
+        if (replacedStreams == null || entity instanceof AutoCloseable) {
+            return;
+        }
+        for (InputStream stream : replacedStreams) {
+            try {
+                stream.close();
+            } catch (IOException e) {
+                // the entity is read: nothing reads the stream anymore
+            }
+        }
+        replacedStreams = null;
     }
 
     @Override

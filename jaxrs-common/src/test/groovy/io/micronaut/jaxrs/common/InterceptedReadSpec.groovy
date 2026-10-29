@@ -54,4 +54,31 @@ class InterceptedReadSpec extends Specification {
         then:
         read == null
     }
+
+    void "the stream an interceptor sets is closed once the entity is read"() {
+        given:
+        boolean closed = false
+        def replacement = new ByteArrayInputStream("abc".bytes) {
+            @Override
+            void close() {
+                closed = true
+            }
+        }
+        ReaderInterceptor interceptor = { ReaderInterceptorContext ctx ->
+            ctx.inputStream = replacement
+            ctx.proceed()
+        } as ReaderInterceptor
+
+        when:
+        def read = new JaxRsInterceptedRead<byte[]>([JaxRsRouteInterceptors.registration(interceptor, AnnotationMetadata.EMPTY_METADATA, Priorities.USER)], { true }) {
+            @Override
+            protected byte[] readFromAfterInterception(Argument<Object> type, MediaType mediaType, Headers httpHeaders, InputStream inputStream) {
+                return inputStream.readAllBytes()
+            }
+        }.intercept(Argument.of(byte[]), MediaType.TEXT_PLAIN_TYPE, new SimpleHttpHeaders(), new ByteArrayInputStream(new byte[0]))
+
+        then:
+        new String(read) == "abc"
+        closed
+    }
 }
