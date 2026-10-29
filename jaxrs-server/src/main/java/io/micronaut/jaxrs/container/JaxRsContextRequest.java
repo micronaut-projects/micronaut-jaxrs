@@ -20,6 +20,7 @@ import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpMethod;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.context.ServerRequestContext;
+import io.micronaut.jaxrs.common.JaxRsHeaderUtil;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.core.EntityTag;
 import jakarta.ws.rs.core.MediaType;
@@ -100,7 +101,8 @@ final class JaxRsContextRequest implements Request {
             double score = mediaTypeScore(anyAccept, ranges, variant.getMediaType())
                 * languageScore(languages, variant.getLanguage())
                 * encodingScore(encodings, variant.getEncoding());
-            if (score > bestScore) {
+            // at an equal score, the more specific variant is preferred
+            if (score > bestScore || score > 0 && score == bestScore && specificity(variant) > specificity(best)) {
                 best = variant;
                 bestScore = score;
             }
@@ -403,20 +405,40 @@ final class JaxRsContextRequest implements Request {
         return Math.min(count, 999);
     }
 
+    /**
+     * The specificity of a variant: the number of the dimensions it specifies, a concrete media
+     * type counting more than a wildcard one.
+     */
+    private static int specificity(@Nullable Variant variant) {
+        if (variant == null) {
+            return -1;
+        }
+        MediaType type = variant.getMediaType();
+        int specificity = type == null ? 0 : type.isWildcardType() ? 1 : type.isWildcardSubtype() ? 2 : 3;
+        if (variant.getLanguage() != null) {
+            specificity += 4;
+        }
+        if (variant.getEncoding() != null) {
+            specificity += 4;
+        }
+        return specificity;
+    }
+
     private static List<Weighted> weighted(List<String> headers) {
         List<Weighted> values = new ArrayList<>();
         for (String header : headers) {
-            for (String part : header.split(",")) {
-                String[] parameters = part.trim().split(";");
-                if (parameters[0].isBlank()) {
+            // the delimiters inside quoted parameter values do not separate (RFC 9110, 5.6.4)
+            for (String part : JaxRsHeaderUtil.split(header, ",")) {
+                List<String> parameters = JaxRsHeaderUtil.split(part.trim(), ";");
+                if (parameters.get(0).isBlank()) {
                     continue;
                 }
                 double quality = 1;
                 // keep the parameters of a media type except the quality, whatever the whitespace
                 // around them (RFC 9110, 5.6.6)
-                StringBuilder value = new StringBuilder(parameters[0].trim());
-                for (int i = 1; i < parameters.length; i++) {
-                    String parameter = parameters[i].trim();
+                StringBuilder value = new StringBuilder(parameters.get(0).trim());
+                for (int i = 1; i < parameters.size(); i++) {
+                    String parameter = parameters.get(i).trim();
                     int equals = parameter.indexOf('=');
                     if (equals > 0 && parameter.substring(0, equals).trim().equalsIgnoreCase("q")) {
                         try {
