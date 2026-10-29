@@ -33,12 +33,14 @@ public final class StandardProviders implements JaxRsStandardProviders {
 
     @Override
     public List<Object> providers() {
+        // one JAXB delegate, whose contexts both JAXB providers share
+        JaxRsJaxbMessageBodyReaderWriter jaxb = new JaxRsJaxbMessageBodyReaderWriter();
         List<Object> providers = new ArrayList<>(List.of(
             new JaxRsFileMessageBodyReaderWriter(),
             new JaxRsDataSourceMessageBodyReaderWriter(),
             new JaxRsSourceMessageBodyReaderWriter(),
-            new JaxRsJaxbElementMessageBodyReaderWriter(),
-            new JaxRsJaxbMessageBodyReaderWriter()
+            new JaxRsJaxbElementMessageBodyReaderWriter(jaxb),
+            jaxb
         ));
         if (ClassUtils.isPresent("jakarta.json.bind.Jsonb", StandardProviders.class.getClassLoader())
             && JsonbImplementationCondition.isPresent()) {
