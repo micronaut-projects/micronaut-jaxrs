@@ -583,6 +583,8 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
             boolean registered = global
                 ? registeredClasses.contains(componentClass) || registrations.containsKey(componentClass)
                     || registeredInstances.stream().anyMatch(i -> i.getClass() == componentClass)
+                    // a class or an instance of the application, or a class that is discovered
+                    || context.getBean(Configuration.class).isRegistered(componentClass)
                 : !classes.add(componentClass);
             if (registered) {
                 LOG.warn("The component {} is already registered, the registration is ignored", componentClass.getName());
@@ -623,9 +625,9 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
                     registrations.put(componentClass, new Registration(contracts, new HashMap<>(priorities)));
                 }
                 if (component != null) {
-                    registerInstance(component);
+                    registerInstance(component, contracts);
                 } else {
-                    registerClass(componentClass);
+                    registerClass(componentClass, contracts);
                 }
                 return this;
             }
@@ -650,20 +652,39 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
             return this;
         }
 
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        private void registerClass(Class<?> componentClass) {
-            registeredClasses.add(componentClass);
-            if (Feature.class.isAssignableFrom(componentClass)) {
-                if (!JaxRsUtils.isServerProvider(annotationMetadata(componentClass))) {
-                    // constrained to the client (@ConstrainedTo)
-                    return;
+        /**
+         * Whether a component class is registered as a feature: it is one, and it is registered
+         * for all of its contracts or for the one of a feature.
+         */
+        private static boolean isFeature(Class<?> componentClass, @Nullable Set<Class<?>> contracts) {
+            return Feature.class.isAssignableFrom(componentClass) && (contracts == null || contracts.contains(Feature.class));
+        }
+
+        /**
+         * Whether a component class is registered for a contract that is not the one of a feature,
+         * e.g. a feature that is a filter too, which is processed for each one (Configurable).
+         */
+        private static boolean isOtherProvider(Class<?> componentClass, @Nullable Set<Class<?>> contracts) {
+            for (Class<?> contract : CONTRACTS) {
+                if (contract != Feature.class && contract.isAssignableFrom(componentClass)
+                    && (contracts == null || contracts.contains(contract))) {
+                    return true;
                 }
-                // a feature registered by another one is configured too
+            }
+            return false;
+        }
+
+        private void registerClass(Class<?> componentClass, @Nullable Set<Class<?>> contracts) {
+            registeredClasses.add(componentClass);
+            if (isFeature(componentClass, contracts) && JaxRsUtils.isServerProvider(annotationMetadata(componentClass))) {
+                // a feature registered by another one is configured too, unless constrained to the client (@ConstrainedTo)
                 Feature feature = (Feature) instance(componentClass);
                 registeredInstances.add(feature);
                 if (feature.configure(this)) {
                     enabledFeatures.add(feature);
                 }
+            }
+            if (!isOtherProvider(componentClass, contracts)) {
                 return;
             }
             RuntimeBeanDefinition<?> definition = context.containsBean(componentClass) ? null
@@ -674,14 +695,17 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
             }
         }
 
-        private void registerInstance(Object component) {
+        private void registerInstance(Object component, @Nullable Set<Class<?>> contracts) {
             registeredInstances.add(component);
-            if (component instanceof Feature feature) {
-                if (isServerComponent(feature) && feature.configure(this)) {
-                    // unless constrained to the client (@ConstrainedTo)
-                    enabledFeatures.add(feature);
-                }
-            } else if (context.containsBean(component.getClass())) {
+            if (component instanceof Feature feature && isFeature(component.getClass(), contracts)
+                && isServerComponent(feature) && feature.configure(this)) {
+                // unless constrained to the client (@ConstrainedTo)
+                enabledFeatures.add(feature);
+            }
+            if (!isOtherProvider(component.getClass(), contracts)) {
+                return;
+            }
+            if (context.containsBean(component.getClass())) {
                 context.registerSingleton(component);
             } else {
                 // with the annotations of its class, e.g. its @Priority
