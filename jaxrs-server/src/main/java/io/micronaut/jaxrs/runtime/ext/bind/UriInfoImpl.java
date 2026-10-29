@@ -54,14 +54,14 @@ import java.util.stream.Stream;
 public final class UriInfoImpl implements UriInfo {
 
     /**
-     * The variable of the router for the rest of the path a sub-resource locator did not match.
-     */
-    private static final String LOCATED_PATH = "micronaut_located_path";
-
-    /**
      * The attribute of a request whose pre-matching filters run: no resource is matched yet.
      */
     public static final String PRE_MATCHING = UriInfoImpl.class.getName() + ".preMatching";
+
+    /**
+     * The variable of the router for the rest of the path a sub-resource locator did not match.
+     */
+    private static final String LOCATED_PATH = "micronaut_located_path";
 
     private final HttpRequest<?> request;
     @Nullable
