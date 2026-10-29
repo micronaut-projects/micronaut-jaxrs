@@ -39,12 +39,25 @@ class DynamicFeatureNestedFeatureTest {
         assertEquals("filtered", client.toBlocking().retrieve(HttpRequest.GET("/")));
     }
 
+    @Test
+    void featureRegisteredAsAFilterOnlyIsNotConfigured() {
+        // registered for the contract of a filter only: it filters, it is not configured as a feature
+        assertEquals("filter", client.toBlocking().retrieve(HttpRequest.GET("/filter-only")));
+    }
+
     @Requires(property = "spec.name", value = "DynamicFeatureNestedFeatureTest")
     @Path("/dynamic-nested-feature")
     public static class NestedResource {
         @GET
         @Produces("text/plain")
         public String get(@HeaderParam("X-Nested") String value) {
+            return value;
+        }
+
+        @GET
+        @Path("filter-only")
+        @Produces("text/plain")
+        public String filterOnly(@HeaderParam("X-Filter-Only") String value) {
             return value;
         }
     }
@@ -54,7 +67,12 @@ class DynamicFeatureNestedFeatureTest {
     public static class OuterFeature implements DynamicFeature {
         @Override
         public void configure(ResourceInfo resourceInfo, FeatureContext context) {
-            if (resourceInfo.getResourceClass() == NestedResource.class) {
+            if (resourceInfo.getResourceClass() != NestedResource.class) {
+                return;
+            }
+            if (resourceInfo.getResourceMethod().getName().equals("filterOnly")) {
+                context.register(new FeatureFilter(), ContainerRequestFilter.class);
+            } else {
                 context.register(new InnerFeature());
             }
         }
@@ -65,6 +83,21 @@ class DynamicFeatureNestedFeatureTest {
         public boolean configure(FeatureContext context) {
             context.register(new NestedFilter());
             return true;
+        }
+    }
+
+    static final class FeatureFilter implements Feature, ContainerRequestFilter {
+        static volatile boolean configured;
+
+        @Override
+        public boolean configure(FeatureContext context) {
+            configured = true;
+            return true;
+        }
+
+        @Override
+        public void filter(ContainerRequestContext requestContext) {
+            requestContext.getHeaders().putSingle("X-Filter-Only", configured ? "configured" : "filter");
         }
     }
 

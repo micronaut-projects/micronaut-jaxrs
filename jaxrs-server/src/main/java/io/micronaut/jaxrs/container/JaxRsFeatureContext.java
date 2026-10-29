@@ -188,7 +188,7 @@ final class JaxRsFeatureContext implements FeatureContext {
             if (contracts != null) {
                 this.contracts.put(instance, contracts);
             }
-            if (instance instanceof Feature feature && features.isServerComponent(feature)) {
+            if (instance instanceof Feature feature && isFeature(componentClass, contracts) && features.isServerComponent(feature)) {
                 // a feature registered by a dynamic feature configures the same resource
                 // method (DynamicFeature.configure), unless constrained to the client
                 feature.configure(this);
