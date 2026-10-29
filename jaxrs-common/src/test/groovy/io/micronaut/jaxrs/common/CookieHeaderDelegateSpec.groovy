@@ -26,6 +26,19 @@ class CookieHeaderDelegateSpec extends Specification {
         parsed[0].domain == "example.com"
     }
 
+    void "the attributes of a cookie are not those of the next one"() {
+        when:
+        def parsed = CookieHeaderDelegate.parseCookies('$Version=1; a=1; $Path=/one; $Domain=one.example; b=2')
+
+        then:
+        parsed.size() == 2
+        parsed[0].path == "/one"
+        parsed[0].domain == "one.example"
+        parsed[1].name == "b"
+        parsed[1].path == null
+        parsed[1].domain == null
+    }
+
     void "a delimiter in a quoted value is part of the value"() {
         given:
         def delegate = RuntimeDelegate.getInstance().createHeaderDelegate(Cookie)
