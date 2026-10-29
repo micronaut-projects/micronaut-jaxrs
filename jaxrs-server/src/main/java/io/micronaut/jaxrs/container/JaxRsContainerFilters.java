@@ -54,8 +54,10 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.stream.Collectors;
@@ -130,6 +132,35 @@ final class JaxRsContainerFilters {
     }
 
     /**
+     * Add the negotiated fields to the {@code Vary} header of a response, unless it has them or
+     * varies with everything ({@code *}).
+     */
+    private static void mergeVary(MutableHttpResponse<?> response, String vary) {
+        List<String> existing = response.getHeaders().getAll(io.micronaut.http.HttpHeaders.VARY);
+        Set<String> fields = new LinkedHashSet<>();
+        for (String value : existing) {
+            for (String field : value.split(",")) {
+                if (!field.isBlank()) {
+                    fields.add(field.trim());
+                }
+            }
+        }
+        if (fields.contains("*")) {
+            return;
+        }
+        List<String> merged = new ArrayList<>(fields);
+        for (String field : vary.split(",")) {
+            String name = field.trim();
+            if (fields.stream().noneMatch(name::equalsIgnoreCase)) {
+                merged.add(name);
+            }
+        }
+        if (merged.size() > fields.size()) {
+            response.getHeaders().set(io.micronaut.http.HttpHeaders.VARY, String.join(", ", merged));
+        }
+    }
+
+    /**
      * Run the response filters.
      *
      * @param routeInfo           The route of a resource method, {@code null} if no route matched
@@ -142,9 +173,9 @@ final class JaxRsContainerFilters {
                                           HttpRequest<?> request,
                                           MutableHttpResponse<?> mutableHttpResponse) throws IOException {
         String vary = request.getAttribute(JaxRsContextRequest.VARY, String.class).orElse(null);
-        if (vary != null && !mutableHttpResponse.getHeaders().contains(io.micronaut.http.HttpHeaders.VARY)) {
-            // the headers Request#selectVariant negotiated with
-            mutableHttpResponse.header(io.micronaut.http.HttpHeaders.VARY, vary);
+        if (vary != null) {
+            // the headers Request#selectVariant negotiated with, beside the ones of the response
+            mergeVary(mutableHttpResponse, vary);
         }
         Object body;
         if (request.getMethod() == HttpMethod.HEAD) {
