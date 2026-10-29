@@ -213,7 +213,7 @@ final class JaxRsClientExchange {
         if (entity != null) {
             // the entity as the filters left it, with the media type they left
             // written to bytes when a filter replaced the entity stream, which writes them
-            configuration.writeBody(request, requestContext.getEntityArgument(), entity, requestContext.isEntityStreamReplaced(),
+            configuration.entityIO().writeBody(request, requestContext.getEntityArgument(), entity, requestContext.isEntityStreamReplaced(),
                 requestContext.properties());
             Object body = request.getBody().orElse(null);
             if (body instanceof byte[] bytes) {
@@ -262,7 +262,7 @@ final class JaxRsClientExchange {
             MutableHttpResponse<?> httpResponse = jaxRsMutableResponse.getResponse();
             Object entity = httpResponse.getBody().orElse(null);
             if (entity != null && !(entity instanceof byte[])) {
-                configuration.writeBody(httpResponse, (Argument) Argument.of(entity.getClass()), entity);
+                configuration.entityIO().writeBody(httpResponse, (Argument) Argument.of(entity.getClass()), entity);
             }
         }
         return response;
@@ -296,13 +296,13 @@ final class JaxRsClientExchange {
 
     private Response filterResponse(Response response, JaxRsClientRequestContext requestContext) {
         if (response instanceof JaxRsMutableResponse jaxRsMutableResponse) {
-            jaxRsMutableResponse = jaxRsMutableResponse.withEntityReader(configuration.createHttpMessageEntityReader(properties(requestContext)));
+            jaxRsMutableResponse = jaxRsMutableResponse.withEntityReader(configuration.entityIO().createHttpMessageEntityReader(properties(requestContext)));
             filterResponse(jaxRsMutableResponse, requestContext);
             return jaxRsMutableResponse;
         }
         if (response instanceof JaxRsResponse jaxRsResponse) {
             MutableHttpResponse<?> mutableResponse = jaxRsResponse.getResponse().toMutableResponse();
-            JaxRsMutableResponse jaxRsMutableResponse = new JaxRsMutableResponse(mutableResponse, configuration.createHttpMessageEntityReader(properties(requestContext)));
+            JaxRsMutableResponse jaxRsMutableResponse = new JaxRsMutableResponse(mutableResponse, configuration.entityIO().createHttpMessageEntityReader(properties(requestContext)));
             filterResponse(jaxRsMutableResponse, requestContext);
             return jaxRsMutableResponse;
         }
