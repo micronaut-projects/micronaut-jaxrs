@@ -18,7 +18,11 @@ import jakarta.ws.rs.client.ClientResponseFilter;
 import jakarta.ws.rs.client.Entity;
 import jakarta.ws.rs.client.WebTarget;
 import jakarta.ws.rs.core.Configuration;
+import jakarta.ws.rs.Priorities;
 import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.Feature;
+import jakarta.ws.rs.core.FeatureContext;
+import jakarta.ws.rs.core.GenericEntity;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
@@ -39,6 +43,8 @@ import java.io.OutputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -248,6 +254,67 @@ class JaxRsClientProvidersTest {
             .get(String.class);
 
         assertEquals("octet", read);
+    }
+
+    @Test
+    void aGenericEntityIsWrittenAsItsRawType() {
+        GenericEntity<List<String>> entity = new GenericEntity<>(new ArrayList<>(List.of("a", "b"))) {
+        };
+        String echoed = echo()
+            .register(ArrayListWriter.class)
+            .request()
+            .post(Entity.text(entity), String.class);
+
+        assertEquals("text/plain|arraylist:a,b", echoed);
+    }
+
+    @Test
+    void aWriterInterceptorWritesTheEntityWithoutProceeding() {
+        String echoed = echo()
+            .register(ReplacingInterceptor.class)
+            .request()
+            .post(Entity.text(new Unwritable()), String.class);
+
+        assertEquals("text/plain|replacement", echoed);
+    }
+
+    @Test
+    void aSharedFeatureIsInjectedWithTheConfigurationItConfigures() {
+        var feature = new ConfigurationFeature();
+        Client a = ClientBuilder.newClient().property("x", "A");
+        Client b = ClientBuilder.newClient().property("x", "B");
+        try {
+            a.register(feature);
+            assertEquals("A=A", feature.seen);
+            b.register(feature);
+            assertEquals("B=B", feature.seen);
+        } finally {
+            a.close();
+            b.close();
+        }
+    }
+
+    @Test
+    void theContractsOfAComponentRegisteredWithAPriority() {
+        Configuration configuration = client.register(new PlainStringReader(), 100).getConfiguration();
+
+        assertEquals(Map.of(MessageBodyReader.class, 100), configuration.getContracts(PlainStringReader.class));
+    }
+
+    @Test
+    void theContractsOfAComponentRegisteredWithoutPriority() {
+        Configuration configuration = client.register(PlainObjectReader.class).getConfiguration();
+
+        assertEquals(Map.of(MessageBodyReader.class, Priorities.USER), configuration.getContracts(PlainObjectReader.class));
+    }
+
+    @Test
+    void aBuilderConfiguredWithItsOwnConfigurationKeepsIt() {
+        ClientBuilder builder = ClientBuilder.newBuilder().property("p", "v").register(PlainStringReader.class);
+        builder.withConfig(builder.getConfiguration());
+
+        assertEquals("v", builder.getConfiguration().getProperty("p"));
+        assertTrue(builder.getConfiguration().isRegistered(PlainStringReader.class));
     }
 
     @Consumes(MediaType.TEXT_PLAIN)
@@ -523,6 +590,46 @@ class JaxRsClientProvidersTest {
         @Override
         public Object getContext(Class type) {
             return "raw";
+        }
+    }
+
+    @SuppressWarnings("rawtypes")
+    public static final class ArrayListWriter implements MessageBodyWriter<ArrayList> {
+        @Override
+        public boolean isWriteable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+            return type == ArrayList.class;
+        }
+
+        @Override
+        public void writeTo(ArrayList list, Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType,
+                            MultivaluedMap<String, Object> httpHeaders, OutputStream entityStream) throws IOException {
+            entityStream.write(("arraylist:" + String.join(",", (List<String>) list)).getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    /**
+     * No writer writes it.
+     */
+    public static final class Unwritable {
+    }
+
+    public static final class ReplacingInterceptor implements WriterInterceptor {
+        @Override
+        public void aroundWriteTo(WriterInterceptorContext context) throws IOException {
+            // the entity, written without proceeding to a writer
+            context.getOutputStream().write("replacement".getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    public static final class ConfigurationFeature implements Feature {
+        @Context
+        Configuration configuration;
+        volatile String seen;
+
+        @Override
+        public boolean configure(FeatureContext context) {
+            seen = configuration.getProperty("x") + "=" + context.getConfiguration().getProperty("x");
+            return true;
         }
     }
 

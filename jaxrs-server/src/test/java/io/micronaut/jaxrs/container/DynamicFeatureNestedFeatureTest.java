@@ -34,9 +34,19 @@ class DynamicFeatureNestedFeatureTest {
     @Client("/api/dynamic-nested-feature")
     HttpClient client;
 
+    @Inject
+    @Client("/api/dynamic-filter-only")
+    HttpClient filterOnlyClient;
+
     @Test
     void nestedFeatureConfigured() {
         assertEquals("filtered", client.toBlocking().retrieve(HttpRequest.GET("/")));
+    }
+
+    @Test
+    void featureRegisteredAsAFilterOnlyIsNotConfigured() {
+        // registered for the contract of a filter only: it filters, it is not configured as a feature
+        assertEquals("filter", filterOnlyClient.toBlocking().retrieve(HttpRequest.GET("/")));
     }
 
     @Requires(property = "spec.name", value = "DynamicFeatureNestedFeatureTest")
@@ -50,11 +60,23 @@ class DynamicFeatureNestedFeatureTest {
     }
 
     @Requires(property = "spec.name", value = "DynamicFeatureNestedFeatureTest")
+    @Path("/dynamic-filter-only")
+    public static class FilterOnlyResource {
+        @GET
+        @Produces("text/plain")
+        public String get(@HeaderParam("X-Filter-Only") String value) {
+            return value;
+        }
+    }
+
+    @Requires(property = "spec.name", value = "DynamicFeatureNestedFeatureTest")
     @Provider
     public static class OuterFeature implements DynamicFeature {
         @Override
         public void configure(ResourceInfo resourceInfo, FeatureContext context) {
-            if (resourceInfo.getResourceClass() == NestedResource.class) {
+            if (resourceInfo.getResourceClass() == FilterOnlyResource.class) {
+                context.register(new FeatureFilter(), ContainerRequestFilter.class);
+            } else if (resourceInfo.getResourceClass() == NestedResource.class) {
                 context.register(new InnerFeature());
             }
         }
@@ -65,6 +87,21 @@ class DynamicFeatureNestedFeatureTest {
         public boolean configure(FeatureContext context) {
             context.register(new NestedFilter());
             return true;
+        }
+    }
+
+    static final class FeatureFilter implements Feature, ContainerRequestFilter {
+        static volatile boolean configured;
+
+        @Override
+        public boolean configure(FeatureContext context) {
+            configured = true;
+            return true;
+        }
+
+        @Override
+        public void filter(ContainerRequestContext requestContext) {
+            requestContext.getHeaders().putSingle("X-Filter-Only", configured ? "configured" : "filter");
         }
     }
 

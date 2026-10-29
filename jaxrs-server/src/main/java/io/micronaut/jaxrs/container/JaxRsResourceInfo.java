@@ -38,23 +38,32 @@ import java.lang.reflect.Method;
 @Internal
 public class JaxRsResourceInfo implements RequestAware, ResourceInfo {
 
+    // the route is resolved when queried: a pre-matching filter can query it before it is matched
     @Nullable
-    private RouteInfo<?> routeInfo;
+    private HttpRequest<?> request;
 
     @Override
     public void setRequest(HttpRequest<?> request) {
-        routeInfo = RouteAttributes.getRouteMatch(request).map(RouteMatch::getRouteInfo).orElse(null);
+        this.request = request;
+    }
+
+    /**
+     * @return The route the request matched so far, {@code null} if none
+     */
+    private @Nullable RouteInfo<?> routeInfo() {
+        HttpRequest<?> current = request;
+        return current == null ? null : RouteAttributes.getRouteMatch(current).map(RouteMatch::getRouteInfo).orElse(null);
     }
 
     @Nullable
     @Override
     public Method getResourceMethod() {
-        return JaxRsRouteSupport.resourceMethod(routeInfo);
+        return JaxRsRouteSupport.resourceMethod(routeInfo());
     }
 
     @Nullable
     @Override
     public Class<?> getResourceClass() {
-        return JaxRsRouteSupport.resourceClass(routeInfo);
+        return JaxRsRouteSupport.resourceClass(routeInfo());
     }
 }

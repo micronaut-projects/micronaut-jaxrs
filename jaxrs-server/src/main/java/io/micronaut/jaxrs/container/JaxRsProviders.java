@@ -171,14 +171,17 @@ final class JaxRsProviders implements Providers {
             }
             int specificity = specificity(metadata.produces(), mediaType);
             if (specificity >= 0) {
-                candidates.add(new Candidate<>((ContextResolver<T>) registration.getBean(), specificity, known));
+                candidates.add(new Candidate<>((ContextResolver<T>) registration.getBean(), specificity,
+                    registry.priority(registration, ContextResolver.class), known));
             }
         }
         if (candidates.isEmpty()) {
             // "null if no matching context providers are found"
             return null;
         }
-        candidates.sort(Comparator.comparingInt((Candidate<T> c) -> c.specificity()).reversed());
+        // equally specific ones by the priority they are registered with, else their @Priority (JAX-RS 4.1.3)
+        candidates.sort(Comparator.comparingInt((Candidate<T> c) -> c.specificity()).reversed()
+            .thenComparingInt(Candidate::priority));
         List<ContextResolver<T>> resolvers = candidates.stream().map(Candidate::resolver).toList();
         if (resolvers.size() == 1 && candidates.get(0).known()) {
             return resolvers.get(0);
@@ -218,10 +221,11 @@ final class JaxRsProviders implements Providers {
      *
      * @param resolver    The resolver
      * @param specificity The specificity
+     * @param priority    Its priority, the lowest first
      * @param known       Whether the context type of the resolver is known, else its contexts are checked
      * @param <T>         The type of the context
      */
-    private record Candidate<T>(ContextResolver<T> resolver, int specificity, boolean known) {
+    private record Candidate<T>(ContextResolver<T> resolver, int specificity, int priority, boolean known) {
     }
 
     /**

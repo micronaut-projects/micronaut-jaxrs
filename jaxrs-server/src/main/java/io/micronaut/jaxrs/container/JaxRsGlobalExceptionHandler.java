@@ -109,6 +109,14 @@ final class JaxRsGlobalExceptionHandler implements ExceptionHandler<Throwable, H
     }
 
     /**
+     * @param request The request
+     * @return Whether an exception of the request was mapped already, see {@link #map}
+     */
+    static boolean isMapped(HttpRequest<?> request) {
+        return request.getAttribute(MAPPED).isPresent();
+    }
+
+    /**
      * Map an exception with an exception mapper, once per request: an exception thrown while the
      * response mapped from an exception is processed is not mapped again, whichever mapper would
      * map it, the response is a server error (JAX-RS 4.4).

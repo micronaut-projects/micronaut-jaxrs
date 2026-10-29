@@ -116,7 +116,8 @@ final class JaxRsClientExchange {
                 // a null entity is no entity
                 entityValue = requestEntity.getEntity();
                 if (entityValue instanceof GenericEntity<?> genericEntity) {
-                    requestBodyType = JaxRsArgumentUtil.from(genericEntity, requestEntity.getAnnotations());
+                    requestBodyType = JaxRsClientEntityIO.argument(genericEntity,
+                        JaxRsArgumentUtil.from(genericEntity, requestEntity.getAnnotations()).getAnnotationMetadata());
                     entityValue = genericEntity.getEntity();
                 } else if (entityValue != null) {
                     requestBodyType = JaxRsArgumentUtil.from(requestEntity);
