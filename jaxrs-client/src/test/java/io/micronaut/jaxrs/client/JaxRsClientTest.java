@@ -5,6 +5,7 @@ import io.micronaut.runtime.server.EmbeddedServer;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.NotFoundException;
+import jakarta.ws.rs.ProcessingException;
 import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.client.ClientBuilder;
 import jakarta.ws.rs.client.ClientRequestContext;
@@ -39,10 +40,14 @@ import java.lang.reflect.Type;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -51,6 +56,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -331,6 +337,56 @@ class JaxRsClientTest {
         } finally {
             executorClient.close();
             executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void invocationCancelledAfterItWasSentIsNotCompleted() throws Exception {
+        AtomicReference<String> called = new AtomicReference<>();
+        Future<String> future = target("held").request().async().get(new InvocationCallback<String>() {
+            @Override
+            public void completed(String response) {
+                called.set("completed");
+            }
+
+            @Override
+            public void failed(Throwable throwable) {
+                called.set("failed " + throwable);
+            }
+        });
+        assertTrue(ClientTestController.HELD.tryAcquire(10, TimeUnit.SECONDS));
+        assertTrue(future.cancel(true));
+        assertThrows(CancellationException.class, future::get);
+        assertNull(called.get());
+        // the client is still usable
+        assertEquals("hello", target("hello").request().get(String.class));
+    }
+
+    @Test
+    void invocationOnAShutDownExecutorFails() throws Exception {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        executor.shutdown();
+        Client executorClient = ClientBuilder.newBuilder().executorService(executor).build();
+        try {
+            CompletableFuture<Throwable> callbackFailure = new CompletableFuture<>();
+            Future<String> future = executorClient.target(server.getURI()).path("client").path("hello").request()
+                .async().get(new InvocationCallback<String>() {
+                    @Override
+                    public void completed(String response) {
+                        callbackFailure.complete(null);
+                    }
+
+                    @Override
+                    public void failed(Throwable throwable) {
+                        callbackFailure.complete(throwable);
+                    }
+                });
+            ExecutionException failure = assertThrows(ExecutionException.class, () -> future.get(10, TimeUnit.SECONDS));
+            assertInstanceOf(ProcessingException.class, failure.getCause());
+            assertInstanceOf(RejectedExecutionException.class, failure.getCause().getCause());
+            assertSame(failure.getCause(), callbackFailure.get(10, TimeUnit.SECONDS));
+        } finally {
+            executorClient.close();
         }
     }
 

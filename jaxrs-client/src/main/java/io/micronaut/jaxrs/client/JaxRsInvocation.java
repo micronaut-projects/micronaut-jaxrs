@@ -61,8 +61,6 @@ import jakarta.ws.rs.core.GenericEntity;
 import jakarta.ws.rs.core.GenericType;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -318,44 +316,29 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
             request = changed(request, requestContext);
             // the relative links of the response are resolved against the URI of the request
             URI requestUri = request.getUri();
-            client.getHttpClient().exchange(request)
-                .subscribe(new Subscriber<>() {
-                    @Override
-                    public void onSubscribe(Subscription subscription) {
-                        // the exchange of a cancelled invocation is cancelled
-                        future.whenComplete((ignored, failure) -> {
-                            if (future.isCancelled()) {
-                                subscription.cancel();
-                            }
-                        });
-                        subscription.request(1L);
-                    }
-
-                    @Override
-                    public void onNext(HttpResponse<ByteBuffer> response) {
-                        future.complete(new Exchanged(new JaxRsMutableResponse(response.toMutableResponse()
-                            .attribute(JaxRsResponse.REQUEST_URI, requestUri)), requestContext));
-                    }
-
-                    @Override
-                    public void onError(Throwable throwable) {
-                        if (throwable instanceof HttpClientResponseException httpClientResponseException) {
-                            // a response that is not successful is filtered like any other
-                            HttpResponse<?> response = httpClientResponseException.getResponse();
-                            future.complete(new Exchanged(new JaxRsMutableResponse(response.toMutableResponse()
-                                .attribute(JaxRsResponse.REQUEST_URI, requestUri)), requestContext));
-                        } else {
-                            future.completeExceptionally(new ProcessingException(throwable));
-                        }
-                    }
-
-                    @Override
-                    public void onComplete() {
-                        if (!future.isDone()) {
-                            future.completeExceptionally(new ProcessingException("Expected a response"));
-                        }
-                    }
-                });
+            CompletableFuture<HttpResponse<ByteBuffer<?>>> exchange = client.getHttpClient().toAsync().exchange(request).toCompletableFuture();
+            // the exchange of a cancelled invocation is cancelled: core cancels the transport with
+            // its own future, not with a dependent stage
+            future.whenComplete((ignored, failure) -> {
+                if (future.isCancelled()) {
+                    exchange.cancel(false);
+                }
+            });
+            var _ = exchange.whenComplete((response, error) -> {
+                Throwable throwable = unwrap(error);
+                if (throwable instanceof HttpClientResponseException httpClientResponseException) {
+                    // a response that is not successful is filtered like any other
+                    future.complete(new Exchanged(new JaxRsMutableResponse(httpClientResponseException.getResponse().toMutableResponse()
+                        .attribute(JaxRsResponse.REQUEST_URI, requestUri)), requestContext));
+                } else if (throwable != null) {
+                    future.completeExceptionally(new ProcessingException(throwable));
+                } else if (response == null) {
+                    future.completeExceptionally(new ProcessingException("Expected a response"));
+                } else {
+                    future.complete(new Exchanged(new JaxRsMutableResponse(response.toMutableResponse()
+                        .attribute(JaxRsResponse.REQUEST_URI, requestUri)), requestContext));
+                }
+            });
         } catch (JaxRsIOException e) {
             future.completeExceptionally(new ProcessingException(e.getCause()));
         } catch (Exception e) {

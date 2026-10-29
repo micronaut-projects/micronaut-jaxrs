@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.GZIPInputStream;
 import reactor.core.publisher.Mono;
@@ -29,6 +30,14 @@ import reactor.core.publisher.Mono;
 class ClientTestController {
 
     static final AtomicInteger POSTED = new AtomicInteger();
+    // the requests to /held that arrived, which are never answered
+    static final Semaphore HELD = new Semaphore(0);
+
+    @Get(value = "/held", produces = MediaType.TEXT_PLAIN)
+    Mono<String> held() {
+        return Mono.<String>never()
+            .doOnSubscribe(subscription -> HELD.release());
+    }
 
     @Get(value = "/slow", produces = MediaType.TEXT_PLAIN)
     Mono<String> slow() {
