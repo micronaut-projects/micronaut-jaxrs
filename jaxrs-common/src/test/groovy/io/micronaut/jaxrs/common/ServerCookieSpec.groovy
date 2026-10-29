@@ -6,32 +6,26 @@ import spock.lang.Unroll
 class ServerCookieSpec extends Specification {
 
     @Unroll
-    void "it can append cookie values when isSecure is #isSecure"(boolean isSecure, String expected) {
-        given:
-        StringBuilder sb = new StringBuilder()
+    void "the value #value is quoted as #expected"(String value, String expected) {
+        expect:
+        ServerCookie.quoted(value) == expected
 
+        where:
+        value       || expected
+        null        || '""'
+        ''          || '""'
+        'token'     || 'token'
+        'a b'       || '"a b"'
+        'a;b'       || '"a;b"'
+        'a"b c'     || '"a\\"b c"'
+        '"quoted"'  || '"quoted"'
+    }
+
+    void "a control character is rejected"() {
         when:
-        ServerCookie.appendCookieValue(sb, 1, "name", "value", "path", "domain", "comment", 0, isSecure)
+        ServerCookie.quoted("a\u0001b")
 
         then:
-        sb.toString() == expected
-
-        where:
-        isSecure || expected
-        true     || "name=value; Version=1; Comment=comment; Domain=domain; Max-Age=0; Path=path; Secure"
-        false    || "name=value; Version=1; Comment=comment; Domain=domain; Max-Age=0; Path=path"
+        thrown(IllegalArgumentException)
     }
-
-    @Unroll
-    void "it can get cookie header name for version #version"(int version, String expected) {
-        expect:
-        ServerCookie.getCookieHeaderName(version) == expected
-
-        where:
-        version || expected
-        0       || "Set-Cookie"
-        1       || "Set-Cookie"
-        2       || "Set-Cookie"
-    }
-
 }

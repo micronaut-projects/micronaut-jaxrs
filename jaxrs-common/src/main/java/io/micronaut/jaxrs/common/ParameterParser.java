@@ -63,11 +63,6 @@ final class ParameterParser {
     private int i2 = 0;
 
     /**
-     * Whether names stored in the map should be converted to lower case.
-     */
-    private boolean lowerCaseNames = false;
-
-    /**
      * Default ParameterParser constructor.
      */
     public ParameterParser() {
@@ -200,30 +195,6 @@ final class ParameterParser {
     }
 
     /**
-     * Returns <code>true</code> if parameter names are to be converted to lower
-     * case when name/value pairs are parsed.
-     *
-     * @return <code>true</code> if parameter names are to be
-     * converted to lower case when name/value pairs are parsed.
-     * Otherwise returns <code>false</code>
-     */
-    public boolean isLowerCaseNames() {
-        return this.lowerCaseNames;
-    }
-
-    /**
-     * Sets the flag if parameter names are to be converted to lower case when
-     * name/value pairs are parsed.
-     *
-     * @param b <code>true</code> if parameter names are to be
-     *          converted to lower case when name/value pairs are parsed.
-     *          <code>false</code> otherwise.
-     */
-    public void setLowerCaseNames(boolean b) {
-        this.lowerCaseNames = b;
-    }
-
-    /**
      * Extracts a map of name/value pairs from the given string. Names are
      * expected to be unique.
      *
@@ -235,22 +206,7 @@ final class ParameterParser {
         if (str == null) {
             return new HashMap<>();
         }
-        return parse(str.toCharArray(), separator);
-    }
-
-    /**
-     * Extracts a map of name/value pairs from the given array of
-     * characters. Names are expected to be unique.
-     *
-     * @param chars     the array of characters that contains a sequence of
-     *                  name/value pairs
-     * @param separator the name/value pairs separator
-     * @return a map of name/value pairs
-     */
-    public Map<String, String> parse(final char[] chars, char separator) {
-        if (chars == null) {
-            return new HashMap<>();
-        }
+        char[] chars = str.toCharArray();
         return parse(chars, 0, chars.length, separator);
     }
 
@@ -265,15 +221,12 @@ final class ParameterParser {
      * @param separator the name/value pairs separator
      * @return a map of name/value pairs
      */
-    public Map<String, String> parse(
+    private Map<String, String> parse(
         final char[] chars,
         int offset,
         int length,
         char separator) {
 
-        if (chars == null) {
-            return new HashMap<>();
-        }
         HashMap<String, String> params = new HashMap<>();
         this.chars = chars;
         this.pos = offset;
@@ -293,63 +246,9 @@ final class ParameterParser {
                 pos++; // skip separator
             }
             if ((paramName != null) && (!paramName.isEmpty())) {
-                if (this.lowerCaseNames) {
-                    paramName = paramName.toLowerCase();
-                }
                 params.put(paramName, paramValue);
             }
         }
         return params;
-    }
-
-    /**
-     * Takes string as-is and only changes the value of a specific attribute.
-     *
-     * @param chars     the array of characters that contains a sequence of
-     *                  name/value pairs
-     * @param offset    - the initial offset.
-     * @param length    - the length.
-     * @param separator the name/value pairs separator
-     * @param name      attribute name
-     * @param value     new value
-     * @return updated parameters string
-     */
-    public String setAttribute(
-        final char[] chars,
-        int offset,
-        int length,
-        char separator,
-        String name,
-        String value) {
-
-        this.chars = chars;
-        this.pos = offset;
-        this.len = length;
-
-        String paramName;
-
-        int start = offset;
-
-        StringBuilder newChars = new StringBuilder();
-
-        while (hasChar()) {
-            paramName = parseToken(new char[] {'=', separator});
-            if (name.equals(paramName)) {
-                newChars.append(new String(chars, start, pos - start));
-            }
-            if (hasChar() && (chars[pos] == '=')) {
-                pos++; // skip '='
-            }
-            if (name.equals(paramName)) {
-                newChars.append("=").append(value);
-            } else {
-                newChars.append(new String(chars, start, pos - start));
-            }
-            start = pos;
-            if (hasChar() && (chars[pos] == separator)) {
-                pos++; // skip separator
-            }
-        }
-        return newChars.toString();
     }
 }
