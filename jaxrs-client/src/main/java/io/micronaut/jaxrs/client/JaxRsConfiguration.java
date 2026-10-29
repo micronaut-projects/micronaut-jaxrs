@@ -641,16 +641,16 @@ final class JaxRsConfiguration implements Configuration {
 
     <T> io.micronaut.http.body.@Nullable MessageBodyReader<T> findReader(Argument<T> argument,
                                                                                 @Nullable MediaType mediaType) {
-        // First, the JAX-RS reader in the order of the providers, then of their priority
+        // First, the JAX-RS reader in the order of the readers (JAX-RS 4.2.1)
         io.micronaut.http.body.MessageBodyReader<T> best = null;
-        long bestRank = Long.MAX_VALUE;
+        ReaderRank bestRank = null;
         for (JaxRsMessageBodyReaderDefinition readerDer : getReaders()) {
             io.micronaut.http.body.MessageBodyReader<T> reader = (io.micronaut.http.body.MessageBodyReader<T>) readerDer.messageBodyReader();
             if (reader instanceof JaxRsMessageBodyReader<?> jaxRsReader
                 && isCompatible(readerDer.metadata(), Consumes.class, mediaType)
                 && readerDer.type().isAssignableFrom(argument.getType()) && reader.isReadable(argument, mediaType)) {
-                long rank = rank(readerDer.type().getType(), jaxRsReader.delegate(), readerDer.metadata(), Consumes.class, argument.getType(), mediaType);
-                if (rank < bestRank) {
+                ReaderRank rank = ReaderRank.of(readerDer, jaxRsReader.delegate(), argument.getType(), mediaType);
+                if (bestRank == null || rank.compareTo(bestRank) < 0) {
                     best = reader;
                     bestRank = rank;
                 }
@@ -836,6 +836,41 @@ final class JaxRsConfiguration implements Configuration {
         int specificity = mediaType == null ? 0 : JaxRsUtils.mediaTypeSpecificity(declared, List.of(mediaType));
         int standard = provider.getClass().getName().startsWith("io.micronaut.") ? 1 : 0;
         return ((long) distance * 3 + (2 - specificity)) * 2 + standard;
+    }
+
+    /**
+     * The order of a JAX-RS reader, like the one of the server (JAX-RS 4.2.1): the most specific
+     * media type, then the providers of the application before the standard ones, then the highest
+     * priority, then, which it leaves open, the nearest type.
+     *
+     * @param specificity The specificity of the media type the reader consumes, 2 for a concrete one
+     * @param standard    1 for a standard provider, else 0
+     * @param priority    The priority of the reader
+     * @param distance    The distance of the type the reader reads to the type of the entity
+     */
+    private record ReaderRank(int specificity, int standard, int priority, int distance) implements Comparable<ReaderRank> {
+
+        static ReaderRank of(JaxRsMessageBodyReaderDefinition definition, Object reader, Class<?> type, @Nullable MediaType mediaType) {
+            String[] declared = definition.metadata().stringValues(Consumes.class);
+            return new ReaderRank(
+                mediaType == null ? 0 : JaxRsUtils.mediaTypeSpecificity(declared, List.of(mediaType)),
+                reader.getClass().getName().startsWith("io.micronaut.") ? 1 : 0,
+                definition.priority(),
+                JaxRsUtils.typeDistance(definition.type().getType(), type)
+            );
+        }
+
+        @Override
+        public int compareTo(ReaderRank other) {
+            int result = Integer.compare(other.specificity, specificity);
+            if (result == 0) {
+                result = Integer.compare(standard, other.standard);
+            }
+            if (result == 0) {
+                result = Integer.compare(priority, other.priority);
+            }
+            return result == 0 ? Integer.compare(distance, other.distance) : result;
+        }
     }
 
     public List<ClientRequestFilter> getRequestFilters() {
@@ -1030,14 +1065,14 @@ final class JaxRsConfiguration implements Configuration {
             // selected like the readers of the entities (JAX-RS 4.2.1)
             MediaType micronautMediaType = JaxRsUtils.convert(mediaType);
             MessageBodyReader<T> best = null;
-            long bestRank = Long.MAX_VALUE;
+            ReaderRank bestRank = null;
             for (JaxRsMessageBodyReaderDefinition definition : getReaders()) {
                 if (definition.messageBodyReader() instanceof JaxRsMessageBodyReader<?> jaxRsReader
                     && isCompatible(definition.metadata(), Consumes.class, micronautMediaType)
                     && definition.type().isAssignableFrom(type)
                     && jaxRsReader.delegate().isReadable(type, genericType, annotations, mediaType)) {
-                    long rank = rank(definition.type().getType(), jaxRsReader.delegate(), definition.metadata(), Consumes.class, type, micronautMediaType);
-                    if (rank < bestRank) {
+                    ReaderRank rank = ReaderRank.of(definition, jaxRsReader.delegate(), type, micronautMediaType);
+                    if (bestRank == null || rank.compareTo(bestRank) < 0) {
                         best = (MessageBodyReader<T>) jaxRsReader.delegate();
                         bestRank = rank;
                     }
