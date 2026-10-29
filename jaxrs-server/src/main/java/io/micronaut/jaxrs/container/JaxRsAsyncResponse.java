@@ -96,8 +96,6 @@ final class JaxRsAsyncResponse implements AsyncResponse {
     private @Nullable ScheduledFuture<?> timeout;
     // the generation of the timeout, a timeout of a previous one is ignored
     private long timeoutGeneration;
-    // whether the timeout was set while the timeout handler ran
-    private boolean timeoutUpdated;
     private State state = State.SUSPENDED;
     private boolean callbacksCalled;
     // whether the server reports the outcome of the response, see bind
@@ -379,7 +377,6 @@ final class JaxRsAsyncResponse implements AsyncResponse {
             }
             previous = timeout;
             timeout = null;
-            timeoutUpdated = true;
             long generation = ++timeoutGeneration;
             if (time > 0) {
                 TaskScheduler taskScheduler = scheduler.get();
@@ -404,7 +401,6 @@ final class JaxRsAsyncResponse implements AsyncResponse {
                 return;
             }
             timeout = null;
-            timeoutUpdated = false;
             handler = timeoutHandler;
         }
         if (handler != null) {
@@ -416,7 +412,7 @@ final class JaxRsAsyncResponse implements AsyncResponse {
             }
             synchronized (this) {
                 // the handler resumed, cancelled or set the timeout again, also to no timeout
-                if (state != State.SUSPENDED || timeoutUpdated) {
+                if (state != State.SUSPENDED || generation != timeoutGeneration) {
                     return;
                 }
             }
