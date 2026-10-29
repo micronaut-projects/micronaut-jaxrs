@@ -160,7 +160,13 @@ final class JaxRsAsyncResponse implements AsyncResponse {
         callbacks.run();
     }
 
-    private static @Nullable ServerHttpRequest<?> serverRequest(HttpRequest<?> request) {
+    /**
+     * The request received by the server a request wraps, if any.
+     *
+     * @param request The request, possibly wrapped by filters
+     * @return The request of the server, or null
+     */
+    static @Nullable ServerHttpRequest<?> serverRequest(HttpRequest<?> request) {
         HttpRequest<?> current = request;
         while (true) {
             if (current instanceof ServerHttpRequest<?> serverRequest) {

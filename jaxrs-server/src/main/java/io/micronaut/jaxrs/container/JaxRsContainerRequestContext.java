@@ -76,6 +76,8 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
     static final String SECURITY_CONTEXT = JaxRsContainerRequestContext.class.getName() + ".securityContext";
     // the entity streams the request filters set, closed once the request is processed
     private static final String ENTITY_STREAMS = JaxRsContainerRequestContext.class.getName() + ".entityStreams";
+    // whether the server closes the entity streams once the response was written
+    private static final String ENTITY_STREAMS_ON_COMPLETION = ENTITY_STREAMS + ".onCompletion";
 
     private final Map<String, Object> properties;
     // the request the filters continue with: a pre-matching filter may change its method
@@ -297,8 +299,26 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
         if (streams == null) {
             streams = new ArrayList<>(1);
             mutableHttpRequest.setAttribute(ENTITY_STREAMS, streams);
+            // closed once the response was written: the resource method may return the stream as its entity
+            HttpRequest<?> request = mutableHttpRequest;
+            ServerHttpRequest<?> serverRequest = JaxRsAsyncResponse.serverRequest(request);
+            if (serverRequest != null && serverRequest.whenResponseCompleted(failure -> closeEntityStreams(request))) {
+                mutableHttpRequest.setAttribute(ENTITY_STREAMS_ON_COMPLETION, Boolean.TRUE);
+            }
         }
         streams.add(input);
+    }
+
+    /**
+     * Close the entity streams the request filters of a request set once its response is processed,
+     * unless the server closes them once the response was written, see {@link #closeEntityStreams}.
+     *
+     * @param request The request
+     */
+    static void closeEntityStreamsIfProcessed(HttpRequest<?> request) {
+        if (request.getAttribute(ENTITY_STREAMS_ON_COMPLETION, Boolean.class).isEmpty()) {
+            closeEntityStreams(request);
+        }
     }
 
     /**
