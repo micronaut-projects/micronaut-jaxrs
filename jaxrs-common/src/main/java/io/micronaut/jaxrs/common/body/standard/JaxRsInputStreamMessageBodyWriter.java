@@ -54,11 +54,15 @@ public final class JaxRsInputStreamMessageBodyWriter<T extends InputStream> impl
                         jakarta.ws.rs.core.MediaType mediaType,
                         MultivaluedMap<String, Object> httpHeaders,
                         OutputStream entityStream) throws IOException, WebApplicationException {
-        inputStream.transferTo(entityStream);
         try {
-            inputStream.close();
-        } catch (IOException ignore) {
-            // Ignore
+            inputStream.transferTo(entityStream);
+        } finally {
+            // also if the write failed: the entity is not written anymore
+            try {
+                inputStream.close();
+            } catch (IOException ignore) {
+                // Ignore
+            }
         }
     }
 }

@@ -53,4 +53,29 @@ class StandardProvidersSpec extends Specification {
         then:
         out.toString("UTF-8") == "a=1&b=x%20y"
     }
+
+    void "the stream of a failed write is closed"() {
+        given:
+        boolean closed = false
+        def input = new ByteArrayInputStream("abc".bytes) {
+            @Override
+            void close() {
+                closed = true
+            }
+        }
+        def out = new OutputStream() {
+            @Override
+            void write(int b) {
+                throw new IOException("broken")
+            }
+        }
+
+        when:
+        new JaxRsInputStreamMessageBodyWriter<InputStream>().writeTo(input, InputStream, InputStream, NONE,
+                MediaType.APPLICATION_OCTET_STREAM_TYPE, null, out)
+
+        then:
+        thrown(IOException)
+        closed
+    }
 }
