@@ -106,6 +106,7 @@ import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.NoContentException;
 import jakarta.ws.rs.core.PathSegment;
+import io.micronaut.jaxrs.runtime.ext.bind.JaxRsRequestUri;
 import io.micronaut.jaxrs.runtime.ext.bind.UriInfoImpl;
 import jakarta.ws.rs.core.SecurityContext;
 import jakarta.ws.rs.core.Response;
@@ -662,12 +663,14 @@ public final class JaxRsRouteSupport {
      */
     private @Nullable Object queryParam(HttpRequest<?> request, String name, Conversion conversion, boolean encoded) {
         // the name is decoded, with @Encoded the values are not
-        List<String> values = new ArrayList<>(1);
-        UriInfoImpl.queryParameters(request.getUri(), false).forEach((raw, rawValues) -> {
-            if (UriInfoImpl.decodeQuery(raw).equals(name)) {
-                rawValues.forEach(value -> values.add(encoded ? value : UriInfoImpl.decodeQuery(value)));
+        List<String> values = JaxRsRequestUri.of(request).rawQueryValues(name);
+        if (!encoded && !values.isEmpty()) {
+            List<String> decoded = new ArrayList<>(values.size());
+            for (String value : values) {
+                decoded.add(UriInfoImpl.decodeQuery(value));
             }
-        });
+            values = decoded;
+        }
         return conversion.convert(values, true);
     }
 

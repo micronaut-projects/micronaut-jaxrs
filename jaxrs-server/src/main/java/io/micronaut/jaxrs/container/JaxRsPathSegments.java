@@ -17,6 +17,7 @@ package io.micronaut.jaxrs.container;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.HttpRequest;
+import io.micronaut.jaxrs.runtime.ext.bind.JaxRsRequestUri;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.UriRouteMatch;
 import jakarta.ws.rs.core.MultivaluedHashMap;
@@ -84,7 +85,7 @@ final class JaxRsPathSegments {
      * @return The segments
      */
     static List<PathSegment> pathSegments(HttpRequest<?> request, String name, String value, boolean encoded) {
-        String[] segments = request.getUri().getRawPath().split("/", -1);
+        String[] segments = JaxRsRequestUri.of(request).rawPathSegments();
         Location location = locate(request, name, segments.length);
         if (location != null) {
             // split as it appears in the path: an encoded slash is not a separator
@@ -114,7 +115,7 @@ final class JaxRsPathSegments {
      * @return The segment
      */
     static PathSegment pathSegment(HttpRequest<?> request, String name, String value, boolean encoded) {
-        String[] segments = request.getUri().getRawPath().split("/", -1);
+        String[] segments = JaxRsRequestUri.of(request).rawPathSegments();
         Location location = locate(request, name, segments.length);
         if (location != null) {
             return segment(segments[location.index() + location.count() - 1], encoded);
