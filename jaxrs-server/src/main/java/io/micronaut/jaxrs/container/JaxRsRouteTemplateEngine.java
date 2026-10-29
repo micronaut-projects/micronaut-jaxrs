@@ -530,7 +530,18 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
         return name + LOCATOR_MARK + fromLast;
     }
 
-        /**
+    /**
+     * The description of the structure of a route template: the one a template of this engine
+     * parsed once, else one parsed now.
+     *
+     * @param template The template of a route
+     * @return Its description
+     */
+    static JaxRsTemplateDescription description(RouteTemplate template) {
+        return template instanceof Parsed parsed ? parsed.description() : JaxRsTemplateDescription.of(template.expression());
+    }
+
+    /**
      * @param expression A template, possibly with the marks of its root resource class and locators
      * @return The template as it was written, without the marks
      */
@@ -774,6 +785,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
         private @Nullable Pattern pattern;
         private @Nullable Pattern prefixPattern;
         private @Nullable List<Integer> groups;
+        private volatile @Nullable JaxRsTemplateDescription description;
 
         /**
          * @param engine     The engine that parsed it, or {@code null} for the template of a root resource class
@@ -801,6 +813,18 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
         @Override
         public String expression() {
             return expression;
+        }
+
+        /**
+         * @return The description of its structure, parsed when first used
+         */
+        JaxRsTemplateDescription description() {
+            JaxRsTemplateDescription d = description;
+            if (d == null) {
+                d = JaxRsTemplateDescription.of(expression);
+                description = d;
+            }
+            return d;
         }
 
         @Override

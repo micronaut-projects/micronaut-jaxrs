@@ -1296,24 +1296,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     private record MatchedSegments(int literal, List<String> regexVariables) {
 
         static MatchedSegments of(String template) {
-            List<String> variables = new ArrayList<>();
-            int depth = 0;
-            int start = -1;
-            for (int i = 0; i < template.length(); i++) {
-                char c = template.charAt(i);
-                if (c == '{') {
-                    if (depth++ == 0) {
-                        start = i + 1;
-                    }
-                } else if (c == '}' && --depth == 0) {
-                    String variable = template.substring(start, i);
-                    int colon = variable.indexOf(':');
-                    if (colon >= 0) {
-                        variables.add(variable.substring(0, colon).trim());
-                    }
-                }
-            }
-            return new MatchedSegments(segments(template), List.copyOf(variables));
+            return new MatchedSegments(segments(template), JaxRsTemplateDescription.of(template).regexVariables());
         }
 
         /**
