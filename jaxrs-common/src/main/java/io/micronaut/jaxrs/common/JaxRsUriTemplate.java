@@ -43,7 +43,6 @@ final class JaxRsUriTemplate {
     private static final Pattern TEMPLATE_PATTERN = Pattern.compile("(\\{([^}]+)})");
 
     private static final String MARKER = "_jaxrs_uri_parameter";
-    private static final Pattern MARKER_PATTERN = Pattern.compile(MARKER);
 
     private static final char OPEN_CURLY_REPLACEMENT = 6;
     private static final char CLOSE_CURLY_REPLACEMENT = 7;
@@ -74,7 +73,8 @@ final class JaxRsUriTemplate {
             String param = matcher.group(1);
             if (!values.containsKey(param)) {
                 if (keepUnresolved) {
-                    out.append(matcher.group());
+                    // the original characters, not the replaced nested braces
+                    out.append(template, matcher.start(), matcher.end());
                     start = matcher.end();
                     continue;
                 }
@@ -99,6 +99,11 @@ final class JaxRsUriTemplate {
      * without template parameters are replaced as well
      */
     static Protected protect(String value) {
+        // a marker that is not in the value, whose characters are not changed by an encoding
+        String marker = MARKER;
+        while (value.contains(marker)) {
+            marker += "x";
+        }
         List<String> templates = new ArrayList<>();
         // the regular expressions of the parameters can have '{' and '}' characters
         CharSequence replaced = replaceEnclosedCurlyBraces(value);
@@ -107,12 +112,13 @@ final class JaxRsUriTemplate {
         int start = 0;
         while (matcher.find()) {
             text.append(replaced, start, matcher.start());
+            // the index of the template, so that it is restored in place of its own marker
+            text.append(marker).append(templates.size()).append('_');
             templates.add(recoverEnclosedCurlyBraces(matcher.group()));
-            text.append(MARKER);
             start = matcher.end();
         }
         text.append(replaced, start, replaced.length());
-        return new Protected(text.toString(), templates);
+        return new Protected(text.toString(), templates, Pattern.compile(Pattern.quote(marker) + "(\\d+)_"));
     }
 
     /**
@@ -159,8 +165,9 @@ final class JaxRsUriTemplate {
      *
      * @param text      The value with markers
      * @param templates The template parameters, in order
+     * @param markers   The pattern of the markers, whose group is the index of their template
      */
-    record Protected(String text, List<String> templates) {
+    record Protected(String text, List<String> templates, Pattern markers) {
 
         /**
          * @return Whether the value has template parameters
@@ -180,12 +187,11 @@ final class JaxRsUriTemplate {
                 return changed;
             }
             StringBuilder restored = new StringBuilder();
-            Matcher matcher = MARKER_PATTERN.matcher(changed);
-            int i = 0;
+            Matcher matcher = markers.matcher(changed);
             int start = 0;
             while (matcher.find()) {
                 restored.append(changed, start, matcher.start());
-                restored.append(templates.get(i++));
+                restored.append(templates.get(Integer.parseInt(matcher.group(1))));
                 start = matcher.end();
             }
             return restored.append(changed, start, changed.length()).toString();
