@@ -814,7 +814,14 @@ public final class JaxRsRouteSupport {
         if (existing.isPresent()) {
             return existing.get();
         }
-        JaxRsSseEventSink sink = new JaxRsSseEventSink(this::sseData);
+        // the writer of the data may read the request, e.g. its UriInfo, also when an event is
+        // sent from another thread: it runs in the context of the request (JAX-RS 10.1)
+        PropagatedContext context = PropagatedContext.getOrEmpty();
+        JaxRsSseEventSink sink = new JaxRsSseEventSink(event -> {
+            try (PropagatedContext.Scope ignored = context.propagate()) {
+                return ServerRequestContext.with(request, (Supplier<String>) () -> sseData(event));
+            }
+        });
         request.setAttribute(SSE_EVENT_SINK, sink);
         return sink;
     }

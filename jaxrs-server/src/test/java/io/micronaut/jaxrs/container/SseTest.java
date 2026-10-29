@@ -12,6 +12,7 @@ import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.GenericType;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
+import jakarta.ws.rs.core.UriInfo;
 import jakarta.ws.rs.ext.MessageBodyWriter;
 import jakarta.ws.rs.ext.Provider;
 import jakarta.ws.rs.sse.Sse;
@@ -88,6 +89,43 @@ class SseTest {
         }
     }
 
+    @Test
+    void theDataSentFromAnotherThreadIsWrittenInTheContextOfTheRequest() throws Exception {
+        HttpRequest request = HttpRequest.newBuilder(URI.create(server.getURL() + "/api/sse/background")).GET().build();
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            String body = client.send(request, HttpResponse.BodyHandlers.ofString()).body();
+            assertTrue(body.contains("data: path:sse/background\n"), body);
+        }
+    }
+
+    /**
+     * The data of an event that its writer writes with the path of the request.
+     */
+    public static final class PathData {
+    }
+
+    /**
+     * Writes the path of the request, read from its injected {@link UriInfo}.
+     */
+    @Requires(property = "spec.name", value = "SseTest")
+    @Provider
+    @Produces(MediaType.TEXT_PLAIN)
+    public static class PathDataWriter implements MessageBodyWriter<PathData> {
+        @Context
+        UriInfo uriInfo;
+
+        @Override
+        public boolean isWriteable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+            return type == PathData.class;
+        }
+
+        @Override
+        public void writeTo(PathData data, Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType,
+                            MultivaluedMap<String, Object> httpHeaders, OutputStream entityStream) throws IOException {
+            entityStream.write(("path:" + uriInfo.getPath()).getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
     /**
      * Writes lists of strings only, as told by their generic type.
      */
@@ -129,6 +167,20 @@ class SseTest {
                 sink.send(sse.newEventBuilder().mediaType(MediaType.TEXT_PLAIN_TYPE)
                     .data(new GenericType<List<String>>() { }, List.of("a", "b")).build());
             }
+        }
+
+        @GET
+        @Path("background")
+        @Produces(MediaType.SERVER_SENT_EVENTS)
+        public void background(@Context SseEventSink sink, @Context Sse sse) {
+            Thread.ofVirtual().start(() -> {
+                try (sink) {
+                    sink.send(sse.newEventBuilder().mediaType(MediaType.TEXT_PLAIN_TYPE)
+                        .data(PathData.class, new PathData()).build()).toCompletableFuture().join();
+                } catch (IOException e) {
+                    throw new java.io.UncheckedIOException(e);
+                }
+            });
         }
 
         static final AtomicReference<CompletableFuture<Throwable>> DISCONNECTED = new AtomicReference<>(new CompletableFuture<>());
