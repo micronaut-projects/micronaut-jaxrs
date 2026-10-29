@@ -1356,7 +1356,7 @@ public final class JaxRsRouteSupport {
             // acceptable type it has a writer for
             return writableType(request, mutable, type, body, deferrable);
         }
-        MediaType mediaType = JaxRsRouteTemplateEngine.responseType(request.getHeaders().accept(), producible);
+        MediaType mediaType = JaxRsMediaNegotiation.responseType(request.getHeaders().accept(), producible);
         if (mediaType == null) {
             return unacceptable(request, mutable, body, deferrable, false);
         }
@@ -1411,7 +1411,7 @@ public final class JaxRsRouteSupport {
         if (accepted.isEmpty()) {
             return response;
         }
-        MediaType mediaType = JaxRsRouteTemplateEngine.responseType(accepted, writable);
+        MediaType mediaType = JaxRsMediaNegotiation.responseType(accepted, writable);
         if (mediaType == null) {
             return unacceptable(request, response, body, deferrable, false);
         }
@@ -1503,7 +1503,7 @@ public final class JaxRsRouteSupport {
                     writable.add(produced);
                 }
             }
-            MediaType mediaType = JaxRsRouteTemplateEngine.responseType(request.getHeaders().accept(), writable);
+            MediaType mediaType = JaxRsMediaNegotiation.responseType(request.getHeaders().accept(), writable);
             if (mediaType == null) {
                 // no writer for the negotiated type: a response filter can repair the response,
                 // it is a server error if it does not (JAX-RS 4.2.2, step 5)

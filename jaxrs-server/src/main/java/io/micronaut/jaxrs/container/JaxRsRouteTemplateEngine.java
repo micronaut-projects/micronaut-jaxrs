@@ -33,7 +33,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -71,10 +70,6 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
     public static final char LOCATOR_MARK = '\u001F';
 
     private static final String DEFAULT_REGEX = "[^/]+?";
-
-    private static final String QS = "qs";
-
-    private static final String WILDCARD = "*";
 
     /**
      * The order of specificity of JAX-RS (section 3.7.2): more literal characters, then more
@@ -192,14 +187,14 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
             accepted = List.of(MediaType.ALL_TYPE);
         }
         UriRouteMatch<?, ?> selected = null;
-        Negotiated selectedType = null;
+        JaxRsMediaNegotiation.Negotiated selectedType = null;
         int selectedConsumes = -1;
         UriRouteMatch<?, ?> unsupported = null;
         UriRouteMatch<?, ?> notAcceptable = null;
         for (UriRouteMatch<?, ?> candidate : candidates) {
             // a request without a content type is */*: the most specific consumed type is the
             // best match (JAX-RS 3.7.2, step 3b)
-            int consumes = consumes(contentType == null ? MediaType.ALL_TYPE : contentType, candidate.getRouteInfo().getConsumes());
+            int consumes = JaxRsMediaNegotiation.consumes(contentType == null ? MediaType.ALL_TYPE : contentType, candidate.getRouteInfo().getConsumes());
             if (consumes < 0) {
                 if (candidate.getRouteInfo().getHttpMethod().permitsRequestBody()) {
                     unsupported = unsupported == null ? candidate : unsupported;
@@ -208,7 +203,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
                 // the content type of a request without a body does not select the method
                 consumes = 0;
             }
-            Negotiated negotiated = negotiate(accepted, candidate.getRouteInfo().getProduces());
+            JaxRsMediaNegotiation.Negotiated negotiated = JaxRsMediaNegotiation.negotiate(accepted, candidate.getRouteInfo().getProduces());
             if (negotiated == null) {
                 notAcceptable = notAcceptable == null ? candidate : notAcceptable;
                 continue;
@@ -228,8 +223,8 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
         }
         List<MediaType> produces = selected.getRouteInfo().getProduces();
         boolean declared = !(produces.size() == 1 && produces.get(0).equals(MediaType.ALL_TYPE));
-        MediaType type = selectedType.type;
-        if (declared && specificity(type) < 2 && octetStreamFallback(accepted, produces)) {
+        MediaType type = selectedType.type();
+        if (declared && JaxRsMediaNegotiation.specificity(type) < 2 && JaxRsMediaNegotiation.octetStreamFallback(accepted, produces)) {
             // not concrete: JAX-RS answers with application/octet-stream
             type = MediaType.APPLICATION_OCTET_STREAM_TYPE;
         }
@@ -323,168 +318,6 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
         }
         String rest = strip(withoutMarks(expression.substring(rootMark + 1)));
         return !rest.isEmpty() && !rest.equals("/");
-    }
-
-    /**
-     * The response type of JAX-RS (section 3.8) for accepted and produced types: the most
-     * acceptable combined type, {@code application/octet-stream} for a wildcard one.
-     *
-     * @param accepted The accepted types, empty for any
-     * @param produces The produced types
-     * @return The type, or {@code null} if none is acceptable, or the combined type has a wildcard
-     * subtype other than {@code application/*}
-     */
-    static @Nullable MediaType responseType(List<MediaType> accepted, List<MediaType> produces) {
-        Negotiated negotiated = negotiate(accepted.isEmpty() ? List.of(MediaType.ALL_TYPE) : accepted, produces);
-        if (negotiated == null) {
-            return null;
-        }
-        MediaType type = negotiated.type;
-        if (specificity(type) < 2 && octetStreamFallback(accepted.isEmpty() ? List.of(MediaType.ALL_TYPE) : accepted, produces)) {
-            return MediaType.APPLICATION_OCTET_STREAM_TYPE;
-        }
-        return specificity(type) == 2 ? type : null;
-    }
-
-    /**
-     * Whether the acceptable combined types of accepted and produced types, not only the most
-     * acceptable one, include {@code *}{@code /*} or {@code application/*}: without a concrete
-     * type, the response type is then {@code application/octet-stream} (JAX-RS 3.8, step 9).
-     */
-    private static boolean octetStreamFallback(List<MediaType> accepted, List<MediaType> produces) {
-        for (MediaType accept : accepted) {
-            if (accept.getQualityAsNumber().doubleValue() <= 0) {
-                continue;
-            }
-            for (MediaType produce : produces) {
-                if (!accept.matches(produce) && !produce.matches(accept)) {
-                    continue;
-                }
-                MediaType type = specificity(produce) >= specificity(accept) ? produce : accept;
-                if (specificity(type) == 0 || specificity(type) == 1 && "application".equals(type.getType())) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    /**
-     * How closely a content type matches the consumed types: 2 for a type, 1 for a type with a
-     * wildcard subtype, 0 for any type, -1 when no consumed type matches.
-     */
-    private static int consumes(MediaType contentType, List<MediaType> consumes) {
-        int best = -1;
-        for (MediaType consumed : consumes) {
-            if (consumed.matches(contentType) || contentType.matches(consumed)) {
-                best = Math.max(best, specificity(consumed));
-            }
-        }
-        return best;
-    }
-
-    private static @Nullable Negotiated negotiate(List<MediaType> accepted, List<MediaType> produces) {
-        Negotiated best = null;
-        for (MediaType accept : accepted) {
-            double quality = accept.getQualityAsNumber().doubleValue();
-            if (quality <= 0) {
-                // q=0: not acceptable (RFC 9110, 12.4.2)
-                continue;
-            }
-            for (MediaType produce : produces) {
-                if (!accept.matches(produce) && !produce.matches(accept)) {
-                    continue;
-                }
-                // the more specific of the two, with its parameters but q and qs (JAX-RS 3.8)
-                MediaType type = specificity(produce) >= specificity(accept) ? produce : accept;
-                if (overridden(accepted, accept, type)) {
-                    continue;
-                }
-                // the wildcard components of one matched against concrete ones of the other (JAX-RS 3.7.2)
-                int distance = Math.abs(specificity(produce) - specificity(accept));
-                Negotiated negotiated = new Negotiated(withoutQuality(type), quality, qs(produce), distance);
-                if (best == null || negotiated.compareTo(best) > 0) {
-                    best = negotiated;
-                }
-            }
-        }
-        return best;
-    }
-
-    /**
-     * Whether an accepted range more specific than the matching one also covers a type: the most
-     * specific range determines the quality (RFC 9110, 12.5.1), also a nonzero one, so the
-     * matching range does not apply. A range with parameters is more specific than the same
-     * range without them, and covers only a type with the same parameters.
-     */
-    private static boolean overridden(List<MediaType> accepted, MediaType matching, MediaType type) {
-        for (MediaType accept : accepted) {
-            if (moreSpecific(accept, matching)
-                && accept.matches(type)
-                && parametersMatch(accept, type)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean moreSpecific(MediaType range, MediaType other) {
-        int specificity = Integer.compare(specificity(range), specificity(other));
-        if (specificity != 0) {
-            return specificity > 0;
-        }
-        return parameterCount(range) > parameterCount(other);
-    }
-
-    /**
-     * Whether a type has every parameter of a range, but {@code q} and {@code qs}.
-     */
-    private static boolean parametersMatch(MediaType range, MediaType type) {
-        for (CharSequence parameter : range.getParameters()) {
-            String name = parameter.toString();
-            if (MediaType.Q_PARAMETER.equals(name) || QS.equals(name)) {
-                continue;
-            }
-            String value = type.getParameters().get(name).orElse(null);
-            if (value == null || !value.equalsIgnoreCase(range.getParameters().get(name).orElse(null))) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private static int parameterCount(MediaType type) {
-        int count = 0;
-        for (CharSequence parameter : type.getParameters()) {
-            String name = parameter.toString();
-            if (!MediaType.Q_PARAMETER.equals(name) && !QS.equals(name)) {
-                count++;
-            }
-        }
-        return count;
-    }
-
-    private static MediaType withoutQuality(MediaType type) {
-        Map<String, String> parameters = new LinkedHashMap<>();
-        type.getParameters().forEach((name, value) -> {
-            String key = name.toString();
-            if (!MediaType.Q_PARAMETER.equals(key) && !QS.equals(key)) {
-                parameters.put(key, value);
-            }
-        });
-        return new MediaType(type.getType() + "/" + type.getSubtype(), parameters);
-    }
-
-    private static int specificity(MediaType type) {
-        if (WILDCARD.equals(type.getType())) {
-            return 0;
-        }
-        return WILDCARD.equals(type.getSubtype()) ? 1 : 2;
-    }
-
-    private static double qs(MediaType type) {
-        String qs = type.getParameters().get(QS).orElse(null);
-        return qs == null ? 1 : Double.parseDouble(qs);
     }
 
     /**
@@ -723,32 +556,6 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
             trimmed.add(Part.literal(text));
         }
         return trimmed;
-    }
-
-    /**
-     * A combined media type of JAX-RS: compared by specificity, then the quality of the accepted
-     * type, then the {@code qs} of the produced type, then the distance, the smaller the better.
-     *
-     * @param type     The media type
-     * @param q        The quality of the accepted type
-     * @param qs       The quality of the produced type
-     * @param distance The distance of the types
-     */
-    private record Negotiated(MediaType type, double q, double qs, int distance) implements Comparable<Negotiated> {
-        @Override
-        public int compareTo(Negotiated other) {
-            int result = Integer.compare(specificity(type), specificity(other.type));
-            if (result == 0) {
-                result = Double.compare(q, other.q);
-            }
-            if (result == 0) {
-                result = Double.compare(qs, other.qs);
-            }
-            if (result == 0) {
-                result = Integer.compare(other.distance, distance);
-            }
-            return result;
-        }
     }
 
     /**
