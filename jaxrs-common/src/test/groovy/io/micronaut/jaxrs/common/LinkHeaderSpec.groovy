@@ -62,4 +62,14 @@ class LinkHeaderSpec extends Specification {
         then:
         thrown(IllegalArgumentException)
     }
+
+    void "whitespace is allowed around the equals sign of a parameter"() {
+        given:
+        def link = Link.valueOf('<http://example.org/>; rel = "next"; title =  t ')
+
+        expect:
+        link.rel == "next"
+        link.title == "t"
+        new JaxRsResponse(HttpResponse.ok().header("Link", '<http://example.org/>; rel = "next"')).hasLink("next")
+    }
 }

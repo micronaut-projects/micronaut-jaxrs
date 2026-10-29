@@ -191,6 +191,10 @@ final class LinkDelegate implements RuntimeDelegate.HeaderDelegate<Link> {
             String name = value.substring(curr, end);
             name = name.trim();
             curr = end + 1;
+            // RFC 8288 3: optional whitespace after the equals sign
+            while (curr < value.length() && (value.charAt(curr) == ' ' || value.charAt(curr) == '\t')) {
+                curr++;
+            }
             String val;
             if (curr >= value.length()) {
                 val = "";
@@ -226,7 +230,7 @@ final class LinkDelegate implements RuntimeDelegate.HeaderDelegate<Link> {
                         buf.append(value.charAt(curr));
                         curr++;
                     }
-                    val = buf.toString();
+                    val = buf.toString().trim();
                 }
             }
             attributes.add(name, val);
