@@ -640,7 +640,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         RequestType<T> requestType = contextRequestType((Class<T>) instance.getClass());
         if (requestType != null) {
             for (Member<T> member : requestType.members()) {
-                JaxRsRouteSupport.ValueReader reader = member.reader();
+                JaxRsParameterBinding.ValueReader reader = member.reader();
                 member.property().set(instance, reader == null ? null : reader.read(request, pathVariables, contextForm(request)));
             }
         }
@@ -1016,7 +1016,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     }
 
     private Reader reader(Argument<?> argument, AnnotationMetadata methodMetadata, AnnotationMetadata classMetadata) {
-        JaxRsRouteSupport.ValueReader reader = support.reader(argument.getAnnotationMetadata(), argument, encoded(argument, methodMetadata, classMetadata));
+        JaxRsParameterBinding.ValueReader reader = support.reader(argument.getAnnotationMetadata(), argument, encoded(argument, methodMetadata, classMetadata));
         if (reader == null) {
             return (request, pathVariables, form, body) -> null;
         }
@@ -1075,7 +1075,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         // an @Encoded constructor keeps the values of its parameters encoded
         boolean encodedConstructor = definition != null ? definition.getConstructor().getAnnotationMetadata().hasAnnotation(Encoded.class)
             : introspection != null && introspection.getConstructor().getAnnotationMetadata().hasAnnotation(Encoded.class);
-        JaxRsRouteSupport.@Nullable ValueReader[] constructorReaders = new JaxRsRouteSupport.ValueReader[constructorArguments.length];
+        JaxRsParameterBinding.@Nullable ValueReader[] constructorReaders = new JaxRsParameterBinding.ValueReader[constructorArguments.length];
         boolean perRequest = false;
         boolean usesForm = false;
         boolean encodedForm = false;
@@ -1106,7 +1106,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         }
         // the constructor parameters read from the request, the @Parameters of a prototype bean
         int count = 0;
-        for (JaxRsRouteSupport.ValueReader reader : constructorReaders) {
+        for (JaxRsParameterBinding.ValueReader reader : constructorReaders) {
             if (reader != null) {
                 count++;
             }
@@ -1129,7 +1129,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      * request.
      */
     private <T> T create(RequestType<T> requestType, HttpRequest<?> request, PathVariables pathVariables, @Nullable FormData form) {
-        JaxRsRouteSupport.@Nullable ValueReader[] readers = requestType.constructorReaders();
+        JaxRsParameterBinding.@Nullable ValueReader[] readers = requestType.constructorReaders();
         Object[] values = new Object[readers.length];
         int[] requestIndexes = requestType.requestIndexes();
         @Nullable Object[] requestValues = new Object[requestIndexes.length];
@@ -1146,7 +1146,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             instance = beanContext.inject(values.length == 0 ? introspection.instantiate() : introspection.instantiate(values));
         }
         for (Member<T> member : requestType.members()) {
-            JaxRsRouteSupport.ValueReader reader = member.reader();
+            JaxRsParameterBinding.ValueReader reader = member.reader();
             member.property().set(instance, reader == null ? null : reader.read(request, pathVariables, form));
         }
         return instance;
@@ -1684,7 +1684,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      * @param reader   How to read its value
      * @param <T>      The type that has it
      */
-    private record Member<T>(BeanProperty<T, Object> property, JaxRsRouteSupport.@Nullable ValueReader reader) {
+    private record Member<T>(BeanProperty<T, Object> property, JaxRsParameterBinding.@Nullable ValueReader reader) {
     }
 
     /**
@@ -1702,7 +1702,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      * @param <T>                The type
      */
     private record RequestType<T>(Class<T> type, boolean bean, @Nullable BeanIntrospection<T> introspection,
-                               JaxRsRouteSupport.@Nullable ValueReader[] constructorReaders, int[] requestIndexes, String[] requestNames,
+                               JaxRsParameterBinding.@Nullable ValueReader[] constructorReaders, int[] requestIndexes, String[] requestNames,
                                   List<Member<T>> members, boolean usesForm, boolean encodedForm) {
     }
 }
