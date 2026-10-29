@@ -226,7 +226,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
         List<MediaType> produces = selected.getRouteInfo().getProduces();
         boolean declared = !(produces.size() == 1 && produces.get(0).equals(MediaType.ALL_TYPE));
         MediaType type = selectedType.type;
-        if (declared && (specificity(type) == 0 || specificity(type) == 1 && "application".equals(type.getType()))) {
+        if (declared && specificity(type) < 2 && octetStreamFallback(accepted, produces)) {
             // not concrete: JAX-RS answers with application/octet-stream
             type = MediaType.APPLICATION_OCTET_STREAM_TYPE;
         }
@@ -337,10 +337,33 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
             return null;
         }
         MediaType type = negotiated.type;
-        if (specificity(type) == 0 || specificity(type) == 1 && "application".equals(type.getType())) {
+        if (specificity(type) < 2 && octetStreamFallback(accepted.isEmpty() ? List.of(MediaType.ALL_TYPE) : accepted, produces)) {
             return MediaType.APPLICATION_OCTET_STREAM_TYPE;
         }
         return specificity(type) == 2 ? type : null;
+    }
+
+    /**
+     * Whether the acceptable combined types of accepted and produced types, not only the most
+     * acceptable one, include {@code *}{@code /*} or {@code application/*}: without a concrete
+     * type, the response type is then {@code application/octet-stream} (JAX-RS 3.8, step 9).
+     */
+    private static boolean octetStreamFallback(List<MediaType> accepted, List<MediaType> produces) {
+        for (MediaType accept : accepted) {
+            if (accept.getQualityAsNumber().doubleValue() <= 0) {
+                continue;
+            }
+            for (MediaType produce : produces) {
+                if (!accept.matches(produce) && !produce.matches(accept)) {
+                    continue;
+                }
+                MediaType type = specificity(produce) >= specificity(accept) ? produce : accept;
+                if (specificity(type) == 0 || specificity(type) == 1 && "application".equals(type.getType())) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
