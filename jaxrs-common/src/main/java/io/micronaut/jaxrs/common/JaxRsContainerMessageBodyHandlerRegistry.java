@@ -295,6 +295,16 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
     }
 
     /**
+     * Forget the cached readers and writers: called once the features are configured, the
+     * providers they registered are candidates then, e.g. of a lookup a feature made before it
+     * registered a provider (FeatureContext#register).
+     */
+    public void clearCache() {
+        readers.clear();
+        writers.clear();
+    }
+
+    /**
      * @return The number of the cached readers and writers
      */
     int cachedHandlers() {

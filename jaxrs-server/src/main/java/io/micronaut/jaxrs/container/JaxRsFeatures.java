@@ -148,6 +148,8 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
             }
         }
         complete = true;
+        // the lookups made while the features registered providers did not see all of them
+        registry.clearCache();
         // the dynamic features the features registered configure the resource methods too
         Set<Class<?>> known = new HashSet<>();
         dynamicFeatures.forEach(feature -> known.add(feature.getClass()));
