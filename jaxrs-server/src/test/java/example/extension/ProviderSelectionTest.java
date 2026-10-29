@@ -95,6 +95,11 @@ class ProviderSelectionTest {
     }
 
     @Test
+    void writersAfterTheSelectedOneAreNotAsked() {
+        assertEquals("selected", client.toBlocking().retrieve(HttpRequest.GET("/selected").accept("text/x-selected")));
+    }
+
+    @Test
     void entityStreamOfARequestFilterIsClosed() {
         TrackedStream.closed = 0;
         assertEquals("3", client.toBlocking().retrieve(HttpRequest.POST("/stream", "abc").contentType(MediaType.TEXT_PLAIN)));
@@ -216,6 +221,46 @@ class ProviderSelectionTest {
         }
     }
 
+    public record Selected(String value) {
+    }
+
+    @Requires(property = "spec.name", value = "ProviderSelectionTest")
+    @Provider
+    @Produces("text/x-selected")
+    @Priority(1)
+    public static class SelectedWriter implements MessageBodyWriter<Selected> {
+        @Override
+        public boolean isWriteable(Class<?> type, Type genericType, Annotation[] annotations, jakarta.ws.rs.core.MediaType mediaType) {
+            return type == Selected.class;
+        }
+
+        @Override
+        public void writeTo(Selected selected, Class<?> type, Type genericType, Annotation[] annotations, jakarta.ws.rs.core.MediaType mediaType,
+                            MultivaluedMap<String, Object> httpHeaders, OutputStream entityStream) throws IOException {
+            entityStream.write(selected.value().getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    /**
+     * A later writer, which fails when it is asked.
+     */
+    @Requires(property = "spec.name", value = "ProviderSelectionTest")
+    @Provider
+    @Produces("text/x-selected")
+    @Priority(9000)
+    public static class FailingWriter implements MessageBodyWriter<Selected> {
+        @Override
+        public boolean isWriteable(Class<?> type, Type genericType, Annotation[] annotations, jakarta.ws.rs.core.MediaType mediaType) {
+            throw new IllegalStateException("not asked");
+        }
+
+        @Override
+        public void writeTo(Selected selected, Class<?> type, Type genericType, Annotation[] annotations, jakarta.ws.rs.core.MediaType mediaType,
+                            MultivaluedMap<String, Object> httpHeaders, OutputStream entityStream) {
+            throw new IllegalStateException("not selected");
+        }
+    }
+
     /**
      * Replaces the annotations of every entity written, which keeps its types.
      */
@@ -303,6 +348,13 @@ class ProviderSelectionTest {
         @Produces("text/x-list")
         public List<String> list() {
             return new ArrayList<>(List.of("a"));
+        }
+
+        @GET
+        @Path("selected")
+        @Produces("text/x-selected")
+        public Selected selected() {
+            return new Selected("selected");
         }
 
         @GET

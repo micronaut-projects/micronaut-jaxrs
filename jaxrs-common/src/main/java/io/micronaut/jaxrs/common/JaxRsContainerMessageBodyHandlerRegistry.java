@@ -631,10 +631,10 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
             BeanRegistration<MessageBodyWriter<T>> selected = null;
             for (BeanRegistration<MessageBodyWriter<T>> candidate : candidates) {
                 Annotation[] annotations = JaxRsArgumentUtil.annotations(type.getAnnotationMetadata(), candidate.getBean());
-                // every writer of the type is asked, like the reference implementation does when it
-                // determines the types it can produce; the first one that writes is selected
-                if (candidate.getBean().isWriteable(theType, genericType, annotations, jaxRsType) && selected == null) {
+                // the first one that writes is selected, the later ones are not asked (JAX-RS 4.2.2, step 5)
+                if (candidate.getBean().isWriteable(theType, genericType, annotations, jaxRsType)) {
                     selected = candidate;
+                    break;
                 }
             }
             if (selected == null) {
