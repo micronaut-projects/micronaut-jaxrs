@@ -1104,11 +1104,23 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         if (!perRequest && members.isEmpty()) {
             return null;
         }
-        String[] names = new String[constructorArguments.length];
-        for (int i = 0; i < names.length; i++) {
-            names[i] = constructorArguments[i].getName();
+        // the constructor parameters read from the request, the @Parameters of a prototype bean
+        int count = 0;
+        for (JaxRsRouteSupport.ValueReader reader : constructorReaders) {
+            if (reader != null) {
+                count++;
+            }
         }
-        return new RequestType<>(type, definition != null, introspection, constructorReaders, names, members, usesForm, encodedForm);
+        int[] requestIndexes = new int[count];
+        String[] requestNames = new String[count];
+        for (int i = 0, j = 0; i < constructorReaders.length; i++) {
+            if (constructorReaders[i] != null) {
+                requestIndexes[j] = i;
+                requestNames[j++] = constructorArguments[i].getName();
+            }
+        }
+        return new RequestType<>(type, definition != null, introspection, constructorReaders, requestIndexes, requestNames, members,
+            usesForm, encodedForm);
     }
 
     /**
@@ -1119,20 +1131,17 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     private <T> T create(RequestType<T> requestType, HttpRequest<?> request, PathVariables pathVariables, @Nullable FormData form) {
         JaxRsRouteSupport.@Nullable ValueReader[] readers = requestType.constructorReaders();
         Object[] values = new Object[readers.length];
-        List<String> names = new ArrayList<>();
-        List<Object> requestValues = new ArrayList<>();
-        for (int i = 0; i < readers.length; i++) {
-            JaxRsRouteSupport.ValueReader reader = readers[i];
-            if (reader != null) {
-                values[i] = reader.read(request, pathVariables, form);
-                names.add(requestType.names()[i]);
-                requestValues.add(values[i]);
-            }
+        int[] requestIndexes = requestType.requestIndexes();
+        @Nullable Object[] requestValues = new Object[requestIndexes.length];
+        for (int j = 0; j < requestIndexes.length; j++) {
+            int i = requestIndexes[j];
+            values[i] = Objects.requireNonNull(readers[i]).read(request, pathVariables, form);
+            requestValues[j] = values[i];
         }
         T instance;
         BeanIntrospection<T> introspection = requestType.introspection();
         if (requestType.bean() || introspection == null) {
-            instance = support.create(requestType.type(), names.toArray(String[]::new), requestValues.toArray());
+            instance = support.create(requestType.type(), requestType.requestNames(), requestValues);
         } else {
             instance = beanContext.inject(values.length == 0 ? introspection.instantiate() : introspection.instantiate(values));
         }
@@ -1685,14 +1694,15 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      * @param bean               Whether it is a bean
      * @param introspection      Its introspection
      * @param constructorReaders How to read the values of the parameters of its constructor
-     * @param names              The names of the parameters of its constructor
+     * @param requestIndexes     The indexes of the parameters of its constructor read from the request
+     * @param requestNames       Their names
      * @param members            Its fields and setters with values of the request
      * @param usesForm           Whether it reads the form
      * @param encodedForm        Whether it reads an {@code @Encoded} form field, which needs the raw values of the form
      * @param <T>                The type
      */
     private record RequestType<T>(Class<T> type, boolean bean, @Nullable BeanIntrospection<T> introspection,
-                               JaxRsRouteSupport.@Nullable ValueReader[] constructorReaders, String[] names,
+                               JaxRsRouteSupport.@Nullable ValueReader[] constructorReaders, int[] requestIndexes, String[] requestNames,
                                   List<Member<T>> members, boolean usesForm, boolean encodedForm) {
     }
 }
