@@ -70,7 +70,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
      */
     public static final char LOCATOR_MARK = '\u001F';
 
-    private static final String DEFAULT_REGEX = "[^/]+";
+    private static final String DEFAULT_REGEX = "[^/]+?";
 
     private static final String QS = "qs";
 
