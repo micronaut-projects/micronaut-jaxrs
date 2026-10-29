@@ -94,6 +94,9 @@ final class JaxRsServerFilters implements HttpRoutes {
         StringBuilder target = new StringBuilder();
         if (uri.getRawAuthority() != null) {
             target.append(uri.getScheme()).append("://").append(uri.getRawAuthority());
+        } else if (normalized.startsWith("//")) {
+            // an empty authority: a path that starts with two slashes is not an authority and a path
+            target.append("//");
         }
         target.append(normalized);
         if (uri.getRawQuery() != null) {

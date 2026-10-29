@@ -47,6 +47,13 @@ class UriNormalizationTest {
         assertEquals(true, get("/api/norm/./c/../b").endsWith("b /api/norm/b"));
     }
 
+    @Test
+    void normalizedPathStartingWithTwoSlashesStaysAPath() throws Exception {
+        // the normalized path //evil/api/norm/b is not the authority evil and the path /api/norm/b
+        String response = get("/x/..//evil/api/norm/b");
+        assertTrue(response.startsWith("HTTP/1.1 404"), response);
+    }
+
     /**
      * Sent raw: the clients normalize the path themselves.
      */
