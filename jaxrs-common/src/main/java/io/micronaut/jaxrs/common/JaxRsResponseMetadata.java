@@ -26,6 +26,7 @@ import java.util.AbstractMap;
 import java.util.AbstractSet;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -33,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 
 /**
  * The metadata of a {@link jakarta.ws.rs.core.Response}: the headers as the objects they were given
@@ -45,6 +47,8 @@ import java.util.Set;
  */
 @Internal
 public final class JaxRsResponseMetadata extends AbstractMap<String, List<Object>> implements MultivaluedMap<String, Object> {
+
+    private static final Comparator<@Nullable String> NAME_ORDER = Comparator.nullsFirst(String.CASE_INSENSITIVE_ORDER);
 
     private final MutableHeaders headers;
 
@@ -92,7 +96,8 @@ public final class JaxRsResponseMetadata extends AbstractMap<String, List<Object
 
     @Override
     public boolean containsKey(@Nullable Object key) {
-        return objects.containsKey(key) || (key instanceof String name && headers.contains(name));
+        return ((key == null || key instanceof String) && objects.containsKey(key))
+            || (key instanceof String name && headers.contains(name));
     }
 
     @Override
@@ -148,7 +153,9 @@ public final class JaxRsResponseMetadata extends AbstractMap<String, List<Object
     @Override
     public @Nullable List<Object> remove(@Nullable Object key) {
         List<Object> previous = get(key);
-        objects.remove(key);
+        if (key == null || key instanceof String) {
+            objects.remove(key);
+        }
         if (key instanceof String name) {
             headers.remove(name);
             written.remove(name);
@@ -190,7 +197,12 @@ public final class JaxRsResponseMetadata extends AbstractMap<String, List<Object
      */
     private Set<@Nullable String> keys() {
         Set<@Nullable String> keys = new LinkedHashSet<>(headers.names());
-        keys.addAll(objects.keySet());
+        for (@Nullable String key : objects.keySet()) {
+            // a header name is case-insensitive
+            if (key == null || keys.stream().noneMatch(key::equalsIgnoreCase)) {
+                keys.add(key);
+            }
+        }
         return keys;
     }
 
@@ -241,8 +253,9 @@ public final class JaxRsResponseMetadata extends AbstractMap<String, List<Object
      * objects are the metadata as long as the headers keep these values.
      */
     public static final class State {
-        private final Map<@Nullable String, List<Object>> objects = new HashMap<>();
-        private final Map<String, List<String>> written = new HashMap<>();
+        // RFC 9110 5.1: header names are case-insensitive; a MultivaluedMap takes a null key
+        private final Map<@Nullable String, List<Object>> objects = new TreeMap<>(NAME_ORDER);
+        private final Map<String, List<String>> written = new TreeMap<>(NAME_ORDER);
 
         /**
          * @return A copy, for another response
