@@ -6,7 +6,6 @@ import io.micronaut.http.HttpRequest;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.client.HttpClient;
 import io.micronaut.http.client.annotation.Client;
-import io.micronaut.http.client.exceptions.HttpClientResponseException;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.FormParam;
@@ -17,11 +16,10 @@ import org.junit.jupiter.api.Test;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * A locator located at runtime reads no body: under a resource created with a form field, it is
- * not routed, rather than reading the field from the query.
+ * A locator located at runtime under a resource created with a form field reads the form before
+ * it locates its target, not the field from the query.
  */
 @MicronautTest
 @Property(name = "spec.name", value = "LocatedFormRootTest")
@@ -38,11 +36,9 @@ class LocatedFormRootTest {
     }
 
     @Test
-    void locatorLocatedAtRuntimeIsNotRouted() {
-        HttpClientResponseException e = assertThrows(HttpClientResponseException.class,
-            () -> client.toBlocking().retrieve(HttpRequest.POST("/located?name=query", Map.of("name", "a"))
-                .contentType(MediaType.APPLICATION_FORM_URLENCODED)));
-        assertEquals(404, e.getStatus().getCode());
+    void locatorLocatedAtRuntimeReadsTheForm() {
+        assertEquals("located a", client.toBlocking().retrieve(HttpRequest.POST("/located?name=query", Map.of("name", "a"))
+            .contentType(MediaType.APPLICATION_FORM_URLENCODED)));
     }
 
     @Requires(property = "spec.name", value = "LocatedFormRootTest")

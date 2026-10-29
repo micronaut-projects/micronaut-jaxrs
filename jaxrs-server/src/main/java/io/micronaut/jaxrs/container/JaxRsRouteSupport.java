@@ -60,7 +60,11 @@ import io.micronaut.context.BeanRegistration;
 import io.micronaut.core.util.SupplierUtil;
 import io.micronaut.http.server.HttpServerConfiguration;
 import io.micronaut.scheduling.TaskExecutors;
+import io.micronaut.scheduling.executor.ExecutorSelector;
 import io.micronaut.scheduling.executor.ThreadSelection;
+import io.micronaut.context.exceptions.ConfigurationException;
+import io.micronaut.core.propagation.PropagatedContext;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
@@ -199,6 +203,8 @@ public final class JaxRsRouteSupport {
     private final Map<Argument<?>, Optional<ArgumentBinder<Object, HttpRequest<?>>>> contextBinders = new ConcurrentHashMap<>();
 
     private final BeanContext beanContext;
+    // the executors of the sub-resource locators that read the form, by name
+    private final Map<String, Executor> locatorExecutors = new ConcurrentHashMap<>();
 
     private final Map<ConverterKey, StringConverter> converters = new ConcurrentHashMap<>();
 
@@ -305,7 +311,7 @@ public final class JaxRsRouteSupport {
     }
 
     /**
-     * The prefix of a sub-resource locator known only at runtime, in the language of JAX-RS,
+     * The prefix of a sub-resource locator, in the language of JAX-RS,
      * under the {@code @ApplicationPath} of the application.
      *
      * @param template The joined {@code @Path} values up to the locator
@@ -472,6 +478,59 @@ public final class JaxRsRouteSupport {
             .thenApplyAsync(form -> filteredForm(request, form), executor)
             .thenCompose(form -> readParts(request, form))
             .thenComposeAsync(form -> call(handler, request, pathVariables, form), executor);
+    }
+
+    /**
+     * Locate the target of a sub-resource locator that reads the form, or one of a resource that
+     * leads to it, does: the locator runs once the form is read, off the event loop, on the
+     * executor of its {@code @ExecuteOn}, like a locator that reads no form. The located routes
+     * read the same form.
+     *
+     * @param executorName The name of the executor of the locator
+     * @param request      The request
+     * @param form         The form, read by the locator route
+     * @param locator      Locates the target with the form
+     * @param <T>          The type of the target
+     * @return The stage of the target
+     */
+    public <T> CompletionStage<@Nullable T> locateWithForm(String executorName, HttpRequest<?> request,
+                                                           CompletionStage<FormData> form, FormLocator<T> locator) {
+        Executor executor = locatorExecutor(executorName);
+        PropagatedContext context = PropagatedContext.getOrEmpty();
+        return form
+            .thenApplyAsync(read -> filteredForm(request, read), executor)
+            .thenCompose(read -> readParts(request, read))
+            .thenApplyAsync(read -> context.propagate(() -> {
+                try {
+                    return locator.locate(read);
+                } catch (Exception e) {
+                    // the router answers the cause with the error routes
+                    throw new CompletionException(e);
+                }
+            }), executor);
+    }
+
+    /**
+     * The form a sub-resource locator reads from a copy of the body, with the raw values of an
+     * url-encoded form for an {@code @Encoded} form parameter: the empty form of a request that
+     * is not a form, whose body is not read.
+     *
+     * @param request The request
+     * @param body    A copy of the body
+     * @return The form
+     */
+    public CompletionStage<FormData> rawLocatorForm(HttpRequest<?> request, AsyncRequestBody body) {
+        if (isUrlEncoded(request)) {
+            request.setAttribute(RAW_FORM, Boolean.TRUE);
+            return body.form(FormOptions.defaults().withRawValues());
+        }
+        boolean multipart = request.getContentType().map(MediaType.MULTIPART_FORM_DATA_TYPE::matches).orElse(false);
+        return multipart ? body.form() : CompletableFuture.completedFuture(FormData.empty());
+    }
+
+    private Executor locatorExecutor(String name) {
+        return locatorExecutors.computeIfAbsent(name, n -> beanContext.getBean(ExecutorSelector.class).select(n)
+            .orElseThrow(() -> new ConfigurationException("No executor configured for name: " + n + ", of a sub-resource locator")));
     }
 
     /**
@@ -1871,5 +1930,22 @@ public final class JaxRsRouteSupport {
         HttpResponse<?> negotiate(HttpRequest<?> request, HttpResponse<?> response, Argument<?> type) {
             return response.getContentType().isPresent() ? response : support.negotiate(request, response, type, false);
         }
+    }
+
+    /**
+     * Locates the target of a sub-resource locator with the form.
+     *
+     * @param <T> The type of the target
+     */
+    @FunctionalInterface
+    public interface FormLocator<T> {
+        /**
+         * Locate the target.
+         *
+         * @param form The form
+         * @return The target, {@code null} for none
+         * @throws Exception An error
+         */
+        @Nullable T locate(FormData form) throws Exception;
     }
 }

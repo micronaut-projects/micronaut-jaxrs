@@ -132,12 +132,6 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
 
     private static final String INTRODUCTION = "io.micronaut.aop.Introduction";
 
-    /**
-     * How many times a type can appear in a chain of sub-resource locators: a locator returning
-     * its own type is followed to this depth, then located at runtime.
-     */
-    private static final int MAX_LOCATOR_REPEAT = 2;
-
     // the attribute of a request with the form its route read
     private static final String FORM = JaxRsRuntimeRoutes.class.getName() + ".form";
 
@@ -237,9 +231,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             ? (request, pathVariables, form, target) -> support.matched(request, instances.get(), rootSegments.count(pathVariables))
             : (request, pathVariables, form, target) -> support.matched(request, create(requestType, request, pathVariables, form),
                 rootSegments.count(pathVariables));
-        Map<Class<?>, Integer> visited = new LinkedHashMap<>();
-        visited.put(type, 1);
-        declare(routes, type, root.methods(), type, prefix, instance, requestType != null && requestType.usesForm(), visited, false,
+        declare(routes, type, root.methods(), type, prefix, instance, requestType != null && requestType.usesForm(),
             requestType != null && requestType.encodedForm());
     }
 
@@ -265,10 +257,8 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             @Override
             public void routes(LocatedHttpRouteBuilder<T> routes) {
                 support.locatedRoutes(routes, group -> {
-                    Map<Class<?>, Integer> visited = new LinkedHashMap<>();
-                    visited.put(type, 1);
                     Instances<T, T> instances = (request, pathVariables, form, target) -> Objects.requireNonNull(target, "target");
-                    declare(new LocatedGroupRoutes<>(group), type, methods(type), type, "", instances, false, visited, false, false);
+                    declare(new LocatedGroupRoutes<>(group), type, methods(type), type, "", instances, false, false);
                 });
             }
         };
@@ -464,8 +454,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      * Declare the routes of the resource methods and locators of a class.
      */
     private <L, B> void declare(Routes<L> routes, Class<?> type, List<JaxRsMethod<B>> methods, Class<?> rootClass, String path,
-                                Instances<L, B> instances, boolean rootUsesForm, Map<Class<?>, Integer> visited,
-                                boolean chainUsesForm, boolean chainEncodedForm) {
+                                Instances<L, B> instances, boolean rootUsesForm, boolean rootEncodedForm) {
         AnnotationMetadata classMetadata = classMetadata(type);
         boolean typeUsesResourceContext = usesResourceContext(type);
         for (JaxRsMethod<B> method : methods) {
@@ -478,12 +467,12 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 if (resourceMethod != null) {
                     boolean usesResourceContext = typeUsesResourceContext
                         || Arrays.stream(method.arguments()).anyMatch(argument -> argument.getType() == ResourceContext.class);
-                    route(routes, resourceMethod, instances, rootUsesForm || chainUsesForm, chainEncodedForm, usesResourceContext);
+                    route(routes, resourceMethod, instances, rootUsesForm, rootEncodedForm, usesResourceContext);
                 }
             } else if (methodPath != null) {
                 // a resource method is selected before a locator: the end of its @Path is marked
                 String prefix = template(path, methodPath) + JaxRsRouteTemplateEngine.LOCATOR_MARK;
-                locator(routes, classMetadata, rootClass, method, prefix, instances, rootUsesForm, visited, chainUsesForm, chainEncodedForm);
+                locator(routes, classMetadata, method, prefix, instances, rootUsesForm, rootEncodedForm);
             }
         }
     }
@@ -502,18 +491,16 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      * of the path with the routes of the class of the target it returns, once it selected the
      * locator (JAX-RS 3.7.2, step 2): the target may be of a subclass of the declared type
      * (JAX-RS 3.4.1), and the locator reads its parameters from its own prefix. A locator that
-     * reads a form parameter, or one of a resource that does, is followed instead, as a located
-     * locator reads no body: the routes of its known target class are declared under its prefix,
-     * and call the locator. A locator that returns a class creates an instance of exactly
-     * that class.
+     * reads a form parameter, or one of a resource that does, reads the form before it locates
+     * its target, and the located routes read the same form. A locator that returns a class
+     * creates an instance of exactly that class.
      */
-    private <L, B> void locator(Routes<L> routes, AnnotationMetadata classMetadata, Class<?> rootClass, JaxRsMethod<B> method, String prefix,
-                                Instances<L, B> instances, boolean rootUsesForm, Map<Class<?>, Integer> visited, boolean chainUsesForm,
-                                boolean chainEncodedForm) {
+    private <L, B> void locator(Routes<L> routes, AnnotationMetadata classMetadata, JaxRsMethod<B> method, String prefix,
+                                Instances<L, B> instances, boolean rootUsesForm, boolean rootEncodedForm) {
         Argument<?>[] arguments = arguments(method);
         Reader[] readers = new Reader[arguments.length];
-        boolean usesForm = chainUsesForm;
-        boolean encodedForm = chainEncodedForm;
+        boolean usesForm = rootUsesForm;
+        boolean encodedForm = rootEncodedForm;
         for (int i = 0; i < arguments.length; i++) {
             Argument<?> argument = arguments[i];
             if (!isRequestAnnotated(argument.getAnnotationMetadata())) {
@@ -524,35 +511,10 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             usesForm |= usesForm(argument);
             encodedForm |= usesEncodedForm(argument, encoded(argument, method.metadata(), classMetadata));
         }
-        Argument<?> returned = method.returnType();
-        boolean classReturn = returned.getType() == Class.class;
-        Class<?> target = returned.getType();
-        if (classReturn) {
-            Argument<?> typeArgument = returned.getFirstTypeVariable().orElse(null);
-            target = typeArgument == null ? Object.class : typeArgument.getType();
-        }
-        int occurrences = visited.getOrDefault(target, 0);
-        boolean known = !target.isPrimitive() && target != Object.class && !Response.class.isAssignableFrom(target)
-            && occurrences < MAX_LOCATOR_REPEAT;
-        if (known && (classReturn || usesForm || rootUsesForm) && follow(routes, rootClass, method, readers, prefix, instances, target, rootUsesForm, visited, usesForm, encodedForm)) {
-            return;
-        }
-        // known only at runtime, or recursive: the paths cannot be enumerated
-        if (classReturn) {
-            LOG.info("The JAX-RS sub-resource locator {} returns a class known only at runtime: it is not routed", method.name());
-            return;
-        }
-        if (usesForm || rootUsesForm) {
-            // a locator located at runtime reads no body: the resources up to it would read the
-            // form fields from the query
-            LOG.warn("The JAX-RS sub-resource locator {} known only at runtime, or a resource that leads to it, reads a form parameter: it is not routed",
-                method.name());
-            return;
-        }
         MatchedSegments matchedSegments = MatchedSegments.of(prefix);
         boolean located = routes.located();
-        routes.locate(executor(method.metadata(), classMetadata), routes.prefix(prefix), (request, pathVariables, target1) -> {
-            B instance = instances.get(request, pathVariables, null, target1);
+        Locator<L> locator = (request, pathVariables, target, form) -> {
+            B instance = instances.get(request, pathVariables, form, target);
             int segments = matchedSegments.count(pathVariables);
             if (located) {
                 // the prefix is relative to the one of the locator that located the resource
@@ -560,12 +522,13 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 int base = matched == null ? -1 : matched.segments().get(0);
                 segments = base < 0 ? -1 : base + segments;
             }
-            return support.matched(request, locate(method, instance, readers, request, pathVariables, null, segments), segments);
-        });
+            return support.matched(request, locate(method, instance, readers, request, pathVariables, form, segments), segments);
+        };
+        routes.locate(executor(method.metadata(), classMetadata), routes.prefix(prefix), usesForm, encodedForm, locator);
     }
 
     /**
-     * The name of the executor a locator known only at runtime runs on, off the event loop as it
+     * The name of the executor a locator runs on, off the event loop as it
      * may block: the one of its {@code @ExecuteOn}, or of its class, like a resource method,
      * otherwise {@link TaskExecutors#BLOCKING}.
      */
@@ -573,35 +536,6 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         return methodMetadata.stringValue(ExecuteOn.class)
             .or(() -> classMetadata.stringValue(ExecuteOn.class))
             .orElse(TaskExecutors.BLOCKING);
-    }
-
-    /**
-     * Follow a locator to the class of its target: the routes of the class under the prefix of
-     * the locator, which call the locator.
-     *
-     * @return Whether the class has routes
-     */
-    private <L, B, T> boolean follow(Routes<L> routes, Class<?> rootClass, JaxRsMethod<B> method, Reader[] readers, String prefix,
-                                     Instances<L, B> instances, Class<T> target, boolean rootUsesForm,
-                                     Map<Class<?>, Integer> visited, boolean usesForm, boolean encodedForm) {
-        List<JaxRsMethod<T>> targetMethods = methods(target);
-        if (targetMethods.isEmpty()) {
-            return false;
-        }
-        MatchedSegments matchedSegments = MatchedSegments.of(prefix);
-        Instances<L, T> chained = (request, pathVariables, form, located) -> {
-            B instance = instances.get(request, pathVariables, form, located);
-            int segments = matchedSegments.count(pathVariables);
-            return support.matched(request, target.cast(locate(method, instance, readers, request, pathVariables, form, segments)), segments);
-        };
-        int occurrences = visited.getOrDefault(target, 0);
-        visited.put(target, occurrences + 1);
-        try {
-            declare(routes, target, targetMethods, rootClass, prefix, chained, rootUsesForm, visited, usesForm, encodedForm);
-        } finally {
-            visited.put(target, occurrences);
-        }
-        return true;
     }
 
     /**
@@ -1449,13 +1383,13 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     }
 
     /**
-     * Locates the target of a locator known only at runtime.
+     * Locates the target of a locator, with the form it read, {@code null} if it reads none.
      *
      * @param <L> The type of the target the locator is located on
      */
     @FunctionalInterface
     private interface Locator<L> {
-        @Nullable Object locate(HttpRequest<?> request, PathVariables pathVariables, @Nullable L target) throws Exception;
+        @Nullable Object locate(HttpRequest<?> request, PathVariables pathVariables, @Nullable L target, @Nullable FormData form) throws Exception;
     }
 
     /**
@@ -1491,7 +1425,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
 
         void handleAsync(Declaration route, AsyncHandler<L> handler);
 
-        void locate(String executor, String prefix, Locator<L> locator);
+        void locate(String executor, String prefix, boolean form, boolean rawForm, Locator<L> locator);
     }
 
     /**
@@ -1544,11 +1478,23 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         }
 
         @Override
-        public void locate(String executor, String prefix, Locator<@Nullable Void> locator) {
+        public void locate(String executor, String prefix, boolean form, boolean rawForm, Locator<@Nullable Void> locator) {
             // the router does not select a locator route as JAX-RS does: a root resource class with a more
             // specific @Path that matches the path, but none of whose routes does, answers 404
-            routes.<Object>locateOn(executor, prefix, (request, pathVariables) -> support.commitsToLocator(request, prefix)
-                ? locator.locate(request, pathVariables, null) : null, support.locatedRoutes());
+            if (!form) {
+                routes.<Object>locateOn(executor, prefix, (request, pathVariables) -> support.commitsToLocator(request, prefix)
+                    ? locator.locate(request, pathVariables, null, null) : null, support.locatedRoutes());
+            } else if (rawForm) {
+                routes.locator(prefix).body().<Object>locateAsync((request, pathVariables, body) -> support.commitsToLocator(request, prefix)
+                    ? support.locateWithForm(executor, request, support.rawLocatorForm(request, body),
+                        read -> locator.locate(request, pathVariables, null, read))
+                    : CompletableFuture.completedFuture(null), support.locatedRoutes());
+            } else {
+                routes.locator(prefix).form().<Object>locateAsync((request, pathVariables, read) -> support.commitsToLocator(request, prefix)
+                    ? support.locateWithForm(executor, request, CompletableFuture.completedFuture(read),
+                        value -> locator.locate(request, pathVariables, null, value))
+                    : CompletableFuture.completedFuture(null), support.locatedRoutes());
+            }
         }
     }
 
@@ -1607,9 +1553,22 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         }
 
         @Override
-        public void locate(String executor, String prefix, Locator<L> locator) {
-            routes.<Object>locateOn(executor, prefix, (LocatedLocatorHandler<L, Object>) (request, pathVariables, target) -> locator.locate(request, pathVariables, target),
-                support.locatedRoutes());
+        @SuppressWarnings("unchecked")
+        public void locate(String executor, String prefix, boolean form, boolean rawForm, Locator<L> locator) {
+            if (!form) {
+                routes.<Object>locateOn(executor, prefix, (LocatedLocatorHandler<L, Object>) (request, pathVariables, target) ->
+                    locator.locate(request, pathVariables, target, null), support.locatedRoutes());
+            } else if (rawForm) {
+                routes.locator(prefix).body().<Object>locateAsync((request, pathVariables, body) ->
+                    support.locateWithForm(executor, request, support.rawLocatorForm(request, body),
+                        read -> locator.locate(request, pathVariables, (L) LocatedRoutes.locatedTarget(pathVariables), read)),
+                    support.locatedRoutes());
+            } else {
+                routes.locator(prefix).form().<Object>locateAsync((request, pathVariables, read) ->
+                    support.locateWithForm(executor, request, CompletableFuture.completedFuture(read),
+                        value -> locator.locate(request, pathVariables, (L) LocatedRoutes.locatedTarget(pathVariables), value)),
+                    support.locatedRoutes());
+            }
         }
     }
 
