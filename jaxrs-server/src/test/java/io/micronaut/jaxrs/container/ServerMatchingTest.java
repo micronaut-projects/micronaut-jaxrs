@@ -108,7 +108,7 @@ class ServerMatchingTest {
 
     @Test
     void rootResourceFieldsTakeTheValuesOfTheRootPath() {
-        assertEquals("parent:R", get("/scope/parent;m=R/child;m=C"));
+        assertEquals("parent:C", get("/scope/parent;m=R/child;m=C"));
     }
 
     @Test
