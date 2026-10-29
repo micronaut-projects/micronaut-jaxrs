@@ -364,7 +364,8 @@ final class JaxRsAsyncResponse implements AsyncResponse {
 
     @Override
     public synchronized boolean isDone() {
-        return state != State.SUSPENDED;
+        // resumed or cancelled, and its response processed: not while resume converts it
+        return state != State.SUSPENDED && response.isDone();
     }
 
     @Override

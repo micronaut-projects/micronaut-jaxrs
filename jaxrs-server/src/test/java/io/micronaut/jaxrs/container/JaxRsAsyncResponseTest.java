@@ -36,6 +36,34 @@ class JaxRsAsyncResponseTest {
     }
 
     @Test
+    void notDoneWhileTheResumedValueIsProcessed() throws Exception {
+        var converting = new java.util.concurrent.CountDownLatch(1);
+        var release = new java.util.concurrent.CountDownLatch(1);
+        var asyncResponse = new JaxRsAsyncResponse(value -> {
+            converting.countDown();
+            try {
+                release.await(10, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return HttpResponse.ok(value);
+        }, () -> null, () -> null);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            Future<Boolean> resumed = executor.submit(() -> asyncResponse.resume("ok"));
+            assertTrue(converting.await(10, TimeUnit.SECONDS));
+            assertFalse(asyncResponse.isDone());
+            assertFalse(asyncResponse.isSuspended());
+            release.countDown();
+            assertTrue(resumed.get(10, TimeUnit.SECONDS));
+            assertTrue(asyncResponse.isDone());
+        } finally {
+            release.countDown();
+            executor.shutdown();
+        }
+    }
+
+    @Test
     void resumeAndCancelAreExclusive() throws Exception {
         ExecutorService executor = Executors.newFixedThreadPool(2);
         try {
