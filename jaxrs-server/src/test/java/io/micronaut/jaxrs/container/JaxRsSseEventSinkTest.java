@@ -108,6 +108,61 @@ class JaxRsSseEventSinkTest {
         assertTrue(received.isEmpty());
     }
 
+    @Test
+    void lineBreaksDoNotStartAnotherEvent() {
+        // a CR, an LF and a CRLF each end a line of the event stream (HTML 9.2.5): the data lines
+        // are written by the stream writer on LF, so every line break of the data becomes an LF
+        var sink = new JaxRsSseEventSink(e -> String.valueOf(e.getData()));
+        var subscription = new AtomicReference<Subscription>();
+        List<Event<String>> received = new CopyOnWriteArrayList<>();
+        sink.publisher().subscribe(new Subscriber<>() {
+            @Override
+            public void onSubscribe(Subscription s) {
+                subscription.set(s);
+            }
+
+            @Override
+            public void onNext(Event<String> e) {
+                received.add(e);
+            }
+
+            @Override
+            public void onError(Throwable t) {
+            }
+
+            @Override
+            public void onComplete() {
+            }
+        });
+        subscription.get().request(Long.MAX_VALUE);
+
+        sink.send(new JaxRsOutboundSseEvent.Builder().data("safe\r\rdata: forged\r\nx")
+            .comment("note\revent: forged").build());
+        assertEquals("safe\n\ndata: forged\nx", received.get(0).getData());
+        assertEquals("note\n: event: forged", received.get(0).getComment());
+
+        // the name and the id are one line
+        CompletableFuture<?> name = sink.send(new JaxRsOutboundSseEvent.Builder().data("d")
+            .name("a\nevent: b").build()).toCompletableFuture();
+        CompletableFuture<?> id = sink.send(new JaxRsOutboundSseEvent.Builder().data("d")
+            .id("a\rb").build()).toCompletableFuture();
+        assertInstanceOf(IllegalArgumentException.class, assertThrows(ExecutionException.class, name::get).getCause());
+        assertInstanceOf(IllegalArgumentException.class, assertThrows(ExecutionException.class, id::get).getCause());
+        assertEquals(1, received.size());
+    }
+
+    @Test
+    void thePendingEventsAreBounded() {
+        var sink = new JaxRsSseEventSink(e -> String.valueOf(e.getData()));
+        sink.publisher().subscribe(new TestSubscriber(new AtomicReference<>(), new CopyOnWriteArrayList<>()));
+        for (int i = 0; i < JaxRsSseEventSink.PENDING_LIMIT; i++) {
+            sink.send(event("e"));
+        }
+        // a producer ignoring the stages cannot grow the buffer without bound
+        CompletableFuture<?> over = sink.send(event("over")).toCompletableFuture();
+        assertInstanceOf(IllegalStateException.class, assertThrows(ExecutionException.class, over::get).getCause());
+    }
+
     private record TestSubscriber(AtomicReference<Subscription> subscription,
                                   List<String> received) implements Subscriber<Event<String>> {
         @Override

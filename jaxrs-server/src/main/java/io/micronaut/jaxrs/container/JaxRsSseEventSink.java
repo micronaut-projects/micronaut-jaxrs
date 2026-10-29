@@ -33,6 +33,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 
 /**
  * The sink of the events a resource method sends (JAX-RS 9.3): the stream of the
@@ -52,6 +53,10 @@ final class JaxRsSseEventSink implements SseEventSink, Publisher<Event<String>>,
 
     // the events a resource method can buffer before the response is written, with a completed stage
     static final int UNSUBSCRIBED_LIMIT = 256;
+    // the events waiting for the demand of the connection: a producer ignoring the stages of its
+    // sends fails then, rather than growing the buffer without bound
+    static final int PENDING_LIMIT = 65_536;
+    private static final Pattern LINE_BREAK = Pattern.compile("\\r\\n|\\r|\\n");
 
     private final Function<OutboundSseEvent, String> dataWriter;
     private final List<Runnable> onClose = new CopyOnWriteArrayList<>();
@@ -207,10 +212,12 @@ final class JaxRsSseEventSink implements SseEventSink, Publisher<Event<String>>,
         }
         try {
             String data = event.getData() == null ? "" : dataWriter.apply(event);
-            Event<String> sent = Event.of(data)
-                .id(event.getId())
-                .name(event.getName())
-                .comment(event.getComment());
+            // the stream writer starts a data line on each LF only: a CR or a CRLF would end the
+            // line, and could start another field or event (HTML 9.2.5)
+            Event<String> sent = Event.of(LINE_BREAK.matcher(data).replaceAll("\n"))
+                .id(singleLine(event.getId(), "id"))
+                .name(singleLine(event.getName(), "name"))
+                .comment(event.getComment() == null ? null : LINE_BREAK.matcher(event.getComment()).replaceAll("\n: "));
             if (event.isReconnectDelaySet()) {
                 sent = sent.retry(Duration.ofMillis(event.getReconnectDelay()));
             }
@@ -223,6 +230,10 @@ final class JaxRsSseEventSink implements SseEventSink, Publisher<Event<String>>,
                 if (completed) {
                     // closed while the data was written: not published after the completion
                     return CompletableFuture.failedFuture(new IllegalStateException("The event sink is closed"));
+                }
+                if (buffer.size() >= PENDING_LIMIT) {
+                    return CompletableFuture.failedFuture(new IllegalStateException(
+                        "Too many events wait to be sent: " + PENDING_LIMIT));
                 }
                 if (subscriber == null && buffer.size() < UNSUBSCRIBED_LIMIT) {
                     // buffered until the response is written, after the resource method
@@ -240,6 +251,13 @@ final class JaxRsSseEventSink implements SseEventSink, Publisher<Event<String>>,
         } catch (RuntimeException e) {
             return CompletableFuture.failedFuture(e);
         }
+    }
+
+    private static @Nullable String singleLine(@Nullable String value, String field) {
+        if (value != null && (value.indexOf('\n') >= 0 || value.indexOf('\r') >= 0)) {
+            throw new IllegalArgumentException("The " + field + " of an event cannot contain a line break");
+        }
+        return value;
     }
 
     @Override
