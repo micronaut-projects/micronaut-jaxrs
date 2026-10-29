@@ -9,11 +9,16 @@ import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.client.ClientBuilder;
 import jakarta.ws.rs.client.ClientRequestFilter;
+import jakarta.ws.rs.client.ClientResponseFilter;
 import jakarta.ws.rs.client.WebTarget;
+import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.sse.InboundSseEvent;
 import jakarta.ws.rs.sse.SseEventSource;
 import org.junit.jupiter.api.Test;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -21,6 +26,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -73,6 +79,78 @@ class JaxRsSseEventSourceTest {
         } finally {
             client.close();
             executor.shutdown();
+        }
+    }
+
+    @Test
+    void responseFiltersRunOnTheExecutorOfTheClient() throws Exception {
+        ExecutorService executor = Executors.newSingleThreadExecutor(r -> new Thread(r, "sse-test-executor"));
+        Client client = ClientBuilder.newBuilder().executorService(executor).build();
+        try {
+            CompletableFuture<String> filterThread = new CompletableFuture<>();
+            WebTarget target = target(client, "events")
+                .register((ClientRequestFilter) context -> context.getHeaders().putSingle("Authorization", "Bearer token"))
+                .register((ClientResponseFilter) (request, response) -> filterThread.complete(Thread.currentThread().getName()));
+            try (SseEventSource source = SseEventSource.target(target).build()) {
+                source.register(event -> { });
+                source.open();
+                assertEquals("sse-test-executor", filterThread.get(10, TimeUnit.SECONDS));
+            }
+        } finally {
+            client.close();
+            executor.shutdown();
+        }
+    }
+
+    @Test
+    void aResponseFilterReplacesTheEventStream() throws Exception {
+        Client client = ClientBuilder.newClient();
+        try {
+            var replacement = new ByteArrayInputStream("data: replacement\n\n".getBytes(StandardCharsets.UTF_8)) {
+                volatile boolean closed;
+
+                @Override
+                public void close() throws IOException {
+                    closed = true;
+                    super.close();
+                }
+            };
+            WebTarget target = target(client, "endless")
+                .register((ClientResponseFilter) (request, response) -> response.setEntityStream(replacement));
+            CompletableFuture<String> received = new CompletableFuture<>();
+            try (SseEventSource source = SseEventSource.target(target).reconnectingEvery(1, TimeUnit.HOURS).build()) {
+                source.register(event -> received.complete(event.readData()));
+                source.open();
+                assertEquals("replacement", received.get(10, TimeUnit.SECONDS));
+            }
+            assertTrue(replacement.closed);
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void anAbortedRequestIsFilteredByTheResponseFilters() throws Exception {
+        Client client = ClientBuilder.newClient();
+        try {
+            AtomicInteger filtered = new AtomicInteger();
+            WebTarget target = target(client, "events")
+                .register((ClientRequestFilter) context -> context.abortWith(Response.noContent().build()))
+                .register((ClientResponseFilter) (request, response) -> {
+                    filtered.incrementAndGet();
+                    response.setStatus(500);
+                });
+            try (SseEventSource source = SseEventSource.target(target).build()) {
+                CompletableFuture<Throwable> ended = new CompletableFuture<>();
+                source.register(event -> { }, ended::complete, () -> ended.complete(null));
+                source.open();
+                Throwable error = ended.get(10, TimeUnit.SECONDS);
+                assertEquals(1, filtered.get());
+                assertTrue(error instanceof WebApplicationException, () -> String.valueOf(error));
+                assertEquals(500, ((WebApplicationException) error).getResponse().getStatus());
+            }
+        } finally {
+            client.close();
         }
     }
 
