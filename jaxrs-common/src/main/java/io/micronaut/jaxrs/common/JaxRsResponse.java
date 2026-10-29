@@ -249,7 +249,16 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
 
     @Override
     public @Nullable Date getLastModified() {
-        return response.getHeaders().getFirst(HttpHeaders.LAST_MODIFIED, Date.class).orElse(null);
+        // any of the HTTP date formats, the obsolete ones too (RFC 9110 5.6.7)
+        String lastModified = response.getHeaders().get(HttpHeaders.LAST_MODIFIED);
+        if (lastModified == null) {
+            return null;
+        }
+        try {
+            return getInstance().createHeaderDelegate(Date.class).fromString(lastModified);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     @Override

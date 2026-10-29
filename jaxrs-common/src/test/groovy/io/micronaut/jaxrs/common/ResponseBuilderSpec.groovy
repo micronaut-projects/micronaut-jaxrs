@@ -265,4 +265,26 @@ class ResponseBuilderSpec extends Specification {
         Response.ok().allow("GET").allow("POST").build().allowedMethods == ["POST"] as Set
         Response.ok().allow("GET").allow(["POST"] as Set).build().allowedMethods == ["POST"] as Set
     }
+
+    void "a header removed through the string headers is not a key of the metadata"() {
+        given:
+        def response = Response.ok().lastModified(new Date(0)).build()
+
+        when:
+        response.getStringHeaders().remove(HttpHeaders.LAST_MODIFIED)
+
+        then:
+        !response.getHeaders().containsKey(HttpHeaders.LAST_MODIFIED)
+        !response.getHeaders().keySet().contains(HttpHeaders.LAST_MODIFIED)
+        response.getHeaders().isEmpty()
+    }
+
+    void "the last modified date is read in an obsolete HTTP date format"() {
+        expect:
+        Response.ok().header(HttpHeaders.LAST_MODIFIED, "Sunday, 06-Nov-94 08:49:37 GMT").build().lastModified ==
+            Date.from(java.time.Instant.parse("1994-11-06T08:49:37Z"))
+        Response.ok().header(HttpHeaders.LAST_MODIFIED, "Sun Nov  6 08:49:37 1994").build().lastModified ==
+            Date.from(java.time.Instant.parse("1994-11-06T08:49:37Z"))
+        Response.ok().header(HttpHeaders.LAST_MODIFIED, "not a date").build().lastModified == null
+    }
 }
