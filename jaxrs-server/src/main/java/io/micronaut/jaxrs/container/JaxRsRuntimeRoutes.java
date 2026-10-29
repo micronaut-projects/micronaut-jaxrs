@@ -1046,6 +1046,9 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         Argument<?>[] constructorArguments = definition != null ? definition.getConstructor().getArguments()
             : introspection != null ? introspection.getConstructorArguments() : new Argument<?>[0];
         boolean encodedType = introspection != null && introspection.hasAnnotation(Encoded.class);
+        // an @Encoded constructor keeps the values of its parameters encoded
+        boolean encodedConstructor = definition != null ? definition.getConstructor().getAnnotationMetadata().hasAnnotation(Encoded.class)
+            : introspection != null && introspection.getConstructor().getAnnotationMetadata().hasAnnotation(Encoded.class);
         JaxRsRouteSupport.@Nullable ValueReader[] constructorReaders = new JaxRsRouteSupport.ValueReader[constructorArguments.length];
         boolean perRequest = false;
         boolean usesForm = false;
@@ -1053,7 +1056,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         for (int i = 0; i < constructorArguments.length; i++) {
             Argument<?> argument = constructorArguments[i];
             if (isRequestAnnotated(argument.getAnnotationMetadata())) {
-                boolean encoded = encodedType || argument.getAnnotationMetadata().hasAnnotation(Encoded.class);
+                boolean encoded = encodedType || encodedConstructor || argument.getAnnotationMetadata().hasAnnotation(Encoded.class);
                 constructorReaders[i] = support.reader(argument.getAnnotationMetadata(), argument, encoded);
                 perRequest = true;
                 usesForm |= usesForm(argument);
