@@ -178,6 +178,15 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
             }
 
             @Override
+            void release() {
+                super.release();
+                if (innerResponse != null) {
+                    innerResponse.close();
+                    innerResponse = null;
+                }
+            }
+
+            @Override
             <U> void writeInner0(ResponseBodyWriter<U> rbw, Argument<U> argument, U entity) {
                 if (outputIntercepted) {
                     super.writeInner0(rbw, argument, entity);
@@ -345,6 +354,19 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
             }
         }
 
+        /**
+         * Release what was written so far, e.g. when an interceptor fails after proceeding: the
+         * buffer created here and the body of the writer.
+         */
+        void release() {
+            closeBuffer();
+            CloseableByteBody written = body;
+            if (written != null) {
+                body = null;
+                written.close();
+            }
+        }
+
         @Override
         public void finish() throws IOException {
             if (outputIntercepted && !finished) {
@@ -380,7 +402,7 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
             try {
                 run0();
             } catch (RuntimeException e) {
-                closeBuffer();
+                release();
                 throw e;
             }
         }
