@@ -105,9 +105,9 @@ final class JaxRsContextRequest implements Request {
         }
         HttpRequest<?> request = request();
         if (!ifMatch(request, eTag)) {
-            return Response.status(Response.Status.PRECONDITION_FAILED);
+            return withVary(request, Response.status(Response.Status.PRECONDITION_FAILED));
         }
-        return ifNoneMatch(request, eTag);
+        return withVary(request, ifNoneMatch(request, eTag));
     }
 
     @Override
@@ -118,9 +118,9 @@ final class JaxRsContextRequest implements Request {
         HttpRequest<?> request = request();
         long modified = lastModified.getTime() / 1000;
         if (!ifUnmodifiedSince(request, modified)) {
-            return Response.status(Response.Status.PRECONDITION_FAILED);
+            return withVary(request, Response.status(Response.Status.PRECONDITION_FAILED));
         }
-        return ifModifiedSince(request, modified) ? null : Response.notModified();
+        return ifModifiedSince(request, modified) ? null : withVary(request, Response.notModified());
     }
 
     @Override
@@ -136,20 +136,32 @@ final class JaxRsContextRequest implements Request {
             ? ifMatch(request, eTag)
             : ifUnmodifiedSince(request, modified);
         if (!unmodified) {
-            return Response.status(Response.Status.PRECONDITION_FAILED);
+            return withVary(request, Response.status(Response.Status.PRECONDITION_FAILED));
         }
         if (request.getHeaders().contains(HttpHeaders.IF_NONE_MATCH)) {
-            return ifNoneMatch(request, eTag);
+            return withVary(request, ifNoneMatch(request, eTag));
         }
-        return ifModifiedSince(request, modified) ? null : Response.notModified(eTag);
+        return ifModifiedSince(request, modified) ? null : withVary(request, Response.notModified(eTag));
     }
 
     @Override
     public Response.@Nullable ResponseBuilder evaluatePreconditions() {
         // the resource does not exist: any If-Match fails
-        return request().getHeaders().contains(HttpHeaders.IF_MATCH)
-            ? Response.status(Response.Status.PRECONDITION_FAILED)
+        HttpRequest<?> request = request();
+        return request.getHeaders().contains(HttpHeaders.IF_MATCH)
+            ? withVary(request, Response.status(Response.Status.PRECONDITION_FAILED))
             : null;
+    }
+
+    /**
+     * A response of a precondition with the {@code Vary} header {@link #selectVariant} computed.
+     */
+    private static Response.@Nullable ResponseBuilder withVary(HttpRequest<?> request, Response.@Nullable ResponseBuilder builder) {
+        if (builder == null) {
+            return null;
+        }
+        request.getAttribute(VARY, String.class).ifPresent(vary -> builder.header(HttpHeaders.VARY, vary));
+        return builder;
     }
 
     private static HttpRequest<?> request() {
