@@ -17,12 +17,10 @@ package io.micronaut.jaxrs.client;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.convert.ConversionService;
-import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpMethod;
 import io.micronaut.http.MutableHttpHeaders;
 import io.micronaut.http.simple.SimpleHttpHeaders;
-import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
 import io.micronaut.jaxrs.common.JaxRsHeaderUtil;
 import jakarta.ws.rs.client.AsyncInvoker;
 import jakarta.ws.rs.client.CompletionStageRxInvoker;
@@ -98,7 +96,8 @@ final class JaxRsInvocationBuilder implements Invocation.Builder {
 
     @Override
     public AsyncInvoker async() {
-        return new JaxRsInvocation(client, uri, HttpMethod.PUT.name(), null, mutableHttpHeaders, configuration, properties);
+        // unbound, like rx(): each method of the invoker names its HTTP method
+        return new JaxRsInvocation(client, uri, null, null, mutableHttpHeaders, configuration, properties);
     }
 
     @Override
@@ -338,17 +337,17 @@ final class JaxRsInvocationBuilder implements Invocation.Builder {
 
     @Override
     public Response method(String name, Entity<?> entity) {
-        return build(name).invokeExchange(Argument.of(Response.class), entity);
+        return build(name, entity).invoke(Response.class);
     }
 
     @Override
     public <T> T method(String name, Entity<?> entity, Class<T> responseType) {
-        return build(name).invokeExchange(Argument.of(responseType), entity);
+        return build(name, entity).invoke(responseType);
     }
 
     @Override
     public <T> T method(String name, Entity<?> entity, GenericType<T> responseType) {
-        return build(name).invokeExchange(JaxRsArgumentUtil.from(responseType), entity);
+        return build(name, entity).invoke(responseType);
     }
 
     private <T> String toRuntimeString(T value) {

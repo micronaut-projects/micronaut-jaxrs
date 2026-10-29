@@ -172,21 +172,13 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
         return async(null, JaxRsArgumentUtil.from(invocationCallback), null, invocationCallback);
     }
 
-    private <T> T invoke(Argument<T> type) {
-        return invoke(null, type, null);
-    }
-
-    <T> T invokeExchange(Argument<T> type, @Nullable Entity<?> entity) {
-        return invoke(method, type, entity);
-    }
-
     /**
      * A synchronous invocation: the response is filtered and read on the calling thread.
      */
-    private <T> T invoke(@Nullable String method, Argument<T> type, @Nullable Entity<?> entity) {
+    private <T> T invoke(Argument<T> type) {
         Exchanged exchanged;
         try {
-            exchanged = send(method, entity).get();
+            exchanged = send(null, null).get();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new ProcessingException(e);

@@ -596,10 +596,6 @@ final class JaxRsConfiguration implements Configuration {
         return () -> JaxRsCurrentProviders.restore(previous);
     }
 
-    public HttpMessageEntityReader createHttpMessageEntityReader() {
-        return createHttpMessageEntityReader(new LinkedHashMap<>());
-    }
-
     /**
      * @param properties The properties of the request the response is of, which the reader
      *                   interceptor contexts share
