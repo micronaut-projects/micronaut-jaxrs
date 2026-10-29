@@ -4,7 +4,12 @@ import jakarta.ws.rs.GET
 import jakarta.ws.rs.POST
 import jakarta.ws.rs.Path
 import jakarta.ws.rs.Produces
+import jakarta.ws.rs.HttpMethod
+import jakarta.ws.rs.NameBinding
 import spock.lang.Specification
+
+import java.lang.annotation.Retention
+import java.lang.annotation.RetentionPolicy
 
 class ReflectiveJaxRsReflectionSpec extends Specification {
 
@@ -20,6 +25,70 @@ class ReflectiveJaxRsReflectionSpec extends Specification {
         !reflection.methodAnnotations(SubImpl, "post").hasAnnotation(POST)
         // a method with JAX-RS annotations of its own inherits none
         !reflection.methodAnnotations(Own, "get").hasAnnotation(GET)
+    }
+
+    void "a method without JAX-RS annotations inherits the name bindings and request method designators"() {
+        given:
+        def reflection = new ReflectiveJaxRsReflection()
+
+        expect:
+        reflection.methodAnnotations(SecureImpl, "get").hasAnnotation(GET)
+        reflection.methodAnnotations(SecureImpl, "get").hasAnnotation(Secured)
+        reflection.methodAnnotations(SecureImpl, "report").hasAnnotation(Report)
+        // a method with JAX-RS annotations of its own inherits none
+        !reflection.methodAnnotations(SecureOwn, "get").hasAnnotation(Secured)
+    }
+
+    void "a generic override inherits the annotations of the method it overrides"() {
+        given:
+        def reflection = new ReflectiveJaxRsReflection()
+        def metadata = reflection.methodAnnotations(GenericImpl, "get", String)
+
+        expect:
+        metadata.hasAnnotation(GET)
+        metadata.stringValue(Produces).get() == "text/plain"
+    }
+
+    @Retention(RetentionPolicy.RUNTIME)
+    @NameBinding
+    static @interface Secured {
+    }
+
+    @Retention(RetentionPolicy.RUNTIME)
+    @HttpMethod("REPORT")
+    static @interface Report {
+    }
+
+    static interface SecureApi {
+        @GET
+        @Secured
+        String get()
+
+        @Report
+        String report()
+    }
+
+    static class SecureImpl implements SecureApi {
+        String get() { "" }
+
+        String report() { "" }
+    }
+
+    static class SecureOwn implements SecureApi {
+        @POST
+        String get() { "" }
+
+        String report() { "" }
+    }
+
+    static interface GenericApi<T> {
+        @GET
+        @Produces("text/plain")
+        String get(T value)
+    }
+
+    static class GenericImpl implements GenericApi<String> {
+        String get(String value) { value }
     }
 
     static interface Api {

@@ -273,4 +273,182 @@ class Base {
         method.stringValues(io.micronaut.http.annotation.Produces) as List == ["*/*"]
         definition.stringValue(Path).get() == "/test"
     }
+
+    void "an override without annotations inherits the name binding of an interface method"() {
+        given:
+        def definition = buildBeanDefinition('test.Test', """
+package test;
+
+@jakarta.ws.rs.Path("/test")
+class Test implements Api {
+
+    @Override
+    public String test() {
+        return "";
+    }
+}
+
+interface Api {
+
+    @jakarta.ws.rs.GET
+    @Secure
+    String test();
+}
+
+@java.lang.annotation.Target({java.lang.annotation.ElementType.METHOD, java.lang.annotation.ElementType.TYPE})
+@java.lang.annotation.Retention(java.lang.annotation.RetentionPolicy.RUNTIME)
+@jakarta.ws.rs.NameBinding
+@interface Secure {
+}
+""")
+        def method = definition.getRequiredMethod("test")
+
+        expect:
+        method.hasAnnotation(GET)
+        method.hasAnnotation("test.Secure")
+        method.hasStereotype(jakarta.ws.rs.NameBinding)
+    }
+
+    void "an override without annotations inherits the name binding of a superclass method"() {
+        given:
+        def definition = buildBeanDefinition('test.Test', """
+package test;
+
+@jakarta.ws.rs.Path("/test")
+class Test extends Base {
+
+    @Override
+    public String test() {
+        return "";
+    }
+}
+
+abstract class Base {
+
+    @jakarta.ws.rs.GET
+    @Secure
+    public abstract String test();
+}
+
+@java.lang.annotation.Target({java.lang.annotation.ElementType.METHOD, java.lang.annotation.ElementType.TYPE})
+@java.lang.annotation.Retention(java.lang.annotation.RetentionPolicy.RUNTIME)
+@jakarta.ws.rs.NameBinding
+@interface Secure {
+}
+""")
+        def method = definition.getRequiredMethod("test")
+
+        expect:
+        method.hasAnnotation(GET)
+        method.hasAnnotation("test.Secure")
+        method.hasStereotype(jakarta.ws.rs.NameBinding)
+    }
+
+    void "an override without annotations inherits a custom request method designator"() {
+        given:
+        def definition = buildBeanDefinition('test.Test', """
+package test;
+
+@jakarta.ws.rs.Path("/test")
+class Test implements Api {
+
+    @Override
+    public String test() {
+        return "";
+    }
+}
+
+interface Api {
+
+    @Report
+    @jakarta.ws.rs.Path("/r")
+    String test();
+}
+
+@java.lang.annotation.Target(java.lang.annotation.ElementType.METHOD)
+@java.lang.annotation.Retention(java.lang.annotation.RetentionPolicy.RUNTIME)
+@jakarta.ws.rs.HttpMethod("REPORT")
+@interface Report {
+}
+""")
+        def method = definition.getRequiredMethod("test")
+
+        expect:
+        method.hasAnnotation("test.Report")
+        method.stringValue(HttpMethod).get() == "REPORT"
+        method.stringValue(Path).get() == "/r"
+    }
+
+    void "an override declaring its own annotations discards the inherited name binding"() {
+        given:
+        def definition = buildBeanDefinition('test.Test', """
+package test;
+
+class Test implements Api {
+
+    @Override
+    @jakarta.ws.rs.POST
+    public String test() {
+        return "";
+    }
+}
+
+@jakarta.ws.rs.Path("/api")
+interface Api {
+
+    @jakarta.ws.rs.GET
+    @Secure
+    String test();
+}
+
+@java.lang.annotation.Target({java.lang.annotation.ElementType.METHOD, java.lang.annotation.ElementType.TYPE})
+@java.lang.annotation.Retention(java.lang.annotation.RetentionPolicy.RUNTIME)
+@jakarta.ws.rs.NameBinding
+@interface Secure {
+}
+""")
+        def method = definition.getRequiredMethod("test")
+
+        expect:
+        method.hasAnnotation(jakarta.ws.rs.POST)
+        !method.hasAnnotation(GET)
+        !method.hasAnnotation("test.Secure")
+        !method.hasStereotype(jakarta.ws.rs.NameBinding)
+    }
+
+    void "an override declaring its own annotations keeps the @Path of the superclass"() {
+        given:
+        def definition = buildBeanDefinition('test.Test', """
+package test;
+
+class Test extends Base {
+
+    @Override
+    @jakarta.ws.rs.POST
+    public String test() {
+        return "";
+    }
+}
+
+@jakarta.ws.rs.Path("/base")
+abstract class Base {
+
+    @jakarta.ws.rs.GET
+    @Secure
+    public abstract String test();
+}
+
+@java.lang.annotation.Target({java.lang.annotation.ElementType.METHOD, java.lang.annotation.ElementType.TYPE})
+@java.lang.annotation.Retention(java.lang.annotation.RetentionPolicy.RUNTIME)
+@jakarta.ws.rs.NameBinding
+@interface Secure {
+}
+""")
+        def method = definition.getRequiredMethod("test")
+
+        expect:
+        definition.stringValue(Path).get() == '/base'
+        method.hasAnnotation(jakarta.ws.rs.POST)
+        !method.hasAnnotation("test.Secure")
+    }
 }

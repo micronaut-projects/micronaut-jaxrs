@@ -267,13 +267,53 @@ public final class ReflectiveJaxRsReflection implements JaxRsReflection {
         return null;
     }
 
+    /**
+     * The method of a type that a method overrides: the one with the same parameter types, else, for
+     * a generic one, e.g. {@code get(T)} overridden by {@code get(String)}, the one whose erased
+     * parameter types the class of the method bridges to it.
+     */
     private static @Nullable Method declaredMethod(Class<?> type, Method method) {
         try {
             Method declared = type.getDeclaredMethod(method.getName(), method.getParameterTypes());
-            return Modifier.isPrivate(declared.getModifiers()) || Modifier.isStatic(declared.getModifiers()) ? null : declared;
+            if (!declared.isBridge()) {
+                return overridable(declared) ? declared : null;
+            }
         } catch (NoSuchMethodException e) {
-            return null;
+            // a generic method, which is erased to other parameter types
         }
+        Class<?>[] parameterTypes = method.getParameterTypes();
+        for (Method declared : type.getDeclaredMethods()) {
+            if (declared.isBridge() || declared.isSynthetic() || !overridable(declared) || !declared.getName().equals(method.getName())
+                || declared.getParameterCount() != parameterTypes.length) {
+                continue;
+            }
+            // a generic method is overridden through a bridge method with its erased parameter types
+            if (isAssignable(declared.getParameterTypes(), parameterTypes) && hasBridge(method, declared.getParameterTypes())) {
+                return declared;
+            }
+        }
+        return null;
+    }
+
+    private static boolean isAssignable(Class<?>[] types, Class<?>[] values) {
+        for (int i = 0; i < types.length; i++) {
+            if (!types[i].isAssignableFrom(values[i])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean hasBridge(Method method, Class<?>[] parameterTypes) {
+        try {
+            return method.getDeclaringClass().getDeclaredMethod(method.getName(), parameterTypes).isBridge();
+        } catch (NoSuchMethodException e) {
+            return false;
+        }
+    }
+
+    private static boolean overridable(Method method) {
+        return !Modifier.isPrivate(method.getModifiers()) && !Modifier.isStatic(method.getModifiers());
     }
 
     private static boolean declaresJaxRsAnnotation(Method method) {

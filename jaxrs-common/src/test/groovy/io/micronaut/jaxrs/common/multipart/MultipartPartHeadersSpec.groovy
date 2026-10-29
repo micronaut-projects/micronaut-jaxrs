@@ -38,6 +38,39 @@ class MultipartPartHeadersSpec extends Specification {
         parts[0].getContent(String) == "value"
     }
 
+    void "a failed write closes the streams of the parts that are not written"() {
+        given:
+        def failing = new InputStream() {
+            boolean closed
+
+            @Override
+            int read() throws IOException {
+                throw new IOException("broken")
+            }
+
+            @Override
+            void close() {
+                closed = true
+            }
+        }
+        def second = new TrackingInputStream("b".bytes)
+        def parts = [
+            EntityPart.withName("a").content(failing).mediaType(MediaType.APPLICATION_OCTET_STREAM_TYPE).build(),
+            EntityPart.withName("b").content(second).mediaType(MediaType.APPLICATION_OCTET_STREAM_TYPE).build()
+        ]
+        def writer = new JaxRsMultipartMessageBodyWriter()
+
+        when:
+        writer.writeTo(parts, List, new GenericType<List<EntityPart>>() {}.type, [] as java.lang.annotation.Annotation[],
+            MediaType.valueOf("multipart/form-data; boundary=b"), new MultivaluedHashMap<String, Object>(), new ByteArrayOutputStream())
+
+        then:
+        def e = thrown(IOException)
+        e.message == "broken"
+        failing.closed
+        second.closed
+    }
+
     void "the headers of a built part are case-insensitive"() {
         when:
         def part = EntityPart.withName("x").header("X-Custom", "1").content("v").build()

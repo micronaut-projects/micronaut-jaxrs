@@ -66,4 +66,24 @@ class UriBuilderSpec extends Specification {
         UriBuilder.fromPath("/a;x=1").replaceMatrix(null).build().toString() == "/a"
         UriBuilder.fromPath("/a;x=1").replaceMatrix("y=2").build().toString() == "/a;y=2"
     }
+
+    void "replacing a matrix parameter keeps the templates of the others in place"() {
+        expect:
+        UriBuilder.fromPath("p;m={x};n={y}").replaceMatrixParam("m", "v").buildFromMap([x: "X", y: "Y"]).toString() == "p;n=Y;m=v"
+        UriBuilder.fromPath("_jaxrs_uri_parameter/{id};m=1").replaceMatrixParam("m", "2").build("7").toString() == "_jaxrs_uri_parameter/7;m=2"
+    }
+
+    void "an unresolved template keeps the braces of its regular expression"() {
+        when:
+        def builder = UriBuilder.fromPath("{x:[0-9]{2}}/{y}").resolveTemplate("y", "ok")
+
+        then:
+        builder.toTemplate() == "{x:[0-9]{2}}/ok"
+        builder.build("12").toString() == "12/ok"
+    }
+
+    void "an empty query replaces the query"() {
+        expect:
+        UriBuilder.fromUri("http://example/a?q=1").uri(URI.create("http://example/b?")).build().toString() == "http://example/b?"
+    }
 }

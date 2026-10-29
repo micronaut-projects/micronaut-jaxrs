@@ -67,6 +67,9 @@ public final class CookieHeaderDelegate implements RuntimeDelegate.HeaderDelegat
 
                     cookieName = name;
                     cookieValue = value;
+                    // the attributes that follow a cookie are its own (RFC 2109 4.3.4)
+                    path = null;
+                    domain = null;
                 } else if (name.equalsIgnoreCase("$Version")) {
                     version = Integer.parseInt(value);
                 } else if (name.equalsIgnoreCase("$Path")) {

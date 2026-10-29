@@ -239,6 +239,18 @@ public final class JaxRsEntityPart implements EntityPart {
         headOut.writeHead();
     }
 
+    /**
+     * Close the stream of the content, if it is one, which is not written: e.g. when the write of
+     * a previous part fails.
+     *
+     * @throws IOException if the stream cannot be closed
+     */
+    void closeContent() throws IOException {
+        if (content instanceof InputStream stream) {
+            stream.close();
+        }
+    }
+
     private void consume() {
         if (consumed) {
             throw new IllegalStateException("The content of the part " + name + " is already read");

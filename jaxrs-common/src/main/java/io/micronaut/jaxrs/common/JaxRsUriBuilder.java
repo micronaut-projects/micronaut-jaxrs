@@ -176,8 +176,10 @@ final class JaxRsUriBuilder extends UriBuilder {
         }
         if (match.group(5) != null) {
             String group = match.group(5);
-            if (!scheme && !"".equals(group) && !group.startsWith("/") && group.indexOf(':') > -1 &&
-                group.indexOf('/') > -1 && group.indexOf(':') < group.indexOf('/')) {
+            // a colon of a template parameter, e.g. of {x:[0-9]+}, is not one of the path
+            String text = group.indexOf('{') > -1 ? JaxRsUriTemplate.protect(group).text() : group;
+            if (!scheme && !"".equals(text) && !text.startsWith("/") && text.indexOf(':') > -1 &&
+                text.indexOf('/') > -1 && text.indexOf(':') < text.indexOf('/')) {
                 throw new IllegalArgumentException("Illegal URI template" + uriTemplate);
             }
             if (!"".equals(group)) {
@@ -249,7 +251,8 @@ final class JaxRsUriBuilder extends UriBuilder {
         if (uri.getRawPath() != null && !uri.getRawPath().isEmpty()) {
             path = uri.getRawPath();
         }
-        if (uri.getRawQuery() != null && !uri.getRawQuery().isEmpty()) {
+        // an empty query, e.g. of "b?", replaces the query too
+        if (uri.getRawQuery() != null) {
             query = uri.getRawQuery();
         }
 
