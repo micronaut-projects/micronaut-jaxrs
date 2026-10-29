@@ -42,19 +42,11 @@ import java.util.List;
 public final class JaxRsProviderSelection {
 
     /**
-     * The order of the readers of the server (JAX-RS 4.2.1): the most specific media type
-     * (step 3), then the providers of the application before the standard ones (4.1.3), then
-     * the highest priority (step 5), then, which it leaves open, the nearest type.
-     */
-    public static final Comparator<Rank> READER_ORDER = Comparator.comparingInt(Rank::specificity).reversed()
-        .thenComparing(Rank::standard)
-        .thenComparingInt(Rank::priority)
-        .thenComparingInt(Rank::distance);
-
-    /**
-     * The order of the readers with the providers of the application first (4.1.3), e.g. a
-     * reader of any media type before the standard one of JSON, then the most specific media
-     * type, then the highest priority, then the nearest type.
+     * The order of the readers of the server and of the client (JAX-RS 4.2.1): the providers of
+     * the application first, which an implementation uses in preference to its own (4.2.4), e.g.
+     * a reader of any media type before the standard one of text/plain, then the most specific
+     * media type (step 3), then the highest priority (step 5), then, which it leaves open, the
+     * nearest type.
      */
     public static final Comparator<Rank> APPLICATION_FIRST_READER_ORDER = Comparator.comparing(Rank::standard)
         .thenComparing(Comparator.comparingInt(Rank::specificity).reversed())
@@ -173,7 +165,7 @@ public final class JaxRsProviderSelection {
     }
 
     /**
-     * The rank of a provider for an entity, which the orders compare, see {@link #READER_ORDER},
+     * The rank of a provider for an entity, which the orders compare, see
      * {@link #APPLICATION_FIRST_READER_ORDER} and {@link #WRITER_ORDER}.
      *
      * @param specificity How specifically it declares the media type, see {@link #specificity}
