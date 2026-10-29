@@ -25,4 +25,13 @@ class CookieHeaderDelegateSpec extends Specification {
         parsed[0].path == "/p"
         parsed[0].domain == "example.com"
     }
+
+    void "a delimiter in a quoted value is part of the value"() {
+        given:
+        def delegate = RuntimeDelegate.getInstance().createHeaderDelegate(Cookie)
+
+        expect:
+        delegate.fromString(delegate.toString(new Cookie.Builder("n").value("a,b").build())).value == "a,b"
+        CookieHeaderDelegate.parseCookies('n="a;b"; m=c').collect { it.value } == ["a;b", "c"]
+    }
 }

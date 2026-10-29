@@ -32,6 +32,7 @@ import io.micronaut.reflection.ReflectionAnnotations;
 import io.micronaut.reflection.ReflectionArguments;
 import io.micronaut.reflection.ReflectionBeanDefinition;
 import io.micronaut.reflection.ReflectionBeanIntrospection;
+import jakarta.ws.rs.HttpMethod;
 import org.jspecify.annotations.Nullable;
 
 import java.lang.annotation.Annotation;
@@ -105,12 +106,12 @@ public final class ReflectiveJaxRsReflection implements JaxRsReflection {
 
     @Override
     public AnnotationMetadata methodAnnotations(ExecutableMethod<?, ?> method) {
-        return annotationMetadata(method.getTargetMethod().getAnnotations());
+        return annotationMetadata(inheritedAnnotations(method.getTargetMethod()));
     }
 
     @Override
     public Annotation[] annotations(ExecutableMethod<?, ?> method) {
-        return method.getTargetMethod().getAnnotations();
+        return inheritedAnnotations(method.getTargetMethod());
     }
 
     @Override
@@ -120,7 +121,7 @@ public final class ReflectiveJaxRsReflection implements JaxRsReflection {
 
     @Override
     public AnnotationMetadata methodAnnotations(Class<?> type, String name, Class<?>... parameterTypes) {
-        return annotationMetadata(targetMethod(type, name, parameterTypes).getAnnotations());
+        return annotationMetadata(inheritedAnnotations(targetMethod(type, name, parameterTypes)));
     }
 
     @Override
@@ -184,6 +185,79 @@ public final class ReflectiveJaxRsReflection implements JaxRsReflection {
             return value -> invoke(() -> constructor.newInstance(value));
         }
         return null;
+    }
+
+    /**
+     * The annotations of a method, with the JAX-RS ones it inherits (JAX-RS 3.6): those of the
+     * method it overrides, of a superclass first, then of an interface, when it declares no JAX-RS
+     * annotation, on itself or on its parameters.
+     */
+    private static Annotation[] inheritedAnnotations(Method method) {
+        if (declaresJaxRsAnnotation(method)) {
+            return method.getAnnotations();
+        }
+        Method inherited = inheritedMethod(method);
+        if (inherited == null) {
+            return method.getAnnotations();
+        }
+        Set<Annotation> annotations = new LinkedHashSet<>(List.of(method.getAnnotations()));
+        annotations.addAll(List.of(inherited.getAnnotations()));
+        return annotations.toArray(Annotation[]::new);
+    }
+
+    private static @Nullable Method inheritedMethod(Method method) {
+        List<Class<?>> interfaces = new ArrayList<>();
+        for (Class<?> type = method.getDeclaringClass(); type != null; type = type.getSuperclass()) {
+            if (type != method.getDeclaringClass()) {
+                Method overridden = declaredMethod(type, method);
+                if (overridden != null && declaresJaxRsAnnotation(overridden)) {
+                    return overridden;
+                }
+            }
+            interfaces.addAll(List.of(type.getInterfaces()));
+        }
+        // the interfaces after the superclasses, the nearest first
+        for (int i = 0; i < interfaces.size(); i++) {
+            Class<?> type = interfaces.get(i);
+            Method overridden = declaredMethod(type, method);
+            if (overridden != null && declaresJaxRsAnnotation(overridden)) {
+                return overridden;
+            }
+            interfaces.addAll(List.of(type.getInterfaces()));
+        }
+        return null;
+    }
+
+    private static @Nullable Method declaredMethod(Class<?> type, Method method) {
+        try {
+            Method declared = type.getDeclaredMethod(method.getName(), method.getParameterTypes());
+            return Modifier.isPrivate(declared.getModifiers()) || Modifier.isStatic(declared.getModifiers()) ? null : declared;
+        } catch (NoSuchMethodException e) {
+            return null;
+        }
+    }
+
+    private static boolean declaresJaxRsAnnotation(Method method) {
+        if (hasJaxRsAnnotation(method.getDeclaredAnnotations())) {
+            return true;
+        }
+        for (Annotation[] parameterAnnotations : method.getParameterAnnotations()) {
+            if (hasJaxRsAnnotation(parameterAnnotations)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasJaxRsAnnotation(Annotation[] annotations) {
+        for (Annotation annotation : annotations) {
+            Class<? extends Annotation> type = annotation.annotationType();
+            // a custom request method designator too, e.g. a PATCH
+            if (type.getName().startsWith("jakarta.ws.rs.") || type.isAnnotationPresent(HttpMethod.class)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static Object invoke(ReflectiveCall call) {

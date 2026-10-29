@@ -84,7 +84,7 @@ public final class JaxRsMutableResponse extends JaxRsResponse implements HttpRes
 
     @Override
     public boolean hasEntity() {
-        checkCanReadEntity();
+        checkCanQueryEntity();
         return entityStream != null || super.hasEntity();
     }
 
@@ -125,6 +125,12 @@ public final class JaxRsMutableResponse extends JaxRsResponse implements HttpRes
         if (stream != null) {
             entityStream = null;
             byte[] bytes = readAll(stream);
+            mutableHttpResponse.body(bytes);
+            return bytes;
+        }
+        if (mutableHttpResponse.body() instanceof InputStream body) {
+            // an entity that is a stream is buffered as its bytes
+            byte[] bytes = readAll(body);
             mutableHttpResponse.body(bytes);
             return bytes;
         }

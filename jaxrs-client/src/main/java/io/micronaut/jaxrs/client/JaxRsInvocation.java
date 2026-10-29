@@ -320,12 +320,15 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
             }
             JaxRsClientRequestContext requestContext = new JaxRsClientRequestContext(client, configuration, request,
                 entityValue, requestBodyType, properties);
-            for (ClientRequestFilter requestFilter : configuration.getRequestFilters()) {
-                requestFilter.filter(requestContext);
-                Response response = requestContext.getResponse();
-                if (response != null) {
-                    future.complete(new Exchanged(written(response), requestContext));
-                    return future;
+            // the injected configuration of a shared filter is the one of this invocation (JAX-RS 10.2.8)
+            try (var ignored = configuration.current()) {
+                for (ClientRequestFilter requestFilter : configuration.getRequestFilters()) {
+                    requestFilter.filter(requestContext);
+                    Response response = requestContext.getResponse();
+                    if (response != null) {
+                        future.complete(new Exchanged(written(response), requestContext));
+                        return future;
+                    }
                 }
             }
             request = changed(request, requestContext);
@@ -486,7 +489,7 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
      * application: its status, headers and entity.
      */
     @SuppressWarnings("unchecked")
-    private static JaxRsMutableResponse toMutableResponse(Response response) {
+    static JaxRsMutableResponse toMutableResponse(Response response) {
         Response.StatusType statusInfo = response.getStatusInfo();
         String reason = statusInfo == null ? null : statusInfo.getReasonPhrase();
         MutableHttpResponse<Object> httpResponse = HttpResponseFactory.INSTANCE.status(response.getStatus(), reason);
@@ -534,8 +537,10 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
             List<ClientResponseFilter> filters = configuration.getResponseFilters();
             if (!filters.isEmpty()) {
                 JaxRsClientResponseContext responseContext = new JaxRsClientResponseContext(jaxRsMutableResponse);
-                for (ClientResponseFilter filter : filters) {
-                    filter.filter(requestContext, responseContext);
+                try (var ignored = configuration.current()) {
+                    for (ClientResponseFilter filter : filters) {
+                        filter.filter(requestContext, responseContext);
+                    }
                 }
             }
         } catch (IOException e) {

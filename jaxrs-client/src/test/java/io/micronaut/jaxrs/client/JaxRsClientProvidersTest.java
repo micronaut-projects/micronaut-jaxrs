@@ -11,9 +11,13 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.RuntimeType;
 import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.client.ClientBuilder;
+import jakarta.ws.rs.client.ClientRequestContext;
+import jakarta.ws.rs.client.ClientRequestFilter;
+import jakarta.ws.rs.client.ClientResponseContext;
 import jakarta.ws.rs.client.ClientResponseFilter;
 import jakarta.ws.rs.client.Entity;
 import jakarta.ws.rs.client.WebTarget;
+import jakarta.ws.rs.core.Configuration;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
@@ -157,6 +161,19 @@ class JaxRsClientProvidersTest {
             .post(Entity.entity(new Thing("x"), MediaType.APPLICATION_XML), String.class);
 
         assertEquals("application/xml|xml", echoed);
+    }
+
+    @Test
+    void aSharedFilterIsInjectedWithTheConfigurationOfTheInvocation() {
+        var filter = new MarkerFilter();
+        client.register(filter);
+        WebTarget a = echo().property("marker", "A");
+        WebTarget b = echo().property("marker", "B");
+        a.request().post(Entity.text("x"), String.class);
+        assertEquals("A", filter.injected);
+        b.request().post(Entity.text("x"), String.class);
+        assertEquals("B", filter.injected);
+        assertEquals("B", filter.injectedInResponse);
     }
 
     @Test
@@ -508,4 +525,22 @@ class JaxRsClientProvidersTest {
             return "raw";
         }
     }
+
+    static class MarkerFilter implements ClientRequestFilter, ClientResponseFilter {
+        @Context
+        Configuration configuration;
+        volatile Object injected;
+        volatile Object injectedInResponse;
+
+        @Override
+        public void filter(ClientRequestContext requestContext) {
+            injected = configuration.getProperty("marker");
+        }
+
+        @Override
+        public void filter(ClientRequestContext requestContext, ClientResponseContext responseContext) {
+            injectedInResponse = configuration.getProperty("marker");
+        }
+    }
+
 }

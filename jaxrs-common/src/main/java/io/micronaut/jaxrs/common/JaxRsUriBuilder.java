@@ -197,8 +197,17 @@ final class JaxRsUriBuilder extends UriBuilder {
             this.port = -1;
             this.userInfo = null;
             this.query = null;
+            // an opaque URI has no path; its fragment is not part of the scheme-specific part
+            this.path = null;
             this.scheme = opaque.group(1);
-            this.ssp = opaque.group(2);
+            String schemeSpecificPart = opaque.group(2);
+            int hash = schemeSpecificPart.indexOf('#');
+            if (hash > -1) {
+                this.ssp = schemeSpecificPart.substring(0, hash);
+                fragment(schemeSpecificPart.substring(hash + 1));
+            } else {
+                this.ssp = schemeSpecificPart;
+            }
             return this;
         } else {
             Matcher match = HIERARCHICAL_URI.matcher(uriTemplate);
@@ -364,7 +373,14 @@ final class JaxRsUriBuilder extends UriBuilder {
         URI uri = URI.create(sb.toString());
 
         if (uri.getRawSchemeSpecificPart() != null && uri.getRawPath() == null) {
+            // an opaque URI replaces the hierarchical components
             this.ssp = uri.getRawSchemeSpecificPart();
+            authority = null;
+            userInfo = null;
+            host = null;
+            port = -1;
+            path = null;
+            query = null;
         } else {
             this.ssp = null;
             userInfo = uri.getRawUserInfo();
@@ -518,14 +534,14 @@ final class JaxRsUriBuilder extends UriBuilder {
     @Override
     public UriBuilder replaceMatrix(String matrix) throws IllegalArgumentException {
         if (matrix == null) {
+            // removes the matrix parameters, with their semicolon
             matrix = "";
-        }
-        if (!matrix.startsWith(";")) {
+        } else if (!matrix.startsWith(";")) {
             matrix = ";" + matrix;
         }
         matrix = Encode.encodePath(matrix);
         if (path == null) {
-            path = matrix;
+            path = matrix.isEmpty() ? null : matrix;
         } else {
             int start = path.lastIndexOf('/');
             if (start < 0) {
@@ -631,13 +647,13 @@ final class JaxRsUriBuilder extends UriBuilder {
         } else if (userInfo != null || host != null || port != -1) {
             builder.append("//");
             if (userInfo != null) {
-                replaceParameter(paramMap, fromEncodedMap, isTemplate, userInfo, builder, encodeSlash).append("@");
+                replaceComponentParameter(paramMap, fromEncodedMap, isTemplate, userInfo, builder, Encode.Component.USER_INFO).append("@");
             }
             if (host != null) {
                 if (host.isEmpty()) {
                     throw new UriBuilderException("empty host");
                 }
-                replaceParameter(paramMap, fromEncodedMap, isTemplate, host, builder, encodeSlash);
+                replaceComponentParameter(paramMap, fromEncodedMap, isTemplate, host, builder, Encode.Component.HOST);
             }
             if (port != -1) {
                 builder.append(":").append(port);
@@ -662,7 +678,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         }
         if (fragment != null) {
             builder.append("#");
-            replaceParameter(paramMap, fromEncodedMap, isTemplate, fragment, builder, encodeSlash);
+            replaceComponentParameter(paramMap, fromEncodedMap, isTemplate, fragment, builder, Encode.Component.FRAGMENT);
         }
         return builder;
     }
@@ -703,11 +719,26 @@ final class JaxRsUriBuilder extends UriBuilder {
 
     private StringBuilder replaceParameter(Map<String, ?> paramMap, boolean fromEncodedMap, boolean isTemplate,
                                            String string, StringBuilder builder, boolean encodeSlash) {
-        return replaceParameter(paramMap, fromEncodedMap, isTemplate, string, builder, true, encodeSlash);
+        return replaceParameter(paramMap, fromEncodedMap, isTemplate, string, builder, true, encodeSlash, null);
+    }
+
+    /**
+     * Replace the template parameters of a URI component other than the path, encoded for it: e.g.
+     * a host value cannot change the authority.
+     */
+    private StringBuilder replaceComponentParameter(Map<String, ?> paramMap, boolean fromEncodedMap, boolean isTemplate,
+                                                    String string, StringBuilder builder, Encode.Component component) {
+        return replaceParameter(paramMap, fromEncodedMap, isTemplate, string, builder, true, false, component);
     }
 
     private StringBuilder replaceParameter(Map<String, ?> paramMap, boolean fromEncodedMap, boolean isTemplate,
                                            String string, StringBuilder builder, boolean encode, boolean encodeSlash) {
+        return replaceParameter(paramMap, fromEncodedMap, isTemplate, string, builder, encode, encodeSlash, null);
+    }
+
+    private StringBuilder replaceParameter(Map<String, ?> paramMap, boolean fromEncodedMap, boolean isTemplate,
+                                           String string, StringBuilder builder, boolean encode, boolean encodeSlash,
+                                           Encode.@Nullable Component component) {
         if (string.indexOf('{') == -1) {
             return builder.append(string);
         }
@@ -731,7 +762,9 @@ final class JaxRsUriBuilder extends UriBuilder {
                 throw new IllegalArgumentException("Template parameter null: " + param);
             }
 
-            if (encode) {
+            if (encode && component != null) {
+                stringValue = Encode.encodeComponentValue(stringValue, component, fromEncodedMap);
+            } else if (encode) {
                 if (!fromEncodedMap) {
                     if (encodeSlash) {
                         stringValue = Encode.encodePathSegmentAsIs(stringValue);

@@ -15,6 +15,7 @@
  */
 package io.micronaut.jaxrs.container;
 
+import io.micronaut.jaxrs.common.JaxRsHeaderUtil;
 import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.context.BeanContext;
 import io.micronaut.context.processor.ExecutableMethodProcessor;
@@ -95,6 +96,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import jakarta.ws.rs.sse.SseEventSink;
@@ -669,7 +671,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         // a route that reads the entity and form parameters, or the entity of a method that uses
         // the ResourceContext: the form is parsed from the bytes of the entity, read once
         boolean entityForm = body && !form && (usesForm || usesResourceContext);
-        if (!method.async() && method.events()) {
+        if (method.events()) {
             boolean readsBody = body;
             routes.handleAsync(declaration, (request, pathVariables, target, requestBody) -> {
                 // the response starts on the first event or when the method returns (JAX-RS 9.5):
@@ -737,21 +739,37 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     }
 
     /**
-     * Call a resource method with an event sink, completing its response with its result unless
-     * its first event started it.
+     * Call a resource method with an event sink, completing its response with its result, or the
+     * one of its stage for an asynchronous method, unless its first event started it.
      */
     private <L, B> CompletionStage<HttpResponse<?>> callEvents(ResourceMethod<B> method, Instances<L, B> instances, HttpRequest<?> request,
                                                               PathVariables pathVariables, @Nullable L target, @Nullable FormData form,
                                                               byte @Nullable [] body, CompletableFuture<HttpResponse<?>> response) {
         try {
-            response.complete(call(method, instances, request, pathVariables, target, form, body));
-        } catch (Exception e) {
-            if (!response.completeExceptionally(e)) {
-                // the events started: the failure ends them
-                support.sseEventSink(request).close();
+            if (method.async()) {
+                // the stage may complete after events more than the sink buffers before the response
+                callAsync(method, instances, request, pathVariables, target, form, body).whenComplete((value, failure) -> {
+                    if (failure == null) {
+                        response.complete(value);
+                    } else {
+                        eventsFailed(request, response, failure instanceof CompletionException && failure.getCause() != null
+                            ? failure.getCause() : failure);
+                    }
+                });
+            } else {
+                response.complete(call(method, instances, request, pathVariables, target, form, body));
             }
+        } catch (Exception e) {
+            eventsFailed(request, response, e);
         }
         return CompletableFuture.completedFuture(null);
+    }
+
+    private void eventsFailed(HttpRequest<?> request, CompletableFuture<HttpResponse<?>> response, Throwable failure) {
+        if (!response.completeExceptionally(failure)) {
+            // the events started: the failure ends them
+            support.sseEventSink(request).close();
+        }
     }
 
     /**
@@ -1031,7 +1049,8 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         }
         List<String> mediaTypes = new ArrayList<>();
         for (String value : values) {
-            for (String mediaType : value.split(",")) {
+            // a comma in a quoted parameter value does not separate media types
+            for (String mediaType : JaxRsHeaderUtil.split(value, ",")) {
                 String trimmed = mediaType.trim();
                 if (!trimmed.isEmpty()) {
                     mediaTypes.add(trimmed);

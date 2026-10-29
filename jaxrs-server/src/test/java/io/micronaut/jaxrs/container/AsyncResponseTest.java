@@ -180,7 +180,11 @@ class AsyncResponseTest {
             assertEquals(List.of(jakarta.ws.rs.container.CompletionCallback.class, ConnectionCallback.class), STATES.poll(5, TimeUnit.SECONDS));
         }
         AsyncResponse disconnected = (AsyncResponse) DISCONNECTED.poll(5, TimeUnit.SECONDS);
-        assertTrue(disconnected.isSuspended());
+        // the processing ended: the response is no longer suspended and cannot be resumed
+        assertEquals(List.of(true, false, false, false), STATES.poll(5, TimeUnit.SECONDS));
+        assertTrue(disconnected.isDone());
+        assertFalse(disconnected.isSuspended());
+        assertFalse(disconnected.resume("late"));
         // the client went away: the response was not sent
         assertInstanceOf(ConnectionClosedException.class, COMPLETED.poll(5, TimeUnit.SECONDS));
         // the timeout of the suspended response is cancelled
@@ -428,7 +432,11 @@ class AsyncResponseTest {
             response.setTimeoutHandler(timedOut -> STATES.add("timed out"));
             response.setTimeout(500, TimeUnit.MILLISECONDS);
             List<Class<?>> registered = new java.util.ArrayList<>(response.register(new CompletionCallbackImpl()));
-            registered.addAll(response.register((ConnectionCallback) DISCONNECTED::add));
+            registered.addAll(response.register((ConnectionCallback) disconnected -> {
+                // the state the callback sees
+                STATES.add(List.of(disconnected.isDone(), disconnected.isSuspended(), disconnected.isCancelled(), disconnected.resume("late")));
+                DISCONNECTED.add(disconnected);
+            }));
             STATES.add(registered);
         }
 

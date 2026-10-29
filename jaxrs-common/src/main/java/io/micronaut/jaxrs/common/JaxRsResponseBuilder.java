@@ -37,6 +37,7 @@ import java.lang.annotation.Annotation;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -126,6 +127,11 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
 
     @Override
     public Response.ResponseBuilder entity(Object entity, Annotation[] annotations) {
+        if (entity == null) {
+            // a null entity clears the entity
+            response.body(null);
+            return this;
+        }
         if (entity instanceof GenericEntity<?> genericEntity) {
             // the entity with its generic type, not the wrapper
             entity(new JaxRsGenericEntity<>(genericEntity.getEntity(), genericEntity.getType(), annotations));
@@ -137,9 +143,9 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
 
     @Override
     public Response.ResponseBuilder allow(String... methods) {
-        if (methods == null) {
-            response.getHeaders().remove(HttpHeaders.ALLOW);
-        } else {
+        // the methods replace those set before
+        response.getHeaders().remove(HttpHeaders.ALLOW);
+        if (methods != null) {
             response.getHeaders().allowGeneric(Arrays.asList(methods));
         }
         return this;
@@ -147,9 +153,9 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
 
     @Override
     public Response.ResponseBuilder allow(Set<String> methods) {
-        if (methods == null) {
-            response.getHeaders().remove(HttpHeaders.ALLOW);
-        } else {
+        // the methods replace those set before
+        response.getHeaders().remove(HttpHeaders.ALLOW);
+        if (methods != null) {
             response.getHeaders().allowGeneric(methods);
         }
         return this;
@@ -182,8 +188,10 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
         if (value != null) {
             if (value instanceof Date date) {
                 // an IMF-fixdate (RFC 9110 5.6.7)
+                // one more value: the values set before are kept as the metadata
+                metadata.sync(response.getHeaders(), name);
                 response.getHeaders().add(name, DateHeaderDelegate.INSTANCE.toString(date));
-                metadata.set(response.getHeaders(), name, date);
+                metadata.add(response.getHeaders(), name, date);
             } else {
                 RuntimeDelegate.HeaderDelegate headerDelegate = getInstance().createHeaderDelegate(value.getClass());
                 if (headerDelegate == null) {
@@ -241,6 +249,8 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
         } else {
             response.contentType(new io.micronaut.http.MediaType(type.toString()));
         }
+        // the metadata has the media type that was given
+        metadata.set(response.getHeaders(), io.micronaut.http.HttpHeaders.CONTENT_TYPE, type);
         return this;
     }
 
@@ -374,20 +384,12 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
     }
 
     private static void appendVary(StringBuilder vary, List<?> values, String header) {
-        Object first = null;
-        for (Object value : values) {
-            if (value == null) {
-                continue;
+        // none (null) is a value of its own: an identity variant differs from a gzip one
+        if (new HashSet<>(values).size() > 1) {
+            if (!vary.isEmpty()) {
+                vary.append(',');
             }
-            if (first == null) {
-                first = value;
-            } else if (!first.equals(value)) {
-                if (!vary.isEmpty()) {
-                    vary.append(',');
-                }
-                vary.append(header);
-                return;
-            }
+            vary.append(header);
         }
     }
 
