@@ -27,6 +27,7 @@ import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.http.body.BodyElements;
 import io.micronaut.http.client.exceptions.HttpClientResponseException;
 import io.micronaut.http.client.netty.DefaultHttpClient;
+import io.micronaut.http.client.sse.EventStreamState;
 import io.micronaut.http.sse.Event;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import jakarta.ws.rs.ProcessingException;
@@ -103,6 +104,9 @@ final class JaxRsSseEventSource implements SseEventSource {
     private volatile boolean opened;
     private volatile boolean closed;
     private volatile @Nullable String lastEventId;
+    // the last event id and reconnection time of the stream, which the client follows also for a
+    // block without data: one per source, kept across connections
+    private final EventStreamState streamState = new EventStreamState();
     private volatile @Nullable BodyElements<Event<String>> events;
     private volatile @Nullable Future<?> pendingReconnect;
     // an own client: closing it disconnects, which the server sees, where cancelling a stream drains it
@@ -231,10 +235,14 @@ final class JaxRsSseEventSource implements SseEventSource {
             return;
         }
         MutableHttpRequest<Object> request = HttpRequest.GET(target.getUri().toString()).accept(MediaType.TEXT_EVENT_STREAM_TYPE);
-        String id = lastEventId;
+        String id = streamState.getLastEventId();
+        if (id == null) {
+            id = lastEventId;
+        }
         if (id != null) {
             request.header("Last-Event-ID", id);
         }
+        request.setAttribute(EventStreamState.ATTRIBUTE, streamState);
         JaxRsClientRequestContext requestContext = filtered(request);
         if (requestContext == null) {
             return;
@@ -328,7 +336,7 @@ final class JaxRsSseEventSource implements SseEventSource {
                 LOG.debug("The event stream failed, reconnecting: {}", error.getMessage(), error);
             }
             // the connection is lost, closed by the server or broken: reconnect
-            reconnect(reconnectDelay);
+            reconnect(reconnectDelay());
         });
     }
 
@@ -447,7 +455,7 @@ final class JaxRsSseEventSource implements SseEventSource {
         if (connected) {
             // a transport error while reconnecting, e.g. the server is restarting: retry later
             LOG.debug("The reconnection failed, retrying: {}", throwable.getMessage(), throwable);
-            reconnect(reconnectDelay);
+            reconnect(reconnectDelay());
             return;
         }
         error(throwable);
@@ -520,6 +528,15 @@ final class JaxRsSseEventSource implements SseEventSource {
                 LOG.warn("A completion callback failed: {}", e.getMessage(), e);
             }
         }
+    }
+
+    /**
+     * @return The delay of a reconnection: the reconnection time of the stream, also of a block
+     * without data, otherwise the configured one or the one of the last event
+     */
+    private long reconnectDelay() {
+        Duration time = streamState.getReconnectionTime();
+        return time == null ? reconnectDelay : time.toMillis();
     }
 
     private void reconnect(long delay) {
