@@ -241,4 +241,31 @@ class MultipartPartHeadersSpec extends Specification {
         parts[0].name == "a;b\"c\\"
         parts[0].fileName.orElse(null) == "f\\\"; name=evil"
     }
+
+    void "the headers a part writer sets are the headers of the part"() {
+        given:
+        def writer = [
+            isWriteable: { Class t, java.lang.reflect.Type g, java.lang.annotation.Annotation[] a, MediaType m -> true },
+            writeTo    : { Object o, Class t, java.lang.reflect.Type g, java.lang.annotation.Annotation[] a, MediaType m, MultivaluedMap h, OutputStream out ->
+                h.putSingle("Content-Type", "text/plain;charset=ISO-8859-1")
+                h.putSingle("X-Written", "1")
+                out.write(((String) o).getBytes(StandardCharsets.ISO_8859_1)) }
+        ] as jakarta.ws.rs.ext.MessageBodyWriter
+        def providers = [
+            getMessageBodyWriter: { Class t, java.lang.reflect.Type g, java.lang.annotation.Annotation[] a, MediaType m -> writer }
+        ] as Providers
+        def multipartWriter = new JaxRsMultipartMessageBodyWriter()
+        multipartWriter.providers = providers
+        def out = new ByteArrayOutputStream()
+        def type = new GenericType<List<EntityPart>>() {}
+
+        when:
+        multipartWriter.writeTo([EntityPart.withName("x").mediaType(MediaType.TEXT_PLAIN_TYPE).content("caf\u00e9").build()], List, type.type,
+            [] as java.lang.annotation.Annotation[], MediaType.valueOf("multipart/form-data; boundary=B"), new MultivaluedHashMap<String, Object>(), out)
+        def parts = read(out.toString(StandardCharsets.ISO_8859_1), "B")
+
+        then:
+        parts[0].mediaType == MediaType.valueOf("text/plain;charset=ISO-8859-1")
+        parts[0].headers.getFirst("X-Written") == "1"
+    }
 }
