@@ -19,6 +19,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -39,7 +41,16 @@ class SseFirstSendTest {
 
     @Test
     void methodWaitingForEachEventCompletes() throws Exception {
-        HttpRequest request = HttpRequest.newBuilder(URI.create(server.getURL() + "/api/sse-first-send"))
+        assertEvents("/api/sse-first-send");
+    }
+
+    @Test
+    void asynchronousMethodWaitingForEachEventCompletes() throws Exception {
+        assertEvents("/api/sse-first-send/async");
+    }
+
+    private void assertEvents(String path) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder(URI.create(server.getURL() + path))
             .timeout(Duration.ofSeconds(20))
             .build();
         try (HttpClient client = HttpClient.newHttpClient()) {
@@ -61,6 +72,25 @@ class SseFirstSendTest {
                     sink.send(sse.newEvent(String.valueOf(i))).toCompletableFuture().join();
                 }
             }
+        }
+
+        @GET
+        @Path("async")
+        @Produces(MediaType.SERVER_SENT_EVENTS)
+        public CompletionStage<Void> asyncEvents(@Context SseEventSink sink, @Context Sse sse) {
+            // the stage of the events, each sent once the previous one was
+            CompletionStage<?> sent = CompletableFuture.completedFuture(null);
+            for (int i = 0; i < EVENTS; i++) {
+                String data = String.valueOf(i);
+                sent = sent.thenCompose(ignored -> sink.send(sse.newEvent(data)));
+            }
+            return sent.thenRun(() -> {
+                try {
+                    sink.close();
+                } catch (java.io.IOException e) {
+                    throw new java.io.UncheckedIOException(e);
+                }
+            });
         }
     }
 }
