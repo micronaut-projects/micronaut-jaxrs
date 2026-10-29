@@ -31,11 +31,11 @@ import org.jspecify.annotations.Nullable;
 import java.io.Serial;
 import java.lang.reflect.Method;
 import java.net.URI;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -50,13 +50,6 @@ import java.util.regex.Pattern;
 @Internal
 final class JaxRsUriBuilder extends UriBuilder {
 
-    private static final String URI_PARAM_NAME_REGEX = "\\w[\\w.-]*";
-    private static final String URI_PARAM_REGEX_REGEX = "[^{}][^{}]*";
-    private static final String URI_PARAM_REGEX = "\\{\\s*(" + URI_PARAM_NAME_REGEX + ")\\s*(:\\s*(" + URI_PARAM_REGEX_REGEX
-        + "))?}";
-
-    private static final Pattern URI_PARAM_PATTERN = Pattern.compile(URI_PARAM_REGEX);
-
     private static final Pattern OPAQUE_URI = Pattern.compile("^([^:/?#{]+):([^/].*)");
     private static final Pattern HIERARCHICAL_URI = Pattern
         .compile("^(([^:/?#{]+):)?(//([^/?#]*))?([^?#]*)(\\?([^#]*))?(#(.*))?");
@@ -64,9 +57,6 @@ final class JaxRsUriBuilder extends UriBuilder {
     private static final Pattern HOST_PORT_PATTERN = Pattern.compile("([^/:]+):(\\d+)");
     private static final Pattern SQUARE_HOST_BRACKETS = Pattern
         .compile("(\\[(([0-9A-Fa-f]{0,4}:){2,7})([0-9A-Fa-f]{0,4})%?.*]):(\\d+)");
-
-    private static final String REPLACEMENT_URI_PARAMETER = "_jaxrs_uri_parameter";
-    private static final Pattern PARAM_REPLACEMENT = Pattern.compile(REPLACEMENT_URI_PARAMETER);
 
     @Nullable
     private String host;
@@ -577,13 +567,15 @@ final class JaxRsUriBuilder extends UriBuilder {
         return builder;
     }
 
-    private static Matcher createUriParamMatcher(String string) {
-        return URI_PARAM_PATTERN.matcher(Encode.replaceEnclosedCurlyBracesCS(string));
-    }
-
     private StringBuilder replaceParameter(Map<String, ?> paramMap, boolean fromEncodedMap, boolean isTemplate,
                                            String string, StringBuilder builder, boolean encodeSlash) {
-        return replaceParameter(paramMap, fromEncodedMap, isTemplate, string, builder, encodeSlash, null);
+        UnaryOperator<String> encoder;
+        if (!fromEncodedMap) {
+            encoder = encodeSlash ? Encode::encodePathSegmentAsIs : Encode::encodePathAsIs;
+        } else {
+            encoder = encodeSlash ? Encode::encodePathSegmentSaveEncodings : Encode::encodePathSaveEncodings;
+        }
+        return JaxRsUriTemplate.expand(string, paramMap, isTemplate, builder, encoder, "Template parameter null: ");
     }
 
     /**
@@ -592,93 +584,14 @@ final class JaxRsUriBuilder extends UriBuilder {
      */
     private StringBuilder replaceComponentParameter(Map<String, ?> paramMap, boolean fromEncodedMap, boolean isTemplate,
                                                     String string, StringBuilder builder, Encode.Component component) {
-        return replaceParameter(paramMap, fromEncodedMap, isTemplate, string, builder, false, component);
-    }
-
-    private StringBuilder replaceParameter(Map<String, ?> paramMap, boolean fromEncodedMap, boolean isTemplate,
-                                           String string, StringBuilder builder, boolean encodeSlash,
-                                           Encode.@Nullable Component component) {
-        if (string.indexOf('{') == -1) {
-            return builder.append(string);
-        }
-        Matcher matcher = createUriParamMatcher(string);
-        int start = 0;
-        while (matcher.find()) {
-            builder.append(string, start, matcher.start());
-            String param = matcher.group(1);
-            boolean containsValueForParam = paramMap.containsKey(param);
-            if (!containsValueForParam) {
-                if (isTemplate) {
-                    builder.append(matcher.group());
-                    start = matcher.end();
-                    continue;
-                }
-                throw new IllegalArgumentException("Path parameter not provided " + param);
-            }
-            Object value = paramMap.get(param);
-            String stringValue = value != null ? value.toString() : null;
-            if (stringValue == null) {
-                throw new IllegalArgumentException("Template parameter null: " + param);
-            }
-
-            if (component != null) {
-                stringValue = Encode.encodeComponentValue(stringValue, component, fromEncodedMap);
-            } else if (!fromEncodedMap) {
-                if (encodeSlash) {
-                    stringValue = Encode.encodePathSegmentAsIs(stringValue);
-                } else {
-                    stringValue = Encode.encodePathAsIs(stringValue);
-                }
-            } else {
-                if (encodeSlash) {
-                    stringValue = Encode.encodePathSegmentSaveEncodings(stringValue);
-                } else {
-                    stringValue = Encode.encodePathSaveEncodings(stringValue);
-                }
-            }
-
-            builder.append(stringValue);
-            start = matcher.end();
-        }
-        builder.append(string, start, string.length());
-        return builder;
+        return JaxRsUriTemplate.expand(string, paramMap, isTemplate, builder,
+            value -> Encode.encodeComponentValue(value, component, fromEncodedMap), "Template parameter null: ");
     }
 
     private void replaceQueryStringParameter(Map<String, ?> paramMap, boolean fromEncodedMap,
                                              boolean isTemplate, String string, StringBuilder builder) {
-        if (string.indexOf('{') == -1) {
-            builder.append(string);
-            return;
-        }
-        Matcher matcher = createUriParamMatcher(string);
-        int start = 0;
-        while (matcher.find()) {
-            builder.append(string, start, matcher.start());
-            String param = matcher.group(1);
-            boolean containsValueForParam = paramMap.containsKey(param);
-            if (!containsValueForParam) {
-                if (isTemplate) {
-                    builder.append(matcher.group());
-                    start = matcher.end();
-                    continue;
-                }
-                throw new IllegalArgumentException("Path parameter not provided " + param);
-            }
-            Object value = paramMap.get(param);
-            String stringValue = value != null ? value.toString() : null;
-            if (stringValue != null) {
-                if (!fromEncodedMap) {
-                    stringValue = Encode.encodeQueryParamAsIs(stringValue);
-                } else {
-                    stringValue = Encode.encodeQueryParamSaveEncodings(stringValue);
-                }
-                builder.append(stringValue);
-                start = matcher.end();
-            } else {
-                throw new IllegalArgumentException("Template param was null: " + param);
-            }
-        }
-        builder.append(string, start, string.length());
+        JaxRsUriTemplate.expand(string, paramMap, isTemplate, builder,
+            fromEncodedMap ? Encode::encodeQueryParamSaveEncodings : Encode::encodeQueryParamAsIs, "Template param was null: ");
     }
 
     @Override
@@ -731,23 +644,8 @@ final class JaxRsUriBuilder extends UriBuilder {
         }
 
         // remove all path param expressions so we don't accidentally start replacing within a regular expression
-        ArrayList<String> pathParams = new ArrayList<>();
-        boolean foundParam = false;
-
-        CharSequence pathWithoutEnclosedCurlyBraces = Encode.replaceEnclosedCurlyBracesCS(this.path);
-        Matcher matcher = Encode.URI_TEMPLATE_PATTERN.matcher(pathWithoutEnclosedCurlyBraces);
-        StringBuilder newSegment = new StringBuilder();
-        int from = 0;
-        while (matcher.find()) {
-            newSegment.append(pathWithoutEnclosedCurlyBraces, from, matcher.start());
-            foundParam = true;
-            String group = matcher.group();
-            pathParams.add(Encode.recoverEnclosedCurlyBraces(group));
-            newSegment.append(REPLACEMENT_URI_PARAMETER);
-            from = matcher.end();
-        }
-        newSegment.append(pathWithoutEnclosedCurlyBraces, from, pathWithoutEnclosedCurlyBraces.length());
-        path = newSegment.toString();
+        JaxRsUriTemplate.Protected protectedPath = JaxRsUriTemplate.protect(path);
+        path = protectedPath.text();
 
         // Find last path segment
         int start = path.lastIndexOf('/');
@@ -794,19 +692,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         }
 
         // put back all path param expressions
-        if (foundParam) {
-            matcher = PARAM_REPLACEMENT.matcher(path);
-            newSegment = new StringBuilder();
-            int i = 0;
-            from = 0;
-            while (matcher.find()) {
-                newSegment.append(this.path, from, matcher.start());
-                newSegment.append(pathParams.get(i++));
-                from = matcher.end();
-            }
-            newSegment.append(this.path, from, this.path.length());
-            path = newSegment.toString();
-        }
+        path = protectedPath.restore(path);
         return this;
     }
 

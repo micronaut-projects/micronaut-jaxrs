@@ -16,13 +16,10 @@
 package io.micronaut.jaxrs.common;
 
 import io.micronaut.core.annotation.Internal;
-import org.jspecify.annotations.Nullable;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -37,16 +34,9 @@ import java.util.regex.Pattern;
 @Internal
 final class Encode {
 
-    /**
-     * A regex pattern that searches for a URI template parameter in the form of {*}.
-     */
-    public static final Pattern URI_TEMPLATE_PATTERN = Pattern.compile("(\\{([^}]+)})");
-
     private static final Pattern NON_CODES = Pattern.compile("%([^a-fA-F0-9]|[a-fA-F0-9]$|$|[a-fA-F0-9][^a-fA-F0-9])");
 
     private static final String UTF_8 = StandardCharsets.UTF_8.name();
-
-    private static final Pattern PARAM_REPLACEMENT = Pattern.compile("_resteasy_uri_parameter");
 
     private static final String[] PATH_ENCODING = new String[128];
     private static final String[] PATH_SEGMENT_ENCODING = new String[128];
@@ -55,9 +45,6 @@ final class Encode {
     private static final String[] QUERY_STRING_ENCODING = new String[128];
     private static final String[] USER_INFO_ENCODING = new String[128];
     private static final String[] HOST_ENCODING = new String[128];
-
-    private static final char OPEN_CURLY_REPLACEMENT = 6;
-    private static final char CLOSE_CURLY_REPLACEMENT = 7;
 
     static {
         /*
@@ -331,25 +318,6 @@ final class Encode {
         return builder.toString();
     }
 
-    public static boolean savePathParams(String segmentString, StringBuilder newSegment, List<String> params) {
-        boolean foundParam = false;
-        // Regular expressions can have '{' and '}' characters.  Replace them to do match
-        CharSequence segment = replaceEnclosedCurlyBracesCS(segmentString);
-        Matcher matcher = URI_TEMPLATE_PATTERN.matcher(segment);
-        int start = 0;
-        while (matcher.find()) {
-            newSegment.append(segment, start, matcher.start());
-            foundParam = true;
-            String group = matcher.group();
-            // Regular expressions can have '{' and '}' characters.  Recover earlier replacement
-            params.add(recoverEnclosedCurlyBraces(group));
-            newSegment.append("_resteasy_uri_parameter");
-            start = matcher.end();
-        }
-        newSegment.append(segment, start, segment.length());
-        return foundParam;
-    }
-
     /**
      * Keep encoded values "%..." and template parameters intact i.e. "{x}".
      *
@@ -358,20 +326,11 @@ final class Encode {
      * @return encoded value
      */
     public static String encodeValue(String segment, String[] encoding) {
-        var params = new ArrayList<String>();
-        boolean foundParam = false;
-        StringBuilder newSegment = new StringBuilder();
-        if (savePathParams(segment, newSegment, params)) {
-            foundParam = true;
-            segment = newSegment.toString();
+        JaxRsUriTemplate.Protected protectedSegment = JaxRsUriTemplate.protect(segment);
+        if (!protectedSegment.hasTemplates()) {
+            return encodeNonCodes(encodeFromArray(segment, encoding, false));
         }
-        String result = encodeFromArray(segment, encoding, false);
-        result = encodeNonCodes(result);
-        segment = result;
-        if (foundParam) {
-            segment = pathParamReplacement(segment, params);
-        }
-        return segment;
+        return protectedSegment.restore(encodeNonCodes(encodeFromArray(protectedSegment.text(), encoding, false)));
     }
 
     /**
@@ -500,113 +459,6 @@ final class Encode {
             return URLEncoder.encode(s, UTF_8);
         } catch (UnsupportedEncodingException e) {
             throw new RuntimeException(e);
-        }
-    }
-
-    public static String pathParamReplacement(String segment, List<String> params) {
-        StringBuilder newSegment = new StringBuilder();
-        Matcher matcher = PARAM_REPLACEMENT.matcher(segment);
-        int i = 0;
-        int start = 0;
-        while (matcher.find()) {
-            newSegment.append(segment, start, matcher.start());
-            String replacement = params.get(i++);
-            newSegment.append(replacement);
-            start = matcher.end();
-        }
-        newSegment.append(segment, start, segment.length());
-        segment = newSegment.toString();
-        return segment;
-    }
-
-    /**
-     * A cheaper (memory-wise) version of replaceEnclosedCurlyBraces(String str).
-     *
-     * @param str input string
-     * @return replaced output
-     */
-    public static CharSequence replaceEnclosedCurlyBracesCS(String str) {
-        int open = 0;
-        CharSequence cs = str;
-        char @Nullable [] chars = null;
-        for (int i = 0; i < str.length(); i++) {
-            if (cs.charAt(i) == '{') {
-                if (open != 0) {
-                    if (chars == null) {
-                        chars = str.toCharArray();
-                        cs = new ArrayCharSequence(chars);
-                    }
-                    chars[i] = OPEN_CURLY_REPLACEMENT;
-                }
-                open++;
-            } else if (cs.charAt(i) == '}') {
-                open--;
-                if (open != 0) {
-                    if (chars == null) {
-                        chars = str.toCharArray();
-                        cs = new ArrayCharSequence(chars);
-                    }
-                    chars[i] = CLOSE_CURLY_REPLACEMENT;
-                }
-            }
-        }
-        return cs;
-    }
-
-    public static String recoverEnclosedCurlyBraces(String str) {
-        return str.replace(OPEN_CURLY_REPLACEMENT, '{').replace(CLOSE_CURLY_REPLACEMENT, '}');
-    }
-
-    /**
-     * A CharSequence backed by a char[] (no copy on creation).
-     */
-    private static final class ArrayCharSequence implements CharSequence {
-        private final char[] buf;
-        private final int offset;
-        private final int count;
-
-        public ArrayCharSequence(final char[] buff) {
-            this(buff, 0, buff.length);
-        }
-
-        public ArrayCharSequence(final char[] buff, final int offset, final int count) {
-            this.buf = buff;
-            this.offset = offset;
-            this.count = count;
-        }
-
-        @Override
-        public char charAt(int index) {
-            if (index < 0 || index >= count) {
-                throw new StringIndexOutOfBoundsException(index);
-            }
-            return buf[offset + index];
-        }
-
-        @Override
-        public int length() {
-            return count;
-        }
-
-        @Override
-        public CharSequence subSequence(int beginIndex, int endIndex) {
-            if (beginIndex < 0) {
-                throw new StringIndexOutOfBoundsException(beginIndex);
-            }
-            if (endIndex > count) {
-                throw new StringIndexOutOfBoundsException(endIndex);
-            }
-            if (beginIndex > endIndex) {
-                throw new StringIndexOutOfBoundsException(endIndex - beginIndex);
-            }
-            return ((beginIndex == 0) && (endIndex == count))
-                ? this
-                : new ArrayCharSequence(buf, offset + beginIndex, endIndex - beginIndex);
-        }
-
-        @Override
-        public String toString() {
-            return new String(this.buf, this.offset, this.count);
         }
     }
 }
