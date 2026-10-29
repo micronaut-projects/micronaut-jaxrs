@@ -249,64 +249,6 @@ public final class JaxRsEntityPart implements EntityPart {
         headOut.writeHead();
     }
 
-    /**
-     * Writes the headers of a part.
-     */
-    @FunctionalInterface
-    interface HeadWriter {
-        /**
-         * @param headers The headers of the part, as its writer left them
-         * @throws IOException if they cannot be written
-         */
-        void write(MultivaluedMap<String, Object> headers) throws IOException;
-    }
-
-    /**
-     * A stream that writes the headers of a part before its first byte.
-     */
-    private static final class HeadOutputStream extends FilterOutputStream {
-        private final HeadWriter head;
-        private final MultivaluedMap<String, Object> headers;
-        private boolean written;
-
-        HeadOutputStream(OutputStream out, HeadWriter head, MultivaluedMap<String, Object> headers) {
-            super(out);
-            this.head = head;
-            this.headers = headers;
-        }
-
-        void writeHead() throws IOException {
-            if (!written) {
-                written = true;
-                head.write(headers);
-            }
-        }
-
-        @Override
-        public void write(int b) throws IOException {
-            writeHead();
-            out.write(b);
-        }
-
-        @Override
-        public void write(byte[] b, int off, int len) throws IOException {
-            writeHead();
-            out.write(b, off, len);
-        }
-
-        @Override
-        public void flush() throws IOException {
-            writeHead();
-            out.flush();
-        }
-
-        @Override
-        public void close() throws IOException {
-            // the stream of the multipart entity stays open
-            flush();
-        }
-    }
-
     private void consume() {
         if (consumed) {
             throw new IllegalStateException("The content of the part " + name + " is already read");
@@ -371,5 +313,63 @@ public final class JaxRsEntityPart implements EntityPart {
     @Override
     public String toString() {
         return "EntityPart{name=" + name + ", fileName=" + fileName + ", mediaType=" + mediaType + ", headers=" + headers + '}';
+    }
+
+    /**
+     * Writes the headers of a part.
+     */
+    @FunctionalInterface
+    interface HeadWriter {
+        /**
+         * @param headers The headers of the part, as its writer left them
+         * @throws IOException if they cannot be written
+         */
+        void write(MultivaluedMap<String, Object> headers) throws IOException;
+    }
+
+    /**
+     * A stream that writes the headers of a part before its first byte.
+     */
+    private static final class HeadOutputStream extends FilterOutputStream {
+        private final HeadWriter head;
+        private final MultivaluedMap<String, Object> headers;
+        private boolean written;
+
+        HeadOutputStream(OutputStream out, HeadWriter head, MultivaluedMap<String, Object> headers) {
+            super(out);
+            this.head = head;
+            this.headers = headers;
+        }
+
+        void writeHead() throws IOException {
+            if (!written) {
+                written = true;
+                head.write(headers);
+            }
+        }
+
+        @Override
+        public void write(int b) throws IOException {
+            writeHead();
+            out.write(b);
+        }
+
+        @Override
+        public void write(byte[] b, int off, int len) throws IOException {
+            writeHead();
+            out.write(b, off, len);
+        }
+
+        @Override
+        public void flush() throws IOException {
+            writeHead();
+            out.flush();
+        }
+
+        @Override
+        public void close() throws IOException {
+            // the stream of the multipart entity stays open
+            flush();
+        }
     }
 }

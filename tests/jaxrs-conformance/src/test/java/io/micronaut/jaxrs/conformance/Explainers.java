@@ -71,6 +71,10 @@ final class Explainers {
             case "link-build" -> {
                 return throwsIn(jersey) ? "JERSEY Link.valueOf cannot read back the title/rel Link.toString wrote" : null;
             }
+            case "cookie" -> {
+                return input.matches(".*\"[^\"]*[;,][^\"]*\".*") && !throwsIn(jersey)
+                    ? "JERSEY a delimiter in a quoted cookie value splits the value (RFC 2109 4.3.4: part of the quoted-string)" : null;
+            }
             case "locale" -> {
                 return throwsIn(ours) ? "IMPL no HeaderDelegate<Locale> (Jersey has one; JAX-RS does not require it)" : null;
             }
@@ -112,6 +116,9 @@ final class Explainers {
                         return "IMPL parsing of an invalid Allow/Set-Cookie value set as a raw header";
                     case 13:
                     case 17:
+                        if (input.contains("Allow: ") && sameMethods(a.get(i), b.get(i))) {
+                            return "IMPL allow(...) writes the methods in the order given (Jersey in the order of a set)";
+                        }
                         if (i == 13 && input.contains("Link: ")) {
                             return "IMPL a raw Link header is kept as written (Jersey re-serializes it)";
                         }
@@ -122,6 +129,10 @@ final class Explainers {
             }
         }
         return null;
+    }
+
+    private static boolean sameMethods(Object ours, Object jersey) {
+        return new java.util.TreeSet<>(List.of(String.valueOf(ours).split(","))).equals(new java.util.TreeSet<>(List.of(String.valueOf(jersey).split(","))));
     }
 
     /** ClientApiConformanceTest.seededVariantListBuilder. */
