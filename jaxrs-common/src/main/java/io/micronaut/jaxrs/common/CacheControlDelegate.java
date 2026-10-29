@@ -168,7 +168,7 @@ class CacheControlDelegate implements RuntimeDelegate.HeaderDelegate<CacheContro
             String val = value.getCacheExtension().get(key);
             addDirective(key, buffer);
             if (val != null && !val.isEmpty()) {
-                buffer.append("=\"").append(val).append("\"");
+                JaxRsHeaderUtil.appendQuoted(buffer.append('='), val);
             }
         }
         return buffer.toString();
