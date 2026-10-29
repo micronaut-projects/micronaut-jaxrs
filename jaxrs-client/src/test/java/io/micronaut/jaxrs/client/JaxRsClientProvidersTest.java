@@ -5,14 +5,17 @@ import io.micronaut.runtime.server.EmbeddedServer;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.ConstrainedTo;
+import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.ProcessingException;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.RuntimeType;
 import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.client.ClientBuilder;
+import jakarta.ws.rs.client.ClientResponseFilter;
 import jakarta.ws.rs.client.Entity;
 import jakarta.ws.rs.client.WebTarget;
 import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.ext.ContextResolver;
@@ -192,6 +195,104 @@ class JaxRsClientProvidersTest {
         var event = new JaxRsInboundSseEvent(null, null, null, InboundSseEvent.RECONNECT_NOT_SET, "x", target.getConfiguration());
 
         assertEquals(new Thing("selected"), event.readData(Thing.class, MediaType.APPLICATION_XML_TYPE));
+    }
+
+    @Test
+    void theReaderOfTheHighestPriorityIsSelectedBeforeTheNearestType() {
+        String read = client.target(server.getURI()).path("client").path("hello")
+            .register(new PlainStringReader(), 9000)
+            .register(new PlainObjectReader(), 1)
+            .request()
+            .get(String.class);
+
+        assertEquals("object", read);
+    }
+
+    @Test
+    void theProvidersSelectTheReaderOfTheHighestPriority() {
+        byte[] echoed = echo()
+            .register(new PlainStringReader(), 9000)
+            .register(new PlainObjectReader(), 1)
+            .register(new ReaderLookupWriter())
+            .request()
+            // not read with the readers of strings
+            .post(Entity.text(new Thing("x")), byte[].class);
+
+        assertEquals("text/plain|PlainObjectReader", new String(echoed, StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void anEntityWithoutAContentTypeIsReadAsAnOctetStream() {
+        String read = client.target(server.getURI()).path("client").path("hello")
+            .register((ClientResponseFilter) (request, response) -> response.getHeaders().remove(HttpHeaders.CONTENT_TYPE))
+            .register(new PlainStringReader(), 1)
+            .register(new OctetStringReader(), 9000)
+            .request()
+            .get(String.class);
+
+        assertEquals("octet", read);
+    }
+
+    @Consumes(MediaType.TEXT_PLAIN)
+    public static final class PlainStringReader implements MessageBodyReader<String> {
+        @Override
+        public boolean isReadable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+            return type == String.class;
+        }
+
+        @Override
+        public String readFrom(Class<String> type, Type genericType, Annotation[] annotations, MediaType mediaType,
+                               MultivaluedMap<String, String> httpHeaders, InputStream entityStream) {
+            return "string";
+        }
+    }
+
+    @Consumes(MediaType.TEXT_PLAIN)
+    public static final class PlainObjectReader implements MessageBodyReader<Object> {
+        @Override
+        public boolean isReadable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+            return type == String.class;
+        }
+
+        @Override
+        public Object readFrom(Class<Object> type, Type genericType, Annotation[] annotations, MediaType mediaType,
+                               MultivaluedMap<String, String> httpHeaders, InputStream entityStream) {
+            return "object";
+        }
+    }
+
+    @Consumes(MediaType.APPLICATION_OCTET_STREAM)
+    public static final class OctetStringReader implements MessageBodyReader<String> {
+        @Override
+        public boolean isReadable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+            return type == String.class;
+        }
+
+        @Override
+        public String readFrom(Class<String> type, Type genericType, Annotation[] annotations, MediaType mediaType,
+                               MultivaluedMap<String, String> httpHeaders, InputStream entityStream) {
+            return "octet";
+        }
+    }
+
+    /**
+     * Writes the class of the reader of strings the providers select.
+     */
+    public static final class ReaderLookupWriter implements MessageBodyWriter<Thing> {
+
+        @Context
+        Providers providers;
+
+        @Override
+        public boolean isWriteable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+            return type == Thing.class;
+        }
+
+        @Override
+        public void writeTo(Thing thing, Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType,
+                            MultivaluedMap<String, Object> httpHeaders, OutputStream entityStream) throws IOException {
+            write(providers.getMessageBodyReader(String.class, String.class, annotations, mediaType).getClass().getSimpleName(), entityStream);
+        }
     }
 
     public record Thing(String value) {

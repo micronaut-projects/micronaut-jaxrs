@@ -612,7 +612,8 @@ final class JaxRsConfiguration implements Configuration {
                     .orElse(null);
                 if (byteBuffer != null) {
                     List<BeanRegistration<ReaderInterceptor>> readerInterceptors = getReaderInterceptors();
-                    io.micronaut.http.MediaType mediaType = message.getContentType().orElse(MediaType.ALL_TYPE);
+                    // an entity without a type is a stream of bytes (JAX-RS 4.2.1, step 1)
+                    io.micronaut.http.MediaType mediaType = message.getContentType().orElse(MediaType.APPLICATION_OCTET_STREAM_TYPE);
                     HttpHeaders headers = message.getHeaders();
                     if (readerInterceptors.isEmpty()) {
                         io.micronaut.http.body.MessageBodyReader<T> reader = findReader(entityType, mediaType);
