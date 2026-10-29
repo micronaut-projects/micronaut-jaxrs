@@ -31,6 +31,7 @@ import jakarta.ws.rs.InternalServerErrorException;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
+import jakarta.ws.rs.core.NoContentException;
 import jakarta.ws.rs.ext.ContextResolver;
 import jakarta.ws.rs.ext.MessageBodyReader;
 import jakarta.ws.rs.ext.MessageBodyWriter;
@@ -98,7 +99,12 @@ public final class JaxRsJaxbMessageBodyReaderWriter implements MessageBodyReader
     @Override
     public Object readFrom(Class<Object> type, Type genericType, Annotation[] annotations, MediaType mediaType,
                            MultivaluedMap<String, String> httpHeaders, InputStream entityStream) throws IOException {
-        StreamSource entity = new StreamSource(new ByteArrayInputStream(entityStream.readAllBytes()));
+        byte[] bytes = entityStream.readAllBytes();
+        if (bytes.length == 0) {
+            // the runtime maps it to a bad request (JAX-RS 4.2.4)
+            throw new NoContentException("The XML entity is empty");
+        }
+        StreamSource entity = new StreamSource(new ByteArrayInputStream(bytes));
         try {
             if (JAXBElement.class.equals(type)) {
                 Class<?> declared = typeArgument(genericType);
