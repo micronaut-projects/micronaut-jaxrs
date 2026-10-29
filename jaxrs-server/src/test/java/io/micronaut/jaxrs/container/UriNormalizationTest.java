@@ -8,14 +8,19 @@ import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.container.ContainerRequestContext;
+import jakarta.ws.rs.container.ContainerRequestFilter;
+import jakarta.ws.rs.container.PreMatching;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.UriInfo;
+import jakarta.ws.rs.ext.Provider;
 import org.junit.jupiter.api.Test;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.Socket;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -54,6 +59,13 @@ class UriNormalizationTest {
         assertTrue(response.startsWith("HTTP/1.1 404"), response);
     }
 
+    @Test
+    void pathRewrittenByPreMatchingFilterIsNormalized() throws Exception {
+        String response = get("/api/rewrite");
+        assertTrue(response.startsWith("HTTP/1.1 200"), response);
+        assertTrue(response.endsWith("tilde /api/norm/~?null"), response);
+    }
+
     /**
      * Sent raw: the clients normalize the path themselves.
      */
@@ -69,6 +81,19 @@ class UriNormalizationTest {
                 response.append(line).append('\n');
             }
             return response.toString().trim();
+        }
+    }
+
+    @Requires(property = "spec.name", value = "UriNormalizationTest")
+    @Provider
+    @PreMatching
+    public static class RewriteFilter implements ContainerRequestFilter {
+        @Override
+        public void filter(ContainerRequestContext requestContext) {
+            URI uri = requestContext.getUriInfo().getRequestUri();
+            if (uri.getRawPath().endsWith("/rewrite")) {
+                requestContext.setRequestUri(URI.create(uri.toString().replace("/rewrite", "/norm/%7e")));
+            }
         }
     }
 

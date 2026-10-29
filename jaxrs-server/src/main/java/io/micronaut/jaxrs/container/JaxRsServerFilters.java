@@ -62,7 +62,15 @@ final class JaxRsServerFilters implements HttpRoutes {
         routes.serverFilter("/**").preMatching()
             .beforeReplacingAsync(request -> {
                 normalize(request);
-                return filters.filterPreMatchingRequestAsync(request);
+                return filters.filterPreMatchingRequestAsync(request).thenApply(message -> {
+                    // the request URI a pre-matching filter set is normalized too
+                    if (message == null) {
+                        normalize(request);
+                    } else if (message instanceof MutableHttpRequest<?> changed) {
+                        normalize(changed);
+                    }
+                    return message;
+                });
             }).and()
             .after((request, response) -> {
                 try {
