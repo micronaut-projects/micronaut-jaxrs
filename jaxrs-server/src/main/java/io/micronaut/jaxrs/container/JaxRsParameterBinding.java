@@ -116,12 +116,14 @@ final class JaxRsParameterBinding {
         PathVariables variables = encoded ? pathVariables.raw() : pathVariables;
         Optional<String> value = variables.findString(name);
         Class<?> type = argument.getType();
+        Supplier<List<PathSegment>> relative = () -> new UriInfoImpl(request, applicationProvider.getPath(), applicationProvider.getContextPath())
+            .getPathSegments(!encoded);
         if (type == PathSegment.class) {
-            return value.map(v -> JaxRsPathSegments.pathSegment(request, name, v, encoded)).orElse(null);
+            return value.map(v -> JaxRsPathSegments.pathSegment(request, pathVariables, name, v, encoded, relative)).orElse(null);
         }
         if (type == List.class && argument.getFirstTypeVariable().map(Argument::getType).orElse(null) == PathSegment.class) {
             // a variable over several segments
-            return value.map(v -> JaxRsPathSegments.pathSegments(request, name, v, encoded))
+            return value.map(v -> JaxRsPathSegments.pathSegments(request, pathVariables, name, v, encoded, relative))
                 .orElse(List.of());
         }
         List<String> values;
@@ -209,15 +211,29 @@ final class JaxRsParameterBinding {
      */
     private static @Nullable Object cookieParam(HttpRequest<?> request, String name, Conversion conversion) {
         Optional<io.micronaut.http.cookie.Cookie> cookie = request.getCookies().findCookie(name);
+        String defaultValue = conversion.defaultValue;
         if (conversion.argument.getType() == Cookie.class) {
-            String defaultValue = conversion.defaultValue;
-            if (cookie.isPresent()) {
-                io.micronaut.http.cookie.Cookie c = cookie.get();
-                return new Cookie.Builder(c.getName()).value(c.getValue()).path(c.getPath()).domain(c.getDomain()).build();
+            return cookie.map(JaxRsParameterBinding::cookie)
+                .orElseGet(() -> defaultValue == null ? null : new Cookie.Builder(name).value(defaultValue).build());
+        }
+        if (conversion.target.getType() == Cookie.class && conversion.argument.getType() != SortedSet.class) {
+            // the elements of a collection or array of cookies are the cookie, or one of the name with the
+            // default value
+            Cookie element = cookie.map(JaxRsParameterBinding::cookie)
+                .orElseGet(() -> defaultValue == null ? null : new Cookie.Builder(name).value(defaultValue).build());
+            List<Cookie> elements = element == null ? List.of() : List.of(element);
+            Class<?> type = conversion.argument.getType();
+            if (type.isArray()) {
+                return elements.toArray(new Cookie[0]);
             }
-            return defaultValue == null ? null : new Cookie.Builder(name).value(defaultValue).build();
+            // read-only, like the collections of every parameter
+            return type == Set.class ? Set.copyOf(elements) : elements;
         }
         return conversion.convert(cookie.map(c -> List.of(c.getValue())).orElse(List.of()), false);
+    }
+
+    private static Cookie cookie(io.micronaut.http.cookie.Cookie c) {
+        return new Cookie.Builder(c.getName()).value(c.getValue()).path(c.getPath()).domain(c.getDomain()).build();
     }
 
     /**
