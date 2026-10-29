@@ -17,8 +17,10 @@ package io.micronaut.jaxrs.container;
 
 import io.micronaut.context.BeanContext;
 import io.micronaut.context.BeanProvider;
+import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.inject.BeanDefinition;
 import io.micronaut.inject.qualifiers.Qualifiers;
+import io.micronaut.jaxrs.common.JaxRsRouteInterceptors;
 import io.micronaut.jaxrs.common.JaxRsUtils;
 import jakarta.ws.rs.Path;
 import io.micronaut.core.annotation.Internal;
@@ -52,9 +54,11 @@ final class JaxRsContextConfiguration implements Configuration {
     private final Supplier<@Nullable Application> application;
     private final BeanProvider<JaxRsFeatures> features;
     private final Supplier<Set<Class<?>>> discovered;
+    private final BeanContext context;
 
     JaxRsContextConfiguration(BeanProvider<Application> application, BeanProvider<JaxRsFeatures> features, BeanContext context) {
         this.features = features;
+        this.context = context;
         this.discovered = SupplierUtil.memoized(() -> discovered(context));
         // the Application may itself be injected with this configuration
         this.application = SupplierUtil.memoized(() -> application.isPresent() ? application.get() : null);
@@ -124,13 +128,39 @@ final class JaxRsContextConfiguration implements Configuration {
                 }
             }
         }
-        // registered by a feature
-        return features.get().isRegistered(componentClass);
+        // registered by a feature, or discovered
+        return features.get().isRegistered(componentClass) || isDiscovered(componentClass);
+    }
+
+    /**
+     * Whether a class is registered because it is discovered: by an application that lists none
+     * (JAX-RS 2.3), see {@link #getClasses()}.
+     */
+    private boolean isDiscovered(Class<?> componentClass) {
+        Application app = application.get();
+        return (app == null || app.getClasses().isEmpty() && app.getSingletons().isEmpty())
+            && discovered.get().contains(componentClass);
     }
 
     @Override
     public Map<Class<?>, Integer> getContracts(Class<?> componentClass) {
-        return features.get().contracts(componentClass);
+        Map<Class<?>, Integer> contracts = features.get().contracts(componentClass);
+        if (!contracts.isEmpty() || !isRegistered(componentClass)) {
+            return contracts;
+        }
+        // registered by the application, or discovered: for all of the contracts it implements,
+        // with the priority of its @Priority
+        AnnotationMetadata metadata = context.findBeanDefinition(componentClass)
+            .<AnnotationMetadata>map(BeanDefinition::getAnnotationMetadata)
+            .orElseGet(() -> JaxRsRouteInterceptors.metadata(componentClass));
+        int priority = JaxRsUtils.getPriorityOrder(metadata);
+        Map<Class<?>, Integer> implemented = new LinkedHashMap<>();
+        for (Class<?> contract : JaxRsFeatures.CONTRACTS) {
+            if (contract.isAssignableFrom(componentClass)) {
+                implemented.put(contract, priority);
+            }
+        }
+        return Collections.unmodifiableMap(implemented);
     }
 
     @Override

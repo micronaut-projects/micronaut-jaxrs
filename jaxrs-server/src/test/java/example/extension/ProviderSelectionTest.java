@@ -76,6 +76,12 @@ class ProviderSelectionTest {
     }
 
     @Test
+    void discoveredProviderIsRegisteredForItsContracts() {
+        assertEquals("true true {interface jakarta.ws.rs.ext.MessageBodyReader=9000}",
+            client.toBlocking().retrieve(HttpRequest.GET("/discovered")));
+    }
+
+    @Test
     void emptyEntityIsABadRequestTheMappersMap() {
         HttpClientResponseException e = assertThrows(HttpClientResponseException.class,
             () -> client.toBlocking().retrieve(HttpRequest.POST("/number", "").contentType(MediaType.TEXT_PLAIN)));
@@ -333,6 +339,17 @@ class ProviderSelectionTest {
             ContextResolver<Long> resolver = providers.getContextResolver(Long.class, jakarta.ws.rs.core.MediaType.WILDCARD_TYPE);
             Long context = resolver == null ? null : resolver.getContext(String.class);
             return String.valueOf(context);
+        }
+
+        @Context
+        jakarta.ws.rs.core.Configuration configuration;
+
+        @GET
+        @Path("discovered")
+        @Produces("text/plain")
+        public String discovered() {
+            return configuration.getClasses().contains(StringReader.class) + " " + configuration.isRegistered(StringReader.class)
+                + " " + configuration.getContracts(StringReader.class);
         }
 
         @POST
