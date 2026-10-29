@@ -1298,12 +1298,10 @@ public final class JaxRsRouteSupport {
      * The response of a resource method declared to return {@code Object}: what it is is known
      * only at runtime.
      *
-     * @param request    The request
-     * @param result     The result
-     * @param returnType The declared type
+     * @param result The result
      * @return The response
      */
-    public HttpResponse<?> anyResponse(HttpRequest<?> request, @Nullable Object result, Argument<?> returnType) {
+    public HttpResponse<?> anyResponse(@Nullable Object result) {
         if (result instanceof Response response) {
             return jaxRsResponse(response);
         }
@@ -1533,20 +1531,6 @@ public final class JaxRsRouteSupport {
             throw new NotFoundException();
         }
         return located;
-    }
-
-    /**
-     * A {@code @BeanParam}: an introspected type, instantiated and filled with the values of the
-     * request its constructor arguments and properties are annotated with.
-     *
-     * @param type          The type
-     * @param request       The request
-     * @param pathVariables The path variables
-     * @param form          The form, if the route reads one
-     * @return The bean parameter
-     */
-    public Object beanParam(Class<?> type, HttpRequest<?> request, PathVariables pathVariables, @Nullable FormData form) {
-        return beanParamBinder(type).bind(request, pathVariables, form);
     }
 
     /**
@@ -1857,7 +1841,6 @@ public final class JaxRsRouteSupport {
         private final Class<?>[] parameterTypes;
         private final String[] produces;
         private final String[] consumes;
-        private final Class<?> rootClass;
 
         /**
          * @param resourceClass  The resource class
@@ -1865,25 +1848,15 @@ public final class JaxRsRouteSupport {
          * @param parameterTypes The parameter types of the method
          * @param produces       Its {@code @Produces} media types, of the method or else of the class
          * @param consumes       Its {@code @Consumes} media types, of the method or else of the class
-         * @param rootClass      The root resource class, which has the method or its sub-resource locators
          */
         public RouteMetadata(Class<?> resourceClass, String methodName, Class<?>[] parameterTypes,
-                             String[] produces, String[] consumes, Class<?> rootClass) {
+                             String[] produces, String[] consumes) {
             this.resourceClass = resourceClass;
             this.methodName = methodName;
             this.parameterTypes = parameterTypes;
             this.produces = produces;
             this.consumes = consumes;
-            this.rootClass = rootClass;
         }
-
-        /**
-         * @return The resource class
-         */
-        public Class<?> resourceClass() {
-            return resourceClass;
-        }
-
     }
 
     /**

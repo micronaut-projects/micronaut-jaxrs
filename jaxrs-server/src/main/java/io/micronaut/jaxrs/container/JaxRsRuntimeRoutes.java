@@ -238,7 +238,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 return support.matched(request, create(requestType, request, ScopedPathVariables.of(pathVariables, rootVariables), form),
                     rootSegments.count(pathVariables));
             };
-        declare(routes, type, root.methods(), type, prefix, instance, requestType != null && requestType.usesForm(),
+        declare(routes, type, root.methods(), prefix, instance, requestType != null && requestType.usesForm(),
             requestType != null && requestType.encodedForm());
     }
 
@@ -265,7 +265,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             public void routes(LocatedHttpRouteBuilder<T> routes) {
                 support.locatedRoutes(routes, group -> {
                     Instances<T, T> instances = (request, pathVariables, form, target) -> Objects.requireNonNull(target, "target");
-                    declare(new LocatedGroupRoutes<>(group), type, methods(type), type, "", instances, false, false);
+                    declare(new LocatedGroupRoutes<>(group), type, methods(type), "", instances, false, false);
                 });
             }
         };
@@ -460,7 +460,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     /**
      * Declare the routes of the resource methods and locators of a class.
      */
-    private <L, B> void declare(Routes<L> routes, Class<?> type, List<JaxRsMethod<B>> methods, Class<?> rootClass, String path,
+    private <L, B> void declare(Routes<L> routes, Class<?> type, List<JaxRsMethod<B>> methods, String path,
                                 Instances<L, B> instances, boolean rootUsesForm, boolean rootEncodedForm) {
         AnnotationMetadata classMetadata = classMetadata(type);
         boolean typeUsesResourceContext = usesResourceContext(type);
@@ -470,7 +470,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             String methodPath = metadata.stringValue(Path.class).orElse(null);
             if (httpMethod != null) {
                 String template = template(path, methodPath == null ? "" : methodPath);
-                ResourceMethod<B> resourceMethod = resourceMethod(type, classMetadata, rootClass, method, httpMethod, template);
+                ResourceMethod<B> resourceMethod = resourceMethod(type, classMetadata, method, httpMethod, template);
                 if (resourceMethod != null) {
                     boolean usesResourceContext = typeUsesResourceContext
                         || Arrays.stream(method.arguments()).anyMatch(argument -> argument.getType() == ResourceContext.class);
@@ -857,7 +857,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         }
         if (raw == Object.class || type.isTypeVariable()) {
             // known only at runtime
-            return (request, result) -> support.anyResponse(request, result, type);
+            return (request, result) -> support.anyResponse(result);
         }
         if (Response.class.isAssignableFrom(raw)) {
             return (request, result) -> support.jaxRsResponse((Response) result);
@@ -904,7 +904,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         return (request, pathVariables, response) -> support.negotiate(request, response, returnType);
     }
 
-    private <B> @Nullable ResourceMethod<B> resourceMethod(Class<?> owner, AnnotationMetadata classMetadata, Class<?> rootClass,
+    private <B> @Nullable ResourceMethod<B> resourceMethod(Class<?> owner, AnnotationMetadata classMetadata,
                                                            JaxRsMethod<B> method, String httpMethod, String template) {
         Argument<?>[] arguments = arguments(method);
         Reader[] readers = new Reader[arguments.length];
@@ -982,7 +982,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         List<String> produces = mediaTypes(method.metadata(), classMetadata, Produces.class);
         List<String> consumes = mediaTypes(method.metadata(), classMetadata, Consumes.class);
         JaxRsRouteSupport.RouteMetadata metadata = new JaxRsRouteSupport.RouteMetadata(owner, method.name(),
-            Argument.toClassArray(method.arguments()), produces.toArray(String[]::new), consumes.toArray(String[]::new), rootClass);
+            Argument.toClassArray(method.arguments()), produces.toArray(String[]::new), consumes.toArray(String[]::new));
         return new ResourceMethod<>(method, httpMethod, template, readers, form, formEntity, usesForm, encodedForm, entity, async,
             !produces.isEmpty(), !consumes.isEmpty(), converter(valueType, async), completion(produces, valueType), responseType(valueType), metadata,
             suspended);
