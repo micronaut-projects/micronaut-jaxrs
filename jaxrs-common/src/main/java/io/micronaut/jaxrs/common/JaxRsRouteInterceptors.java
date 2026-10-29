@@ -27,6 +27,7 @@ import jakarta.ws.rs.ext.WriterInterceptor;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.ToIntFunction;
 
@@ -72,6 +73,50 @@ public interface JaxRsRouteInterceptors {
      */
     default <I> List<BeanRegistration<I>> registered(List<BeanRegistration<I>> beans, Class<I> contract) {
         return beans;
+    }
+
+    /**
+     * The interceptors of a contract for the resource method of the current request: the beans
+     * registered for the contract that are bound to the method, and the interceptors registered
+     * for the method, which are bound whatever their name bindings, in the order of their
+     * priorities, see {@link #bind}.
+     *
+     * @param beans     The interceptor beans
+     * @param contract  The contract, {@link ReaderInterceptor} or {@link WriterInterceptor}
+     * @param predicate The name binding predicate of the beans
+     * @param <I>       The type of interceptor
+     * @return The interceptors, possibly none bound, {@code null} if there are none at all, so
+     * the entity is not intercepted
+     */
+    @SuppressWarnings("unchecked")
+    default <I> @Nullable List<I> bound(List<BeanRegistration<I>> beans, Class<I> contract, NameBindingPredicate predicate) {
+        List<I> forRoute = contract == ReaderInterceptor.class ? (List<I>) readerInterceptors()
+            : contract == WriterInterceptor.class ? (List<I>) writerInterceptors() : List.of();
+        return bind(merge(registered(beans, contract), forRoute, interceptor -> priority(interceptor, contract)), predicate);
+    }
+
+    /**
+     * The interceptors of registrations in the order of their priorities, the ones that are bound.
+     *
+     * @param registrations The registrations, see {@link #merge}
+     * @param predicate     The name binding predicate of the beans, see {@link #predicate}
+     * @param <I>           The type of interceptor
+     * @return The bound interceptors, {@code null} if there are no registrations
+     */
+    static <I> @Nullable List<I> bind(List<BeanRegistration<I>> registrations, NameBindingPredicate predicate) {
+        if (registrations.isEmpty()) {
+            return null;
+        }
+        List<BeanRegistration<I>> sorted = new ArrayList<>(registrations);
+        JaxRsUtils.sortRegistrationsByPriority(sorted);
+        NameBindingPredicate bindingPredicate = predicate(predicate);
+        List<I> bound = new ArrayList<>(sorted.size());
+        for (BeanRegistration<I> registration : sorted) {
+            if (bindingPredicate.test(registration.getBeanDefinition())) {
+                bound.add(registration.getBean());
+            }
+        }
+        return Collections.unmodifiableList(bound);
     }
 
     /**

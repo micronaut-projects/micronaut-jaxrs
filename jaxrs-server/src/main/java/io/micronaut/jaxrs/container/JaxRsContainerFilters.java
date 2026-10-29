@@ -255,16 +255,16 @@ final class JaxRsContainerFilters {
         }
         ByteArrayOutputStream delegateEntityStream = null;
         OutputStream customEntityStream = null;
-        JaxRsFeatures.Components dynamic = dynamicComponents(routeInfo);
-        if (!containerResponseFilters.isEmpty() || !dynamic.responseFilters().isEmpty()) {
+        JaxRsBoundProviders bound = features.bound(routeInfo);
+        if (!containerResponseFilters.isEmpty() || !bound.components().responseFilters().isEmpty()) {
             JaxRsContainerRequestContext requestContext = request.getAttribute(REQUEST_CONTEXT_KEY, JaxRsContainerRequestContext.class)
                 .orElseGet(() -> newContext(request.mutate(), false));
             requestContext.finished();
             JaxRsContainerResponseContext responseContext = new JaxRsContainerResponseContext(mutableHttpResponse, bodyArgument, entityAnnotations);
             // with the ones the dynamic features registered for the resource method, in the
             // reverse order of their priorities (JAX-RS 6.9)
-            List<ContainerResponseFilter> filters = filters(containerResponseFilters, dynamic.responseFilters(),
-                f -> dynamic.priority(f, ContainerResponseFilter.class), true);
+            List<ContainerResponseFilter> filters = filters(bound, JaxRsBoundProviders.RESPONSE_FILTERS, containerResponseFilters,
+                bound.components().responseFilters(), ContainerResponseFilter.class, true);
             for (ContainerResponseFilter responseFilter : filters) {
                 responseFilter.filter(requestContext, responseContext);
             }
@@ -290,6 +290,16 @@ final class JaxRsContainerFilters {
             );
         }
         return mutableHttpResponse;
+    }
+
+    /**
+     * The filter beans bound to the resource method, merged with the filters the dynamic features
+     * registered for it by priority.
+     */
+    private <F> List<F> filters(JaxRsBoundProviders chains, int kind, List<BeanRegistration<F>> beans, List<F> dynamic,
+                                Class<F> contract, boolean reversed) {
+        // built once for the resource method and its name bindings
+        return chains.chain(kind, beans, () -> filters(beans, dynamic, f -> chains.components().priority(f, contract), reversed));
     }
 
     /**
@@ -447,7 +457,8 @@ final class JaxRsContainerFilters {
      */
     @Nullable
     HttpResponse<?> filterRequest(RouteInfo<?> routeInfo, MutableHttpRequest<?> request) throws IOException {
-        JaxRsFeatures.Components dynamic = dynamicComponents(routeInfo);
+        JaxRsBoundProviders bound = features.bound(routeInfo);
+        JaxRsFeatures.Components dynamic = bound.components();
         if (requestFilters.isEmpty() && dynamic.requestFilters().isEmpty()) {
             return null;
         }
@@ -458,8 +469,8 @@ final class JaxRsContainerFilters {
         request.setAttribute(HttpHeadersBinder.HEADERS_KEY, request.getHeaders());
         // with the ones the dynamic features registered for the resource method, in the order of
         // their priorities (JAX-RS 6.9)
-        List<ContainerRequestFilter> filters = filters(requestFilters, dynamic.requestFilters(),
-            f -> dynamic.priority(f, ContainerRequestFilter.class), false);
+        List<ContainerRequestFilter> filters = filters(bound, JaxRsBoundProviders.REQUEST_FILTERS, requestFilters,
+            dynamic.requestFilters(), ContainerRequestFilter.class, false);
         for (ContainerRequestFilter requestFilter : filters) {
             requestFilter.filter(requestContext);
             Response response = requestContext.getResponse();

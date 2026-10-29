@@ -28,10 +28,12 @@ import io.micronaut.http.context.ServerRequestContext;
 import io.micronaut.jaxrs.common.JaxRsContainerMessageBodyHandlerRegistry;
 import io.micronaut.jaxrs.common.JaxRsRouteInterceptors;
 import io.micronaut.jaxrs.common.JaxRsUtils;
+import io.micronaut.jaxrs.common.NameBindingPredicate;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.RouteInfo;
 import io.micronaut.web.router.Router;
 import jakarta.inject.Singleton;
+import jakarta.ws.rs.NameBinding;
 import jakarta.ws.rs.container.ContainerRequestFilter;
 import jakarta.ws.rs.container.ContainerResponseFilter;
 import jakarta.ws.rs.container.DynamicFeature;
@@ -110,6 +112,8 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
     // the features whose configure returned true, see Configuration#isEnabled
     private final Set<Feature> enabledFeatures = ConcurrentHashMap.newKeySet();
     private final Map<Object, Components> components = new ConcurrentHashMap<>();
+    // the filters and interceptors bound to the resource methods, see #bound
+    private final Map<JaxRsBoundProviders.Key, JaxRsBoundProviders> bound = new ConcurrentHashMap<>();
     // the contracts and priorities of the components the features registered globally, by class
     private final Map<Class<?>, Registration> registrations = new ConcurrentHashMap<>();
     // the properties the features set, see Configuration#getProperty
@@ -444,6 +448,45 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
             return Components.EMPTY;
         }
         return components(resourceClass, key, () -> Objects.requireNonNull(JaxRsRouteSupport.resourceMethod(route)));
+    }
+
+    /**
+     * The filters and interceptors bound to the resource method of a route, with the name
+     * bindings of the route of the current request, which the name binding predicate binds them
+     * with, see {@link ContainerNameBindingPredicate}.
+     *
+     * @param route The route of the resource method, {@code null} if no route matched
+     * @return The chains
+     */
+    JaxRsBoundProviders bound(@Nullable RouteInfo<?> route) {
+        Object key = JaxRsRouteSupport.resourceMethodKey(route);
+        if (JaxRsRouteSupport.resourceClass(route) == null) {
+            key = null;
+        }
+        List<String> bindings = ServerRequestContext.currentRequest()
+            .flatMap(RouteAttributes::getRouteInfo)
+            .map(current -> List.copyOf(current.getAnnotationMetadata().getAnnotationNamesByStereotype(NameBinding.class)))
+            .orElse(List.of());
+        return bound.computeIfAbsent(new JaxRsBoundProviders.Key(key, bindings), k -> new JaxRsBoundProviders(components(route)));
+    }
+
+    @Override
+    public <I> @Nullable List<I> bound(List<BeanRegistration<I>> beans, Class<I> contract, NameBindingPredicate predicate) {
+        int kind;
+        if (contract == ReaderInterceptor.class) {
+            kind = JaxRsBoundProviders.READER_INTERCEPTORS;
+        } else if (contract == WriterInterceptor.class) {
+            kind = JaxRsBoundProviders.WRITER_INTERCEPTORS;
+        } else {
+            return JaxRsRouteInterceptors.super.bound(beans, contract, predicate);
+        }
+        JaxRsBoundProviders chains = bound(ServerRequestContext.currentRequest().flatMap(RouteAttributes::getRouteInfo).orElse(null));
+        Components dynamic = chains.components();
+        @SuppressWarnings("unchecked")
+        List<I> forRoute = (List<I>) (kind == JaxRsBoundProviders.READER_INTERCEPTORS ? dynamic.readerInterceptors() : dynamic.writerInterceptors());
+        return chains.chain(kind, beans, () -> JaxRsRouteInterceptors.bind(
+            JaxRsRouteInterceptors.merge(registered(beans, contract), forRoute, interceptor -> dynamic.priority(interceptor, contract)),
+            predicate));
     }
 
     private Components currentComponents() {

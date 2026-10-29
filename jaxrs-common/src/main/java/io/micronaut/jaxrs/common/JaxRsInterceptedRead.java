@@ -48,6 +48,8 @@ public abstract class JaxRsInterceptedRead<T> {
 
     private final List<BeanRegistration<ReaderInterceptor>> readerInterceptorsRegistrations;
     private final NameBindingPredicate nameBindingPredicate;
+    // the interceptors bound and ordered already, see #JaxRsInterceptedRead(List)
+    private final @Nullable List<ReaderInterceptor> bound;
 
     public JaxRsInterceptedRead(List<BeanRegistration<ReaderInterceptor>> readerInterceptorsRegistrations,
                                 NameBindingPredicate nameBindingPredicate) {
@@ -57,6 +59,19 @@ public abstract class JaxRsInterceptedRead<T> {
         }
         this.readerInterceptorsRegistrations = new ArrayList<>(readerInterceptorsRegistrations);
         JaxRsUtils.sortRegistrationsByPriority(this.readerInterceptorsRegistrations);
+        this.bound = null;
+    }
+
+    /**
+     * Through interceptors that are bound and ordered already, e.g. the precomputed chain of a
+     * resource method, see {@link JaxRsRouteInterceptors#bound}.
+     *
+     * @param interceptors The interceptors, in their order, possibly none
+     */
+    protected JaxRsInterceptedRead(List<ReaderInterceptor> interceptors) {
+        this.readerInterceptorsRegistrations = List.of();
+        this.nameBindingPredicate = metadata -> true;
+        this.bound = interceptors;
     }
 
     public final @Nullable T intercept(@NonNull Argument<T> type,
@@ -84,7 +99,7 @@ public abstract class JaxRsInterceptedRead<T> {
                              @NonNull InputStream inputStream,
                              @NonNull Map<String, Object> properties) throws CodecException {
         try {
-            List<ReaderInterceptor> readerInterceptors = readerInterceptorsRegistrations.stream()
+            List<ReaderInterceptor> readerInterceptors = bound != null ? bound : readerInterceptorsRegistrations.stream()
                 .filter(br -> nameBindingPredicate.test(br.getBeanDefinition()))
                 .map(BeanRegistration::getBean)
                 .toList();
