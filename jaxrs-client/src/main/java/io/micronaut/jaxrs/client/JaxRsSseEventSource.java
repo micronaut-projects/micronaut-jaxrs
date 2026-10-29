@@ -32,8 +32,6 @@ import io.micronaut.http.client.sse.EventStreamState;
 import io.micronaut.http.sse.Event;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import jakarta.ws.rs.ProcessingException;
-import jakarta.ws.rs.client.ClientRequestFilter;
-import jakarta.ws.rs.client.ClientResponseFilter;
 import jakarta.ws.rs.client.ResponseProcessingException;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.RuntimeDelegate;
@@ -440,14 +438,11 @@ final class JaxRsSseEventSource implements SseEventSource {
         JaxRsConfiguration configuration = target.getConfiguration();
         var requestContext = new JaxRsClientRequestContext(target.client(), configuration, request, null, Argument.OBJECT_ARGUMENT, Map.of());
         // the injected configuration of a shared filter is the one of this target (JAX-RS 10.2.8)
-        try (var ignored = configuration.current()) {
-            for (ClientRequestFilter filter : configuration.getRequestFilters()) {
-                filter.filter(requestContext);
-                Response response = requestContext.getResponse();
-                if (response != null) {
-                    aborted(response, requestContext);
-                    return null;
-                }
+        try {
+            Response response = JaxRsClientFilters.filterRequest(configuration, requestContext);
+            if (response != null) {
+                aborted(response, requestContext);
+                return null;
             }
         } catch (IOException | RuntimeException e) {
             error(new ProcessingException(e));
@@ -481,16 +476,7 @@ final class JaxRsSseEventSource implements SseEventSource {
      * Run the response filters of the target on the response of a connection.
      */
     private void filterResponse(JaxRsMutableResponse response, JaxRsClientRequestContext requestContext) throws IOException {
-        JaxRsConfiguration configuration = target.getConfiguration();
-        List<ClientResponseFilter> filters = configuration.getResponseFilters();
-        if (!filters.isEmpty()) {
-            try (var ignored = configuration.current()) {
-                    var responseContext = new JaxRsClientResponseContext(response);
-                for (ClientResponseFilter filter : filters) {
-                    filter.filter(requestContext, responseContext);
-                }
-            }
-        }
+        JaxRsClientFilters.filterResponse(target.getConfiguration(), requestContext, response);
     }
 
     /**

@@ -52,8 +52,6 @@ import jakarta.ws.rs.ServerErrorException;
 import jakarta.ws.rs.ServiceUnavailableException;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.client.AsyncInvoker;
-import jakarta.ws.rs.client.ClientRequestFilter;
-import jakarta.ws.rs.client.ClientResponseFilter;
 import jakarta.ws.rs.client.CompletionStageRxInvoker;
 import jakarta.ws.rs.client.Entity;
 import jakarta.ws.rs.client.Invocation;
@@ -70,7 +68,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -313,15 +310,10 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
             JaxRsClientRequestContext requestContext = new JaxRsClientRequestContext(client, configuration, request,
                 entityValue, requestBodyType, properties);
             // the injected configuration of a shared filter is the one of this invocation (JAX-RS 10.2.8)
-            try (var ignored = configuration.current()) {
-                for (ClientRequestFilter requestFilter : configuration.getRequestFilters()) {
-                    requestFilter.filter(requestContext);
-                    Response response = requestContext.getResponse();
-                    if (response != null) {
-                        future.complete(new Exchanged(written(response), requestContext));
-                        return future;
-                    }
-                }
+            Response aborted = JaxRsClientFilters.filterRequest(configuration, requestContext);
+            if (aborted != null) {
+                future.complete(new Exchanged(written(aborted), requestContext));
+                return future;
             }
             request = changed(request, requestContext);
             // the relative links of the response are resolved against the URI of the request
@@ -526,15 +518,7 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
 
     private void filterResponse(@NonNull JaxRsMutableResponse jaxRsMutableResponse, @Nullable JaxRsClientRequestContext requestContext) {
         try {
-            List<ClientResponseFilter> filters = configuration.getResponseFilters();
-            if (!filters.isEmpty()) {
-                JaxRsClientResponseContext responseContext = new JaxRsClientResponseContext(jaxRsMutableResponse);
-                try (var ignored = configuration.current()) {
-                    for (ClientResponseFilter filter : filters) {
-                        filter.filter(requestContext, responseContext);
-                    }
-                }
-            }
+            JaxRsClientFilters.filterResponse(configuration, requestContext, jaxRsMutableResponse);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
