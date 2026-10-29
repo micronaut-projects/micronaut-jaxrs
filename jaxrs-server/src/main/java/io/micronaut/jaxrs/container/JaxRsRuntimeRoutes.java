@@ -518,6 +518,8 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         MatchedSegments matchedSegments = MatchedSegments.of(prefix);
         boolean located = routes.located();
         Locator<L> locator = (request, pathVariables, target, form) -> {
+            // for UriInfo#getPathParameters: the located route has only the last value of a variable that repeats
+            JaxRsMatched.addLocatorVariables(request, pathVariables);
             B instance = instances.get(request, pathVariables, form, target);
             int segments = matchedSegments.count(pathVariables);
             if (located) {

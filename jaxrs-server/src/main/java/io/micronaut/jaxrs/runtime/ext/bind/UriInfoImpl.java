@@ -52,6 +52,12 @@ import java.util.stream.Stream;
  */
 @Internal
 public final class UriInfoImpl implements UriInfo {
+
+    /**
+     * The variable of the router for the rest of the path a sub-resource locator did not match.
+     */
+    private static final String LOCATED_PATH = "micronaut_located_path";
+
     /**
      * The attribute of a request whose pre-matching filters run: no resource is matched yet.
      */
@@ -216,6 +222,7 @@ public final class UriInfoImpl implements UriInfo {
             // the values as they appear in the path
             uriMatch.getRawVariableValues().forEach((name, value) -> map.add(variableName(name), value.toString()));
         }
+        addLocatorVariables(map, decode);
         return unmodifiable(map);
     }
 
@@ -399,6 +406,33 @@ public final class UriInfoImpl implements UriInfo {
      * The name of a variable: an earlier occurrence of a variable that repeats has the name of the
      * variable, see {@link io.micronaut.jaxrs.container.JaxRsRouteTemplateEngine#repeated(String, int)}.
      */
+    /**
+     * Add the values of the variables the sub-resource locators matched that a later match
+     * replaced, e.g. the {@code id} of a locator {@code {id}/sub} of a located route {@code {id}}:
+     * the later values first.
+     */
+    private void addLocatorVariables(MultivaluedMap<String, String> map, boolean decode) {
+        io.micronaut.jaxrs.container.JaxRsMatched matched = io.micronaut.jaxrs.container.JaxRsMatched.get(request);
+        if (matched == null || matched.locatorVariables().isEmpty()) {
+            return;
+        }
+        List<io.micronaut.http.PathVariables> stages = new ArrayList<>(matched.locatorVariables());
+        Collections.reverse(stages);
+        for (io.micronaut.http.PathVariables stage : stages) {
+            io.micronaut.http.PathVariables variables = decode ? stage : stage.raw();
+            for (String name : variables.names()) {
+                if (name.startsWith(LOCATED_PATH)) {
+                    continue;
+                }
+                String value = variables.findString(name).orElse(null);
+                List<String> values = map.get(variableName(name));
+                if (value != null && (values == null || !values.contains(value))) {
+                    map.add(variableName(name), value);
+                }
+            }
+        }
+    }
+
     private static String variableName(String name) {
         int mark = name.indexOf(io.micronaut.jaxrs.container.JaxRsRouteTemplateEngine.LOCATOR_MARK);
         return mark < 0 ? name : name.substring(0, mark);
