@@ -42,10 +42,8 @@ import jakarta.ws.rs.core.Configuration;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
-import java.lang.ref.WeakReference;
 import java.security.KeyStore;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.ServiceLoader;
@@ -62,10 +60,6 @@ import java.util.function.Supplier;
  */
 @Internal
 public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConfigurable<ClientBuilder> {
-
-    // Only for testing
-    private static final List<WeakReference<JaxRsClient>> TESTING_CLIENTS = new ArrayList<>();
-    private static final int TESTING_MIN_CLIENTS = Optional.ofNullable(System.getProperty("micronaut.testing.jaxrs.min.clients")).map(Integer::parseInt).orElse(-1);
 
     private final JaxRsConfiguration config = new JaxRsConfiguration();
     @Nullable
@@ -140,19 +134,8 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
             standardProviders.providers().forEach(jaxRsConfiguration::registerStandard);
         }
 
-        JaxRsClient client = new JaxRsClient(httpClient, httpClients, jaxRsConfiguration, executorService, scheduledExecutorService,
+        return new JaxRsClient(httpClient, httpClients, jaxRsConfiguration, executorService, scheduledExecutorService,
             clientSslContext, hostnameVerifier);
-        if (TESTING_MIN_CLIENTS > 0) {
-            TESTING_CLIENTS.removeIf(w -> w.get() == null);
-            TESTING_CLIENTS.add(new WeakReference<>(client));
-            if (TESTING_CLIENTS.size() > TESTING_MIN_CLIENTS) {
-                JaxRsClient oldest = TESTING_CLIENTS.remove(0).get();
-                if (oldest != null) {
-                    oldest.closeForTesting();
-                }
-            }
-        }
-        return client;
     }
 
     @Override

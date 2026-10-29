@@ -134,13 +134,11 @@ public final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
     }
 
     /**
-     * Release a client that the tests left open, unless an event source of it is open: closing
-     * it would shut down the event loop of the event source.
+     * @return Whether an event source of a target of this client is open: closing the client
+     * would close it and shut down the event loop it runs on
      */
-    void closeForTesting() {
-        if (eventSources.isEmpty()) {
-            close();
-        }
+    boolean hasOpenEventSources() {
+        return !eventSources.isEmpty();
     }
 
     /**

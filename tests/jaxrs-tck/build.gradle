@@ -53,7 +53,6 @@ test {
     systemProperty("java.util.logging.config.class", "x.LoggingConfig")
     systemProperty("webServerHost", "localhost")
     systemProperty("webServerPort", "8123")
-    systemProperty("micronaut.testing.jaxrs.min.clients", "5")
     // the users of the security tests, see TckDeployableContainer
     systemProperty("user", "javajoe")
     systemProperty("password", "javajoe")

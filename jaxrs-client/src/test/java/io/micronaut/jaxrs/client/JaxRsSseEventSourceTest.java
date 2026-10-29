@@ -185,7 +185,7 @@ class JaxRsSseEventSourceTest {
     }
 
     @Test
-    void releasingAClientForTestingKeepsItsOpenEventSources() throws Exception {
+    void aClientTracksItsOpenEventSources() throws Exception {
         JaxRsClient client = (JaxRsClient) ClientBuilder.newClient();
         try {
             CountDownLatch received = new CountDownLatch(1);
@@ -195,15 +195,10 @@ class JaxRsSseEventSourceTest {
             source.register(event -> received.countDown());
             source.open();
             assertTrue(received.await(10, TimeUnit.SECONDS));
-            HttpClient sourceClient = source.httpClient();
-            // the event loop of the event source is the one of the main HTTP client: both stay open
-            client.closeForTesting();
-            assertTrue(source.isOpen());
-            assertTrue(client.getHttpClient().isRunning());
-            assertTrue(sourceClient.isRunning());
+            // closing the client would shut down the event loop of the event source
+            assertTrue(client.hasOpenEventSources());
             source.close();
-            client.closeForTesting();
-            assertFalse(client.getHttpClient().isRunning());
+            assertFalse(client.hasOpenEventSources());
         } finally {
             client.close();
         }
