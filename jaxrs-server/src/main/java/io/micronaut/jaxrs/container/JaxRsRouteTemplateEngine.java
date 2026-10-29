@@ -17,7 +17,6 @@ package io.micronaut.jaxrs.container;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.HttpRequest;
-import io.micronaut.http.MediaType;
 import io.micronaut.http.uri.RouteCaptures;
 import io.micronaut.http.uri.RouteTemplate;
 import io.micronaut.http.uri.RouteTemplateParser;
@@ -49,7 +48,7 @@ import java.util.regex.Pattern;
  * parses: the resource method selection of JAX-RS.
  *
  * <p>One instance per application context: it records the root resource classes of the routes it
- * parses, see {@link #committed}.</p>
+ * parses, see {@link JaxRsRouteSelector}.</p>
  *
  * @author Denis Stepanov
  * @since 5.2.0
@@ -69,13 +68,11 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
      */
     public static final char LOCATOR_MARK = '\u001F';
 
-    private static final String DEFAULT_REGEX = "[^/]+?";
-
     /**
      * The order of specificity of JAX-RS (section 3.7.2): more literal characters, then more
      * template variables, then more variables with a regular expression.
      */
-    private static final Comparator<RouteTemplate> SPECIFICITY = Comparator
+    static final Comparator<RouteTemplate> SPECIFICITY = Comparator
         .comparingInt(RouteTemplate::rawLength).reversed()
         .thenComparing(Comparator.comparingInt(RouteTemplate::pathVariableCount).reversed())
         .thenComparing(Comparator.comparingInt(RouteTemplate::patternVariableCount).reversed());
@@ -84,7 +81,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
      * The order of JAX-RS routes: the root resource class, by the specificity of its {@code @Path},
      * then the whole template, then fewer sub-resource locators.
      */
-    private static final Comparator<RouteTemplate> ORDER = (a, b) -> {
+    static final Comparator<RouteTemplate> ORDER = (a, b) -> {
         if (a instanceof Parsed pa && b instanceof Parsed pb) {
             // the templates of this engine know their root resource class and their locators
             int result = SPECIFICITY.compare(pa.root(), pb.root());
@@ -96,6 +93,8 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
         return SPECIFICITY.compare(a, b);
     };
 
+    private static final String DEFAULT_REGEX = "[^/]+?";
+
     /**
      * The order of the routes: a locator route by the template of its prefix, which has the mark
      * of the locator, so that a resource method is selected before a locator with the same
@@ -105,15 +104,8 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
 
     private static final Parsed EMPTY = new Parsed(null, "", List.of(), null, 0);
 
-    /**
-     * The root resource classes of the routes, most specific first, see {@link #committed}.
-     */
-    private volatile List<Root> roots = List.of();
-
-    /**
-     * The templates of the root resource classes mounted by the router, by the template they mount.
-     */
-    private final Map<String, Parsed> mountedRoots = new ConcurrentHashMap<>();
+    // the selection of the routes, which knows the root resource classes of the templates this engine parses
+    private final JaxRsRouteSelector selector = new JaxRsRouteSelector();
 
     // the templates of the root resource classes of the prefixes of the locator routes, parsed once
     private final Map<String, Optional<Parsed>> locatorRoots = new ConcurrentHashMap<>();
@@ -149,130 +141,11 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
     }
 
     /**
-     * Select the resource method of JAX-RS (section 3.7.2): the most specific templates, then the
-     * content type of the request against the consumed types, then the accepted types, with their
-     * quality, against the produced types, with their {@code qs}. The response type is the
-     * combined type of the selected method, when the method declares the types it produces.
-     * When no method of the most specific templates consumes the content type of the request, the
-     * request is answered with {@code 415}, and when none produces an accepted type, with
-     * {@code 406}.
+     * Select the resource method of JAX-RS (section 3.7.2), see {@link JaxRsRouteSelector#select}.
      */
     @Override
     public List<Selection> select(HttpRequest<?> request, List<UriRouteMatch<?, ?>> matches) {
-        RouteTemplate best = null;
-        List<UriRouteMatch<?, ?>> candidates = new ArrayList<>(matches.size());
-        for (UriRouteMatch<?, ?> match : matches) {
-            RouteTemplate parsed = match.getRouteInfo().getRouteTemplate();
-            int compare = best == null ? -1 : ORDER.compare(parsed, best);
-            if (compare < 0) {
-                best = parsed;
-                candidates.clear();
-                candidates.add(match);
-            } else if (compare == 0) {
-                candidates.add(match);
-            }
-        }
-        if (best instanceof Parsed parsed && parsed.rootPart != null && !committed(request, parsed.root())) {
-            return List.of();
-        }
-        if (candidates.size() > 1 && candidates.stream().anyMatch(c -> !c.getRouteInfo().isImplicitHead())) {
-            // a HEAD request selects among the HEAD methods, and only without one among the GET
-            // methods (JAX-RS 3.3.5): the implicit HEAD routes of the GET methods are not candidates
-            // beside an explicit HEAD method, whatever the media types they produce
-            candidates.removeIf(c -> c.getRouteInfo().isImplicitHead());
-        }
-        MediaType contentType = request.getContentType().orElse(null);
-        List<MediaType> accepted = request.getHeaders().accept();
-        if (accepted.isEmpty()) {
-            accepted = List.of(MediaType.ALL_TYPE);
-        }
-        UriRouteMatch<?, ?> selected = null;
-        JaxRsMediaNegotiation.Negotiated selectedType = null;
-        int selectedConsumes = -1;
-        UriRouteMatch<?, ?> unsupported = null;
-        UriRouteMatch<?, ?> notAcceptable = null;
-        for (UriRouteMatch<?, ?> candidate : candidates) {
-            // a request without a content type is */*: the most specific consumed type is the
-            // best match (JAX-RS 3.7.2, step 3b)
-            int consumes = JaxRsMediaNegotiation.consumes(contentType == null ? MediaType.ALL_TYPE : contentType, candidate.getRouteInfo().getConsumes());
-            if (consumes < 0) {
-                if (candidate.getRouteInfo().getHttpMethod().permitsRequestBody()) {
-                    unsupported = unsupported == null ? candidate : unsupported;
-                    continue;
-                }
-                // the content type of a request without a body does not select the method
-                consumes = 0;
-            }
-            JaxRsMediaNegotiation.Negotiated negotiated = JaxRsMediaNegotiation.negotiate(accepted, candidate.getRouteInfo().getProduces());
-            if (negotiated == null) {
-                notAcceptable = notAcceptable == null ? candidate : notAcceptable;
-                continue;
-            }
-            if (selectedType == null || consumes > selectedConsumes
-                || consumes == selectedConsumes && negotiated.compareTo(selectedType) > 0) {
-                selected = candidate;
-                selectedType = negotiated;
-                selectedConsumes = consumes;
-            }
-        }
-        if (selected == null || selectedType == null) {
-            if (notAcceptable != null) {
-                return List.of(Selection.notAcceptable(notAcceptable));
-            }
-            return unsupported == null ? List.of() : List.of(Selection.unsupportedMediaType(unsupported));
-        }
-        List<MediaType> produces = selected.getRouteInfo().getProduces();
-        boolean declared = !(produces.size() == 1 && produces.get(0).equals(MediaType.ALL_TYPE));
-        MediaType type = selectedType.type();
-        if (declared && JaxRsMediaNegotiation.specificity(type) < 2 && JaxRsMediaNegotiation.octetStreamFallback(accepted, produces)) {
-            // not concrete: JAX-RS answers with application/octet-stream
-            type = MediaType.APPLICATION_OCTET_STREAM_TYPE;
-        }
-        return List.of(Selection.of(selected, declared ? type : null));
-    }
-
-    /**
-     * Whether the root resource class of a route is the one JAX-RS commits to (section 3.7.2,
-     * step 1): no root resource class with a more specific {@code @Path} matches the path. When
-     * one does, the request is not found, even if a route of a less specific class matches.
-     */
-    private boolean committed(HttpRequest<?> request, RouteTemplate root) {
-        String path = null;
-        for (Root candidate : roots) {
-            if (SPECIFICITY.compare(candidate.template, root) >= 0) {
-                return true;
-            }
-            if (path == null) {
-                path = UriTemplateMatcher.normalizeForMatching(withoutMatrixParameters(request.getUri().getRawPath()));
-            }
-            Matcher matcher = candidate.pattern.matcher(path);
-            if (matcher.matches() && (candidate.subResources || matcher.group(matcher.groupCount()) == null)) {
-                // a class with no sub-resource methods or locators matches its path only (step 1(c))
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
-     * Whether JAX-RS commits to the root resource class of a sub-resource locator route, see
-     * {@link #committed}: the router never gives a locator route to {@link #select}, it locates
-     * the target of the most specific one first.
-     *
-     * @param request The request
-     * @param prefix  The prefix the locator route was declared with, with the mark of its root resource class
-     * @return Whether the root resource class of the locator is the one JAX-RS commits to
-     */
-    boolean commitsToLocator(HttpRequest<?> request, String prefix) {
-        Parsed root = locatorRoots.computeIfAbsent(prefix, p -> Optional.ofNullable(parsed(null, p, "").rootPart)).orElse(null);
-        if (root == null) {
-            return true;
-        }
-        // the template the router matches, mounted under the context path
-        for (Parsed mounted = mountedRoots.get(root.expression); mounted != null; mounted = mountedRoots.get(root.expression)) {
-            root = mounted;
-        }
-        return committed(request, root);
+        return selector.select(request, matches);
     }
 
     /**
@@ -282,29 +155,31 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
      * @param replaced      The template it replaces, the unmounted one of a mounted template, or {@code null}
      * @param subResources  Whether the route is one of a sub-resource method or locator of the class
      */
-    private synchronized void addRoot(Parsed root, @Nullable Parsed replaced, boolean subResources) {
-        List<Root> added = new ArrayList<>(roots.size() + 1);
-        boolean present = false;
-        for (Root existing : roots) {
-            if (replaced != null && existing.template.expression.equals(replaced.expression)) {
-                subResources |= existing.subResources;
-                continue;
-            }
-            if (existing.template.expression.equals(root.expression)) {
-                present = true;
-                added.add(new Root(existing.template, existing.pattern, existing.subResources || subResources));
-                continue;
-            }
-            added.add(existing);
-        }
-        if (!present) {
-            // the path of the class, followed by anything (JAX-RS 3.7.3)
-            StringBuilder regex = regex(withoutTrailingSlash(root.parts), new ArrayList<>());
-            regex.append("(/.*)?");
-            added.add(new Root(root, Pattern.compile(regex.toString()), subResources));
-        }
-        added.sort(Comparator.comparing(Root::template, SPECIFICITY));
-        roots = List.copyOf(added);
+    private void addRoot(Parsed root, @Nullable Parsed replaced, boolean subResources) {
+        // the path of the class, followed by anything (JAX-RS 3.7.3)
+        selector.addRoot(root, () -> Pattern.compile(regex(withoutTrailingSlash(root.parts), new ArrayList<>()).append("(/.*)?").toString()),
+            replaced == null ? null : replaced.expression, subResources);
+    }
+
+    /**
+     * @param template A template of a route
+     * @return The template of the root resource class of a template of this engine, else {@code null}
+     */
+    static @Nullable RouteTemplate rootOf(RouteTemplate template) {
+        return template instanceof Parsed parsed && parsed.rootPart != null ? parsed.rootPart : null;
+    }
+
+    /**
+     * Whether JAX-RS commits to the root resource class of a sub-resource locator route, see
+     * {@link JaxRsRouteSelector#commitsToLocator}.
+     *
+     * @param request The request
+     * @param prefix  The prefix the locator route was declared with, with the mark of its root resource class
+     * @return Whether the root resource class of the locator is the one JAX-RS commits to
+     */
+    boolean commitsToLocator(HttpRequest<?> request, String prefix) {
+        Parsed root = locatorRoots.computeIfAbsent(prefix, p -> Optional.ofNullable(parsed(null, p, "").rootPart)).orElse(null);
+        return root == null || selector.commitsToLocator(request, root);
     }
 
     /**
@@ -431,7 +306,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
      * @param path The raw path
      * @return The path, the same instance if it has no matrix parameters
      */
-    private static String withoutMatrixParameters(String path) {
+    static String withoutMatrixParameters(String path) {
         return path.indexOf(';') < 0 ? path : withoutMatrixParameters(path, null);
     }
 
@@ -556,16 +431,6 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
             trimmed.add(Part.literal(text));
         }
         return trimmed;
-    }
-
-    /**
-     * A root resource class: its template, and the pattern of the paths it matches.
-     *
-     * @param template     The template
-     * @param pattern      The pattern of the paths it matches
-     * @param subResources Whether the class has sub-resource methods or locators
-     */
-    private record Root(Parsed template, Pattern pattern, boolean subResources) {
     }
 
     /**
@@ -730,7 +595,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
                 // the root resource class is matched under the prefix
                 engine.addRoot(mounted.rootPart, rootPart, hasSubResource(mounted.expression));
                 if (rootPart != null && !rootPart.expression.equals(mounted.rootPart.expression)) {
-                    engine.mountedRoots.put(rootPart.expression, mounted.rootPart);
+                    engine.selector.mount(rootPart.expression, mounted.rootPart);
                 }
             }
             return mounted;
