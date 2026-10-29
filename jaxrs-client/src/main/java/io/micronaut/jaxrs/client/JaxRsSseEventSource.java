@@ -100,13 +100,13 @@ final class JaxRsSseEventSource implements SseEventSource {
     private final AtomicBoolean ended = new AtomicBoolean();
     // whether a connection received an event stream: then a broken connection is reconnected
     private volatile boolean connected;
-    private volatile long reconnectDelay;
+    // the reconnect delay of the builder, unless the stream gave a reconnection time
+    private final long configuredReconnectDelay;
     // the state, changed under this lock: connect and close are atomic to each other
     private volatile boolean open;
     // whether the source was opened: it is not opened again (JAX-RS, SseEventSource#open)
     private volatile boolean opened;
     private volatile boolean closed;
-    private volatile @Nullable String lastEventId;
     // the last event id and reconnection time of the stream, which the client follows also for a
     // block without data: one per source, kept across connections
     private final EventStreamState streamState = new EventStreamState();
@@ -119,7 +119,7 @@ final class JaxRsSseEventSource implements SseEventSource {
 
     JaxRsSseEventSource(JaxRsWebTarget target, long reconnectDelay) {
         this.target = target;
-        this.reconnectDelay = reconnectDelay;
+        this.configuredReconnectDelay = reconnectDelay;
         ScheduledExecutorService clientScheduler = target.client().getScheduledExecutorService();
         this.scheduler = clientScheduler != null ? clientScheduler : DefaultScheduler.INSTANCE;
         this.executor = target.client().getExecutorService();
@@ -247,9 +247,6 @@ final class JaxRsSseEventSource implements SseEventSource {
         }
         MutableHttpRequest<Object> request = HttpRequest.GET(target.getUri().toString()).accept(MediaType.TEXT_EVENT_STREAM_TYPE);
         String id = streamState.getLastEventId();
-        if (id == null) {
-            id = lastEventId;
-        }
         if (id != null) {
             request.header("Last-Event-ID", id);
         }
@@ -515,17 +512,13 @@ final class JaxRsSseEventSource implements SseEventSource {
     }
 
     /**
-     * @return The event the consumers receive, with its id and reconnect delay remembered for a reconnect
+     * @return The event the consumers receive: the state of the stream follows its id and retry for a reconnect
      */
     private InboundSseEvent inbound(Event<String> event) {
         long delay = InboundSseEvent.RECONNECT_NOT_SET;
         Duration retry = event.getRetry();
         if (retry != null) {
             delay = retry.toMillis();
-            reconnectDelay = delay;
-        }
-        if (event.getId() != null) {
-            lastEventId = event.getId();
         }
         return new JaxRsInboundSseEvent(event.getName(), event.getId(), event.getComment(), delay,
             event.getData(), target.getConfiguration());
@@ -652,11 +645,11 @@ final class JaxRsSseEventSource implements SseEventSource {
 
     /**
      * @return The delay of a reconnection: the reconnection time of the stream, also of a block
-     * without data, otherwise the configured one or the one of the last event
+     * without data, otherwise the configured one
      */
     private long reconnectDelay() {
         Duration time = streamState.getReconnectionTime();
-        return time == null ? reconnectDelay : time.toMillis();
+        return time == null ? configuredReconnectDelay : time.toMillis();
     }
 
     private void reconnect(long delay) {
