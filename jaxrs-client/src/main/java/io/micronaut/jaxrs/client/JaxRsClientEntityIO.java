@@ -15,6 +15,7 @@
  */
 package io.micronaut.jaxrs.client;
 
+import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.context.BeanRegistration;
 import org.jspecify.annotations.Nullable;
 import io.micronaut.core.io.buffer.ByteBuffer;
@@ -167,8 +168,8 @@ final class JaxRsClientEntityIO {
     private <T> void writeBodyOfConfiguration(MutableHttpMessage<?> mutableHttpMessage, Argument<T> bodyArgument, T body, boolean bytes,
                                               Map<String, Object> properties) {
         if (body instanceof GenericEntity<?> genericEntity) {
-            // the entity, written as its generic type
-            writeBody(mutableHttpMessage, (Argument<Object>) JaxRsArgumentUtil.from(genericEntity), genericEntity.getEntity(), bytes, properties);
+            // the entity, written as its raw type and its generic type (JAX-RS 4.2.2)
+            writeBody(mutableHttpMessage, argument(genericEntity, AnnotationMetadata.EMPTY_METADATA), genericEntity.getEntity(), bytes, properties);
             return;
         }
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
@@ -197,22 +198,35 @@ final class JaxRsClientEntityIO {
                         writer = findClientWriter(argument, mediaType);
                         writtenType = clientMediaType(mediaType);
                     }
-                    if (writer != null) {
-                        writer.writeTo(argument, writtenType, state.getEntity(), mutableHttpMessage.getHeaders(), state.getOutputStream());
-                        written.set(true);
+                    if (writer == null) {
+                        // proceeding reached the writers: none writes the entity
+                        throw new IllegalStateException("Unknown entity type " + argument.getType());
                     }
+                    writer.writeTo(argument, writtenType, state.getEntity(), mutableHttpMessage.getHeaders(), state.getOutputStream());
                 }
 
             }.intercept(bodyArgument, mediaType, new JaxRsWriterInterceptorContextState.ClassicState(mutableHttpMessage.getHeaders(), body, outputStream), properties);
         }
 
-        if (written.get()) {
+        if (written.get() || !writerInterceptors.isEmpty()) {
+            // what the writer wrote, or the interceptors, which may write the entity without proceeding
             mutableHttpMessage.body(outputStream.toByteArray());
-        } else if (!providers.getWriterInterceptors().isEmpty()) {
-            throw new IllegalStateException("Unknown entity type " + bodyArgument.getType());
         } else {
             mutableHttpMessage.body(body);
         }
+    }
+
+    /**
+     * The argument of the entity of a generic entity: its raw type, the class of the entity, and
+     * its generic type, as the writers are given them (JAX-RS 4.2.2, {@code GenericEntity#getRawType}).
+     *
+     * @param genericEntity The generic entity
+     * @param annotations   The annotations of the entity
+     * @return The argument
+     */
+    @SuppressWarnings("unchecked")
+    static Argument<Object> argument(GenericEntity<?> genericEntity, AnnotationMetadata annotations) {
+        return JaxRsArgumentUtil.of((Class<Object>) genericEntity.getRawType(), JaxRsArgumentUtil.from(genericEntity), annotations);
     }
 
     /**

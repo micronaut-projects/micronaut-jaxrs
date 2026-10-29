@@ -239,9 +239,8 @@ final class JaxRsClientRequestContext implements ClientRequestContext {
 
     private void replaceEntity(@Nullable Object entity, AnnotationMetadata annotationMetadata) {
         if (entity instanceof GenericEntity<?> genericEntity) {
-            Argument<?> argument = JaxRsArgumentUtil.from(genericEntity);
             this.entity = genericEntity.getEntity();
-            this.bodyType = Argument.of(argument.getType(), annotationMetadata, argument.getTypeParameters());
+            this.bodyType = JaxRsClientEntityIO.argument(genericEntity, annotationMetadata);
         } else if (entity == null) {
             this.entity = null;
             this.bodyType = Argument.of(Object.class, annotationMetadata);
