@@ -38,7 +38,8 @@ public final class JaxRsMatched {
 
     private final List<Object> resources = new ArrayList<>(2);
     private final List<Integer> segments = new ArrayList<>(2);
-    private final List<PathVariables> locatorVariables = new ArrayList<>(1);
+    private final List<Locator> locators = new ArrayList<>(1);
+    private volatile @Nullable Integer locating;
 
     private JaxRsMatched() {
     }
@@ -61,19 +62,46 @@ public final class JaxRsMatched {
     }
 
     /**
-     * Record the path variables a sub-resource locator matched: the router gives the variables of
-     * a located route only the last value of a variable the locator and the route both capture.
+     * Record the path variables a sub-resource locator matched, with the path segments each one
+     * captured: the router gives the variables of a located route only the last value of a
+     * variable the locator and the route both capture.
      *
      * @param request       The request
      * @param pathVariables The path variables of the locator
+     * @param description   The description of the template of the locator
+     * @param end           The number of path segments matched up to the end of the locator, negative if unknown
      */
-    static void addLocatorVariables(HttpRequest<?> request, PathVariables pathVariables) {
+    static void addLocator(HttpRequest<?> request, PathVariables pathVariables, JaxRsTemplateDescription description, int end) {
         JaxRsMatched matched = get(request);
         if (matched == null) {
             matched = new JaxRsMatched();
             request.setAttribute(ATTRIBUTE, matched);
         }
-        matched.locatorVariables.add(pathVariables);
+        PathVariables raw = pathVariables.raw();
+        matched.locators.add(new Locator(pathVariables, description.captures(key -> raw.findString(key).orElse(null)), end));
+    }
+
+    /**
+     * Record that a sub-resource locator is called, or that it returned.
+     *
+     * @param request  The request
+     * @param segments The number of path segments the locator matched, or {@code null} when it returned
+     */
+    static void locating(HttpRequest<?> request, @Nullable Integer segments) {
+        JaxRsMatched matched = get(request);
+        if (matched == null) {
+            matched = new JaxRsMatched();
+            request.setAttribute(ATTRIBUTE, matched);
+        }
+        matched.locating = segments;
+    }
+
+    /**
+     * @return The number of path segments matched by the sub-resource locator being called, {@code null}
+     * when none is
+     */
+    public @Nullable Integer locating() {
+        return locating;
     }
 
     /**
@@ -99,15 +127,60 @@ public final class JaxRsMatched {
     }
 
     /**
-     * @return The path variables of the sub-resource locators that matched, the first one first
+     * @return The sub-resource locators that matched, the first one first
      */
-    public List<PathVariables> locatorVariables() {
-        return Collections.unmodifiableList(locatorVariables);
+    public List<Locator> locators() {
+        return Collections.unmodifiableList(locators);
+    }
+
+    /**
+     * @param pathVariables The path variables a parameter is read from
+     * @return The locator that matched them, {@code null} if they are not the ones of a locator
+     */
+    @Nullable Locator locator(PathVariables pathVariables) {
+        for (Locator locator : locators) {
+            if (locator.variables == pathVariables) {
+                return locator;
+            }
+        }
+        return null;
     }
 
     private static <T> List<T> reversed(List<T> list) {
         List<T> result = new ArrayList<>(list);
         Collections.reverse(result);
         return result;
+    }
+
+    /**
+     * A sub-resource locator that matched, and the provenance of its variables.
+     *
+     * @param variables The path variables of the locator
+     * @param captures  The path segments each occurrence of a variable captured, from the start of its template
+     * @param end       The number of path segments matched up to its end, negative if unknown
+     */
+    public record Locator(PathVariables variables, JaxRsTemplateDescription.Captures captures, int end) {
+
+        /**
+         * @return The keys of the occurrences of its variables, see {@link JaxRsTemplateDescription.Occurrence#key()}
+         */
+        public List<String> keys() {
+            return captures.captures().stream().map(JaxRsTemplateDescription.Capture::key).toList();
+        }
+
+        /**
+         * @param key The key of an occurrence of a variable
+         * @return The index of its first path segment and the number of its segments, from the base URI,
+         * {@code null} if not known
+         */
+        public int @Nullable [] segments(String key) {
+            JaxRsTemplateDescription.Capture capture = captures.capture(key);
+            if (capture == null || end < 0) {
+                return null;
+            }
+            // the template starts with a slash, which precedes its first segment
+            int first = end - captures.slashes() + capture.first() - 1;
+            return first < 0 ? null : new int[] {first, capture.count()};
+        }
     }
 }

@@ -495,11 +495,9 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             encodedForm |= JaxRsResourceFactory.usesEncodedForm(argument, encoded(argument, method.metadata(), classMetadata));
         }
         MatchedSegments matchedSegments = MatchedSegments.of(prefix);
+        JaxRsTemplateDescription description = JaxRsTemplateDescription.of(prefix);
         boolean located = routes.located();
         Locator<L> locator = (request, pathVariables, target, form) -> {
-            // for UriInfo#getPathParameters: the located route has only the last value of a variable that repeats
-            JaxRsMatched.addLocatorVariables(request, pathVariables);
-            B instance = instances.get(request, pathVariables, form, target);
             int segments = matchedSegments.count(pathVariables);
             if (located) {
                 // the prefix is relative to the one of the locator that located the resource
@@ -507,6 +505,10 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 int base = matched == null ? -1 : matched.segments().get(0);
                 segments = base < 0 ? -1 : base + segments;
             }
+            // the provenance of its variables, for UriInfo and PathSegment parameters: the located route
+            // has only the last value of a variable that repeats
+            JaxRsMatched.addLocator(request, pathVariables, description, segments);
+            B instance = instances.get(request, pathVariables, form, target);
             return support.matched(request, locate(method, instance, readers, request, pathVariables, form, segments), segments);
         };
         routes.locate(executor(method.metadata(), classMetadata), routes.prefix(prefix), usesForm, encodedForm, locator);
@@ -544,8 +546,15 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 request.setAttribute(JaxRsRouteSupport.MATCHED_SEGMENTS, previous);
             }
         }
-        // a locator returning null is a 404
-        Object target = support.located(method.executable().invoke(instance, arguments));
+        // a locator returning null is a 404; while it runs, UriInfo#getMatchedURIs ends with its prefix
+        Object result;
+        JaxRsMatched.locating(request, segments);
+        try {
+            result = method.executable().invoke(instance, arguments);
+        } finally {
+            JaxRsMatched.locating(request, null);
+        }
+        Object target = support.located(result);
         if (target instanceof Class<?> targetClass) {
             // the locator returned the class: an instance is created for the request
             return resourceFactory.createLocated(targetClass, request, pathVariables, form);

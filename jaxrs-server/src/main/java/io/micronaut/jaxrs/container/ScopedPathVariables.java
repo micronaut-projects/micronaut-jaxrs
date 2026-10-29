@@ -95,7 +95,11 @@ record ScopedPathVariables(PathVariables delegate, Map<String, Integer> shifts) 
         return shifts == null ? pathVariables : new ScopedPathVariables(pathVariables, shifts);
     }
 
-    private String name(String name) {
+    /**
+     * @param name The name of a variable, or of an occurrence of it
+     * @return The key of the occurrence the variables of the prefix see, in the variables of the matched route
+     */
+    String key(String name) {
         String base = name;
         int fromLast = 0;
         int mark = name.lastIndexOf(JaxRsRouteTemplateEngine.LOCATOR_MARK);
@@ -118,17 +122,17 @@ record ScopedPathVariables(PathVariables delegate, Map<String, Integer> shifts) 
 
     @Override
     public boolean contains(String name) {
-        return delegate.contains(name(name));
+        return delegate.contains(key(name));
     }
 
     @Override
     public <T> T get(String name, Argument<T> type) {
-        return delegate.get(name(name), type);
+        return delegate.get(key(name), type);
     }
 
     @Override
     public <T> Optional<T> find(String name, Argument<T> type) {
-        return delegate.find(name(name), type);
+        return delegate.find(key(name), type);
     }
 
     @Override

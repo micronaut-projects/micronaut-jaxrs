@@ -58,6 +58,11 @@ class PreMatchingRequestContextTest {
     }
 
     @Test
+    void setRequestUriReplacesTheBaseUriOfUriInfo() {
+        assertEquals("/api/pre-matching/|uri-info", retrieve(HttpRequest.GET("/resource"), "base"));
+    }
+
+    @Test
     void getEntityStreamLeavesTheEntity() {
         assertEquals("entity", retrieve(HttpRequest.POST("/resource", "entity").contentType(MediaType.TEXT_PLAIN), "entity"));
         assertEquals("echo:entity", retrieve(HttpRequest.POST("/resource", "entity").contentType(MediaType.TEXT_PLAIN), "none"));
@@ -103,6 +108,7 @@ class PreMatchingRequestContextTest {
                 case "method" -> context.setMethod("PUT");
                 case "uri" -> context.setRequestUri(context.getUriInfo().getBaseUri().resolve("pre-matching/target"));
                 case "uri2" -> context.setRequestUri(context.getUriInfo().getBaseUri(), java.net.URI.create("pre-matching/target"));
+                case "base" -> context.setRequestUri(context.getUriInfo().getBaseUri().resolve("pre-matching/"), java.net.URI.create("uri-info"));
                 case "entity" -> context.abortWith(Response.ok(new String(context.getEntityStream().readAllBytes(), StandardCharsets.UTF_8)).build());
                 case "replace" -> context.setEntityStream(new ByteArrayInputStream("replaced".getBytes(StandardCharsets.UTF_8)));
                 case "has" -> context.abortWith(Response.ok(String.valueOf(context.hasEntity())).build());
@@ -136,6 +142,12 @@ class PreMatchingRequestContextTest {
         @Path("resource")
         public String post(String entity) {
             return "echo:" + entity;
+        }
+
+        @GET
+        @Path("uri-info")
+        public String uriInfo(@jakarta.ws.rs.core.Context jakarta.ws.rs.core.UriInfo uriInfo) {
+            return uriInfo.getBaseUri().getPath() + "|" + uriInfo.getPath();
         }
 
         @GET

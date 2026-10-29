@@ -17,6 +17,7 @@ package io.micronaut.jaxrs.container;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.HttpRequest;
+import io.micronaut.http.PathVariables;
 import io.micronaut.jaxrs.runtime.ext.bind.JaxRsRequestUri;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.UriRouteMatch;
@@ -30,6 +31,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Matrix parameters, {@code /cars;color=red/details}: the JAX-RS route template engine matches the
@@ -76,51 +78,52 @@ final class JaxRsPathSegments {
 
     /**
      * The path segments a path variable matched, with their matrix parameters: located by the
-     * position of the variable in the template of the matched route, else by their text.
+     * provenance of the occurrence of the variable the parameter reads, see
+     * {@link JaxRsTemplateDescription#captures}, else by their text.
      *
-     * @param request The request
-     * @param name    The name of the variable
-     * @param value   The value of the variable, its segments separated by slashes
-     * @param encoded Whether the paths and the parameters are not decoded
+     * @param request       The request
+     * @param pathVariables The path variables the parameter is read from
+     * @param name          The name of the variable
+     * @param value         The value of the variable, its segments separated by slashes
+     * @param encoded       Whether the paths and the parameters are not decoded
+     * @param relative      The path segments relative to the base URI, as the paths and parameters are decoded
      * @return The segments
      */
-    static List<PathSegment> pathSegments(HttpRequest<?> request, String name, String value, boolean encoded) {
-        String[] segments = JaxRsRequestUri.of(request).rawPathSegments();
-        Location location = locate(request, name, segments.length);
-        if (location != null) {
-            // split as it appears in the path: an encoded slash is not a separator
-            List<PathSegment> located = new ArrayList<>(location.count());
-            for (int i = 0; i < location.count(); i++) {
-                located.add(segment(segments[location.index() + i], encoded));
-            }
+    static List<PathSegment> pathSegments(HttpRequest<?> request, PathVariables pathVariables, String name, String value, boolean encoded,
+                                          Supplier<List<PathSegment>> relative) {
+        List<PathSegment> located = locate(request, pathVariables, name, encoded, relative);
+        if (located != null) {
             return located;
         }
+        String[] segments = JaxRsRequestUri.of(request).rawPathSegments();
         String[] values = value.split("/", -1);
-        List<PathSegment> located = new ArrayList<>(values.length);
+        List<PathSegment> byText = new ArrayList<>(values.length);
         for (String v : values) {
-            located.add(pathSegment(segments, v, encoded));
+            byText.add(pathSegment(segments, v, encoded));
         }
-        return located;
+        return byText;
     }
 
     /**
      * The path segment a path variable matched, with its matrix parameters: the whole segment
      * when the variable is a part of it, the last one when it matched several (JAX-RS
-     * {@code PathParam}), see {@link #pathSegments(HttpRequest, String, String, boolean)}.
+     * {@code PathParam}), see {@link #pathSegments}.
      *
-     * @param request The request
-     * @param name    The name of the variable
-     * @param value   The value of the variable
-     * @param encoded Whether the path and the parameters are not decoded
+     * @param request       The request
+     * @param pathVariables The path variables the parameter is read from
+     * @param name          The name of the variable
+     * @param value         The value of the variable
+     * @param encoded       Whether the path and the parameters are not decoded
+     * @param relative      The path segments relative to the base URI, as the paths and parameters are decoded
      * @return The segment
      */
-    static PathSegment pathSegment(HttpRequest<?> request, String name, String value, boolean encoded) {
-        String[] segments = JaxRsRequestUri.of(request).rawPathSegments();
-        Location location = locate(request, name, segments.length);
-        if (location != null) {
-            return segment(segments[location.index() + location.count() - 1], encoded);
+    static PathSegment pathSegment(HttpRequest<?> request, PathVariables pathVariables, String name, String value, boolean encoded,
+                                   Supplier<List<PathSegment>> relative) {
+        List<PathSegment> located = locate(request, pathVariables, name, encoded, relative);
+        if (located != null && !located.isEmpty()) {
+            return located.get(located.size() - 1);
         }
-        return pathSegment(segments, value, encoded);
+        return pathSegment(JaxRsRequestUri.of(request).rawPathSegments(), value, encoded);
     }
 
     /**
@@ -136,17 +139,49 @@ final class JaxRsPathSegments {
     }
 
     /**
-     * The segments of the request path the last occurrence of a variable in the template of the
-     * matched route is in: counted by the slashes of the template before it, and in the raw values
-     * of the variables before it, from the end of the path, which can have a prefix the template
-     * does not, e.g. the context path.
+     * The segments of the occurrence of a variable the path variables of a parameter have: of the
+     * sub-resource locator that matched them, else of the matched route.
+     *
+     * @return The segments, {@code null} if not known
+     */
+    private static @Nullable List<PathSegment> locate(HttpRequest<?> request, PathVariables pathVariables, String name, boolean encoded,
+                                                      Supplier<List<PathSegment>> relative) {
+        // the occurrence the parameter reads: of the @Path of a root resource, when the variable repeats after it
+        String key = pathVariables instanceof ScopedPathVariables scoped ? scoped.key(name) : name;
+        JaxRsMatched matched = JaxRsMatched.get(request);
+        JaxRsMatched.Locator locator = matched == null ? null : matched.locator(pathVariables);
+        if (locator != null) {
+            int[] location = locator.segments(key);
+            List<PathSegment> segments = relative.get();
+            if (location == null || location[0] + location[1] > segments.size()) {
+                return null;
+            }
+            return List.copyOf(segments.subList(location[0], location[0] + location[1]));
+        }
+        String[] segments = JaxRsRequestUri.of(request).rawPathSegments();
+        Location location = locate(request, key, segments.length);
+        if (location == null) {
+            return null;
+        }
+        // split as it appears in the path: an encoded slash is not a separator
+        List<PathSegment> located = new ArrayList<>(location.count());
+        for (int i = 0; i < location.count(); i++) {
+            located.add(segment(segments[location.index() + i], encoded));
+        }
+        return located;
+    }
+
+    /**
+     * The segments of the request path an occurrence of a variable in the template of the matched
+     * route is in, by the provenance of its captures, from the end of the path, which can have a
+     * prefix the template does not, e.g. the context path.
      *
      * @param request  The request
-     * @param name     The name of the variable
+     * @param key      The key of the occurrence, see {@link JaxRsTemplateDescription.Occurrence#key()}
      * @param segments The number of segments of the request path
      * @return The location, {@code null} if not known
      */
-    private static @Nullable Location locate(HttpRequest<?> request, String name, int segments) {
+    private static @Nullable Location locate(HttpRequest<?> request, String key, int segments) {
         UriRouteMatch<?, ?> match = RouteAttributes.getRouteMatch(request)
             .filter(UriRouteMatch.class::isInstance)
             .<UriRouteMatch<?, ?>>map(m -> (UriRouteMatch<?, ?>) m)
@@ -156,27 +191,23 @@ final class JaxRsPathSegments {
         }
         Map<String, Object> rawValues = match.getRawVariableValues();
         JaxRsTemplateDescription description = JaxRsRouteTemplateEngine.description(match.getRouteInfo().getRouteTemplate());
-        int slashes = description.slashes();
-        int index = -1;
-        int count = 1;
-        for (JaxRsTemplateDescription.Occurrence occurrence : description.occurrences()) {
-            Object raw = rawValues.get(occurrence.name());
-            // a variable over several segments
-            int over = raw == null ? 0 : (int) raw.toString().chars().filter(ch -> ch == '/').count();
-            if (occurrence.name().equals(name)) {
-                index = occurrence.slashesBefore() + slashes - description.slashes();
-                count = over + 1;
-            }
-            slashes += over;
+        JaxRsTemplateDescription.Captures captures = description.captures(k -> {
+            Object raw = rawValues.get(k);
+            return raw == null ? null : raw.toString();
+        });
+        JaxRsTemplateDescription.Capture capture = captures.capture(key);
+        if (capture == null) {
+            return null;
         }
         String path = request.getUri().getRawPath();
         // a trailing slash the template does not have
         int pathSlashes = segments - 1 - (path.endsWith("/") && !description.expression().endsWith("/") ? 1 : 0);
-        int offset = pathSlashes - slashes;
-        if (index < 0 || offset < 0 || index + offset + count > segments) {
+        int offset = pathSlashes - captures.slashes();
+        int index = capture.first() + offset;
+        if (offset < 0 || index + capture.count() > segments) {
             return null;
         }
-        return new Location(index + offset, count);
+        return new Location(index, capture.count());
     }
 
     private static boolean matches(String segment, String value) {

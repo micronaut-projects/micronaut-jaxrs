@@ -8,6 +8,7 @@ import io.micronaut.http.client.HttpClient;
 import io.micronaut.http.client.annotation.Client;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
+import jakarta.ws.rs.CookieParam;
 import jakarta.ws.rs.Encoded;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.HEAD;
@@ -17,8 +18,10 @@ import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.EntityTag;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.PathSegment;
 import jakarta.ws.rs.core.Request;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriInfo;
@@ -85,6 +88,18 @@ class ServerMatchingTest {
     }
 
     @Test
+    void zeroQualityAfterAQuotedCommaRejectsTheVariant() {
+        assertEquals("null", client.toBlocking().retrieve(HttpRequest.GET("/variants/profile")
+            .header("Accept", "text/plain;profile=\"a,b\";q=0"), String.class));
+    }
+
+    @Test
+    void moreSpecificVariantIsSelectedAtAnEqualScore() {
+        assertEquals("text/plain", client.toBlocking().retrieve(HttpRequest.GET("/variants/specific")
+            .header("Accept", "text/plain"), String.class));
+    }
+
+    @Test
     void varyOfTheResponseIsMergedWithTheNegotiatedFields() {
         HttpResponse<String> response = client.toBlocking().exchange(HttpRequest.GET("/variants/vary")
             .header("Accept-Language", "fr"), String.class);
@@ -119,6 +134,47 @@ class ServerMatchingTest {
     @Test
     void encodedConstructorKeepsTheParametersEncoded() {
         assertEquals("a%2Fb", get("/ctor?q=a%2Fb"));
+    }
+
+    @Test
+    void cookieCollectionElementsHaveTheNameOfTheCookie() {
+        assertEquals("id=one", client.toBlocking().retrieve(HttpRequest.GET("/cookies").header("Cookie", "id=one"), String.class));
+    }
+
+    @Test
+    void lessSpecificTemplateServesAnAcceptedType() {
+        assertEquals("template:fixed", client.toBlocking().retrieve(HttpRequest.GET("/neg/fixed").accept("application/xml"), String.class));
+        assertEquals("fixed", client.toBlocking().retrieve(HttpRequest.GET("/neg/fixed").accept("text/plain"), String.class));
+    }
+
+    @Test
+    void rootPathSegmentFieldHasTheSegmentOfTheRootPath() {
+        assertEquals("parent:P", get("/psscope/parent;m=P/child;m=C"));
+    }
+
+    @Test
+    void emptyPathSegmentIsASegment() {
+        assertEquals("catch||b", get("/catch/;/b"));
+    }
+
+    @Test
+    void encodedUnreservedLiteralIsMatched() {
+        assertEquals("tilde", get("/lit/encoded/%7e"));
+    }
+
+    @Test
+    void trailingEmptyRegexCaptureMatches() {
+        assertEquals("x=", get("/semi/"));
+    }
+
+    @Test
+    void repeatedLocatorValuesAreKept() {
+        assertEquals("same,same", get("/dups/same/sub/same"));
+    }
+
+    @Test
+    void matchedUrisOfALocatorEndWithItsPrefix() {
+        assertEquals("[mu/one/sub, mu/one]", get("/mu/one/sub/two"));
     }
 
     @Test
@@ -188,6 +244,22 @@ class ServerMatchingTest {
         public String encoding(@Context Request request) {
             Variant variant = request.selectVariant(Variant.encodings("gzip").build());
             return variant == null ? "null" : variant.getEncoding();
+        }
+
+        @GET
+        @Path("profile")
+        @Produces("text/plain")
+        public String profile(@Context Request request) {
+            Variant variant = request.selectVariant(Variant.mediaTypes(MediaType.valueOf("text/plain;profile=\"a,b\"")).build());
+            return variant == null ? "null" : variant.getMediaType().toString();
+        }
+
+        @GET
+        @Path("specific")
+        @Produces("text/plain")
+        public String specific(@Context Request request) {
+            Variant variant = request.selectVariant(Variant.mediaTypes(MediaType.WILDCARD_TYPE, MediaType.TEXT_PLAIN_TYPE).build());
+            return variant == null ? "null" : variant.getMediaType().toString();
         }
 
         @GET
@@ -281,6 +353,105 @@ class ServerMatchingTest {
         @Produces("text/plain")
         public String get() {
             return q;
+        }
+    }
+
+    @Requires(property = "spec.name", value = "ServerMatchingTest")
+    @Path("/neg")
+    public static class NegotiationResource {
+        @GET
+        @Path("fixed")
+        @Produces("text/plain")
+        public String fixed() {
+            return "fixed";
+        }
+
+        @GET
+        @Path("{x}")
+        @Produces("application/xml")
+        public String template(@PathParam("x") String x) {
+            return "template:" + x;
+        }
+    }
+
+    @Requires(property = "spec.name", value = "ServerMatchingTest")
+    @Path("/psscope/{id}")
+    public static class PathSegmentScopeResource {
+        @PathParam("id")
+        PathSegment id;
+
+        @GET
+        @Path("{id}")
+        @Produces("text/plain")
+        public String get() {
+            return id.getPath() + ":" + id.getMatrixParameters().getFirst("m");
+        }
+    }
+
+    @Requires(property = "spec.name", value = "ServerMatchingTest")
+    @Path("/catch")
+    public static class CatchAllResource {
+        @GET
+        @Path("{p:.*}")
+        @Produces("text/plain")
+        public String segments(@Context UriInfo uriInfo) {
+            return uriInfo.getPathSegments().stream().map(PathSegment::getPath).collect(Collectors.joining("|"));
+        }
+    }
+
+    @Requires(property = "spec.name", value = "ServerMatchingTest")
+    @Path("/lit")
+    public static class EncodedLiteralResource {
+        @GET
+        @Path("encoded/%7e")
+        @Produces("text/plain")
+        public String tilde() {
+            return "tilde";
+        }
+    }
+
+    @Requires(property = "spec.name", value = "ServerMatchingTest")
+    @Path("/semi")
+    public static class EmptyCaptureResource {
+        @GET
+        @Path("{x:.*}")
+        @Produces("text/plain")
+        public String get(@PathParam("x") String x) {
+            return "x=" + x;
+        }
+    }
+
+    @Requires(property = "spec.name", value = "ServerMatchingTest")
+    @Path("/mu/{id}")
+    public static class MatchedUrisLocatorResource {
+        @Path("sub")
+        public MatchedUrisChild sub(@Context UriInfo uriInfo) {
+            return new MatchedUrisChild(uriInfo.getMatchedURIs().toString());
+        }
+    }
+
+    public static class MatchedUrisChild {
+        private final String uris;
+
+        MatchedUrisChild(String uris) {
+            this.uris = uris;
+        }
+
+        @GET
+        @Path("{x}")
+        @Produces("text/plain")
+        public String get() {
+            return uris;
+        }
+    }
+
+    @Requires(property = "spec.name", value = "ServerMatchingTest")
+    @Path("/cookies")
+    public static class CookieListResource {
+        @GET
+        @Produces("text/plain")
+        public String cookies(@CookieParam("id") List<Cookie> cookies) {
+            return cookies.stream().map(c -> c.getName() + "=" + c.getValue()).collect(Collectors.joining(","));
         }
     }
 

@@ -69,22 +69,27 @@ final class JaxRsRouteSelector {
      */
     List<Selection> select(HttpRequest<?> request, List<UriRouteMatch<?, ?>> matches) {
         RouteTemplate best = null;
-        List<UriRouteMatch<?, ?>> candidates = new ArrayList<>(matches.size());
         for (UriRouteMatch<?, ?> match : matches) {
             RouteTemplate parsed = match.getRouteInfo().getRouteTemplate();
-            int compare = best == null ? -1 : JaxRsRouteTemplateEngine.ORDER.compare(parsed, best);
-            if (compare < 0) {
+            if (best == null || JaxRsRouteTemplateEngine.ORDER.compare(parsed, best) < 0) {
                 best = parsed;
-                candidates.clear();
-                candidates.add(match);
-            } else if (compare == 0) {
-                candidates.add(match);
             }
         }
         RouteTemplate root = best == null ? null : JaxRsRouteTemplateEngine.rootOf(best);
         if (root != null && !committed(request, root)) {
             return List.of();
         }
+        // every method of the root resource class of the most specific template whose template
+        // matches the path is a candidate, its media types select among them (JAX-RS 3.7.2, steps
+        // 2(h) and 3); the most specific template is preferred among equally negotiated ones
+        List<UriRouteMatch<?, ?>> candidates = new ArrayList<>(matches.size());
+        for (UriRouteMatch<?, ?> match : matches) {
+            RouteTemplate matchRoot = JaxRsRouteTemplateEngine.rootOf(match.getRouteInfo().getRouteTemplate());
+            if (root == null ? matchRoot == null : matchRoot != null && matchRoot.expression().equals(root.expression())) {
+                candidates.add(match);
+            }
+        }
+        candidates.sort((a, b) -> JaxRsRouteTemplateEngine.ORDER.compare(a.getRouteInfo().getRouteTemplate(), b.getRouteInfo().getRouteTemplate()));
         if (candidates.size() > 1 && candidates.stream().anyMatch(c -> !c.getRouteInfo().isImplicitHead())) {
             // a HEAD request selects among the HEAD methods, and only without one among the GET
             // methods (JAX-RS 3.3.5): the implicit HEAD routes of the GET methods are not candidates

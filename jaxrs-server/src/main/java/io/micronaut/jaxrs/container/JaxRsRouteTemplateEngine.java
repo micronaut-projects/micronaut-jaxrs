@@ -396,8 +396,21 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
      */
     private static String encode(String text) {
         StringBuilder encoded = new StringBuilder(text.length());
-        for (byte b : text.getBytes(StandardCharsets.UTF_8)) {
-            int c = b & 0xff;
+        byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
+        for (int i = 0; i < bytes.length; i++) {
+            int c = bytes[i] & 0xff;
+            if (c == '%' && i + 2 < bytes.length) {
+                // an encoded unreserved character is decoded, as it is in the path of a request (RFC 3986, 6.2.2.2)
+                int high = Character.digit(bytes[i + 1], 16);
+                int low = Character.digit(bytes[i + 2], 16);
+                int decoded = high < 0 || low < 0 ? -1 : high << 4 | low;
+                if (decoded >= 'a' && decoded <= 'z' || decoded >= 'A' && decoded <= 'Z' || decoded >= '0' && decoded <= '9'
+                    || decoded >= 0 && "-._~".indexOf(decoded) >= 0) {
+                    encoded.append((char) decoded);
+                    i += 2;
+                    continue;
+                }
+            }
             if (c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9'
                 || "-._~!$&'()*+,;=:@/%".indexOf(c) >= 0) {
                 encoded.append((char) c);
@@ -477,6 +490,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
         private final int rawLength;
         private final int patternVariableCount;
         private volatile @Nullable Compiled compiled;
+        private volatile @Nullable Compiled compiledWithSlash;
         private volatile @Nullable Pattern prefixPattern;
         private volatile @Nullable JaxRsTemplateDescription description;
 
@@ -537,10 +551,21 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
 
         @Override
         public @Nullable RouteCaptures match(String rawPath) {
-            String normalized = UriTemplateMatcher.normalizeForMatching(withoutMatrixParameters(rawPath));
+            String path = withoutMatrixParameters(rawPath);
+            String normalized = UriTemplateMatcher.normalizeForMatching(path);
             Compiled c = compiled();
             Matcher matcher = c.pattern.matcher(normalized);
-            return matcher.matches() ? c.captures(normalized, matcher, variables) : null;
+            if (matcher.matches()) {
+                return c.captures(normalized, matcher, variables);
+            }
+            if (path.length() > normalized.length() && path.endsWith("/")) {
+                // the trailing slash can be a part of the template, before an empty capture: {x:.*}
+                Matcher withSlash = compiledWithTrailingSlash().pattern.matcher(path);
+                if (withSlash.matches()) {
+                    return compiledWithTrailingSlash().captures(path, withSlash, variables);
+                }
+            }
+            return null;
         }
 
         /**
@@ -571,6 +596,20 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
                 return null;
             }
             return c.captures(matched, variableMatcher, variables);
+        }
+
+        /**
+         * The compiled pattern of the template with its trailing slash, when first used.
+         */
+        private Compiled compiledWithTrailingSlash() {
+            Compiled c = compiledWithSlash;
+            if (c == null) {
+                List<Integer> groups = new ArrayList<>();
+                Pattern pattern = Pattern.compile(regex(parts, groups).toString());
+                c = new Compiled(pattern, List.copyOf(groups));
+                compiledWithSlash = c;
+            }
+            return c;
         }
 
         /**

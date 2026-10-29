@@ -183,6 +183,8 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
     public void setRequestUri(URI baseUri, URI requestUri) {
         checkIsRequestPreMatchingInProgress();
         mutableHttpRequest.uri(baseUri.resolve(requestUri));
+        // the base URI of the request, which UriInfo is relative to
+        mutableHttpRequest.setAttribute(UriInfoImpl.BASE_URI, baseUri);
     }
 
     @Override

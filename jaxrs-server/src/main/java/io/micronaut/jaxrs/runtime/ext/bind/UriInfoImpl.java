@@ -39,9 +39,11 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 /**
@@ -59,6 +61,12 @@ public final class UriInfoImpl implements UriInfo {
     public static final String PRE_MATCHING = UriInfoImpl.class.getName() + ".preMatching";
 
     /**
+     * The attribute of a request whose base URI a pre-matching filter replaced, see
+     * {@link jakarta.ws.rs.container.ContainerRequestContext#setRequestUri(URI, URI)}.
+     */
+    public static final String BASE_URI = UriInfoImpl.class.getName() + ".baseUri";
+
+    /**
      * The variable of the router for the rest of the path a sub-resource locator did not match.
      */
     private static final String LOCATED_PATH = "micronaut_located_path";
@@ -67,6 +75,8 @@ public final class UriInfoImpl implements UriInfo {
     @Nullable
     private final String basePath;
     private final String contextPath;
+    @Nullable
+    private final URI baseUri;
 
     /**
      * Construct from an HTTP request.
@@ -87,7 +97,15 @@ public final class UriInfoImpl implements UriInfo {
      */
     public UriInfoImpl(@NonNull HttpRequest<?> request, @Nullable String basePath, @NonNull String contextPath) {
         this.request = request;
-        this.basePath = basePath == null || basePath.equals("/") ? null : basePath;
+        URI baseUri = request.getAttribute(BASE_URI, URI.class).orElse(null);
+        this.baseUri = baseUri;
+        String base = basePath;
+        if (baseUri != null) {
+            // replaced by a pre-matching filter
+            String rawPath = baseUri.getRawPath();
+            base = rawPath == null || rawPath.isEmpty() ? null : rawPath;
+        }
+        this.basePath = base == null || base.equals("/") ? null : base;
         this.contextPath = contextPath;
     }
 
@@ -152,15 +170,22 @@ public final class UriInfoImpl implements UriInfo {
 
     @Override
     public List<PathSegment> getPathSegments(boolean decode) {
-        // relative to the base URI, split before decoding: an encoded slash or semicolon is not a separator
-        return Stream.of(relativeRawPath().split("/"))
-            .filter(StringUtils::isNotEmpty)
+        // relative to the base URI, split before decoding: an encoded slash or semicolon is not a
+        // separator, and an empty segment is a segment (RFC 3986, 3.3)
+        String path = relativeRawPath();
+        if (path.startsWith("/")) {
+            path = path.substring(1);
+        }
+        return Stream.of(path.split("/", -1))
             .<PathSegment>map(token -> {
-                String[] segmentTokens = token.split(";");
+                String[] segmentTokens = token.split(";", -1);
                 MultivaluedMap<String, String> params = new MultiMapNullPermitted<>();
                 for (int i = 1; i < segmentTokens.length; ++i) {
                     String[] keyVal = segmentTokens[i].split("=", 2);
                     String key = keyVal[0];
+                    if (key.isEmpty()) {
+                        continue;
+                    }
                     String val = keyVal.length > 1 ? keyVal[1] : null;
                     params.add(decode ? decodePath(key) : key, val == null || !decode ? val : decodePath(val));
                 }
@@ -197,6 +222,10 @@ public final class UriInfoImpl implements UriInfo {
 
     @Override
     public URI getBaseUri() {
+        if (baseUri != null && baseUri.isAbsolute()) {
+            String raw = baseUri.toString();
+            return URI.create(raw.endsWith("/") ? raw : raw + '/');
+        }
         String path = basePath == null ? "/" : basePath.startsWith("/") ? basePath : '/' + basePath;
         return uriWithRawPath(path.endsWith("/") ? path : path + '/', null);
     }
@@ -313,8 +342,11 @@ public final class UriInfoImpl implements UriInfo {
         // the prefixes are taken from the encoded path, a decoded slash is not a separator
         String path = trimSlashes(getPath(false));
         List<String> uris = new ArrayList<>();
-        uris.add(decode ? decodePath(path) : path);
         JaxRsMatched matched = JaxRsMatched.get(request);
+        // while a sub-resource locator runs, the path is matched up to the end of its prefix
+        Integer locating = matched == null ? null : matched.locating();
+        String current = locating == null || locating < 0 ? path : firstSegments(path, locating);
+        uris.add(decode ? decodePath(current) : current);
         if (matched != null) {
             for (int segments : matched.segments()) {
                 if (segments < 0) {
@@ -409,27 +441,35 @@ public final class UriInfoImpl implements UriInfo {
     /**
      * Add the values of the variables the sub-resource locators matched that a later match
      * replaced, e.g. the {@code id} of a locator {@code {id}/sub} of a located route {@code {id}}:
-     * the later values first.
+     * the later values first. An occurrence is replaced when a later locator or the matched route
+     * captures the same variable occurrence again, whatever its value.
      */
     private void addLocatorVariables(MultivaluedMap<String, String> map, boolean decode) {
-        io.micronaut.jaxrs.container.JaxRsMatched matched = io.micronaut.jaxrs.container.JaxRsMatched.get(request);
-        if (matched == null || matched.locatorVariables().isEmpty()) {
+        JaxRsMatched matched = JaxRsMatched.get(request);
+        if (matched == null || matched.locators().isEmpty()) {
             return;
         }
-        List<io.micronaut.http.PathVariables> stages = new ArrayList<>(matched.locatorVariables());
-        Collections.reverse(stages);
-        for (io.micronaut.http.PathVariables stage : stages) {
-            io.micronaut.http.PathVariables variables = decode ? stage : stage.raw();
-            for (String name : variables.names()) {
-                if (name.startsWith(LOCATED_PATH)) {
+        List<JaxRsMatched.Locator> locators = matched.locators();
+        // the keys of the occurrences captured after each locator
+        Set<String> later = new HashSet<>();
+        Set<String> values = new HashSet<>();
+        RouteAttributes.getRouteMatch(request).ifPresent(match -> {
+            values.addAll(match.getVariableValues().keySet());
+            if (match instanceof UriRouteMatch<?, ?> uriMatch) {
+                uriMatch.getRouteInfo().getRouteTemplate().variables().forEach(variable -> later.add(variable.name()));
+            }
+        });
+        for (int i = locators.size() - 1; i >= 0; i--) {
+            JaxRsMatched.Locator locator = locators.get(i);
+            io.micronaut.http.PathVariables variables = decode ? locator.variables() : locator.variables().raw();
+            for (String key : locator.keys()) {
+                // a value the matched route has is not repeated
+                if (key.startsWith(LOCATED_PATH) || !later.contains(key) && values.contains(key)) {
                     continue;
                 }
-                String value = variables.findString(name).orElse(null);
-                List<String> values = map.get(variableName(name));
-                if (value != null && (values == null || !values.contains(value))) {
-                    map.add(variableName(name), value);
-                }
+                variables.findString(key).ifPresent(value -> map.add(variableName(key), value));
             }
+            later.addAll(locator.keys());
         }
     }
 
@@ -438,7 +478,7 @@ public final class UriInfoImpl implements UriInfo {
         return mark < 0 ? name : name.substring(0, mark);
     }
 
-        private static String trimSlashes(String path) {
+    private static String trimSlashes(String path) {
         int start = path.startsWith("/") ? 1 : 0;
         int end = path.length() > start && path.endsWith("/") ? path.length() - 1 : path.length();
         return path.substring(start, end);

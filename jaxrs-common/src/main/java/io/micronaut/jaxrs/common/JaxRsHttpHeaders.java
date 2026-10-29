@@ -153,7 +153,7 @@ public sealed class JaxRsHttpHeaders implements HttpHeaders permits JaxRsMutable
         // the values of every header line, sorted together
         return httpHeaders.getAll(io.micronaut.http.HttpHeaders.ACCEPT_LANGUAGE)
             .stream()
-            .filter(text -> !text.isEmpty() && !(text.length() == 1 && text.charAt(0) == '*'))
+            .filter(text -> !text.isEmpty())
             .flatMap(text -> Arrays.stream(text.split(",")))
             .map(String::trim)
             .filter(str -> !str.isEmpty())
