@@ -40,7 +40,6 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -386,19 +385,14 @@ class JaxRsClientTest {
     void eventSourceRunsTheRequestFilters() throws Exception {
         WebTarget target = target("events")
             .register((ClientRequestFilter) context -> context.getHeaders().putSingle("Authorization", "Bearer token"));
-        List<String> events = new CopyOnWriteArrayList<>();
-        List<Throwable> errors = new CopyOnWriteArrayList<>();
-        CountDownLatch received = new CountDownLatch(2);
+        var recorder = new SseRecorder(2);
         try (SseEventSource source = SseEventSource.target(target).build()) {
-            source.register(event -> {
-                events.add(event.readData());
-                received.countDown();
-            }, errors::add);
+            recorder.register(source);
             source.open();
-            assertTrue(received.await(10, TimeUnit.SECONDS), () -> "events " + events + ", errors " + errors);
+            recorder.await();
         }
-        assertEquals(List.of("one", "two"), events.subList(0, 2));
-        assertTrue(errors.isEmpty(), errors::toString);
+        assertEquals(List.of("one", "two"), recorder.events.subList(0, 2));
+        assertTrue(recorder.errors.isEmpty(), recorder.errors::toString);
     }
 
     @Test

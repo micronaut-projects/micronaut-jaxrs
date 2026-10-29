@@ -208,16 +208,11 @@ class JaxRsSseEventSourceTest {
     void reconnectsWhenTheConnectionBreaks() throws Exception {
         Client client = ClientBuilder.newClient();
         try (SseEventSource source = SseEventSource.target(target(client, "dropping")).reconnectingEvery(50, TimeUnit.MILLISECONDS).build()) {
-            List<String> events = new CopyOnWriteArrayList<>();
-            List<Throwable> errors = new CopyOnWriteArrayList<>();
-            CountDownLatch received = new CountDownLatch(2);
-            source.register(event -> {
-                events.add(event.readData());
-                received.countDown();
-            }, errors::add);
+            var recorder = new SseRecorder(2);
+            recorder.register(source);
             source.open();
-            assertTrue(received.await(10, TimeUnit.SECONDS), () -> "events " + events + ", errors " + errors);
-            assertTrue(errors.isEmpty(), errors::toString);
+            recorder.await();
+            assertTrue(recorder.errors.isEmpty(), recorder.errors::toString);
         } finally {
             client.close();
         }

@@ -248,20 +248,16 @@ class JaxRsClientConformanceTest {
     void eventSourceKeepsProcessingWhenAConsumerFails() throws Exception {
         WebTarget target = target("events")
             .register((ClientRequestFilter) context -> context.getHeaders().putSingle("Authorization", "Bearer token"));
-        List<String> events = new CopyOnWriteArrayList<>();
-        CountDownLatch received = new CountDownLatch(2);
+        var recorder = new SseRecorder(2);
         try (SseEventSource source = SseEventSource.target(target).reconnectingEvery(1, TimeUnit.HOURS).build()) {
             source.register(event -> {
                 throw new IllegalStateException("the consumer failed");
             });
-            source.register(event -> {
-                events.add(event.readData());
-                received.countDown();
-            });
+            recorder.register(source);
             source.open();
-            assertTrue(received.await(10, TimeUnit.SECONDS), events::toString);
+            recorder.await();
         }
-        assertEquals(List.of("one", "two"), events);
+        assertEquals(List.of("one", "two"), recorder.events);
     }
 
     @Test
