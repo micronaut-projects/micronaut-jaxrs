@@ -60,6 +60,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -99,10 +100,11 @@ final class JaxRsClientProviders implements Providers {
     }
 
     /**
-     * @return The providers found so far, which a copy of the configuration starts with
+     * @return The providers found among the components, which a copy of the configuration shares
+     * until the components of either change
      */
     Tables tables() {
-        return tables.copy();
+        return tables;
     }
 
     /**
@@ -419,7 +421,38 @@ final class JaxRsClientProviders implements Providers {
     /**
      * @return The registered providers of a type with their priorities, in the order of the priorities
      */
+    @SuppressWarnings("unchecked")
     private <T> List<BeanRegistration<T>> registrationsOfType(Class<T> type) {
+        Tables current = tables;
+        List<BeanRegistration<?>> found = current.registrations.get(type);
+        if (found == null) {
+            found = Collections.unmodifiableList(findRegistrations(type));
+            current.registrations.put(type, found);
+        }
+        return (List<BeanRegistration<T>>) (List<?>) found;
+    }
+
+    /**
+     * @return The context resolvers with their context types, {@code null} for a resolver whose context type is not known
+     */
+    @SuppressWarnings("rawtypes")
+    private List<ContextResolverEntry> contextResolvers() {
+        Tables current = tables;
+        List<ContextResolverEntry> found = current.contextResolvers;
+        if (found == null) {
+            List<ContextResolverEntry> built = new ArrayList<>();
+            for (BeanRegistration<ContextResolver> registration : registrationsOfType(ContextResolver.class)) {
+                Argument<?> resolved = JaxRsReflection.get().resolveGeneric(registration.getBean().getClass(), ContextResolver.class);
+                Argument<?>[] arguments = resolved == null ? new Argument<?>[0] : resolved.getTypeParameters();
+                built.add(new ContextResolverEntry(registration, arguments.length == 0 ? null : arguments[0].getType()));
+            }
+            found = Collections.unmodifiableList(built);
+            current.contextResolvers = found;
+        }
+        return found;
+    }
+
+    private <T> List<BeanRegistration<T>> findRegistrations(Class<T> type) {
         var registrations = new ArrayList<BeanRegistration<T>>();
         for (JaxRsConfiguration.Component component : configuration.components()) {
             if (!registeredFor(component, type) || isNotConstrainedToClient(component.metadata())) {
@@ -531,14 +564,13 @@ final class JaxRsClientProviders implements Providers {
         MediaType micronautMediaType = mediaType == null ? null : JaxRsUtils.convert(mediaType);
         List<BeanRegistration<ContextResolver>> candidates = new ArrayList<>();
         Set<BeanRegistration<ContextResolver>> untyped = new HashSet<>();
-        for (BeanRegistration<ContextResolver> registration : registrationsOfType(ContextResolver.class)) {
-            ContextResolver<?> resolver = registration.getBean();
-            Argument<?> resolved = JaxRsReflection.get().resolveGeneric(resolver.getClass(), ContextResolver.class);
-            Argument<?>[] arguments = resolved == null ? new Argument<?>[0] : resolved.getTypeParameters();
-            if ((arguments.length == 0 || contextType.isAssignableFrom(arguments[0].getType()))
+        for (ContextResolverEntry entry : contextResolvers()) {
+            BeanRegistration<ContextResolver> registration = entry.registration();
+            Class<?> resolvedType = entry.contextType();
+            if ((resolvedType == null || contextType.isAssignableFrom(resolvedType))
                 && isCompatible(registration.getBeanDefinition().getAnnotationMetadata(), Produces.class, micronautMediaType)) {
                 candidates.add(registration);
-                if (arguments.length == 0) {
+                if (resolvedType == null) {
                     untyped.add(registration);
                 }
             }
@@ -725,8 +757,8 @@ final class JaxRsClientProviders implements Providers {
     }
 
     /**
-     * The providers found among the components of a configuration: built fully, then published
-     * unmodifiable.
+     * The providers found among the components of a configuration, built lazily, fully, then
+     * published unmodifiable: the copies of a configuration share them, until their components change.
      */
     static final class Tables {
         private volatile @Nullable List<BeanRegistration<ReaderInterceptor>> readerInterceptors;
@@ -735,16 +767,18 @@ final class JaxRsClientProviders implements Providers {
         private volatile @Nullable List<JaxRsMessageBodyWriterDefinition> writers;
         private volatile @Nullable List<ClientRequestFilter> requestFilters;
         private volatile @Nullable List<ClientResponseFilter> responseFilters;
+        private volatile @Nullable List<ContextResolverEntry> contextResolvers;
+        // the registered providers of a type, e.g. of the RX invoker providers
+        private final Map<Class<?>, List<BeanRegistration<?>>> registrations = new ConcurrentHashMap<>();
+    }
 
-        private Tables copy() {
-            Tables copy = new Tables();
-            copy.readerInterceptors = readerInterceptors;
-            copy.writerInterceptors = writerInterceptors;
-            copy.readers = readers;
-            copy.writers = writers;
-            copy.requestFilters = requestFilters;
-            copy.responseFilters = responseFilters;
-            return copy;
-        }
+    /**
+     * A context resolver, with its context type.
+     *
+     * @param registration The resolver
+     * @param contextType  The type of its contexts, {@code null} if not known
+     */
+    @SuppressWarnings("rawtypes")
+    private record ContextResolverEntry(BeanRegistration<ContextResolver> registration, @Nullable Class<?> contextType) {
     }
 }
