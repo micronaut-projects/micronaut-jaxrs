@@ -44,16 +44,9 @@ final class DateHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Date> {
     // the preferred format, e.g. Sun, 06 Nov 1994 08:49:37 GMT
     private static final DateTimeFormatter IMF_FIXDATE = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss 'GMT'", Locale.US)
         .withZone(ZoneOffset.UTC);
-    // the obsolete formats a recipient also reads: RFC 850 and asctime
-    private static final List<DateTimeFormatter> PARSERS = List.of(
-        DateTimeFormatter.RFC_1123_DATE_TIME,
-        // a two-digit year of RFC 850 is one since 1970
-        new DateTimeFormatterBuilder().appendPattern("EEEE, dd-MMM-")
-            .appendValueReduced(ChronoField.YEAR, 2, 2, 1970)
-            .appendPattern(" HH:mm:ss zzz")
-            .toFormatter(Locale.US),
-        DateTimeFormatter.ofPattern("EEE MMM ppd HH:mm:ss yyyy", Locale.US).withZone(ZoneOffset.UTC)
-    );
+    // the obsolete asctime format a recipient also reads
+    private static final DateTimeFormatter ASCTIME = DateTimeFormatter.ofPattern("EEE MMM ppd HH:mm:ss yyyy", Locale.US)
+        .withZone(ZoneOffset.UTC);
 
     private DateHeaderDelegate() {
     }
@@ -62,7 +55,8 @@ final class DateHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Date> {
     public Date fromString(String value) {
         JaxRsUtils.requireNonNull("value", value);
         String trimmed = value.trim();
-        for (DateTimeFormatter parser : PARSERS) {
+        List<DateTimeFormatter> parsers = List.of(DateTimeFormatter.RFC_1123_DATE_TIME, rfc850(), ASCTIME);
+        for (DateTimeFormatter parser : parsers) {
             try {
                 return Date.from(ZonedDateTime.parse(trimmed, parser).toInstant());
             } catch (DateTimeParseException e) {
@@ -70,6 +64,20 @@ final class DateHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Date> {
             }
         }
         throw new IllegalArgumentException("Not an HTTP date: " + value);
+    }
+
+    /**
+     * The obsolete RFC 850 format. RFC 9110 5.6.7: a two-digit year more than 50 years in the future
+     * is the most recent year in the past with the same last two digits.
+     *
+     * @return The parser
+     */
+    private static DateTimeFormatter rfc850() {
+        int baseYear = ZonedDateTime.now(ZoneOffset.UTC).getYear() - 49;
+        return new DateTimeFormatterBuilder().appendPattern("EEEE, dd-MMM-")
+            .appendValueReduced(ChronoField.YEAR, 2, 2, baseYear)
+            .appendPattern(" HH:mm:ss zzz")
+            .toFormatter(Locale.US);
     }
 
     @Override
