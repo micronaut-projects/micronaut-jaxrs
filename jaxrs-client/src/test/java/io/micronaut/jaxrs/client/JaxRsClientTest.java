@@ -137,6 +137,24 @@ class JaxRsClientTest {
     }
 
     @Test
+    void theWriterOfTheClosestTypeWritesTheEntity() {
+        // the String writer is closer to a String than a writer of any object (JAX-RS 4.2.2)
+        String result = target("echo").register(new MessageBodyWriter<Object>() {
+            @Override
+            public boolean isWriteable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+                return true;
+            }
+
+            @Override
+            public void writeTo(Object o, Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType,
+                                MultivaluedMap<String, Object> httpHeaders, OutputStream entityStream) throws IOException {
+                entityStream.write("OBJECT".getBytes(StandardCharsets.UTF_8));
+            }
+        }).request().post(Entity.text("hello"), String.class);
+        assertEquals("text/plain|hello", result);
+    }
+
+    @Test
     void aTargetDoesNotFollowItsUriBuilder() {
         jakarta.ws.rs.core.UriBuilder builder = jakarta.ws.rs.core.UriBuilder.fromUri("http://localhost/first");
         WebTarget first = client.target(builder);

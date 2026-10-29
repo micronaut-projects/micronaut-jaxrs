@@ -323,35 +323,33 @@ final class JaxRsClientProviders implements Providers {
 
     <T> io.micronaut.http.body.@Nullable MessageBodyWriter<T> findWriter(Argument<T> argument,
                                                                                 MediaType mediaType) {
-        // First, the JAX-RS writer in the order of the providers, then of their priority
+        // the JAX-RS writers and the other ones ranked together: a closer type first, e.g. the
+        // String writer before a writer of any object of the application (JAX-RS 4.2.2, steps 4-6)
         io.micronaut.http.body.MessageBodyWriter<T> best = null;
         Rank bestRank = null;
         for (JaxRsMessageBodyWriterDefinition writerDef : getWriters()) {
             io.micronaut.http.body.MessageBodyWriter<T> writer = (io.micronaut.http.body.MessageBodyWriter<T>) writerDef.messageBodyWriter();
-            if (writer instanceof JaxRsMessageBodyWriter<?> jaxRsWriter
-                && isCompatible(writerDef.metadata(), Produces.class, mediaType)
-                && writerDef.type().isAssignableFrom(argument.getType()) && writer.isWriteable(argument, mediaType)) {
-                Rank rank = rank(writerDef.type().getType(), jaxRsWriter.delegate(), writerDef.metadata(), Produces.class, writerDef.priority(),
-                    argument.getType(), mediaType);
-                if (bestRank == null || JaxRsProviderSelection.WRITER_ORDER.compare(rank, bestRank) < 0) {
-                    best = writer;
-                    bestRank = rank;
+            Rank rank;
+            if (writer instanceof JaxRsMessageBodyWriter<?> jaxRsWriter) {
+                if (!isCompatible(writerDef.metadata(), Produces.class, mediaType)
+                    || !writerDef.type().isAssignableFrom(argument.getType()) || !writer.isWriteable(argument, mediaType)) {
+                    continue;
                 }
+                rank = rank(writerDef.type().getType(), jaxRsWriter.delegate(), writerDef.metadata(), Produces.class, writerDef.priority(),
+                    argument.getType(), mediaType);
+            } else {
+                if (!writerDef.type().isAssignableFrom(argument.getType()) || !writer.isWriteable(argument, mediaType)) {
+                    continue;
+                }
+                // a writer of Micronaut: a standard one, without a declared media type
+                rank = new Rank(0, true, writerDef.priority(), JaxRsUtils.typeDistance(writerDef.type().getType(), argument.getType()));
+            }
+            if (bestRank == null || JaxRsProviderSelection.WRITER_ORDER.compare(rank, bestRank) < 0) {
+                best = writer;
+                bestRank = rank;
             }
         }
-        if (best != null) {
-            return best;
-        }
-        // Find any kind of writer
-        for (JaxRsMessageBodyWriterDefinition writerDef : getWriters()) {
-            io.micronaut.http.body.MessageBodyWriter<T> writer = (io.micronaut.http.body.MessageBodyWriter<T>) writerDef.messageBodyWriter();
-            // the JAX-RS writers were all considered above
-            if (!(writer instanceof JaxRsMessageBodyWriter<?>)
-                && writerDef.type().isAssignableFrom(argument.getType()) && writer.isWriteable(argument, mediaType)) {
-                return writer;
-            }
-        }
-        return null;
+        return best;
     }
 
     /**
