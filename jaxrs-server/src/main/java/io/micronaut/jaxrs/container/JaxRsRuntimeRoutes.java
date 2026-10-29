@@ -226,11 +226,15 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         // a singleton is not created per request: its @Context members are proxies of the current request
         RequestType<B> requestType = root.shared() ? null : requestType(root.type(), root.definition());
         MatchedSegments rootSegments = MatchedSegments.of(rootPath);
+        Map<String, Integer> rootVariables = ScopedPathVariables.occurrences(rootPath);
         Supplier<B> instances = root.instances();
         Instances<@Nullable Void, B> instance = requestType == null
             ? (request, pathVariables, form, target) -> support.matched(request, instances.get(), rootSegments.count(pathVariables))
-            : (request, pathVariables, form, target) -> support.matched(request, create(requestType, request, pathVariables, form),
-                rootSegments.count(pathVariables));
+            : (request, pathVariables, form, target) -> {
+                int segments = rootSegments.count(pathVariables);
+                return support.matched(request, createRoot(requestType, request, ScopedPathVariables.of(pathVariables, rootVariables), form,
+                    segments), segments);
+            };
         declare(routes, type, root.methods(), type, prefix, instance, requestType != null && requestType.usesForm(),
             requestType != null && requestType.encodedForm());
     }
@@ -1083,6 +1087,29 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             names[i] = constructorArguments[i].getName();
         }
         return new RequestType<>(type, definition != null, introspection, constructorReaders, names, members, usesForm, encodedForm);
+    }
+
+    /**
+     * Create a root resource class for a request: its values are the ones of its {@code @Path},
+     * also its matrix parameters, of the last segment of its path, see
+     * {@link JaxRsRouteSupport#MATCHED_SEGMENTS}, not the ones of the path of a method or locator.
+     */
+    private <T> T createRoot(RequestType<T> requestType, HttpRequest<?> request, PathVariables pathVariables, @Nullable FormData form,
+                             int segments) {
+        if (segments <= 0) {
+            return create(requestType, request, pathVariables, form);
+        }
+        Object previous = request.getAttribute(JaxRsRouteSupport.MATCHED_SEGMENTS).orElse(null);
+        request.setAttribute(JaxRsRouteSupport.MATCHED_SEGMENTS, segments);
+        try {
+            return create(requestType, request, pathVariables, form);
+        } finally {
+            if (previous == null) {
+                request.removeAttribute(JaxRsRouteSupport.MATCHED_SEGMENTS, Object.class);
+            } else {
+                request.setAttribute(JaxRsRouteSupport.MATCHED_SEGMENTS, previous);
+            }
+        }
     }
 
     /**
