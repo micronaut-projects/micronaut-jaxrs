@@ -396,12 +396,13 @@ final class JaxRsSseEventSource implements SseEventSource {
         try {
             int read;
             while (open && (read = stream.read(buffer)) != -1) {
-                for (Event<byte[]> event : decoder.decode(buffer, 0, read)) {
+                // the consumer overload leaves the ids to deliver(), so they are taken once, in order
+                decoder.decode(buffer, 0, read, event -> {
                     if (EventStreamDecoder.deliver(event, streamState)) {
                         // already on the executor: the consumers process the event before the next one is read
                         deliver(inbound(Event.of(event, new String(event.getData(), StandardCharsets.UTF_8))));
                     }
-                }
+                });
             }
         } catch (IOException | RuntimeException e) {
             failure = e;

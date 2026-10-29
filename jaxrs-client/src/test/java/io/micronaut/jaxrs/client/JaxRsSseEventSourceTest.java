@@ -106,7 +106,8 @@ class JaxRsSseEventSourceTest {
     void aResponseFilterReplacesTheEventStream() throws Exception {
         Client client = ClientBuilder.newClient();
         try {
-            var replacement = new ByteArrayInputStream("data: replacement\n\n".getBytes(StandardCharsets.UTF_8)) {
+            // the block without data after the event sets the id the reconnection sends
+            var replacement = new ByteArrayInputStream("id: 3\ndata: replacement\n\nid: 7\n\n".getBytes(StandardCharsets.UTF_8)) {
                 volatile boolean closed;
 
                 @Override
@@ -115,13 +116,22 @@ class JaxRsSseEventSourceTest {
                     super.close();
                 }
             };
+            AtomicInteger requests = new AtomicInteger();
+            CompletableFuture<String> reconnectedWith = new CompletableFuture<>();
             WebTarget target = target(client, "endless")
-                .register((ClientResponseFilter) (request, response) -> response.setEntityStream(replacement));
+                .register((ClientRequestFilter) request -> {
+                    if (requests.incrementAndGet() == 2) {
+                        reconnectedWith.complete(String.valueOf(request.getHeaderString("Last-Event-ID")));
+                    }
+                })
+                .register((ClientResponseFilter) (request, response) -> response.setEntityStream(
+                    requests.get() == 1 ? replacement : new ByteArrayInputStream(new byte[0])));
             CompletableFuture<String> received = new CompletableFuture<>();
-            try (SseEventSource source = SseEventSource.target(target).reconnectingEvery(1, TimeUnit.HOURS).build()) {
+            try (SseEventSource source = SseEventSource.target(target).reconnectingEvery(10, TimeUnit.MILLISECONDS).build()) {
                 source.register(event -> received.complete(event.readData()));
                 source.open();
                 assertEquals("replacement", received.get(10, TimeUnit.SECONDS));
+                assertEquals("7", reconnectedWith.get(10, TimeUnit.SECONDS));
             }
             assertTrue(replacement.closed);
         } finally {
