@@ -91,4 +91,34 @@ public class TestApplication extends Application {
         then:
         introspection.getProperty("providers").get().hasAnnotation(Context)
     }
+
+    void "the bean of a provider is created with its constructor of the most @Context parameters"() {
+        when:
+        def definition = buildBeanDefinition('test.TestProvider', '''
+package test;
+
+import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.ext.ContextResolver;
+import jakarta.ws.rs.ext.Provider;
+import jakarta.ws.rs.ext.Providers;
+
+@Provider
+public class TestProvider implements ContextResolver<String> {
+    public TestProvider() {
+    }
+
+    public TestProvider(@Context Providers providers) {
+    }
+
+    @Override
+    public String getContext(Class<?> type) {
+        return null;
+    }
+}
+''')
+
+        then:
+        definition.constructor.arguments.length == 1
+        definition.constructor.arguments[0].type.name == 'jakarta.ws.rs.ext.Providers'
+    }
 }

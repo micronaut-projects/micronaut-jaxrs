@@ -151,6 +151,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
                 // the type arguments of the provider interfaces it implements, e.g. the T of a
                 // ContextResolver<T>, without reflection
                 context.importTypeHierarchy(element, element);
+                providerConstructor(element);
             }
             return;
         }
@@ -215,6 +216,27 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * The constructor a provider is created with: the public one with the most parameters, which
+     * are all {@code @Context} ones (JAX-RS 4.1.3), unless one is annotated with {@code @Inject}.
+     */
+    private static void providerConstructor(ClassElement element) {
+        List<ConstructorElement> constructors = element.getEnclosedElements(ElementQuery.CONSTRUCTORS);
+        if (constructors.size() < 2 || constructors.stream().anyMatch(c -> c.hasAnnotation(Inject.class))) {
+            return;
+        }
+        ConstructorElement selected = null;
+        for (ConstructorElement constructor : constructors) {
+            if (constructor.isPublic() && Arrays.stream(constructor.getParameters()).allMatch(p -> p.hasAnnotation(Context.class))
+                && (selected == null || constructor.getParameters().length > selected.getParameters().length)) {
+                selected = constructor;
+            }
+        }
+        if (selected != null && selected.getParameters().length > 0) {
+            selected.annotate(Inject.class);
         }
     }
 
