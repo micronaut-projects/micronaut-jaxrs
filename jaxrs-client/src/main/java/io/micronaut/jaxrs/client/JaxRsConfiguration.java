@@ -36,6 +36,7 @@ import io.micronaut.jaxrs.common.ByteArrayByteBuffer;
 import io.micronaut.jaxrs.common.HttpMessageEntityReader;
 import io.micronaut.jaxrs.common.JaxRsInterceptedRead;
 import io.micronaut.jaxrs.common.JaxRsInterceptedWrite;
+import io.micronaut.jaxrs.common.JaxRsProviderSelection;
 import io.micronaut.jaxrs.common.JaxRsMessageBodyReader;
 import io.micronaut.jaxrs.common.JaxRsMessageBodyReaderDefinition;
 import io.micronaut.jaxrs.common.JaxRsMessageBodyWriter;
@@ -822,19 +823,7 @@ final class JaxRsConfiguration implements Configuration {
      * or {@code @Produces}, any type without one, are compatible with it (JAX-RS 4.2.1, 4.2.2).
      */
     private static boolean isCompatible(AnnotationMetadata metadata, Class<? extends Annotation> declaring, @Nullable MediaType mediaType) {
-        String[] declared = metadata.stringValues(declaring);
-        if (mediaType == null || declared.length == 0) {
-            return true;
-        }
-        for (String value : declared) {
-            for (String type : value.split(",")) {
-                MediaType candidate = new MediaType(type.trim());
-                if (JaxRsUtils.isCompatible(candidate, mediaType)) {
-                    return true;
-                }
-            }
-        }
-        return false;
+        return mediaType == null || JaxRsProviderSelection.isCompatible(JaxRsProviderSelection.declared(metadata, declaring, true), mediaType);
     }
 
     /**
