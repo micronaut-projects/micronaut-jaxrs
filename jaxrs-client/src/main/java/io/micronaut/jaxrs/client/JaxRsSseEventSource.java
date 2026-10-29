@@ -320,7 +320,7 @@ final class JaxRsSseEventSource implements SseEventSource {
                 body.closeAsync();
             }
             closeReplaced(filtered, unchanged);
-            error(JaxRsInvocation.exception(Response.status(status).build()));
+            error(JaxRsClientExchange.exception(Response.status(status).build()));
             return;
         }
         if (status == HttpStatus.NO_CONTENT.getCode() || body == null && replacement == null) {
@@ -456,7 +456,7 @@ final class JaxRsSseEventSource implements SseEventSource {
      * response of the server (JAX-RS 6.2), then it ends the processing, without events.
      */
     private void aborted(Response response, JaxRsClientRequestContext requestContext) {
-        JaxRsMutableResponse filtered = JaxRsInvocation.toMutableResponse(response);
+        JaxRsMutableResponse filtered = JaxRsClientExchange.toMutableResponse(response);
         try {
             filterResponse(filtered, requestContext);
         } catch (IOException | RuntimeException e) {
@@ -468,7 +468,7 @@ final class JaxRsSseEventSource implements SseEventSource {
             open = false;
             complete();
         } else {
-            error(JaxRsInvocation.exception(filtered));
+            error(JaxRsClientExchange.exception(filtered));
         }
     }
 
@@ -548,7 +548,7 @@ final class JaxRsSseEventSource implements SseEventSource {
                 complete();
                 return;
             }
-            error(JaxRsInvocation.exception(response));
+            error(JaxRsClientExchange.exception(response));
             return;
         }
         if (connected) {
