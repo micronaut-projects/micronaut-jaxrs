@@ -1432,19 +1432,6 @@ public final class JaxRsRouteSupport {
     }
 
     /**
-     * Reject a request whose negotiated response type is not concrete, e.g. {@code text/*}: a
-     * resource method that declares the types it produces answers {@code 406} (JAX-RS 3.8).
-     *
-     * @param pathVariables The path variables, with the selected media type
-     */
-    public void acceptable(PathVariables pathVariables) {
-        MediaType selected = RouteMatchSelector.selectedMediaType(pathVariables);
-        if (selected != null && "*".equals(selected.getSubtype())) {
-            throw new NotAcceptableException();
-        }
-    }
-
-    /**
      * Reject a request whose content type cannot be parsed, for a resource method that declares
      * the types it consumes: it matches none of them (JAX-RS 3.7.2, step 3). The route matched,
      * as a request without a content type does, so that the method is matched first.
@@ -1464,6 +1451,8 @@ public final class JaxRsRouteSupport {
      *
      * When no writer writes the entity as it, the most acceptable produced type a writer writes
      * it as is chosen instead, and without one the response is not acceptable.
+     * A negotiated type that is not concrete, e.g. {@code text/*}, is not acceptable, unless the
+     * method chose the type of the response (JAX-RS 3.8, step 1).
      *
      * @param request       The request
      * @param pathVariables The path variables, with the selected media type
@@ -1475,6 +1464,9 @@ public final class JaxRsRouteSupport {
     public HttpResponse<?> produced(HttpRequest<?> request, PathVariables pathVariables, HttpResponse<?> response,
                                     List<MediaType> produces, Argument<?> returnType) {
         MediaType selected = RouteMatchSelector.selectedMediaType(pathVariables);
+        if (selected != null && "*".equals(selected.getSubtype()) && response.getContentType().isEmpty()) {
+            throw new NotAcceptableException();
+        }
         if (selected == null || "*".equals(selected.getType()) || "*".equals(selected.getSubtype())
             || response.getBody().isEmpty() || response.getContentType().isPresent()
             || !(response instanceof MutableHttpResponse<?> mutable)) {

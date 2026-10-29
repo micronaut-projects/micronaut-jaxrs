@@ -805,10 +805,6 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     private <L, B> @Nullable Object invoke(ResourceMethod<B> method, Instances<L, B> instances, HttpRequest<?> request,
                                            PathVariables pathVariables, @Nullable L target, @Nullable FormData form,
                                            byte @Nullable [] body) throws Exception {
-        if (method.produces()) {
-            // a negotiated type that is not concrete is not acceptable
-            support.acceptable(pathVariables);
-        }
         if (method.consumes()) {
             // an unparseable content type matches none of the consumed types
             support.consumable(request);
