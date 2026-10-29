@@ -33,4 +33,36 @@ class MediaTypeHeaderDelegateSpec extends Specification {
         MediaType.valueOf("text/plain ; charset=UTF-8").getSubtype() == "plain"
         MediaType.valueOf("*; q=.2").isWildcardSubtype() && MediaType.valueOf("*; q=.2").isWildcardType()
     }
+
+    void "a type or a subtype that is not a token is rejected"() {
+        when:
+        MediaType.valueOf(value)
+
+        then:
+        thrown(IllegalArgumentException)
+
+        where:
+        value << ["text/pl ain", "text/pl?ain", 'text/pl"ain', "te{xt/plain", "text/pl\tain"]
+    }
+
+    void "a token type is accepted"() {
+        expect:
+        MediaType.valueOf("application/vnd.a+json").getSubtype() == "vnd.a+json"
+        MediaType.valueOf("x-a/b!#\$%&'*^_`|~").getType() == "x-a"
+    }
+
+    void "serializing does not depend on the default locale"() {
+        given:
+        Locale previous = Locale.getDefault()
+        Locale.setDefault(Locale.forLanguageTag("tr"))
+
+        when:
+        String value = new MediaType("IMAGE", "TIFF").toString()
+
+        then:
+        value == "image/tiff"
+
+        cleanup:
+        Locale.setDefault(previous)
+    }
 }

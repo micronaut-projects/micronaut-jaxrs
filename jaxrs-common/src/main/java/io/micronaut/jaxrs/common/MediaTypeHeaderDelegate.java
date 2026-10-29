@@ -20,7 +20,7 @@ import io.micronaut.core.util.clhm.ConcurrentLinkedHashMap;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.ext.RuntimeDelegate;
 
-import java.util.Arrays;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -40,6 +40,7 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Ob
     private static final Map<MediaType, String> REVERSE_MAP = new ConcurrentLinkedHashMap.Builder<MediaType, String>()
         .maximumWeightedCapacity(200)
         .build();
+    private static final String TOKEN_DELIMITERS = "\"(),/:;<=>?@[\\]{}";
     private static final char[] QUOTED_CHARS = "()<>@,;:\\\"/[]?= \t\r\n".toCharArray();
 
     private static MediaType parse(String type) {
@@ -117,8 +118,12 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Ob
         if (str == null || str.isEmpty()) {
             return false;
         }
-        char[] notValid = {'/', '\\', '?', ':', '<', '>', ';', '(', ')', '@', ',', '[', ']', '='};
-        return str.chars().noneMatch(c -> Arrays.binarySearch(notValid, (char) c) >= 0);
+        // RFC 9110 5.6.2: a type and a subtype are tokens
+        return str.chars().allMatch(MediaTypeHeaderDelegate::isTokenChar);
+    }
+
+    private static boolean isTokenChar(int c) {
+        return c > 0x20 && c < 0x7F && TOKEN_DELIMITERS.indexOf(c) < 0;
     }
 
     @Override
@@ -144,7 +149,7 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Ob
     private String internalToString(MediaType type) {
         StringBuilder buf = new StringBuilder();
 
-        buf.append(type.getType().toLowerCase()).append("/").append(type.getSubtype().toLowerCase());
+        buf.append(type.getType().toLowerCase(Locale.ROOT)).append("/").append(type.getSubtype().toLowerCase(Locale.ROOT));
         if (type.getParameters() == null || type.getParameters().isEmpty()) {
             return buf.toString();
         }
