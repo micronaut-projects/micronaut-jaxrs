@@ -44,7 +44,10 @@ import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 /**
@@ -56,6 +59,33 @@ import java.util.function.Function;
  */
 @Internal
 public final class ReflectiveJaxRsReflection implements JaxRsReflection {
+
+    private static final Set<Introspected.AccessKind> FIELDS_AND_METHODS = Set.of(Introspected.AccessKind.FIELD, Introspected.AccessKind.METHOD);
+
+    // the descriptions, owned by the class they describe so that they do not retain its class loader
+    private static final ClassValue<Optional<BeanIntrospection<?>>> MEMBER_INTROSPECTIONS = new ClassValue<>() {
+        @Override
+        protected Optional<BeanIntrospection<?>> computeValue(Class<?> type) {
+            return ReflectionBeanIntrospection.isIntrospectable(type)
+                ? Optional.of(ReflectionBeanIntrospection.of(type, FIELDS_AND_METHODS))
+                : Optional.empty();
+        }
+    };
+    private static final ClassValue<Optional<BeanIntrospection<?>>> INSTANTIATING_INTROSPECTIONS = new ClassValue<>() {
+        @Override
+        protected Optional<BeanIntrospection<?>> computeValue(Class<?> type) {
+            return ReflectionBeanIntrospection.isIntrospectable(type)
+                ? Optional.of(ReflectionBeanIntrospection.of(type))
+                : Optional.empty();
+        }
+    };
+    // the inherited annotations of the methods of a class, by method
+    private static final ClassValue<Map<Method, InheritedAnnotations>> INHERITED_ANNOTATIONS = new ClassValue<>() {
+        @Override
+        protected Map<Method, InheritedAnnotations> computeValue(Class<?> type) {
+            return new ConcurrentHashMap<>();
+        }
+    };
 
     @Override
     public boolean isReflective() {
@@ -106,12 +136,13 @@ public final class ReflectiveJaxRsReflection implements JaxRsReflection {
 
     @Override
     public AnnotationMetadata methodAnnotations(ExecutableMethod<?, ?> method) {
-        return annotationMetadata(inheritedAnnotations(method.getTargetMethod()));
+        return inherited(method.getTargetMethod()).metadata();
     }
 
     @Override
     public Annotation[] annotations(ExecutableMethod<?, ?> method) {
-        return inheritedAnnotations(method.getTargetMethod());
+        // a copy, which the caller may change
+        return inherited(method.getTargetMethod()).annotations().clone();
     }
 
     @Override
@@ -121,7 +152,7 @@ public final class ReflectiveJaxRsReflection implements JaxRsReflection {
 
     @Override
     public AnnotationMetadata methodAnnotations(Class<?> type, String name, Class<?>... parameterTypes) {
-        return annotationMetadata(inheritedAnnotations(targetMethod(type, name, parameterTypes)));
+        return inherited(targetMethod(type, name, parameterTypes)).metadata();
     }
 
     @Override
@@ -150,10 +181,12 @@ public final class ReflectiveJaxRsReflection implements JaxRsReflection {
         if (introspection != null) {
             return introspection;
         }
-        if (!ReflectionBeanIntrospection.isIntrospectable(type)) {
-            return null;
-        }
-        return ReflectionBeanIntrospection.of(type, Set.of(Introspected.AccessKind.FIELD, Introspected.AccessKind.METHOD));
+        return reflective(MEMBER_INTROSPECTIONS, type);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> @Nullable BeanIntrospection<T> reflective(ClassValue<Optional<BeanIntrospection<?>>> introspections, Class<T> type) {
+        return (BeanIntrospection<T>) introspections.get(type).orElse(null);
     }
 
     @Override
@@ -163,9 +196,8 @@ public final class ReflectiveJaxRsReflection implements JaxRsReflection {
             return introspection.instantiate();
         }
         // a reflective introspection reaches a class or constructor that is not public
-        return ReflectionBeanIntrospection.isIntrospectable(type)
-            ? ReflectionBeanIntrospection.of(type).instantiate()
-            : InstantiationUtils.instantiate(type);
+        BeanIntrospection<T> reflective = reflective(INSTANTIATING_INTROSPECTIONS, type);
+        return reflective != null ? reflective.instantiate() : InstantiationUtils.instantiate(type);
     }
 
     @Override
@@ -185,6 +217,13 @@ public final class ReflectiveJaxRsReflection implements JaxRsReflection {
             return value -> invoke(() -> constructor.newInstance(value));
         }
         return null;
+    }
+
+    private InheritedAnnotations inherited(Method method) {
+        return INHERITED_ANNOTATIONS.get(method.getDeclaringClass()).computeIfAbsent(method, m -> {
+            Annotation[] annotations = inheritedAnnotations(m);
+            return new InheritedAnnotations(annotations, annotationMetadata(annotations));
+        });
     }
 
     /**
@@ -274,13 +313,13 @@ public final class ReflectiveJaxRsReflection implements JaxRsReflection {
     @Override
     @SuppressWarnings("unchecked")
     public void injectFields(Object instance, Class<? extends Annotation> annotation, Function<Class<?>, @Nullable Object> values) {
-        Class<Object> type = (Class<Object>) instance.getClass();
-        if (!ReflectionBeanIntrospection.isIntrospectable(type)) {
-            return;
-        }
         // the fields of any visibility, of the class and its super classes, and the bean setters: a
         // generated introspection, which describes the members the class can reach, may leave them out
-        for (BeanProperty<Object, Object> property : ReflectionBeanIntrospection.of(type, Set.of(Introspected.AccessKind.FIELD, Introspected.AccessKind.METHOD)).getBeanProperties()) {
+        BeanIntrospection<Object> introspection = reflective(MEMBER_INTROSPECTIONS, (Class<Object>) instance.getClass());
+        if (introspection == null) {
+            return;
+        }
+        for (BeanProperty<Object, Object> property : introspection.getBeanProperties()) {
             if (!property.hasAnnotation(annotation) || property.isReadOnly()) {
                 continue;
             }
@@ -323,6 +362,15 @@ public final class ReflectiveJaxRsReflection implements JaxRsReflection {
             pending.addAll(List.of(next.getInterfaces()));
         }
         return types.toArray(Class<?>[]::new);
+    }
+
+    /**
+     * The annotations of a method, with the inherited ones, and their metadata.
+     *
+     * @param annotations The annotations, never handed out
+     * @param metadata    The metadata
+     */
+    private record InheritedAnnotations(Annotation[] annotations, AnnotationMetadata metadata) {
     }
 
     /**
