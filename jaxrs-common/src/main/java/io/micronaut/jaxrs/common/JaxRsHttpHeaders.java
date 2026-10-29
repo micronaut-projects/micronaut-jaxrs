@@ -95,10 +95,11 @@ public sealed class JaxRsHttpHeaders implements HttpHeaders permits JaxRsMutable
     }
 
     @Override
-    public final boolean containsHeaderString(String name, String valueSeparatorRegex, Predicate<String> valuePredicate) {
+    public final boolean containsHeaderString(String name, @Nullable String valueSeparatorRegex, Predicate<String> valuePredicate) {
         return httpHeaders.getAll(name)
             .stream()
-            .flatMap(value -> Arrays.stream(value.split(valueSeparatorRegex)))
+            // without a separator, each value is tested whole
+            .flatMap(value -> valueSeparatorRegex == null ? Stream.of(value) : Arrays.stream(value.split(valueSeparatorRegex)))
             .map(String::trim)
             .anyMatch(valuePredicate);
     }
@@ -149,28 +150,25 @@ public sealed class JaxRsHttpHeaders implements HttpHeaders permits JaxRsMutable
     }
 
     private List<Locale> acceptLanguages() {
+        // the values of every header line, sorted together
         return httpHeaders.getAll(io.micronaut.http.HttpHeaders.ACCEPT_LANGUAGE)
             .stream()
-            .flatMap(text -> {
-                int len = text.length();
-                if (len == 0 || (len == 1 && text.charAt(0) == '*')) {
-                    return Stream.of();
+            .filter(text -> !text.isEmpty() && !(text.length() == 1 && text.charAt(0) == '*'))
+            .flatMap(text -> Arrays.stream(text.split(",")))
+            .map(String::trim)
+            .filter(str -> !str.isEmpty())
+            .map(str -> {
+                final int i = str.indexOf(';');
+                if (i > -1) {
+                    final Locale locale = language(str.substring(0, i).trim());
+                    return new Weighted<>(locale, Weighted.parseParameters(str));
+                } else {
+                    return new Weighted<>(language(str));
                 }
-                return Arrays.stream(text.split(","))
-                    .map(String::trim)
-                    .filter(str -> !str.isEmpty())
-                    .map(str -> {
-                        final int i = str.indexOf(';');
-                        if (i > -1) {
-                            final Locale locale = language(str.substring(0, i).trim());
-                            return new Weighted<>(locale, Weighted.parseParameters(str));
-                        } else {
-                            return new Weighted<>(language(str));
-                        }
-                    })
-                    .sorted()
-                    .map(Weighted::getObject);
-            }).toList();
+            })
+            .sorted()
+            .map(Weighted::getObject)
+            .toList();
     }
 
     private static Locale language(String tag) {

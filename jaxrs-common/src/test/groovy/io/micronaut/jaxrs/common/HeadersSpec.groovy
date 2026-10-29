@@ -83,6 +83,25 @@ class HeadersSpec extends Specification {
         JaxRsHttpHeaders.forRequest(headers).getAcceptableLanguages() == [Locale.forLanguageTag("da"), Locale.forLanguageTag("en-gb")]
     }
 
+    void "the acceptable languages of several header lines are sorted together"() {
+        given:
+        def headers = new SimpleHttpHeaders()
+        headers.add("Accept-Language", "en;q=0.1")
+        headers.add("Accept-Language", "de;q=1")
+
+        expect:
+        JaxRsHttpHeaders.forRequest(headers).getAcceptableLanguages() == [Locale.forLanguageTag("de"), Locale.forLanguageTag("en")]
+    }
+
+    void "a null separator tests each whole header value"() {
+        given:
+        def headers = new SimpleHttpHeaders()
+        headers.add("X-Test", "whole")
+
+        expect:
+        JaxRsHttpHeaders.forRequest(headers).containsHeaderString("X-Test", null, "whole"::equals)
+    }
+
     void "a wildcard language with a quality is the wildcard locale"() {
         given:
         def headers = new SimpleHttpHeaders()

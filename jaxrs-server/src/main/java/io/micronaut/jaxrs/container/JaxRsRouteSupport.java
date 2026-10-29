@@ -124,6 +124,7 @@ import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.io.ByteArrayOutputStream;
 import java.net.URLDecoder;
@@ -688,9 +689,16 @@ public final class JaxRsRouteSupport {
             // a parameter of a sub-resource locator: of the last segment it matched
             List<PathSegment> segments = new UriInfoImpl(request, applicationProvider.getPath(), applicationProvider.getContextPath())
                 .getPathSegments(!encoded);
-            List<String> values = matched <= segments.size() ? segments.get(matched - 1).getMatrixParameters().get(name) : null;
-            return convert(values == null ? List.of() : values.stream().map(value -> value == null ? "" : value).toList(),
-                argument, defaultValue, true);
+            List<String> values = new ArrayList<>(1);
+            if (matched <= segments.size()) {
+                // the name is decoded, with @Encoded the values are not
+                segments.get(matched - 1).getMatrixParameters().forEach((key, keyValues) -> {
+                    if ((encoded ? JaxRsPathSegments.decode(key) : key).equals(name)) {
+                        keyValues.forEach(value -> values.add(value == null ? "" : value));
+                    }
+                });
+            }
+            return convert(values, argument, defaultValue, true);
         }
         return convert(JaxRsPathSegments.values(request, name, encoded), argument, defaultValue, true);
     }
@@ -1452,19 +1460,6 @@ public final class JaxRsRouteSupport {
     }
 
     /**
-     * Reject a request whose negotiated response type is not concrete, e.g. {@code text/*}: a
-     * resource method that declares the types it produces answers {@code 406} (JAX-RS 3.8).
-     *
-     * @param pathVariables The path variables, with the selected media type
-     */
-    public void acceptable(PathVariables pathVariables) {
-        MediaType selected = RouteMatchSelector.selectedMediaType(pathVariables);
-        if (selected != null && "*".equals(selected.getSubtype())) {
-            throw new NotAcceptableException();
-        }
-    }
-
-    /**
      * Reject a request whose content type cannot be parsed, for a resource method that declares
      * the types it consumes: it matches none of them (JAX-RS 3.7.2, step 3). The route matched,
      * as a request without a content type does, so that the method is matched first.
@@ -1484,6 +1479,8 @@ public final class JaxRsRouteSupport {
      *
      * When no writer writes the entity as it, the most acceptable produced type a writer writes
      * it as is chosen instead, and without one the response is not acceptable.
+     * A negotiated type that is not concrete, e.g. {@code text/*}, is not acceptable, unless the
+     * method chose the type of the response (JAX-RS 3.8, step 1).
      *
      * @param request       The request
      * @param pathVariables The path variables, with the selected media type
@@ -1495,6 +1492,9 @@ public final class JaxRsRouteSupport {
     public HttpResponse<?> produced(HttpRequest<?> request, PathVariables pathVariables, HttpResponse<?> response,
                                     List<MediaType> produces, Argument<?> returnType) {
         MediaType selected = RouteMatchSelector.selectedMediaType(pathVariables);
+        if (selected != null && "*".equals(selected.getSubtype()) && response.getContentType().isEmpty()) {
+            throw new NotAcceptableException();
+        }
         if (selected == null || "*".equals(selected.getType()) || "*".equals(selected.getSubtype())
             || response.getBody().isEmpty() || response.getContentType().isPresent()
             || !(response instanceof MutableHttpResponse<?> mutable)) {
@@ -1712,7 +1712,11 @@ public final class JaxRsRouteSupport {
             for (String element : elements) {
                 result.add(convertOne(element, elementType, notFound));
             }
-            return type == List.class || type == Collection.class ? List.copyOf(result) : result;
+            // read-only, like the collections of every parameter
+            if (type == List.class || type == Collection.class) {
+                return List.copyOf(result);
+            }
+            return type == SortedSet.class ? Collections.unmodifiableSortedSet((SortedSet<Object>) result) : Collections.unmodifiableSet((Set<Object>) result);
         }
         if (type.isArray()) {
             Argument<?> componentType = element(Argument.of(type.getComponentType()), argument);

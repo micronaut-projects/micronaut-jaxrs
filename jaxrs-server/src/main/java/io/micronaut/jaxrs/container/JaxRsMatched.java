@@ -17,6 +17,7 @@ package io.micronaut.jaxrs.container;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.HttpRequest;
+import io.micronaut.http.PathVariables;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -37,6 +38,7 @@ public final class JaxRsMatched {
 
     private final List<Object> resources = new ArrayList<>(2);
     private final List<Integer> segments = new ArrayList<>(2);
+    private final List<PathVariables> locatorVariables = new ArrayList<>(1);
 
     private JaxRsMatched() {
     }
@@ -59,6 +61,22 @@ public final class JaxRsMatched {
     }
 
     /**
+     * Record the path variables a sub-resource locator matched: the router gives the variables of
+     * a located route only the last value of a variable the locator and the route both capture.
+     *
+     * @param request       The request
+     * @param pathVariables The path variables of the locator
+     */
+    static void addLocatorVariables(HttpRequest<?> request, PathVariables pathVariables) {
+        JaxRsMatched matched = get(request);
+        if (matched == null) {
+            matched = new JaxRsMatched();
+            request.setAttribute(ATTRIBUTE, matched);
+        }
+        matched.locatorVariables.add(pathVariables);
+    }
+
+    /**
      * @param request The request
      * @return The resources matched, or {@code null} if the request was not routed to a resource
      */
@@ -78,6 +96,13 @@ public final class JaxRsMatched {
      */
     public List<Integer> segments() {
         return reversed(segments);
+    }
+
+    /**
+     * @return The path variables of the sub-resource locators that matched, the first one first
+     */
+    public List<PathVariables> locatorVariables() {
+        return Collections.unmodifiableList(locatorVariables);
     }
 
     private static <T> List<T> reversed(List<T> list) {

@@ -228,11 +228,16 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         // a singleton is not created per request: its @Context members are proxies of the current request
         RequestType<B> requestType = root.shared() ? null : requestType(root.type(), root.definition());
         MatchedSegments rootSegments = MatchedSegments.of(rootPath);
+        Map<String, Integer> rootVariables = ScopedPathVariables.occurrences(rootPath);
         Supplier<B> instances = root.instances();
         Instances<@Nullable Void, B> instance = requestType == null
             ? (request, pathVariables, form, target) -> support.matched(request, instances.get(), rootSegments.count(pathVariables))
-            : (request, pathVariables, form, target) -> support.matched(request, create(requestType, request, pathVariables, form),
-                rootSegments.count(pathVariables));
+            : (request, pathVariables, form, target) -> {
+                // its path parameters are the ones of its @Path; its matrix parameters are of the
+                // last segment of the request, as the TCK expects (JAXRSClientIT.matrixParamOnFieldTest)
+                return support.matched(request, create(requestType, request, ScopedPathVariables.of(pathVariables, rootVariables), form),
+                    rootSegments.count(pathVariables));
+            };
         declare(routes, type, root.methods(), type, prefix, instance, requestType != null && requestType.usesForm(),
             requestType != null && requestType.encodedForm());
     }
@@ -516,6 +521,8 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         MatchedSegments matchedSegments = MatchedSegments.of(prefix);
         boolean located = routes.located();
         Locator<L> locator = (request, pathVariables, target, form) -> {
+            // for UriInfo#getPathParameters: the located route has only the last value of a variable that repeats
+            JaxRsMatched.addLocatorVariables(request, pathVariables);
             B instance = instances.get(request, pathVariables, form, target);
             int segments = matchedSegments.count(pathVariables);
             if (located) {
@@ -823,10 +830,6 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     private <L, B> @Nullable Object invoke(ResourceMethod<B> method, Instances<L, B> instances, HttpRequest<?> request,
                                            PathVariables pathVariables, @Nullable L target, @Nullable FormData form,
                                            byte @Nullable [] body) throws Exception {
-        if (method.produces()) {
-            // a negotiated type that is not concrete is not acceptable
-            support.acceptable(pathVariables);
-        }
         if (method.consumes()) {
             // an unparseable content type matches none of the consumed types
             support.consumable(request);
@@ -1069,6 +1072,9 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         Argument<?>[] constructorArguments = definition != null ? definition.getConstructor().getArguments()
             : introspection != null ? introspection.getConstructorArguments() : new Argument<?>[0];
         boolean encodedType = introspection != null && introspection.hasAnnotation(Encoded.class);
+        // an @Encoded constructor keeps the values of its parameters encoded
+        boolean encodedConstructor = definition != null ? definition.getConstructor().getAnnotationMetadata().hasAnnotation(Encoded.class)
+            : introspection != null && introspection.getConstructor().getAnnotationMetadata().hasAnnotation(Encoded.class);
         JaxRsRouteSupport.@Nullable ValueReader[] constructorReaders = new JaxRsRouteSupport.ValueReader[constructorArguments.length];
         boolean perRequest = false;
         boolean usesForm = false;
@@ -1076,7 +1082,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         for (int i = 0; i < constructorArguments.length; i++) {
             Argument<?> argument = constructorArguments[i];
             if (isRequestAnnotated(argument.getAnnotationMetadata())) {
-                boolean encoded = encodedType || argument.getAnnotationMetadata().hasAnnotation(Encoded.class);
+                boolean encoded = encodedType || encodedConstructor || argument.getAnnotationMetadata().hasAnnotation(Encoded.class);
                 constructorReaders[i] = support.reader(argument.getAnnotationMetadata(), argument, encoded);
                 perRequest = true;
                 usesForm |= usesForm(argument);
