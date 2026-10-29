@@ -112,8 +112,8 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
                 ranked.add(new Ranked<>(registration, rank(registration, metadata, MessageBodyReader.class, mediaTypes, distance)));
             }
         }
-        // JAX-RS 4.2.1, see JaxRsProviderSelection#APPLICATION_FIRST_READER_ORDER
-        ranked.sort(Comparator.comparing(Ranked::rank, JaxRsProviderSelection.APPLICATION_FIRST_READER_ORDER));
+        // JAX-RS 4.2.1, see JaxRsProviderSelection#READER_ORDER
+        ranked.sort(Comparator.comparing(Ranked::rank, JaxRsProviderSelection.READER_ORDER));
         List<ReaderCandidate<T>> candidates = new ArrayList<>(ranked.size());
         for (Ranked<BeanRegistration<MessageBodyReader<T>>> r : ranked) {
             MessageBodyReader<T> reader = r.provider().getBean();
