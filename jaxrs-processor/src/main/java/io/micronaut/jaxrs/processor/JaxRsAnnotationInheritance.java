@@ -26,6 +26,7 @@ import io.micronaut.inject.ast.MethodElement;
 import io.micronaut.inject.ast.ParameterElement;
 import io.micronaut.inject.ast.annotation.MutableAnnotationMetadataDelegate;
 import jakarta.ws.rs.HttpMethod;
+import jakarta.ws.rs.NameBinding;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.ext.Provider;
 
@@ -101,14 +102,15 @@ final class JaxRsAnnotationInheritance {
     /**
      * A method without JAX-RS annotations inherits those of one overridden method (JAX-RS 3.6): the
      * nearest one of a superclass that declares any, else one of an interface. The annotations of
-     * the others, which are merged with them, are discarded.
+     * the others, which are merged with them, are discarded. They are copied even from a single
+     * overridden method: the compiler only merges the {@code @Inherited} ones, so e.g. a name
+     * binding or a custom request method designator would otherwise be lost.
      */
     private static void inheritFromEffectiveMethod(MethodElement element) {
         List<MethodElement> declaring = element.getOverriddenMethods().stream()
             .filter(JaxRsAnnotationInheritance::declaresJaxRsAnnotation)
             .toList();
-        if (declaring.size() < 2) {
-            // the merged annotations are the ones of the only method that declares any
+        if (declaring.isEmpty()) {
             return;
         }
         MethodElement effective = null;
@@ -160,7 +162,8 @@ final class JaxRsAnnotationInheritance {
 
     private static boolean isRequestAnnotation(AnnotationMetadata metadata, String name) {
         return name.startsWith(JAX_RS_PACKAGE) || name.startsWith(HTTP_ANNOTATION_PACKAGE)
-            || metadata.getAnnotationNamesByStereotype(HttpMethod.class.getName()).contains(name);
+            || metadata.getAnnotationNamesByStereotype(HttpMethod.class.getName()).contains(name)
+            || metadata.getAnnotationNamesByStereotype(NameBinding.class.getName()).contains(name);
     }
 
     private static void discardInherited(MutableAnnotationMetadataDelegate<?> element, AnnotationMetadata metadata, AnnotationMetadata declared) {
@@ -170,7 +173,8 @@ final class JaxRsAnnotationInheritance {
                 element.removeAnnotation(name);
             }
         }
-        for (String stereotype : List.of(HttpMethod.class.getName(), HttpMethodMapping.class.getName(), UriMapping.class.getName())) {
+        for (String stereotype : List.of(HttpMethod.class.getName(), HttpMethodMapping.class.getName(), UriMapping.class.getName(),
+            NameBinding.class.getName())) {
             if (!declared.hasStereotype(stereotype)) {
                 element.removeStereotype(stereotype);
             }
