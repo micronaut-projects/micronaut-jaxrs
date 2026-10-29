@@ -182,12 +182,14 @@ final class JaxRsSseEventSink implements SseEventSink, Publisher<Event<String>>,
 
     /**
      * @param callback Called once the sink is closed, by the application or by the client
+     * @return Removes the callback, e.g. of a broadcaster closed without closing the sink
      */
-    void onClose(Runnable callback) {
+    Runnable onClose(Runnable callback) {
         onClose.add(callback);
         if (closed) {
             callback.run();
         }
+        return () -> onClose.remove(callback);
     }
 
     /**

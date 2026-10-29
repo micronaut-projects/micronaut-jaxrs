@@ -22,8 +22,10 @@ import jakarta.ws.rs.sse.SseEventSink;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -40,6 +42,8 @@ final class JaxRsSseBroadcaster implements SseBroadcaster {
     private final List<SseEventSink> sinks = new CopyOnWriteArrayList<>();
     private final List<BiConsumer<SseEventSink, Throwable>> onError = new CopyOnWriteArrayList<>();
     private final List<Consumer<SseEventSink>> onClose = new CopyOnWriteArrayList<>();
+    // removes the close callback a registered sink holds, released when the broadcaster closes
+    private final Map<SseEventSink, Runnable> registrations = new ConcurrentHashMap<>();
     private volatile boolean closed;
 
     @Override
@@ -63,7 +67,7 @@ final class JaxRsSseBroadcaster implements SseBroadcaster {
         }
         if (sink instanceof JaxRsSseEventSink eventSink) {
             // the client disconnected, or the application closed the sink
-            eventSink.onClose(() -> closed(sink));
+            registrations.put(sink, eventSink.onClose(() -> closed(sink)));
         }
     }
 
@@ -108,13 +112,21 @@ final class JaxRsSseBroadcaster implements SseBroadcaster {
             registered = List.copyOf(sinks);
         }
         for (SseEventSink sink : registered) {
-            if (cascading) {
-                try {
-                    sink.close();
-                } catch (IOException e) {
-                    for (BiConsumer<SseEventSink, Throwable> callback : onError) {
-                        callback.accept(sink, e);
-                    }
+            Runnable registration = registrations.remove(sink);
+            if (registration != null) {
+                // a sink outliving the broadcaster does not keep it
+                registration.run();
+            }
+            if (!cascading) {
+                // the sink stays open: it is not closed (JAX-RS, SseBroadcaster#onClose)
+                sinks.remove(sink);
+                continue;
+            }
+            try {
+                sink.close();
+            } catch (IOException e) {
+                for (BiConsumer<SseEventSink, Throwable> callback : onError) {
+                    callback.accept(sink, e);
                 }
             }
             closed(sink);
@@ -122,6 +134,7 @@ final class JaxRsSseBroadcaster implements SseBroadcaster {
     }
 
     private void closed(SseEventSink sink) {
+        registrations.remove(sink);
         if (sinks.remove(sink)) {
             for (Consumer<SseEventSink> callback : onClose) {
                 callback.accept(sink);

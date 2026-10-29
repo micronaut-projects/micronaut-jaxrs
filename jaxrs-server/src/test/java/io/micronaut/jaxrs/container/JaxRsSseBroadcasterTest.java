@@ -50,6 +50,22 @@ class JaxRsSseBroadcasterTest {
     }
 
     @Test
+    void aBroadcasterClosedWithoutCascadingReleasesItsSinks() {
+        var sink = new JaxRsSseEventSink(e -> String.valueOf(e.getData()));
+        var broadcaster = new JaxRsSseBroadcaster();
+        var notified = new java.util.concurrent.atomic.AtomicInteger();
+        broadcaster.onClose(s -> notified.incrementAndGet());
+        broadcaster.register(sink);
+        broadcaster.close(false);
+        // the sink is open: no close is reported
+        Assertions.assertEquals(0, notified.get());
+        Assertions.assertFalse(sink.isClosed());
+        // and the closed broadcaster is not called back by the sink, which no longer holds it
+        sink.close();
+        Assertions.assertEquals(0, notified.get());
+    }
+
+    @Test
     void aSinkFailingToSendDoesNotStopTheBroadcast() {
         var broadcaster = new JaxRsSseBroadcaster();
         List<Throwable> errors = new ArrayList<>();
