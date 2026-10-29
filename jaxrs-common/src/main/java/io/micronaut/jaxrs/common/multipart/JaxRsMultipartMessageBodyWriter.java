@@ -88,21 +88,41 @@ public final class JaxRsMultipartMessageBodyWriter implements MessageBodyWriter<
                 ? MediaType.MULTIPART_FORM_DATA_TYPE : mediaType;
             httpHeaders.putSingle(HttpHeaders.CONTENT_TYPE, new MediaType(multipart.getType(), multipart.getSubtype(), parameters));
         }
-        for (EntityPart part : parts) {
-            String delimiter = "--" + boundary + "\r\n";
-            if (part instanceof JaxRsEntityPart entityPart) {
-                // the headers as the writer of the content leaves them (MessageBodyWriter#writeTo)
-                entityPart.write(entityStream, providers, headers -> writeHead(entityStream, delimiter, part, headers));
-            } else {
-                // a part of another implementation
-                writeHead(entityStream, delimiter, part, new MultivaluedHashMap<>(part.getHeaders()));
-                try (var content = part.getContent()) {
-                    content.transferTo(entityStream);
+        int written = 0;
+        try {
+            for (EntityPart part : parts) {
+                String delimiter = "--" + boundary + "\r\n";
+                if (part instanceof JaxRsEntityPart entityPart) {
+                    // the headers as the writer of the content leaves them (MessageBodyWriter#writeTo)
+                    entityPart.write(entityStream, providers, headers -> writeHead(entityStream, delimiter, part, headers));
+                } else {
+                    // a part of another implementation
+                    writeHead(entityStream, delimiter, part, new MultivaluedHashMap<>(part.getHeaders()));
+                    try (var content = part.getContent()) {
+                        content.transferTo(entityStream);
+                    }
                 }
+                entityStream.write(new byte[] {'\r', '\n'});
+                written++;
             }
-            entityStream.write(new byte[] {'\r', '\n'});
+        } catch (IOException | RuntimeException e) {
+            // the streams of the parts that are not written are owned by the writer too
+            closeContents(parts.subList(written, parts.size()), e);
+            throw e;
         }
         entityStream.write(("--" + boundary + "--\r\n").getBytes(StandardCharsets.ISO_8859_1));
+    }
+
+    private static void closeContents(List<EntityPart> parts, Exception failure) {
+        for (EntityPart part : parts) {
+            if (part instanceof JaxRsEntityPart entityPart) {
+                try {
+                    entityPart.closeContent();
+                } catch (IOException | RuntimeException e) {
+                    failure.addSuppressed(e);
+                }
+            }
+        }
     }
 
     private static void writeHead(OutputStream entityStream, String delimiter, EntityPart part,
