@@ -23,6 +23,7 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.RouteInfo;
 import io.micronaut.web.router.MethodBasedRouteInfo;
+import io.micronaut.http.context.ServerRequestContext;
 import io.micronaut.http.simple.SimpleHttpHeaders;
 import io.micronaut.jaxrs.common.JaxRsUtils;
 import io.micronaut.http.body.AsyncRequestBody;
@@ -451,7 +452,7 @@ public final class JaxRsRouteSupport {
      */
     public CompletionStage<? extends HttpResponse<?>> entityAsync(HttpRequest<?> request, PathVariables pathVariables,
                                                                   AsyncRequestBody body, JaxRsAsyncHandler<byte[]> handler) {
-        return body.body(ENTITY).thenComposeAsync(entity -> call(handler, request, pathVariables, entity), executor(request));
+        return body.body(ENTITY).thenComposeAsync(entity -> call(handler, request, pathVariables, entity), propagating(request, executor(request)));
     }
 
     /**
@@ -473,7 +474,7 @@ public final class JaxRsRouteSupport {
         } else {
             read = body.form();
         }
-        Executor executor = executor(request);
+        Executor executor = propagating(request, executor(request));
         return read
             .thenApplyAsync(form -> filteredForm(request, form), executor)
             .thenCompose(form -> readParts(request, form))
@@ -547,6 +548,24 @@ public final class JaxRsRouteSupport {
         }
         Executor blocking = blockingExecutor.get();
         return blocking == null ? Runnable::run : blocking;
+    }
+
+    /**
+     * An executor running the tasks in the context of the request, e.g. for the context proxies a
+     * singleton resource reads its request with (JAX-RS 10.1), once the entity arrived on the event
+     * loop, outside of it.
+     *
+     * @param request  The request
+     * @param executor The executor
+     * @return The executor running in the context of the request
+     */
+    private static Executor propagating(HttpRequest<?> request, Executor executor) {
+        PropagatedContext context = PropagatedContext.getOrEmpty();
+        return task -> executor.execute(() -> {
+            try (PropagatedContext.Scope ignored = context.propagate()) {
+                ServerRequestContext.with(request, task);
+            }
+        });
     }
 
     /**

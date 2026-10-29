@@ -7,9 +7,12 @@ import io.micronaut.scheduling.TaskExecutors;
 import io.micronaut.scheduling.annotation.ExecuteOn;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 import jakarta.ws.rs.FormParam;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
+import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.HttpHeaders;
 import org.junit.jupiter.api.Test;
 
 import java.net.URI;
@@ -24,6 +27,7 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Flow;
 import java.util.concurrent.TimeUnit;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -54,6 +58,16 @@ class AsyncEntityExecutorTest {
     void formOfAnExecuteOnMethodIsReadOnItsExecutor() throws Exception {
         String thread = post("/form", "application/x-www-form-urlencoded", "f=v");
         assertTrue(thread.startsWith("io-executor"), thread);
+    }
+
+    @Test
+    void anExecuteOnMethodReadsTheRequestOnceItsEntityIsRead() throws Exception {
+        assertEquals("text/plain", post("/headers", "text/plain", "hello"));
+    }
+
+    @Test
+    void anExecuteOnMethodReadsTheRequestOnceItsFormIsRead() throws Exception {
+        assertEquals("application/x-www-form-urlencoded", post("/form-headers", "application/x-www-form-urlencoded", "f=v"));
     }
 
     /**
@@ -96,7 +110,11 @@ class AsyncEntityExecutorTest {
 
     @Requires(property = "spec.name", value = "AsyncEntityExecutorTest")
     @Path("/async-entity-executor")
+    @Singleton
     public static class Resource {
+
+        @Context
+        HttpHeaders headers;
 
         @POST
         @Path("io")
@@ -109,6 +127,20 @@ class AsyncEntityExecutorTest {
         @Path("default")
         public CompletionStage<String> unannotated(String entity) {
             return CompletableFuture.completedFuture(Thread.currentThread().getName());
+        }
+
+        @POST
+        @Path("headers")
+        @ExecuteOn(TaskExecutors.IO)
+        public CompletionStage<String> headers(String entity) {
+            return CompletableFuture.completedFuture(headers.getHeaderString("Content-Type"));
+        }
+
+        @POST
+        @Path("form-headers")
+        @ExecuteOn(TaskExecutors.IO)
+        public CompletionStage<String> formHeaders(@FormParam("f") String f) {
+            return CompletableFuture.completedFuture(headers.getHeaderString("Content-Type"));
         }
 
         @POST
