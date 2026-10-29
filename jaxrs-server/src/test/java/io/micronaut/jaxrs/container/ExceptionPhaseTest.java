@@ -60,6 +60,15 @@ class ExceptionPhaseTest {
         assertEquals(500, status(HttpRequest.GET("/mapped")));
     }
 
+    @Test
+    void responseMappedFromAFilterFailureIsFiltered() {
+        // a response filter fails, the response mapped from its exception is filtered (JAX-RS 4.4)
+        HttpClientResponseException e = assertThrows(HttpClientResponseException.class,
+            () -> client.toBlocking().retrieve(HttpRequest.GET("/filter-failure")));
+        assertEquals(422, e.code());
+        assertEquals("true", e.getResponse().header("X-Filtered"));
+    }
+
     private int status(HttpRequest<?> request) {
         HttpClientResponseException e = assertThrows(HttpClientResponseException.class,
             () -> client.toBlocking().retrieve(request));
@@ -104,6 +113,43 @@ class ExceptionPhaseTest {
         }
     }
 
+    public static final class FilterException extends RuntimeException {
+    }
+
+    @Requires(property = "spec.name", value = "ExceptionPhaseTest")
+    @Provider
+    public static class FilterMapper implements ExceptionMapper<FilterException> {
+        @Override
+        public Response toResponse(FilterException exception) {
+            return Response.status(422).build();
+        }
+    }
+
+    /**
+     * Fails processing the response of the resource method that is not mapped.
+     */
+    @Requires(property = "spec.name", value = "ExceptionPhaseTest")
+    @Provider
+    public static class FailingOnOkFilter implements ContainerResponseFilter {
+        @Override
+        public void filter(ContainerRequestContext requestContext, ContainerResponseContext responseContext) {
+            if (responseContext.getStatus() == 200 && requestContext.getUriInfo().getPath().endsWith("filter-failure")) {
+                throw new FilterException();
+            }
+        }
+    }
+
+    @Requires(property = "spec.name", value = "ExceptionPhaseTest")
+    @Provider
+    public static class MarkingFilter implements ContainerResponseFilter {
+        @Override
+        public void filter(ContainerRequestContext requestContext, ContainerResponseContext responseContext) {
+            if (requestContext.getUriInfo().getPath().endsWith("filter-failure")) {
+                responseContext.getHeaders().putSingle("X-Filtered", "true");
+            }
+        }
+    }
+
     @Serdeable
     public record Item(String name) {
     }
@@ -139,6 +185,13 @@ class ExceptionPhaseTest {
         @Produces("text/plain")
         public String read(Item item) {
             return item.name();
+        }
+
+        @GET
+        @Path("filter-failure")
+        @Produces("text/plain")
+        public String filterFailure() {
+            return "ok";
         }
 
         @GET

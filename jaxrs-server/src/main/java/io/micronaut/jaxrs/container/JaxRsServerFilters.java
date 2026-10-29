@@ -23,6 +23,7 @@ import io.micronaut.http.HttpStatus;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.MutableHttpRequest;
 import io.micronaut.http.MutableHttpResponse;
+import io.micronaut.jaxrs.common.JaxRsIOException;
 import io.micronaut.jaxrs.runtime.ext.bind.UriInfoImpl;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.RouteInfo;
@@ -30,6 +31,8 @@ import io.micronaut.web.router.builder.HttpRouteBuilder;
 import io.micronaut.web.router.builder.HttpRoutes;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.Path;
+import jakarta.ws.rs.ext.ExceptionMapper;
+import jakarta.ws.rs.ext.Providers;
 
 import java.io.IOException;
 import java.net.URI;
@@ -51,10 +54,12 @@ final class JaxRsServerFilters implements HttpRoutes {
 
     private final JaxRsContainerFilters filters;
     private final ApplicationProvider applicationProvider;
+    private final Providers providers;
 
-    JaxRsServerFilters(JaxRsContainerFilters filters, ApplicationProvider applicationProvider) {
+    JaxRsServerFilters(JaxRsContainerFilters filters, ApplicationProvider applicationProvider, Providers providers) {
         this.filters = filters;
         this.applicationProvider = applicationProvider;
+        this.providers = providers;
     }
 
     @Override
@@ -74,7 +79,7 @@ final class JaxRsServerFilters implements HttpRoutes {
             }).and()
             .after((request, response) -> {
                 try {
-                    filterResponse(request, response);
+                    filterMappedResponse(request, response);
                 } finally {
                     // the entity streams the request filters set
                     JaxRsContainerRequestContext.closeEntityStreamsIfProcessed(request);
@@ -178,6 +183,26 @@ final class JaxRsServerFilters implements HttpRoutes {
             }
         }
         return "/" + String.join("/", output);
+    }
+
+    /**
+     * Filter the response of a resource method with the JAX-RS response filters: the response
+     * mapped from an exception of a filter is filtered too, the exception of the response mapped
+     * already is not mapped again (JAX-RS 4.4).
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private void filterMappedResponse(HttpRequest<?> request, MutableHttpResponse<?> response) throws IOException {
+        try {
+            filterResponse(request, response);
+        } catch (RuntimeException | IOException e) {
+            Throwable exception = e instanceof JaxRsIOException && e.getCause() != null ? e.getCause() : e;
+            ExceptionMapper mapper = JaxRsGlobalExceptionHandler.isMapped(request) ? null : providers.getExceptionMapper(exception.getClass());
+            if (mapper == null) {
+                throw e;
+            }
+            replace(response, JaxRsGlobalExceptionHandler.map(request, mapper, exception).toMutableResponse());
+            filterResponse(request, response);
+        }
     }
 
     /**
