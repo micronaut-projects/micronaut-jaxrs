@@ -118,7 +118,8 @@ public sealed class JaxRsHttpHeaders implements HttpHeaders permits JaxRsMutable
         List<String> accept = httpHeaders.getAll(io.micronaut.http.HttpHeaders.ACCEPT);
         List<MediaType> types = accept
             .stream()
-            .flatMap(text -> Arrays.stream(text.split(",")))
+            // a comma in a quoted parameter value does not separate media ranges
+            .flatMap(text -> JaxRsHeaderUtil.split(text, ",").stream())
             .map(String::trim)
             // RFC 9110 5.6.1: empty list elements are ignored
             .filter(element -> !element.isEmpty())

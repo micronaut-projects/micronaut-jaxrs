@@ -112,4 +112,12 @@ class HeadersSpec extends Specification {
         JaxRsHttpHeaders.forRequest(headers).getAcceptableMediaTypes()*.toString() == ["text/*"]
         JaxRsHttpHeaders.forRequest(invalid).getAcceptableMediaTypes() == [MediaType.WILDCARD_TYPE]
     }
+
+    void "a comma in a quoted parameter of an acceptable media type does not separate media types"() {
+        given:
+        def headers = JaxRsHttpHeaders.forRequest(io.micronaut.http.HttpRequest.GET("/").header("Accept", 'application/json;profile="a,b", text/plain').headers)
+
+        expect:
+        headers.getAcceptableMediaTypes()*.toString() as Set == ['application/json;profile="a,b"', 'text/plain'] as Set
+    }
 }

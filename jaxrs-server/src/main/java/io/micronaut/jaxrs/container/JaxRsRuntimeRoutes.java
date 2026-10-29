@@ -15,6 +15,7 @@
  */
 package io.micronaut.jaxrs.container;
 
+import io.micronaut.jaxrs.common.JaxRsHeaderUtil;
 import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.context.BeanContext;
 import io.micronaut.context.processor.ExecutableMethodProcessor;
@@ -1031,7 +1032,8 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         }
         List<String> mediaTypes = new ArrayList<>();
         for (String value : values) {
-            for (String mediaType : value.split(",")) {
+            // a comma in a quoted parameter value does not separate media types
+            for (String mediaType : JaxRsHeaderUtil.split(value, ",")) {
                 String trimmed = mediaType.trim();
                 if (!trimmed.isEmpty()) {
                     mediaTypes.add(trimmed);
