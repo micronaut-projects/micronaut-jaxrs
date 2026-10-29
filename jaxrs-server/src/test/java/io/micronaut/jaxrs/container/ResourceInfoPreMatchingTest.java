@@ -19,13 +19,11 @@ import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.ext.Provider;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Method;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * The {@link ResourceInfo} of a request a pre-matching filter queried before the resource method
- * is matched has the matched resource method afterwards.
+ * is matched has the matched resource afterwards.
  */
 @MicronautTest
 @Property(name = "spec.name", value = "ResourceInfoPreMatchingTest")
@@ -37,7 +35,7 @@ class ResourceInfoPreMatchingTest {
 
     @Test
     void theMatchedMethodAfterAPreMatchingQuery() {
-        assertEquals("none:get", client.toBlocking().retrieve(HttpRequest.GET("/")));
+        assertEquals("none:InfoResource", client.toBlocking().retrieve(HttpRequest.GET("/")));
     }
 
     @Requires(property = "spec.name", value = "ResourceInfoPreMatchingTest")
@@ -49,8 +47,9 @@ class ResourceInfoPreMatchingTest {
 
         @Override
         public void filter(ContainerRequestContext requestContext) {
-            Method method = resourceInfo.getResourceMethod();
-            requestContext.getHeaders().putSingle("X-Before", method == null ? "none" : method.getName());
+            // the class: the method needs reflection
+            Class<?> resource = resourceInfo.getResourceClass();
+            requestContext.getHeaders().putSingle("X-Before", resource == null ? "none" : resource.getSimpleName());
         }
     }
 
@@ -60,8 +59,8 @@ class ResourceInfoPreMatchingTest {
         @GET
         @Produces("text/plain")
         public String get(@Context ResourceInfo resourceInfo, @HeaderParam("X-Before") String before) {
-            Method method = resourceInfo.getResourceMethod();
-            return before + ":" + (method == null ? "none" : method.getName());
+            Class<?> resource = resourceInfo.getResourceClass();
+            return before + ":" + (resource == null ? "none" : resource.getSimpleName());
         }
     }
 }

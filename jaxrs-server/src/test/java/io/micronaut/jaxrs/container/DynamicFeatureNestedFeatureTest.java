@@ -34,6 +34,10 @@ class DynamicFeatureNestedFeatureTest {
     @Client("/api/dynamic-nested-feature")
     HttpClient client;
 
+    @Inject
+    @Client("/api/dynamic-filter-only")
+    HttpClient filterOnlyClient;
+
     @Test
     void nestedFeatureConfigured() {
         assertEquals("filtered", client.toBlocking().retrieve(HttpRequest.GET("/")));
@@ -42,7 +46,7 @@ class DynamicFeatureNestedFeatureTest {
     @Test
     void featureRegisteredAsAFilterOnlyIsNotConfigured() {
         // registered for the contract of a filter only: it filters, it is not configured as a feature
-        assertEquals("filter", client.toBlocking().retrieve(HttpRequest.GET("/filter-only")));
+        assertEquals("filter", filterOnlyClient.toBlocking().retrieve(HttpRequest.GET("/")));
     }
 
     @Requires(property = "spec.name", value = "DynamicFeatureNestedFeatureTest")
@@ -53,11 +57,14 @@ class DynamicFeatureNestedFeatureTest {
         public String get(@HeaderParam("X-Nested") String value) {
             return value;
         }
+    }
 
+    @Requires(property = "spec.name", value = "DynamicFeatureNestedFeatureTest")
+    @Path("/dynamic-filter-only")
+    public static class FilterOnlyResource {
         @GET
-        @Path("filter-only")
         @Produces("text/plain")
-        public String filterOnly(@HeaderParam("X-Filter-Only") String value) {
+        public String get(@HeaderParam("X-Filter-Only") String value) {
             return value;
         }
     }
@@ -67,12 +74,9 @@ class DynamicFeatureNestedFeatureTest {
     public static class OuterFeature implements DynamicFeature {
         @Override
         public void configure(ResourceInfo resourceInfo, FeatureContext context) {
-            if (resourceInfo.getResourceClass() != NestedResource.class) {
-                return;
-            }
-            if (resourceInfo.getResourceMethod().getName().equals("filterOnly")) {
+            if (resourceInfo.getResourceClass() == FilterOnlyResource.class) {
                 context.register(new FeatureFilter(), ContainerRequestFilter.class);
-            } else {
+            } else if (resourceInfo.getResourceClass() == NestedResource.class) {
                 context.register(new InnerFeature());
             }
         }
