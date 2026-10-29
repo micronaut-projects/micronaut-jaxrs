@@ -670,9 +670,16 @@ public final class JaxRsRouteSupport {
             // a parameter of a sub-resource locator: of the last segment it matched
             List<PathSegment> segments = new UriInfoImpl(request, applicationProvider.getPath(), applicationProvider.getContextPath())
                 .getPathSegments(!encoded);
-            List<String> values = matched <= segments.size() ? segments.get(matched - 1).getMatrixParameters().get(name) : null;
-            return convert(values == null ? List.of() : values.stream().map(value -> value == null ? "" : value).toList(),
-                argument, defaultValue, true);
+            List<String> values = new ArrayList<>(1);
+            if (matched <= segments.size()) {
+                // the name is decoded, with @Encoded the values are not
+                segments.get(matched - 1).getMatrixParameters().forEach((key, keyValues) -> {
+                    if ((encoded ? JaxRsPathSegments.decode(key) : key).equals(name)) {
+                        keyValues.forEach(value -> values.add(value == null ? "" : value));
+                    }
+                });
+            }
+            return convert(values, argument, defaultValue, true);
         }
         return convert(JaxRsPathSegments.values(request, name, encoded), argument, defaultValue, true);
     }
