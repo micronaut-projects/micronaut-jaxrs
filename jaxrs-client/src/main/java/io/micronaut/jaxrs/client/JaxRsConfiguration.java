@@ -596,14 +596,6 @@ final class JaxRsConfiguration implements Configuration {
         return () -> JaxRsCurrentProviders.restore(previous);
     }
 
-    /**
-     * The scope of the current providers, see {@link #current()}.
-     */
-    interface CurrentScope extends AutoCloseable {
-        @Override
-        void close();
-    }
-
     public HttpMessageEntityReader createHttpMessageEntityReader() {
         return createHttpMessageEntityReader(new LinkedHashMap<>());
     }
@@ -1346,5 +1338,13 @@ final class JaxRsConfiguration implements Configuration {
     }
 
     record ComponentContract(Class<?> contract, int priority) {
+    }
+
+    /**
+     * The scope of the current providers, see {@link #current()}.
+     */
+    interface CurrentScope extends AutoCloseable {
+        @Override
+        void close();
     }
 }
