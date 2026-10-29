@@ -200,15 +200,7 @@ final class JaxRsClientExchange {
      */
     @SuppressWarnings("unchecked")
     private MutableHttpRequest<Object> changed(MutableHttpRequest<Object> request, JaxRsClientRequestContext requestContext) throws IOException {
-        String changedMethod = requestContext.getChangedMethod();
-        if (changedMethod != null && !changedMethod.equals(request.getMethodName())) {
-            HttpMethod httpMethod = HttpMethod.parse(changedMethod);
-            MutableHttpRequest<Object> copy = httpMethod == HttpMethod.CUSTOM
-                ? HttpRequest.create(HttpMethod.CUSTOM, request.getUri().toString(), changedMethod)
-                : HttpRequest.create(httpMethod, request.getUri().toString());
-            request.getHeaders().forEachValue(copy::header);
-            request = copy;
-        }
+        request = withChangedMethod(request, requestContext);
         Object entity = requestContext.getEntity();
         if (entity != null) {
             // the entity as the filters left it, with the media type they left
@@ -219,6 +211,28 @@ final class JaxRsClientExchange {
             if (body instanceof byte[] bytes) {
                 request.body(requestContext.writeThroughEntityStream(bytes));
             }
+        }
+        return request;
+    }
+
+    /**
+     * The request with the method a request filter set, the one of the ordinary exchanges and of
+     * the event sources (JAX-RS, {@code ClientRequestContext#setMethod}).
+     *
+     * @param request        The request the filters saw
+     * @param requestContext The context of the request
+     * @return The request, a copy with its headers and attributes when the method changed
+     */
+    static MutableHttpRequest<Object> withChangedMethod(MutableHttpRequest<Object> request, JaxRsClientRequestContext requestContext) {
+        String changedMethod = requestContext.getChangedMethod();
+        if (changedMethod != null && !changedMethod.equals(request.getMethodName())) {
+            HttpMethod httpMethod = HttpMethod.parse(changedMethod);
+            MutableHttpRequest<Object> copy = httpMethod == HttpMethod.CUSTOM
+                ? HttpRequest.create(HttpMethod.CUSTOM, request.getUri().toString(), changedMethod)
+                : HttpRequest.create(httpMethod, request.getUri().toString());
+            request.getHeaders().forEachValue(copy::header);
+            request.getAttributes().forEach(copy::setAttribute);
+            return copy;
         }
         return request;
     }
@@ -340,6 +354,11 @@ final class JaxRsClientExchange {
             Locale language = entity.getLanguage();
             if (language != null) {
                 mutableHttpRequest.getHeaders().set(HttpHeaders.CONTENT_LANGUAGE, language.toLanguageTag());
+            }
+            String encoding = entity.getEncoding();
+            if (encoding != null) {
+                // the encoding of the variant of the entity (RFC 9110, 8.4)
+                mutableHttpRequest.getHeaders().set(HttpHeaders.CONTENT_ENCODING, encoding);
             }
         }
         if (mutableHttpHeaders != null) {

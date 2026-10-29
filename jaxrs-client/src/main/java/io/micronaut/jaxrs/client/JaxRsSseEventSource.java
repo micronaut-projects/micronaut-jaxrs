@@ -47,6 +47,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Date;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -132,16 +134,19 @@ final class JaxRsSseEventSource implements SseEventSource {
     }
 
     @Override
-    public synchronized void open() {
-        if (closed) {
-            throw new IllegalStateException("The event source is closed");
+    public void open() {
+        synchronized (this) {
+            if (closed) {
+                throw new IllegalStateException("The event source is closed");
+            }
+            if (opened) {
+                throw new IllegalStateException("The event source was opened");
+            }
+            opened = true;
+            open = true;
         }
-        if (opened) {
-            throw new IllegalStateException("The event source was opened");
-        }
-        opened = true;
-        open = true;
         target.client().opened(this);
+        // without the lock: the request filters may block, and a close does not wait for them
         connect();
     }
 
@@ -212,6 +217,8 @@ final class JaxRsSseEventSource implements SseEventSource {
         if (requestContext == null) {
             return;
         }
+        // the method a filter set, as in an ordinary exchange
+        MutableHttpRequest<Object> sent = JaxRsClientExchange.withChangedMethod(request, requestContext);
         DefaultHttpClient client;
         synchronized (this) {
             // a close before the lock wins: no client is created after it
@@ -227,7 +234,7 @@ final class JaxRsSseEventSource implements SseEventSource {
         }
         // the response filters may block: they run on the executor of the client, not on the
         // event loop of the HTTP client (JAX-RS, ClientBuilder#executorService)
-        client.toAsyncStreaming().exchangeEventStream(request, Argument.STRING).whenComplete((response, error) -> callbacks.dispatch(() -> {
+        client.toAsyncStreaming().exchangeEventStream(sent, Argument.STRING).whenComplete((response, error) -> callbacks.dispatch(() -> {
             if (error != null) {
                 failed(error instanceof CompletionException && error.getCause() != null ? error.getCause() : error, requestContext);
             } else {
@@ -253,8 +260,9 @@ final class JaxRsSseEventSource implements SseEventSource {
         MutableHttpResponse<?> head = HttpResponse.status(response.status(), response.reason());
         response.getHeaders().forEachValue(head::header);
         JaxRsMutableResponse filtered = new JaxRsMutableResponse(head);
-        // a filter may replace the entity stream, e.g. to decode it: the events are then read from it
-        InputStream unchanged = InputStream.nullInputStream();
+        // a filter may replace the entity stream, e.g. to decode or to wrap it: the events are then
+        // read from it, and the stream it sees is the one of the events of the connection
+        InputStream unchanged = body == null ? InputStream.nullInputStream() : new EventsInputStream(body);
         filtered.setEntityStream(unchanged);
         try {
             filterResponse(filtered, requestContext);
@@ -267,11 +275,6 @@ final class JaxRsSseEventSource implements SseEventSource {
             return;
         }
         InputStream replacement = filtered.getEntityStream() == unchanged ? null : filtered.getEntityStream();
-        if (replacement != null && body != null) {
-            // the events of the connection are the ones of the stream the filter set
-            body.closeAsync();
-            body = null;
-        }
         int status = filtered.getStatus();
         if (status != HttpStatus.OK.getCode() && status != HttpStatus.NO_CONTENT.getCode()) {
             // another status is an error, e.g. a 201 (JAX-RS, SseEventSource)
@@ -300,11 +303,23 @@ final class JaxRsSseEventSource implements SseEventSource {
             error(new ProcessingException("The response is not an event stream: " + contentType));
             return;
         }
-        if (body == null) {
-            // the events are the ones of the stream a filter set
-            if (replacement != null) {
-                receive(replacement);
+        if (replacement != null) {
+            // the events are the ones of the stream a filter set, which may read the events of
+            // the connection: they are closed with the source, or once the stream is read
+            if (body != null) {
+                synchronized (this) {
+                    if (!open) {
+                        body.closeAsync();
+                        closeQuietly(replacement);
+                        return;
+                    }
+                    events = body;
+                }
             }
+            receive(replacement);
+            return;
+        }
+        if (body == null) {
             return;
         }
         synchronized (this) {
@@ -363,6 +378,11 @@ final class JaxRsSseEventSource implements SseEventSource {
         } finally {
             replacedStream = null;
             closeQuietly(stream);
+            BodyElements<Event<String>> read = events;
+            events = null;
+            if (read != null) {
+                read.closeAsync();
+            }
         }
         if (!open) {
             return;
@@ -371,6 +391,85 @@ final class JaxRsSseEventSource implements SseEventSource {
             LOG.debug("The event stream failed, reconnecting: {}", failure.getMessage(), failure);
         }
         reconnect(reconnectDelay());
+    }
+
+    /**
+     * The events of a connection as the entity stream the response filters see: written back in
+     * the event stream format when a filter reads them, e.g. through a stream wrapping it.
+     */
+    private static final class EventsInputStream extends InputStream {
+        private final BodyElements<Event<String>> events;
+        private byte[] pending = new byte[0];
+        private int position;
+        private boolean ended;
+
+        EventsInputStream(BodyElements<Event<String>> events) {
+            this.events = events;
+        }
+
+        @Override
+        public int read() throws IOException {
+            byte[] one = new byte[1];
+            return read(one, 0, 1) == -1 ? -1 : one[0] & 0xFF;
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            if (len == 0) {
+                return 0;
+            }
+            while (position == pending.length) {
+                if (ended) {
+                    return -1;
+                }
+                Optional<Event<String>> next;
+                try {
+                    // read on the executor of the client, like the stream a filter set
+                    next = events.next().toCompletableFuture().join();
+                } catch (CompletionException | CancellationException e) {
+                    throw new IOException(e.getCause() == null ? e : e.getCause());
+                }
+                if (next.isEmpty()) {
+                    ended = true;
+                    return -1;
+                }
+                pending = encode(next.get());
+                position = 0;
+            }
+            int n = Math.min(len, pending.length - position);
+            System.arraycopy(pending, position, b, off, n);
+            position += n;
+            return n;
+        }
+
+        private static byte[] encode(Event<String> event) {
+            var text = new StringBuilder();
+            if (event.getComment() != null) {
+                for (String line : event.getComment().split("\n", -1)) {
+                    text.append(':').append(line).append('\n');
+                }
+            }
+            if (event.getId() != null) {
+                text.append("id:").append(event.getId()).append('\n');
+            }
+            if (event.getName() != null) {
+                text.append("event:").append(event.getName()).append('\n');
+            }
+            if (event.getRetry() != null) {
+                text.append("retry:").append(event.getRetry().toMillis()).append('\n');
+            }
+            if (event.getData() != null) {
+                for (String line : event.getData().split("\n", -1)) {
+                    text.append("data:").append(line).append('\n');
+                }
+            }
+            return text.append('\n').toString().getBytes(StandardCharsets.UTF_8);
+        }
+
+        @Override
+        public void close() {
+            events.closeAsync();
+        }
     }
 
     private static void closeReplaced(JaxRsMutableResponse response, InputStream unchanged) {

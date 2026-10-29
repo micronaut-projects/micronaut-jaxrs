@@ -369,4 +369,68 @@ class JaxRsSseEventSourceTest {
             client.close();
         }
     }
+
+    @Test
+    void aRequestFilterChangesTheMethod() throws Exception {
+        Client client = ClientBuilder.newClient();
+        try {
+            WebTarget target = target(client, "method-events")
+                .register((ClientRequestFilter) context -> context.setMethod("POST"));
+            CompletableFuture<String> received = new CompletableFuture<>();
+            try (SseEventSource source = SseEventSource.target(target).build()) {
+                source.register(event -> received.complete(event.readData()));
+                source.open();
+                assertEquals("POST", received.get(10, TimeUnit.SECONDS));
+            }
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void aResponseFilterWrapsTheEventStream() throws Exception {
+        Client client = ClientBuilder.newClient();
+        try {
+            WebTarget target = target(client, "endless")
+                .register((ClientResponseFilter) (request, response) -> response.setEntityStream(
+                    new java.io.BufferedInputStream(response.getEntityStream())));
+            CompletableFuture<String> received = new CompletableFuture<>();
+            try (SseEventSource source = SseEventSource.target(target).build()) {
+                source.register(event -> received.complete(event.readData()));
+                source.open();
+                assertEquals("tick 0", received.get(10, TimeUnit.SECONDS));
+            }
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void aTimedCloseDoesNotWaitForABlockedRequestFilter() throws Exception {
+        Client client = ClientBuilder.newClient();
+        CountDownLatch filtering = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        try {
+            WebTarget target = target(client, "endless")
+                .register((ClientRequestFilter) context -> {
+                    filtering.countDown();
+                    try {
+                        release.await(10, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                });
+            SseEventSource source = SseEventSource.target(target).build();
+            CompletableFuture<Void> opened = CompletableFuture.runAsync(source::open);
+            assertTrue(filtering.await(10, TimeUnit.SECONDS));
+            CompletableFuture<Boolean> closed = CompletableFuture.supplyAsync(() -> source.close(10, TimeUnit.MILLISECONDS));
+            closed.get(5, TimeUnit.SECONDS);
+            assertFalse(source.isOpen());
+            release.countDown();
+            opened.get(10, TimeUnit.SECONDS);
+        } finally {
+            release.countDown();
+            client.close();
+        }
+    }
 }

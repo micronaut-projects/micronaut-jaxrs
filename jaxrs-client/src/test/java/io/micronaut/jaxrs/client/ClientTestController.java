@@ -144,4 +144,14 @@ class ClientTestController {
     HttpResponse<?> unavailable() {
         return HttpResponse.status(HttpStatus.SERVICE_UNAVAILABLE);
     }
+
+    @Post(value = "/method-events", consumes = MediaType.ALL, produces = MediaType.TEXT_EVENT_STREAM)
+    Publisher<Event<String>> postedEvents(HttpRequest<?> request) {
+        return Flux.just(Event.of(request.getMethodName()));
+    }
+
+    @Get(value = "/method-events", produces = MediaType.TEXT_EVENT_STREAM)
+    Publisher<Event<String>> gotEvents(HttpRequest<?> request) {
+        return Flux.just(Event.of(request.getMethodName()));
+    }
 }
