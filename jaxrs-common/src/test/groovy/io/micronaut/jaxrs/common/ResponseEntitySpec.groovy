@@ -159,4 +159,53 @@ class ResponseEntitySpec extends Specification {
         then:
         thrown(IllegalStateException)
     }
+
+    void "the response is open while the entity stream that was read is open"() {
+        given:
+        def response = Response.ok(new ByteArrayInputStream("abc".bytes)).build()
+
+        when:
+        InputStream stream = response.readEntity(InputStream)
+
+        then:
+        !response.isClosed()
+        response.hasEntity()
+        new String(stream.readAllBytes()) == "abc"
+
+        when:
+        response.close()
+
+        then:
+        response.isClosed()
+    }
+
+    void "an entity read as another generic type is not the cached one"() {
+        given:
+        def response = Response.ok("abc").build()
+        response.readEntity(new jakarta.ws.rs.core.GenericType<List<String>>() {})
+
+        when:
+        response.readEntity(new jakarta.ws.rs.core.GenericType<List<Integer>>() {})
+
+        then:
+        thrown(IllegalStateException)
+    }
+
+    void "an input stream entity is buffered"() {
+        given:
+        boolean closed = false
+        def stream = new ByteArrayInputStream("abc".bytes) {
+            @Override
+            void close() throws IOException {
+                closed = true
+            }
+        }
+        def response = Response.ok(stream).build()
+
+        expect:
+        response.bufferEntity()
+        closed
+        response.readEntity(String) == "abc"
+        response.readEntity(String) == "abc"
+    }
 }

@@ -88,6 +88,8 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
     private boolean closed;
     // the entity stream was read without being buffered
     private boolean consumed;
+    // the entity was read without being buffered as the entity stream, which stays open
+    private boolean streamRead;
     private byte @Nullable [] buffer;
     @Nullable
     private Argument<?> readBodyArgument;
@@ -195,7 +197,7 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
      */
     public <T> @Nullable T readEntity(Argument<T> entityType) {
         checkNotClosed();
-        if (readBodyArgument != null && readBodyArgument.getType().equals(entityType.getType())) {
+        if (readBodyArgument != null && sameEntityType(readBodyArgument, entityType)) {
             return (T) readBody;
         }
         boolean empty = isEmptyEntity();
@@ -209,6 +211,7 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
             }
             consumed = true;
             boolean stream = entityType.getType() == InputStream.class;
+            streamRead = stream;
             try {
                 value = (T) readUnbuffered(entityType);
             } finally {
@@ -230,6 +233,15 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
         }
         cacheEntity(entityType, value);
         return value;
+    }
+
+    /**
+     * Whether an entity read before is the one requested: the same type, with the same type
+     * arguments and annotations.
+     */
+    private static boolean sameEntityType(Argument<?> read, Argument<?> requested) {
+        return read.equalsType(requested)
+            && read.getAnnotationMetadata().getAnnotationNames().equals(requested.getAnnotationMetadata().getAnnotationNames());
     }
 
     /**
@@ -322,8 +334,26 @@ public sealed class JaxRsResponse extends Response implements HttpResponseProvid
 
     @Override
     public boolean hasEntity() {
-        checkCanReadEntity();
+        checkCanQueryEntity();
         return body() != null;
+    }
+
+    @Override
+    public boolean isClosed() {
+        // the entity stream that was read stays open (JAX-RS, Response#readEntity)
+        return closed || consumed && !buffered && !streamRead;
+    }
+
+    /**
+     * Check that the entity can be queried: like {@link #checkCanReadEntity()}, but the entity
+     * stream that was read is still the entity of the response, which is not closed.
+     */
+    final void checkCanQueryEntity() {
+        if (!streamRead || buffered) {
+            checkCanReadEntity();
+        } else {
+            checkNotClosed();
+        }
     }
 
     /**
