@@ -24,9 +24,17 @@ import io.micronaut.jaxrs.common.JaxRsRouteInterceptors;
 import jakarta.ws.rs.RuntimeType;
 import jakarta.ws.rs.client.ClientRequestFilter;
 import jakarta.ws.rs.client.ClientResponseFilter;
+import jakarta.ws.rs.client.RxInvokerProvider;
 import jakarta.ws.rs.core.Configuration;
 import jakarta.ws.rs.core.Feature;
 import jakarta.ws.rs.core.FeatureContext;
+import jakarta.ws.rs.ext.ContextResolver;
+import jakarta.ws.rs.ext.ExceptionMapper;
+import jakarta.ws.rs.ext.MessageBodyReader;
+import jakarta.ws.rs.ext.MessageBodyWriter;
+import jakarta.ws.rs.ext.ParamConverterProvider;
+import jakarta.ws.rs.ext.ReaderInterceptor;
+import jakarta.ws.rs.ext.WriterInterceptor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,6 +63,12 @@ final class JaxRsConfiguration implements Configuration {
      * {@code @Priority} applies.
      */
     static final int NO_PRIORITY = Integer.MIN_VALUE;
+
+    // the provider contracts of a client component, see #getContracts
+    private static final List<Class<?>> CONTRACTS = List.of(
+        ClientRequestFilter.class, ClientResponseFilter.class, ReaderInterceptor.class, WriterInterceptor.class,
+        MessageBodyReader.class, MessageBodyWriter.class, ContextResolver.class, ExceptionMapper.class,
+        ParamConverterProvider.class, RxInvokerProvider.class, Feature.class);
 
     private static final Logger LOG = LoggerFactory.getLogger(JaxRsConfiguration.class);
     private final Map<String, Object> properties;
@@ -108,6 +122,10 @@ final class JaxRsConfiguration implements Configuration {
      * @param configuration The configuration
      */
     void replaceWith(Configuration configuration) {
+        if (configuration == this) {
+            // its own state: clearing it first would lose it
+            return;
+        }
         properties.clear();
         components.clear();
         enabledFeatures.clear();
@@ -278,9 +296,12 @@ final class JaxRsConfiguration implements Configuration {
             return;
         }
         if (JaxRsClientProviders.registeredFor(component, Feature.class)) {
-            Feature feature = providers.injected(component.tryGet(Feature.class));
-            if (feature != null && feature.configure(new ClientFeatureContext())) {
-                enabledFeatures.add(feature);
+            // a feature shared by configurations is injected with the one it configures
+            try (JaxRsClientProviders.CurrentScope ignored = providers.current()) {
+                Feature feature = providers.injected(component.tryGet(Feature.class));
+                if (feature != null && feature.configure(new ClientFeatureContext())) {
+                    enabledFeatures.add(feature);
+                }
             }
         }
     }
@@ -337,10 +358,21 @@ final class JaxRsConfiguration implements Configuration {
 
     @Override
     public Map<Class<?>, Integer> getContracts(Class<?> componentClass) {
-        return components.stream()
-            .filter(c -> c.is(componentClass))
-            .flatMap(c -> c.components().stream())
-            .collect(Collectors.toMap(component -> component.contract, component -> component.priority, (p1, p2) -> p1));
+        // the contracts it is registered for, all of the ones it implements without any, with
+        // their effective priorities (JAX-RS, Configuration#getContracts)
+        Map<Class<?>, Integer> contracts = new LinkedHashMap<>();
+        for (Component component : components) {
+            if (!component.is(componentClass)) {
+                continue;
+            }
+            List<Class<?>> registered = component.components().isEmpty()
+                ? CONTRACTS.stream().filter(contract -> contract.isAssignableFrom(componentClass)).toList()
+                : component.components().stream().<Class<?>>map(ComponentContract::contract).toList();
+            for (Class<?> contract : registered) {
+                contracts.putIfAbsent(contract, JaxRsClientProviders.priority(component, contract));
+            }
+        }
+        return Collections.unmodifiableMap(contracts);
     }
 
     @Override
