@@ -115,6 +115,8 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
     // the filters and interceptors bound to the resource methods, see #bound
     private final Map<JaxRsBoundProviders.Key, JaxRsBoundProviders> bound = new ConcurrentHashMap<>();
     private volatile boolean configured;
+    // the features are configured: the global registrations do not change any more
+    private volatile boolean complete;
 
     JaxRsFeatures(ApplicationContext context, JaxRsContainerMessageBodyHandlerRegistry registry,
                   List<BeanRegistration<Feature>> features, List<BeanRegistration<DynamicFeature>> dynamicFeatures) {
@@ -145,6 +147,7 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
                 enabledFeatures.add(feature);
             }
         }
+        complete = true;
         // the dynamic features the features registered configure the resource methods too
         Set<Class<?>> known = new HashSet<>();
         dynamicFeatures.forEach(feature -> known.add(feature.getClass()));
@@ -161,6 +164,13 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
             }
         }
         dynamicFeatures.addAll(registered);
+    }
+
+    /**
+     * @return Whether the features are configured: the global registrations do not change then
+     */
+    boolean isConfigured() {
+        return complete;
     }
 
     /**

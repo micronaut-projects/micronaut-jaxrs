@@ -72,6 +72,7 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
 
     private final BeanContext beanLocator;
     private volatile @Nullable Set<Class<?>> registeredClasses;
+    private volatile @Nullable Optional<JaxRsProviderRegistrations> providerRegistrations;
     private final Map<HandlerKey<?>, io.micronaut.http.body.MessageBodyReader<?>> readers = new ConcurrentHashMap<>(10);
     private final Map<HandlerKey<?>, io.micronaut.http.body.MessageBodyWriter<?>> writers = new ConcurrentHashMap<>(10);
     // the metadata of the readers and of the writers, by bean definition
@@ -193,6 +194,11 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
      */
     public int priority(BeanRegistration<?> registration, Class<?> contract) {
         Class<?> providerClass = registration.getBeanDefinition().getBeanType();
+        JaxRsProviderRegistrations providerRegistrations = providerRegistrations();
+        if (providerRegistrations != null) {
+            Integer priority = providerRegistrations.priority(providerClass, contract);
+            return priority != null ? priority : JaxRsUtils.getPriorityOrder(registration);
+        }
         for (Configuration configuration : beanLocator.getBeansOfType(Configuration.class)) {
             if (configuration.getRuntimeType() == RuntimeType.SERVER && configuration.isRegistered(providerClass)) {
                 Integer priority = configuration.getContracts(providerClass).get(contract);
@@ -421,6 +427,14 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
         if (listed && contract == null) {
             return true;
         }
+        JaxRsProviderRegistrations providerRegistrations = providerRegistrations();
+        if (providerRegistrations != null) {
+            if (!providerRegistrations.isRegistered(providerClass)) {
+                return listed;
+            }
+            // registered by a feature for some contracts: for those only, none for all
+            return contract == null || providerRegistrations.isRegistered(providerClass, contract);
+        }
         boolean byFeature = false;
         for (Configuration configuration : beanLocator.getBeansOfType(Configuration.class)) {
             if (configuration.getRuntimeType() == RuntimeType.SERVER && configuration.isRegistered(providerClass)) {
@@ -433,6 +447,19 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
             }
         }
         return byFeature || listed;
+    }
+
+    /**
+     * The registrations of the providers of the server, else, e.g. without a server, the server
+     * {@code Configuration} beans are queried.
+     */
+    private @Nullable JaxRsProviderRegistrations providerRegistrations() {
+        Optional<JaxRsProviderRegistrations> registrations = providerRegistrations;
+        if (registrations == null) {
+            registrations = beanLocator.findBean(JaxRsProviderRegistrations.class);
+            providerRegistrations = registrations;
+        }
+        return registrations.orElse(null);
     }
 
     /**
