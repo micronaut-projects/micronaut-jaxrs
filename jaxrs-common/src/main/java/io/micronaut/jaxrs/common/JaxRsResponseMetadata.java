@@ -96,6 +96,10 @@ public final class JaxRsResponseMetadata extends AbstractMap<String, List<Object
 
     @Override
     public boolean containsKey(@Nullable Object key) {
+        if (key instanceof String name) {
+            // forgets a header removed through the response
+            get(name);
+        }
         return ((key == null || key instanceof String) && objects.containsKey(key))
             || (key instanceof String name && headers.contains(name));
     }
@@ -196,6 +200,10 @@ public final class JaxRsResponseMetadata extends AbstractMap<String, List<Object
      * The names of the headers, then the other keys of the objects.
      */
     private Set<@Nullable String> keys() {
+        for (@Nullable String key : new ArrayList<>(objects.keySet())) {
+            // forgets the headers removed through the response
+            get(key);
+        }
         Set<@Nullable String> keys = new LinkedHashSet<>(headers.names());
         for (@Nullable String key : objects.keySet()) {
             // a header name is case-insensitive
