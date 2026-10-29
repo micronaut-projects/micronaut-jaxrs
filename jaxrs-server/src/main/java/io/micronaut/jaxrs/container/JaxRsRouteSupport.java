@@ -615,13 +615,13 @@ public final class JaxRsRouteSupport {
      * @param request       The request
      * @param pathVariables The path variables of the matched route
      * @param name          The name of the path parameter
-     * @param argument      The type of the parameter
-     * @param defaultValue  The {@code @DefaultValue}
+     * @param conversion    The conversion of the parameter
      * @param encoded       Whether the value is kept encoded ({@code @Encoded})
      * @return The value, converted
      */
-    public @Nullable Object pathParam(HttpRequest<?> request, PathVariables pathVariables, String name, Argument<?> argument,
-                                      @Nullable String defaultValue, boolean encoded) {
+    private @Nullable Object pathParam(HttpRequest<?> request, PathVariables pathVariables, String name, Conversion conversion,
+                                       boolean encoded) {
+        Argument<?> argument = conversion.argument;
         // an @Encoded parameter gets the value as it appears in the path
         PathVariables variables = encoded ? pathVariables.raw() : pathVariables;
         Optional<String> value = variables.findString(name);
@@ -650,19 +650,17 @@ public final class JaxRsRouteSupport {
                 }
             }
         }
-        return convert(values, argument, defaultValue, true);
+        return conversion.convert(values, true);
     }
 
     /**
      * @param request      The request
      * @param name         The name of the query parameter
-     * @param argument     The type of the parameter
-     * @param defaultValue The {@code @DefaultValue}
+     * @param conversion   The conversion of the parameter
      * @param encoded      Whether the value is kept encoded ({@code @Encoded})
      * @return The value, converted
      */
-    public @Nullable Object queryParam(HttpRequest<?> request, String name, Argument<?> argument,
-                                       @Nullable String defaultValue, boolean encoded) {
+    private @Nullable Object queryParam(HttpRequest<?> request, String name, Conversion conversion, boolean encoded) {
         // the name is decoded, with @Encoded the values are not
         List<String> values = new ArrayList<>(1);
         UriInfoImpl.queryParameters(request.getUri(), false).forEach((raw, rawValues) -> {
@@ -670,20 +668,18 @@ public final class JaxRsRouteSupport {
                 rawValues.forEach(value -> values.add(encoded ? value : UriInfoImpl.decodeQuery(value)));
             }
         });
-        return convert(values, argument, defaultValue, true);
+        return conversion.convert(values, true);
     }
 
     /**
      * @param request      The request
      * @param name         The name of the matrix parameter, of the last segment of the path, or
      *                     of the last one a sub-resource locator matched
-     * @param argument     The type of the parameter
-     * @param defaultValue The {@code @DefaultValue}
+     * @param conversion   The conversion of the parameter
      * @param encoded      Whether the value is kept encoded ({@code @Encoded})
      * @return The value, converted
      */
-    public @Nullable Object matrixParam(HttpRequest<?> request, String name, Argument<?> argument,
-                                        @Nullable String defaultValue, boolean encoded) {
+    private @Nullable Object matrixParam(HttpRequest<?> request, String name, Conversion conversion, boolean encoded) {
         int matched = request.getAttribute(MATCHED_SEGMENTS, Integer.class).orElse(-1);
         if (matched > 0) {
             // a parameter of a sub-resource locator: of the last segment it matched
@@ -698,58 +694,55 @@ public final class JaxRsRouteSupport {
                     }
                 });
             }
-            return convert(values, argument, defaultValue, true);
+            return conversion.convert(values, true);
         }
-        return convert(JaxRsPathSegments.values(request, name, encoded), argument, defaultValue, true);
+        return conversion.convert(JaxRsPathSegments.values(request, name, encoded), true);
     }
 
     /**
      * @param request      The request
      * @param name         The name of the header
-     * @param argument     The type of the parameter
-     * @param defaultValue The {@code @DefaultValue}
+     * @param conversion   The conversion of the parameter
      * @return The value, converted
      */
-    public @Nullable Object headerParam(HttpRequest<?> request, String name, Argument<?> argument, @Nullable String defaultValue) {
-        return convert(request.getHeaders().getAll(name), argument, defaultValue, false);
+    private static @Nullable Object headerParam(HttpRequest<?> request, String name, Conversion conversion) {
+        return conversion.convert(request.getHeaders().getAll(name), false);
     }
 
     /**
      * @param request      The request
      * @param name         The name of the cookie
-     * @param argument     The type of the parameter
-     * @param defaultValue The {@code @DefaultValue}
+     * @param conversion   The conversion of the parameter
      * @return The value, converted
      */
-    public @Nullable Object cookieParam(HttpRequest<?> request, String name, Argument<?> argument, @Nullable String defaultValue) {
+    private static @Nullable Object cookieParam(HttpRequest<?> request, String name, Conversion conversion) {
         Optional<io.micronaut.http.cookie.Cookie> cookie = request.getCookies().findCookie(name);
-        if (argument.getType() == Cookie.class) {
+        if (conversion.argument.getType() == Cookie.class) {
+            String defaultValue = conversion.defaultValue;
             if (cookie.isPresent()) {
                 io.micronaut.http.cookie.Cookie c = cookie.get();
                 return new Cookie.Builder(c.getName()).value(c.getValue()).path(c.getPath()).domain(c.getDomain()).build();
             }
             return defaultValue == null ? null : new Cookie.Builder(name).value(defaultValue).build();
         }
-        return convert(cookie.map(c -> List.of(c.getValue())).orElse(List.of()), argument, defaultValue, false);
+        return conversion.convert(cookie.map(c -> List.of(c.getValue())).orElse(List.of()), false);
     }
 
     /**
      * @param request      The request
      * @param form         The form
      * @param name         The name of the field
-     * @param argument     The type of the parameter
-     * @param defaultValue The {@code @DefaultValue}
+     * @param conversion   The conversion of the parameter
      * @param encoded      Whether the value is kept encoded ({@code @Encoded})
      * @return The value, converted
      */
-    public @Nullable Object formParam(HttpRequest<?> request, @Nullable FormData form, String name, Argument<?> argument,
-                                      @Nullable String defaultValue, boolean encoded) {
+    private @Nullable Object formParam(HttpRequest<?> request, @Nullable FormData form, String name, Conversion conversion,
+                                       boolean encoded) {
+        Class<?> type = conversion.argument.getType();
         if (form == null) {
             // no form entity: the default, never the query (FormParam javadoc)
-            Class<?> type = argument.getType();
-            return type == EntityPart.class || type == InputStream.class ? null : convert(List.of(), argument, defaultValue, false);
+            return type == EntityPart.class || type == InputStream.class ? null : conversion.convert(List.of(), false);
         }
-        Class<?> type = argument.getType();
         if (type == EntityPart.class || type == InputStream.class) {
             // a part of a multipart form (JAX-RS 3.1 section 3.5.4)
             EntityPart part = formPart(request, form, name);
@@ -767,7 +760,7 @@ public final class JaxRsRouteSupport {
             Charset charset = formCharset(request);
             values = values.stream().map(value -> URLEncoder.encode(value, charset)).toList();
         }
-        return convert(values, argument, defaultValue, false);
+        return conversion.convert(values, false);
     }
 
     /**
@@ -1595,22 +1588,23 @@ public final class JaxRsRouteSupport {
         String headerParam = metadata.stringValue(HeaderParam.class).orElse(null);
         String cookieParam = metadata.stringValue(CookieParam.class).orElse(null);
         String formParam = metadata.stringValue(FormParam.class).orElse(null);
+        Conversion conversion = new Conversion(argument, defaultValue);
         if (defaultValue != null && (pathParam != null || queryParam != null || matrixParam != null || headerParam != null
             || cookieParam != null || formParam != null)) {
-            convertDefault(argument, defaultValue);
+            convertDefault(conversion, defaultValue);
         }
         if (pathParam != null) {
-            return (request, pathVariables, form) -> pathParam(request, pathVariables, pathParam, argument, defaultValue, encoded);
+            return (request, pathVariables, form) -> pathParam(request, pathVariables, pathParam, conversion, encoded);
         } else if (queryParam != null) {
-            return (request, pathVariables, form) -> queryParam(request, queryParam, argument, defaultValue, encoded);
+            return (request, pathVariables, form) -> queryParam(request, queryParam, conversion, encoded);
         } else if (matrixParam != null) {
-            return (request, pathVariables, form) -> matrixParam(request, matrixParam, argument, defaultValue, encoded);
+            return (request, pathVariables, form) -> matrixParam(request, matrixParam, conversion, encoded);
         } else if (headerParam != null) {
-            return (request, pathVariables, form) -> headerParam(request, headerParam, argument, defaultValue);
+            return (request, pathVariables, form) -> headerParam(request, headerParam, conversion);
         } else if (cookieParam != null) {
-            return (request, pathVariables, form) -> cookieParam(request, cookieParam, argument, defaultValue);
+            return (request, pathVariables, form) -> cookieParam(request, cookieParam, conversion);
         } else if (formParam != null) {
-            return (request, pathVariables, form) -> formParam(request, form, formParam, argument, defaultValue, encoded);
+            return (request, pathVariables, form) -> formParam(request, form, formParam, conversion, encoded);
         } else if (metadata.hasAnnotation(BeanParam.class)) {
             // built with the routes: the default values of its members are converted eagerly too
             BeanParamBinder binder = beanParamBinder(argument.getType());
@@ -1627,14 +1621,9 @@ public final class JaxRsRouteSupport {
      * built: a converter that is not {@link ParamConverter.Lazy} converts it eagerly, and a
      * failure fails the deployment (see {@link ParamConverter}).
      */
-    private void convertDefault(Argument<?> argument, String defaultValue) {
-        Class<?> type = argument.getType();
-        Argument<?> target = argument;
-        if (type == List.class || type == Set.class || type == SortedSet.class || type == Collection.class) {
-            target = element(argument.getFirstTypeVariable().orElse(Argument.STRING), argument);
-        } else if (type.isArray()) {
-            target = element(Argument.of(type.getComponentType()), argument);
-        }
+    private void convertDefault(Conversion conversion, String defaultValue) {
+        Argument<?> argument = conversion.argument;
+        Argument<?> target = conversion.target;
         Annotation[] annotations = target.synthesizeAll();
         for (ParamConverterProvider provider : paramConverterProviders.get()) {
             ParamConverter<?> converter = provider.getConverter(target.getType(), target.asType(), annotations);
@@ -1687,37 +1676,6 @@ public final class JaxRsRouteSupport {
         return request.getContentType().flatMap(MediaType::getCharset).orElse(StandardCharsets.UTF_8);
     }
 
-    private @Nullable Object convert(List<String> values, Argument<?> argument, @Nullable String defaultValue, boolean notFound) {
-        Class<?> type = argument.getType();
-        if (type == List.class || type == Set.class || type == SortedSet.class || type == Collection.class) {
-            Argument<?> elementType = element(argument.getFirstTypeVariable().orElse(Argument.STRING), argument);
-            List<String> elements = values.isEmpty() && defaultValue != null ? List.of(defaultValue) : values;
-            Collection<Object> result = type == Set.class ? new LinkedHashSet<>() : type == SortedSet.class ? new TreeSet<>() : new ArrayList<>();
-            for (String element : elements) {
-                result.add(convertOne(element, elementType, notFound));
-            }
-            // read-only, like the collections of every parameter
-            if (type == List.class || type == Collection.class) {
-                return List.copyOf(result);
-            }
-            return type == SortedSet.class ? Collections.unmodifiableSortedSet((SortedSet<Object>) result) : Collections.unmodifiableSet((Set<Object>) result);
-        }
-        if (type.isArray()) {
-            Argument<?> componentType = element(Argument.of(type.getComponentType()), argument);
-            List<String> elements = values.isEmpty() && defaultValue != null ? List.of(defaultValue) : values;
-            List<Object> converted = new ArrayList<>(elements.size());
-            for (String element : elements) {
-                converted.add(convertOne(element, componentType, notFound));
-            }
-            return conversionService.convertRequired(converted, type);
-        }
-        String value = values.isEmpty() ? defaultValue : values.get(0);
-        if (value == null) {
-            return missing(argument);
-        }
-        return convertOne(value, argument, notFound);
-    }
-
     /**
      * The type of the elements of a collection or array parameter, carrying the annotations of the
      * parameter: a {@link ParamConverterProvider} converting an element sees them.
@@ -1741,26 +1699,6 @@ public final class JaxRsRouteSupport {
             return '\0';
         }
         return conversionService.convertRequired(0, type);
-    }
-
-    private @Nullable Object convertOne(String value, Argument<?> argument, boolean notFound) {
-        // the annotations are part of the key: a ParamConverterProvider sees them, and arguments
-        // are equal without them
-        StringConverter converter = converters.computeIfAbsent(new ConverterKey(argument, argument.getAnnotationMetadata()),
-            key -> converter(key.argument()));
-        Object converted;
-        try {
-            converted = converter.convert(value);
-        } catch (WebApplicationException e) {
-            throw e;
-        } catch (Exception e) {
-            throw notFound ? new NotFoundException(e) : new BadRequestException(e);
-        }
-        if (converted == null) {
-            IllegalArgumentException cause = new IllegalArgumentException("Cannot convert [" + value + "] to " + argument.getTypeName());
-            throw notFound ? new NotFoundException(cause) : new BadRequestException(cause);
-        }
-        return converted;
     }
 
     /**
@@ -1880,6 +1818,94 @@ public final class JaxRsRouteSupport {
      * @param annotations The annotations of the parameter
      */
     private record ConverterKey(Argument<?> argument, AnnotationMetadata annotations) {
+    }
+
+    /**
+     * How the string values of a parameter are converted to its type, decided when its reader is
+     * built: its shape (a collection, an array or a single value), the type of its elements, and
+     * the converter of the elements, resolved when first used.
+     */
+    private final class Conversion {
+        private final Argument<?> argument;
+        private final @Nullable String defaultValue;
+        private final Class<?> type;
+        // the type a converter converts to: the elements of a collection or array, else the parameter
+        private final Argument<?> target;
+        private final boolean collection;
+        private volatile @Nullable StringConverter converter;
+
+        Conversion(Argument<?> argument, @Nullable String defaultValue) {
+            this.argument = argument;
+            this.defaultValue = defaultValue;
+            this.type = argument.getType();
+            this.collection = type == List.class || type == Set.class || type == SortedSet.class || type == Collection.class;
+            if (collection) {
+                target = element(argument.getFirstTypeVariable().orElse(Argument.STRING), argument);
+            } else if (type.isArray()) {
+                target = element(Argument.of(type.getComponentType()), argument);
+            } else {
+                target = argument;
+            }
+        }
+
+        @SuppressWarnings("unchecked")
+        @Nullable Object convert(List<String> values, boolean notFound) {
+            if (collection) {
+                List<String> elements = values.isEmpty() && defaultValue != null ? List.of(defaultValue) : values;
+                Collection<Object> result = type == Set.class ? new LinkedHashSet<>() : type == SortedSet.class ? new TreeSet<>() : new ArrayList<>();
+                for (String element : elements) {
+                    result.add(convertOne(element, notFound));
+                }
+                // read-only, like the collections of every parameter
+                if (type == List.class || type == Collection.class) {
+                    return List.copyOf(result);
+                }
+                return type == SortedSet.class ? Collections.unmodifiableSortedSet((SortedSet<Object>) result) : Collections.unmodifiableSet((Set<Object>) result);
+            }
+            if (type.isArray()) {
+                List<String> elements = values.isEmpty() && defaultValue != null ? List.of(defaultValue) : values;
+                List<Object> converted = new ArrayList<>(elements.size());
+                for (String element : elements) {
+                    converted.add(convertOne(element, notFound));
+                }
+                return conversionService.convertRequired(converted, type);
+            }
+            String value = values.isEmpty() ? defaultValue : values.get(0);
+            if (value == null) {
+                return missing(argument);
+            }
+            return convertOne(value, notFound);
+        }
+
+        private Object convertOne(String value, boolean notFound) {
+            Object converted;
+            try {
+                converted = converter().convert(value);
+            } catch (WebApplicationException e) {
+                throw e;
+            } catch (Exception e) {
+                throw notFound ? new NotFoundException(e) : new BadRequestException(e);
+            }
+            if (converted == null) {
+                IllegalArgumentException cause = new IllegalArgumentException("Cannot convert [" + value + "] to " + target.getTypeName());
+                throw notFound ? new NotFoundException(cause) : new BadRequestException(cause);
+            }
+            return converted;
+        }
+
+        /**
+         * The converter of the elements, of the shared ones: the annotations are part of the key,
+         * as a {@link ParamConverterProvider} sees them, and arguments are equal without them.
+         */
+        private StringConverter converter() {
+            StringConverter c = converter;
+            if (c == null) {
+                c = converters.computeIfAbsent(new ConverterKey(target, target.getAnnotationMetadata()),
+                    key -> JaxRsRouteSupport.this.converter(key.argument()));
+                converter = c;
+            }
+            return c;
+        }
     }
 
     /**
