@@ -26,7 +26,6 @@ import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.UriBuilder;
 import jakarta.ws.rs.core.UriBuilderException;
-import jakarta.ws.rs.ext.RuntimeDelegate;
 import org.jspecify.annotations.Nullable;
 
 import java.io.Serial;
@@ -34,7 +33,6 @@ import java.lang.reflect.Method;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -88,9 +86,6 @@ final class JaxRsUriBuilder extends UriBuilder {
     private String ssp;
     @Nullable
     private String authority;
-    private boolean encode = true;
-
-    private MultiQueryParamMode queryParamMode = MultiQueryParamMode.MULTI_PAIRS;
 
     @Override
     public UriBuilder clone() {
@@ -104,78 +99,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         impl.fragment = fragment;
         impl.ssp = ssp;
         impl.authority = authority;
-        impl.queryParamMode = queryParamMode;
-        impl.encode = encode;
 
-        return impl;
-    }
-
-    public static boolean compare(@Nullable String s1, @Nullable String s2) {
-        if (s1 == s2) {
-            return true;
-        }
-        if (s1 == null || s2 == null) {
-            return false;
-        }
-        return s1.equals(s2);
-    }
-
-    public static URI relativize(URI from, URI to) {
-        if (!compare(from.getScheme(), to.getScheme())) {
-            return to;
-        }
-        if (!compare(from.getHost(), to.getHost())) {
-            return to;
-        }
-        if (from.getPort() != to.getPort()) {
-            return to;
-        }
-        if (from.getPath() == null && to.getPath() == null) {
-            return URI.create("");
-        } else if (from.getPath() == null) {
-            return URI.create(to.getPath());
-        } else if (to.getPath() == null) {
-            return to;
-        }
-
-        String fromPath = from.getPath();
-        if (fromPath.startsWith("/")) {
-            fromPath = fromPath.substring(1);
-        }
-        String[] fsplit = fromPath.split("/");
-        String toPath = to.getPath();
-        if (toPath.startsWith("/")) {
-            toPath = toPath.substring(1);
-        }
-        String[] tsplit = toPath.split("/");
-
-        int f = 0;
-
-        for (; f < fsplit.length && f < tsplit.length; f++) {
-            if (!fsplit[f].equals(tsplit[f])) {
-                break;
-            }
-        }
-
-        UriBuilder builder = UriBuilder.fromPath("");
-        for (int i = f; i < fsplit.length; i++) {
-            builder.path("..");
-        }
-        for (int i = f; i < tsplit.length; i++) {
-            builder.path(tsplit[i]);
-        }
-        return builder.build();
-    }
-
-    /**
-     * You may put path parameters anywhere within the uriTemplate except port.
-     *
-     * @param uriTemplate uri template
-     * @return uri builder
-     */
-    public static JaxRsUriBuilder fromTemplate(String uriTemplate) {
-        JaxRsUriBuilder impl = (JaxRsUriBuilder) RuntimeDelegate.getInstance().createUriBuilder();
-        impl.uriTemplate(uriTemplate);
         return impl;
     }
 
@@ -281,10 +205,6 @@ final class JaxRsUriBuilder extends UriBuilder {
 
     @Override
     public UriBuilder uri(String uriTemplate) throws IllegalArgumentException {
-        return uriTemplate(uriTemplate);
-    }
-
-    public UriBuilder uriFromCharSequence(CharSequence uriTemplate) throws IllegalArgumentException {
         return uriTemplate(uriTemplate);
     }
 
@@ -417,12 +337,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         return this;
     }
 
-    public UriBuilder encode(boolean encode) {
-        this.encode = encode;
-        return this;
-    }
-
-    private static String paths(boolean encode, @Nullable String basePath, String... segments) {
+    private static String paths(@Nullable String basePath, String... segments) {
         StringBuilder path = new StringBuilder();
         if (basePath != null) {
             path.append(basePath);
@@ -438,14 +353,10 @@ final class JaxRsUriBuilder extends UriBuilder {
                         continue;
                     }
                 }
-                if (encode) {
-                    segment = Encode.encodePath(segment);
-                }
+                segment = Encode.encodePath(segment);
                 path.append(segment);
             } else {
-                if (encode) {
-                    segment = Encode.encodePath(segment);
-                }
+                segment = Encode.encodePath(segment);
                 if (path.isEmpty()) {
                     path.append(segment);
                 } else if (segment.startsWith("/")) {
@@ -465,7 +376,7 @@ final class JaxRsUriBuilder extends UriBuilder {
             throw new IllegalArgumentException("segment was null");
         }
 
-        path = paths(encode, path, segment);
+        path = paths(path, segment);
         return this;
     }
 
@@ -482,7 +393,7 @@ final class JaxRsUriBuilder extends UriBuilder {
                 ? "class must be annotated with @Path"
                 : "class must be annotated with @Path, and the annotations of a class the annotation processors did not see need reflection: add io.micronaut:micronaut-reflection to the runtime classpath");
         }
-        path = paths(true, path, new String[] {value});
+        path = paths(path, new String[] {value});
         return this;
     }
 
@@ -514,7 +425,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         if (methodPath == null) {
             throw new IllegalArgumentException("No public method annotated with @Path " + resource.getName() + " " + method);
         }
-        path = paths(encode, path, methodPath);
+        path = paths(path, methodPath);
         return this;
     }
 
@@ -527,7 +438,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         if (value == null) {
             throw new IllegalArgumentException("Method not annotated with @Path");
         }
-        path = paths(encode, path, value);
+        path = paths(path, value);
         return this;
     }
 
@@ -575,23 +486,6 @@ final class JaxRsUriBuilder extends UriBuilder {
             return this;
         }
         this.fragment = Encode.encodeFragment(fragment);
-        return this;
-    }
-
-    /**
-     * Only replace path params in path of URI. This changes state of URIBuilder.
-     *
-     * @param name      parameter name
-     * @param value     parameter value
-     * @param isEncoded encoded flag
-     * @return uri builder
-     */
-    public UriBuilder substitutePathParam(String name, Object value, boolean isEncoded) {
-        if (path != null) {
-            StringBuilder builder = new StringBuilder();
-            replacePathParameter(name, value.toString(), isEncoded, path, builder, false);
-            path = builder.toString();
-        }
         return this;
     }
 
@@ -664,7 +558,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         }
         if (path != null) {
             StringBuilder tmp = new StringBuilder();
-            replaceParameter(paramMap, fromEncodedMap, isTemplate, path, tmp, encode, encodeSlash);
+            replaceParameter(paramMap, fromEncodedMap, isTemplate, path, tmp, encodeSlash);
             if (userInfo != null || host != null) {
                 if (!tmp.isEmpty() && tmp.charAt(0) != '/') {
                     builder.append("/");
@@ -683,43 +577,13 @@ final class JaxRsUriBuilder extends UriBuilder {
         return builder;
     }
 
-    private void replacePathParameter(String name, String value, boolean isEncoded, String string,
-                                      StringBuilder builder, boolean encodeSlash) {
-        if (string.indexOf('{') == -1) {
-            builder.append(string);
-            return;
-        }
-        Matcher matcher = createUriParamMatcher(string);
-        int start = 0;
-        while (matcher.find()) {
-            String param = matcher.group(1);
-            if (!param.equals(name)) {
-                continue;
-            }
-            builder.append(string, start, matcher.start());
-            if (!isEncoded) {
-                if (encodeSlash) {
-                    value = Encode.encodePath(value);
-                } else {
-                    value = Encode.encodePathSegment(value);
-                }
-
-            } else {
-                value = Encode.encodeNonCodes(value);
-            }
-            builder.append(value);
-            start = matcher.end();
-        }
-        builder.append(string, start, string.length());
-    }
-
-    public static Matcher createUriParamMatcher(String string) {
+    private static Matcher createUriParamMatcher(String string) {
         return URI_PARAM_PATTERN.matcher(Encode.replaceEnclosedCurlyBracesCS(string));
     }
 
     private StringBuilder replaceParameter(Map<String, ?> paramMap, boolean fromEncodedMap, boolean isTemplate,
                                            String string, StringBuilder builder, boolean encodeSlash) {
-        return replaceParameter(paramMap, fromEncodedMap, isTemplate, string, builder, true, encodeSlash, null);
+        return replaceParameter(paramMap, fromEncodedMap, isTemplate, string, builder, encodeSlash, null);
     }
 
     /**
@@ -728,16 +592,11 @@ final class JaxRsUriBuilder extends UriBuilder {
      */
     private StringBuilder replaceComponentParameter(Map<String, ?> paramMap, boolean fromEncodedMap, boolean isTemplate,
                                                     String string, StringBuilder builder, Encode.Component component) {
-        return replaceParameter(paramMap, fromEncodedMap, isTemplate, string, builder, true, false, component);
+        return replaceParameter(paramMap, fromEncodedMap, isTemplate, string, builder, false, component);
     }
 
     private StringBuilder replaceParameter(Map<String, ?> paramMap, boolean fromEncodedMap, boolean isTemplate,
-                                           String string, StringBuilder builder, boolean encode, boolean encodeSlash) {
-        return replaceParameter(paramMap, fromEncodedMap, isTemplate, string, builder, encode, encodeSlash, null);
-    }
-
-    private StringBuilder replaceParameter(Map<String, ?> paramMap, boolean fromEncodedMap, boolean isTemplate,
-                                           String string, StringBuilder builder, boolean encode, boolean encodeSlash,
+                                           String string, StringBuilder builder, boolean encodeSlash,
                                            Encode.@Nullable Component component) {
         if (string.indexOf('{') == -1) {
             return builder.append(string);
@@ -762,21 +621,19 @@ final class JaxRsUriBuilder extends UriBuilder {
                 throw new IllegalArgumentException("Template parameter null: " + param);
             }
 
-            if (encode && component != null) {
+            if (component != null) {
                 stringValue = Encode.encodeComponentValue(stringValue, component, fromEncodedMap);
-            } else if (encode) {
-                if (!fromEncodedMap) {
-                    if (encodeSlash) {
-                        stringValue = Encode.encodePathSegmentAsIs(stringValue);
-                    } else {
-                        stringValue = Encode.encodePathAsIs(stringValue);
-                    }
+            } else if (!fromEncodedMap) {
+                if (encodeSlash) {
+                    stringValue = Encode.encodePathSegmentAsIs(stringValue);
                 } else {
-                    if (encodeSlash) {
-                        stringValue = Encode.encodePathSegmentSaveEncodings(stringValue);
-                    } else {
-                        stringValue = Encode.encodePathSaveEncodings(stringValue);
-                    }
+                    stringValue = Encode.encodePathAsIs(stringValue);
+                }
+            } else {
+                if (encodeSlash) {
+                    stringValue = Encode.encodePathSegmentSaveEncodings(stringValue);
+                } else {
+                    stringValue = Encode.encodePathSaveEncodings(stringValue);
                 }
             }
 
@@ -822,51 +679,6 @@ final class JaxRsUriBuilder extends UriBuilder {
             }
         }
         builder.append(string, start, string.length());
-    }
-
-    /**
-     * Return a unique order list of path params.
-     *
-     * @return list of path parameters
-     */
-    public List<String> getPathParamNamesInDeclarationOrder() {
-        List<String> params = new ArrayList<>();
-        HashSet<String> set = new HashSet<>();
-        if (scheme != null) {
-            addToPathParamList(params, set, scheme);
-        }
-        if (ssp != null) {
-            addToPathParamList(params, set, ssp);
-        }
-        if (userInfo != null) {
-            addToPathParamList(params, set, userInfo);
-        }
-        if (host != null) {
-            addToPathParamList(params, set, host);
-        }
-        if (path != null) {
-            addToPathParamList(params, set, path);
-        }
-        if (query != null) {
-            addToPathParamList(params, set, query);
-        }
-        if (fragment != null) {
-            addToPathParamList(params, set, fragment);
-        }
-
-        return params;
-    }
-
-    private void addToPathParamList(List<String> params, HashSet<String> set, String string) {
-        Matcher matcher = URI_PARAM_PATTERN.matcher(Encode.replaceEnclosedCurlyBracesCS(string));
-        while (matcher.find()) {
-            String param = matcher.group(1);
-            if (set.contains(param)) {
-                continue;
-            }
-            set.add(param);
-            params.add(param);
-        }
     }
 
     @Override
@@ -998,82 +810,6 @@ final class JaxRsUriBuilder extends UriBuilder {
         return this;
     }
 
-    /**
-     * Called by ClientRequest.getUri() to add a query parameter for {@code @QueryParam} parameters.
-     * We do not use UriBuilder.queryParam() because
-     * <ul>
-     * <li>queryParam() supports URI template processing and this method must
-     * always encode braces (for parameter substitution is not possible for
-     * {@code @QueryParam} parameters).
-     * <li>queryParam() supports "contextual URI encoding" (i.e., it does not
-     * encode {@code %} characters that are followed by two hex characters).
-     * The JavaDoc for {@code @QueryParam.value()} explicitly states that
-     * the value is specified in decoded format and that "any percent
-     * encoded literals within the value will not be decoded and will
-     * instead be treated as literal text". This means that it is an
-     * explicit bug to perform contextual URI encoding of this method's
-     * name parameter; hence, we must always encode said parameter. This
-     * method also foregoes contextual URI encoding on this method's values
-     * parameter because it represents arbitrary data passed to a
-     * {@code QueryParam} parameter of a client proxy (since the client
-     * proxy is nothing more than a transport layer, it should not be
-     * "interpreting" such data; instead, it should faithfully transmit
-     * this data over the wire).
-     * </ul>
-     *
-     * @param name   the name of the query parameter.
-     * @param values the value(s) of the query parameter.
-     * @return Returns this instance to allow call chaining.
-     */
-    public UriBuilder clientQueryParam(String name, Object... values) throws IllegalArgumentException {
-        StringBuilder sb = new StringBuilder();
-        String prefix = "";
-        if (query == null) {
-            query = "";
-        } else {
-            sb.append(query).append("&");
-        }
-
-        if (name == null) {
-            throw new IllegalArgumentException("Name parameter is null");
-        }
-        if (values == null) {
-            throw new IllegalArgumentException("Values parameter is null");
-        }
-
-        String queryParamName = encode ? Encode.encodeQueryParamAsIs(name) : name;
-        if (queryParamMode == MultiQueryParamMode.COMMA_SEPARATED) {
-            sb.append(queryParamName).append("=");
-        }
-        for (Object value : values) {
-            if (value == null) {
-                throw new IllegalArgumentException("Value is null");
-            }
-
-            sb.append(prefix);
-            String queryParamValue = encode ? Encode.encodeQueryParamAsIs(value.toString()) : value.toString();
-            switch (queryParamMode) {
-                case MULTI_PAIRS -> {
-                    prefix = "&";
-                    sb.append(queryParamName).append("=").append(queryParamValue);
-                }
-                case COMMA_SEPARATED -> {
-                    prefix = ",";
-                    sb.append(queryParamValue);
-                }
-                case ARRAY_PAIRS -> {
-                    prefix = "&";
-                    String queryParamConnector = arrayPairsConnector(values);
-                    sb.append(queryParamName).append(queryParamConnector).append(queryParamValue);
-                }
-                default -> throw new IllegalStateException("Unexpected value: " + queryParamMode);
-            }
-        }
-
-        query = sb.toString();
-        return this;
-    }
-
     @Override
     public UriBuilder queryParam(String name, Object... values) throws IllegalArgumentException {
         if (name == null) {
@@ -1094,41 +830,20 @@ final class JaxRsUriBuilder extends UriBuilder {
         } else {
             sb.append(query).append("&");
         }
-        String queryParamName = encode ? Encode.encodeQueryParam(name) : name;
-        if (queryParamMode == MultiQueryParamMode.COMMA_SEPARATED) {
-            sb.append(queryParamName).append("=");
-        }
+        String queryParamName = Encode.encodeQueryParam(name);
         for (Object value : values) {
             if (value == null) {
                 throw new IllegalArgumentException("Value is null");
             }
 
             sb.append(prefix);
-            String queryParamValue = encode ? Encode.encodeQueryParam(value.toString()) : value.toString();
-            switch (queryParamMode) {
-                case MULTI_PAIRS -> {
-                    prefix = "&";
-                    sb.append(queryParamName).append("=").append(queryParamValue);
-                }
-                case COMMA_SEPARATED -> {
-                    prefix = ",";
-                    sb.append(queryParamValue);
-                }
-                case ARRAY_PAIRS -> {
-                    prefix = "&";
-                    String queryParamConnector = arrayPairsConnector(values);
-                    sb.append(queryParamName).append(queryParamConnector).append(queryParamValue);
-                }
-                default -> throw new IllegalStateException("Unexpected value: " + queryParamMode);
-            }
+            String queryParamValue = Encode.encodeQueryParam(value.toString());
+            prefix = "&";
+            sb.append(queryParamName).append("=").append(queryParamValue);
         }
 
         query = sb.toString();
         return this;
-    }
-
-    private String arrayPairsConnector(Object[] values) {
-        return values.length == 1 ? "=" : "[]=";
     }
 
     @Override
@@ -1170,34 +885,6 @@ final class JaxRsUriBuilder extends UriBuilder {
             return this;
         }
         return queryParam(name, values);
-    }
-
-    public @Nullable String getHost() {
-        return host;
-    }
-
-    public @Nullable String getScheme() {
-        return scheme;
-    }
-
-    public int getPort() {
-        return port;
-    }
-
-    public @Nullable String getUserInfo() {
-        return userInfo;
-    }
-
-    public @Nullable String getPath() {
-        return path;
-    }
-
-    public @Nullable String getQuery() {
-        return query;
-    }
-
-    public @Nullable String getFragment() {
-        return fragment;
     }
 
     @Override
@@ -1329,21 +1016,6 @@ final class JaxRsUriBuilder extends UriBuilder {
                 throw new IllegalArgumentException("array value null");
             }
         }
-    }
-
-    private enum MultiQueryParamMode {
-        /*
-         * <code>foo=v1&amp;foo=v2&amp;foo=v3</code>
-         */
-        MULTI_PAIRS,
-        /*
-         * <code>foo=v1,v2,v3</code>
-         */
-        COMMA_SEPARATED,
-        /*
-         * <code>foo[]=v1&amp;foo[]=v2&amp;foo[]=v3</code>
-         */
-        ARRAY_PAIRS
     }
 
     /**
