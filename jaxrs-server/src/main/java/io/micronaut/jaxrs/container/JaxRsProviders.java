@@ -149,10 +149,12 @@ final class JaxRsProviders implements Providers {
         List<Candidate<T>> candidates = new ArrayList<>();
         for (BeanRegistration<ContextResolver> registration : beanContext.getBeanRegistrations(ContextResolver.class)) {
             List<Argument<?>> arguments = registration.getBeanDefinition().getTypeArguments(ContextResolver.class);
-            Class<?> resolved = arguments.isEmpty() ? Object.class : arguments.get(0).getType();
-            if (!contextType.isAssignableFrom(resolved) && !resolved.isAssignableFrom(contextType)) {
-                // the generic type of the resolver is assignable to the context type, or a
-                // supertype of it, which may resolve it too
+            // a raw resolver, whose context type is not known, may resolve the context type too: its
+            // contexts are checked, see below
+            boolean known = !arguments.isEmpty();
+            if (known && !contextType.isAssignableFrom(arguments.get(0).getType())) {
+                // the generic type of the resolver is assignable to the context type, e.g. not the
+                // one of a resolver of objects for integers
                 continue;
             }
             if (!registry.isRegistered(registration.getBeanDefinition().getBeanType(), ContextResolver.class)
@@ -162,7 +164,7 @@ final class JaxRsProviders implements Providers {
             }
             int specificity = specificity(registration.getBeanDefinition().getAnnotationMetadata().stringValues(Produces.class), mediaType);
             if (specificity >= 0) {
-                candidates.add(new Candidate<>((ContextResolver<T>) registration.getBean(), specificity));
+                candidates.add(new Candidate<>((ContextResolver<T>) registration.getBean(), specificity, known));
             }
         }
         if (candidates.isEmpty()) {
@@ -171,15 +173,15 @@ final class JaxRsProviders implements Providers {
         }
         candidates.sort(Comparator.comparingInt((Candidate<T> c) -> c.specificity()).reversed());
         List<ContextResolver<T>> resolvers = candidates.stream().map(Candidate::resolver).toList();
-        if (resolvers.size() == 1) {
+        if (resolvers.size() == 1 && candidates.get(0).known()) {
             return resolvers.get(0);
         }
         return type -> {
-            // the first context that is not null
+            // the first context that is not null, of the context type
             for (ContextResolver<T> resolver : resolvers) {
-                T context = resolver.getContext(type);
-                if (context != null) {
-                    return context;
+                Object context = resolver.getContext(type);
+                if (context != null && (contextType.isPrimitive() || contextType.isInstance(context))) {
+                    return (T) context;
                 }
             }
             return null;
@@ -210,8 +212,9 @@ final class JaxRsProviders implements Providers {
      *
      * @param resolver    The resolver
      * @param specificity The specificity
+     * @param known       Whether the context type of the resolver is known, else its contexts are checked
      * @param <T>         The type of the context
      */
-    private record Candidate<T>(ContextResolver<T> resolver, int specificity) {
+    private record Candidate<T>(ContextResolver<T> resolver, int specificity, boolean known) {
     }
 }

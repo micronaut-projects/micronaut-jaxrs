@@ -71,6 +71,11 @@ class ProviderSelectionTest {
     }
 
     @Test
+    void contextResolverOfASupertypeDoesNotResolve() {
+        assertEquals("null", client.toBlocking().retrieve(HttpRequest.GET("/long-resolver")));
+    }
+
+    @Test
     void emptyEntityIsABadRequestTheMappersMap() {
         HttpClientResponseException e = assertThrows(HttpClientResponseException.class,
             () -> client.toBlocking().retrieve(HttpRequest.POST("/number", "").contentType(MediaType.TEXT_PLAIN)));
@@ -149,6 +154,15 @@ class ProviderSelectionTest {
         @Override
         public Integer getContext(Class<?> type) {
             return 7;
+        }
+    }
+
+    @Requires(property = "spec.name", value = "ProviderSelectionTest")
+    @Provider
+    public static class ObjectResolver implements ContextResolver<Object> {
+        @Override
+        public Object getContext(Class<?> type) {
+            return "object";
         }
     }
 
@@ -265,6 +279,15 @@ class ProviderSelectionTest {
         public String resolver() {
             ContextResolver<Number> resolver = providers.getContextResolver(Number.class, jakarta.ws.rs.core.MediaType.WILDCARD_TYPE);
             return String.valueOf(resolver == null ? null : resolver.getContext(Integer.class));
+        }
+
+        @GET
+        @Path("long-resolver")
+        @Produces("text/plain")
+        public String longResolver() {
+            ContextResolver<Long> resolver = providers.getContextResolver(Long.class, jakarta.ws.rs.core.MediaType.WILDCARD_TYPE);
+            Long context = resolver == null ? null : resolver.getContext(String.class);
+            return String.valueOf(context);
         }
 
         @POST
