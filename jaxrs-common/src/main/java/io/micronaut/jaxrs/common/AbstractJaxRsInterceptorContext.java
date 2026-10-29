@@ -63,8 +63,12 @@ abstract sealed class AbstractJaxRsInterceptorContext implements InterceptorCont
         if (type != null && genericType != null) {
             // the class, with the type arguments of the generic type
             Argument<?> generic = JaxRsReflection.get().argument(genericType);
-            return generic.getType() == type
-                ? Argument.of(type, annotationMetadata, generic.getTypeParameters())
+            if (generic.getType() == type) {
+                return Argument.of(type, annotationMetadata, generic.getTypeParameters());
+            }
+            // the class of the entity, a subclass of its generic type, e.g. an ArrayList of a List<String>
+            return generic.getType().isAssignableFrom(type)
+                ? JaxRsArgumentUtil.of(type, generic, annotationMetadata)
                 : Argument.of(type, annotationMetadata);
         }
         if (genericType != null) {
@@ -73,6 +77,7 @@ abstract sealed class AbstractJaxRsInterceptorContext implements InterceptorCont
         if (type != null) {
             return Argument.of(type, annotationMetadata);
         }
+        // the raw type and the generic type, which may differ, see JaxRsArgumentUtil#of
         return argument.withAnnotationMetadata(annotationMetadata);
     }
 

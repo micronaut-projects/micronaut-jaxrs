@@ -27,6 +27,8 @@ import jakarta.ws.rs.ext.MessageBodyReader;
 import jakarta.ws.rs.ext.MessageBodyWriter;
 import jakarta.ws.rs.ext.Provider;
 import jakarta.ws.rs.ext.Providers;
+import jakarta.ws.rs.ext.WriterInterceptor;
+import jakarta.ws.rs.ext.WriterInterceptorContext;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
@@ -34,6 +36,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -78,6 +81,12 @@ class ProviderSelectionTest {
     void writerIsGivenTheRuntimeClassAndTheDeclaredType() {
         assertEquals("java.util.ArrayList java.util.List<java.lang.String>",
             client.toBlocking().retrieve(HttpRequest.GET("/list").accept("text/x-list")));
+    }
+
+    @Test
+    void writerOfTheRawAndTheGenericTypeIsSelected() {
+        assertEquals("generic java.util.ArrayList java.util.List<java.lang.String>",
+            client.toBlocking().retrieve(HttpRequest.GET("/generic").accept("text/x-generic")));
     }
 
     @Test
@@ -172,6 +181,40 @@ class ProviderSelectionTest {
         }
     }
 
+    /**
+     * Writes an entity of the class ArrayList declared as a List of strings.
+     */
+    @Requires(property = "spec.name", value = "ProviderSelectionTest")
+    @Provider
+    @Produces("text/x-generic")
+    @SuppressWarnings("rawtypes")
+    public static class GenericListWriter implements MessageBodyWriter<ArrayList> {
+        @Override
+        public boolean isWriteable(Class<?> type, Type genericType, Annotation[] annotations, jakarta.ws.rs.core.MediaType mediaType) {
+            return type == ArrayList.class && genericType instanceof ParameterizedType parameterized
+                && parameterized.getRawType() == List.class && parameterized.getActualTypeArguments()[0] == String.class;
+        }
+
+        @Override
+        public void writeTo(ArrayList list, Class<?> type, Type genericType, Annotation[] annotations, jakarta.ws.rs.core.MediaType mediaType,
+                            MultivaluedMap<String, Object> httpHeaders, OutputStream entityStream) throws IOException {
+            entityStream.write(("generic " + type.getName() + " " + genericType.getTypeName()).getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    /**
+     * Replaces the annotations of every entity written, which keeps its types.
+     */
+    @Requires(property = "spec.name", value = "ProviderSelectionTest")
+    @Provider
+    public static class AnnotationsInterceptor implements WriterInterceptor {
+        @Override
+        public void aroundWriteTo(WriterInterceptorContext context) throws IOException {
+            context.setAnnotations(context.getAnnotations());
+            context.proceed();
+        }
+    }
+
     public static final class TrackedStream extends ByteArrayInputStream {
         static volatile int closed;
 
@@ -236,6 +279,12 @@ class ProviderSelectionTest {
         @Path("list")
         @Produces("text/x-list")
         public List<String> list() {
+            return new ArrayList<>(List.of("a"));
+        }
+
+        @GET
+        @Path("generic")
+        public List<String> generic() {
             return new ArrayList<>(List.of("a"));
         }
 

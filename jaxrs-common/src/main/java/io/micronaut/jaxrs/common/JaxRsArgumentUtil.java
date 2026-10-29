@@ -91,14 +91,7 @@ public final class JaxRsArgumentUtil {
      */
     public static <T> Argument<T> of(Class<T> rawType, Argument<?> declared, AnnotationMetadata annotations) {
         // the type arguments of the declared type, e.g. the ones of a List for an ArrayList
-        Argument<?>[] typeParameters = declared.getTypeParameters();
-        Type genericType = declared.asType();
-        return new DefaultArgument<>(rawType, annotations, typeParameters) {
-            @Override
-            public Type asType() {
-                return genericType;
-            }
-        };
+        return new RawTypeArgument<>(rawType, annotations, declared.getTypeParameters(), declared.asType());
     }
 
     public static <T> Argument<T> from(Class<T> entityType, Annotation[] annotations) {
@@ -140,4 +133,28 @@ public final class JaxRsArgumentUtil {
         return JaxRsReflection.get().annotationMetadata(annotations);
     }
 
+    /**
+     * An argument whose raw type differs from its generic type, also with other annotations.
+     *
+     * @param <T> The type
+     */
+    private static final class RawTypeArgument<T> extends DefaultArgument<T> {
+
+        private final Type genericType;
+
+        RawTypeArgument(Class<T> rawType, AnnotationMetadata annotations, Argument<?>[] typeParameters, Type genericType) {
+            super(rawType, annotations, typeParameters);
+            this.genericType = genericType;
+        }
+
+        @Override
+        public Type asType() {
+            return genericType;
+        }
+
+        @Override
+        public Argument<T> withAnnotationMetadata(AnnotationMetadata annotationMetadata) {
+            return new RawTypeArgument<>(getType(), annotationMetadata, getTypeParameters(), genericType);
+        }
+    }
 }

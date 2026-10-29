@@ -1358,7 +1358,8 @@ public final class JaxRsRouteSupport {
             // a framework wrapper keeps its type arguments in its argument, not in its raw type
             Argument<?> generic = entity instanceof JaxRsGenericEntity<?> wrapper && wrapper.asArgument().getTypeParameters().length > 0
                 ? wrapper.asArgument() : JaxRsArgumentUtil.from(entity);
-            return Argument.of(generic.getType(), annotations, generic.getTypeParameters());
+            // the raw type and the generic type, which differ for an entity of a subclass of its declared type
+            return generic.withAnnotationMetadata(annotations);
         } else if (returnType.getType() != Object.class && returnType.getType().isInstance(body)) {
             // a declared type that is not known only at runtime
             return Argument.of(returnType.getType(), annotations, returnType.getTypeParameters());
