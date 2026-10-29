@@ -405,6 +405,9 @@ class ServerConformanceTest {
         if (diffs.startsWith("body=") && path.equals("/r/headers") && accept.contains("foo")) {
             return "IMPL HttpHeaders.getAcceptableMediaTypes(): an invalid media range is ignored (Jersey: foo/*)";
         }
+        if (diffs.startsWith("body=") && ours.text().startsWith("dash:") && theirs.text().startsWith("dash:")) {
+            return "JERSEY a template variable without a regular expression matches greedily (JAX-RS 3.7.3: ([^/]+?))";
+        }
         if (diffs.startsWith("body=") && path.startsWith("/r/loc/")) {
             return "JERSEY @MatrixParam of a locator taken from the last request segment";
         }
