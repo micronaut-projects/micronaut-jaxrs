@@ -213,4 +213,56 @@ class ResponseBuilderSpec extends Specification {
         original.headers.get(HttpHeaders.SET_COOKIE).size() == 2
         Response.fromResponse(original).build().getHeaderString(HttpHeaders.SET_COOKIE) == original.getHeaderString(HttpHeaders.SET_COOKIE)
     }
+
+    void "a null annotated entity clears the entity"() {
+        expect:
+        !Response.ok("old").entity(null, new java.lang.annotation.Annotation[0]).build().hasEntity()
+    }
+
+    void "an identity variant differs from a gzip one"() {
+        when:
+        def response = Response.ok().variants(
+                new Variant(MediaType.TEXT_PLAIN_TYPE, Locale.ENGLISH, null),
+                new Variant(MediaType.TEXT_PLAIN_TYPE, Locale.ENGLISH, "gzip")).build()
+
+        then:
+        response.getHeaderString(HttpHeaders.VARY) == HttpHeaders.ACCEPT_ENCODING
+    }
+
+    void "fromResponse keeps the repeated Date values of a header"() {
+        given:
+        def original = Response.ok().header("X-Date", new Date(0)).header("X-Date", new Date(1000)).build()
+
+        when:
+        def copy = Response.fromResponse(original).build()
+
+        then:
+        original.getHeaders().get("X-Date") == [new Date(0), new Date(1000)]
+        copy.getHeaders().get("X-Date") == [new Date(0), new Date(1000)]
+        copy.getStringHeaders().get("X-Date").size() == 2
+    }
+
+    void "the media type of the response is kept as given in the metadata"() {
+        expect:
+        Response.ok().type(MediaType.TEXT_PLAIN_TYPE).build().getHeaders().getFirst("Content-Type") == MediaType.TEXT_PLAIN_TYPE
+    }
+
+    void "the names of the metadata are case-insensitive"() {
+        given:
+        def response = Response.ok().lastModified(new Date(0)).build()
+
+        when:
+        response.getHeaders().remove("last-modified")
+
+        then:
+        !response.getHeaders().containsKey("Last-Modified")
+        response.getHeaders().size() == 0
+        response.getHeaders().getFirst("LAST-MODIFIED") == null
+    }
+
+    void "allow replaces the allowed methods"() {
+        expect:
+        Response.ok().allow("GET").allow("POST").build().allowedMethods == ["POST"] as Set
+        Response.ok().allow("GET").allow(["POST"] as Set).build().allowedMethods == ["POST"] as Set
+    }
 }

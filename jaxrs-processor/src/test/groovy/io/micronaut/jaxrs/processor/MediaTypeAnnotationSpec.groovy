@@ -36,4 +36,21 @@ class Test {
         ''                                     | ["*/*"]
     }
 
+    void "a comma in a quoted parameter value does not separate media types"() {
+        given:
+        def definition = buildBeanDefinition('test.Test', """
+package test;
+
+@jakarta.ws.rs.Path("/test")
+class Test {
+
+    @jakarta.ws.rs.GET
+    @jakarta.ws.rs.Produces("application/json;profile=\\"a,b\\", text/plain")
+    void test() {}
+}
+""")
+
+        expect:
+        definition.getRequiredMethod("test").annotationMetadata.stringValues(Produces) as List == ['application/json;profile="a,b"', "text/plain"]
+    }
 }

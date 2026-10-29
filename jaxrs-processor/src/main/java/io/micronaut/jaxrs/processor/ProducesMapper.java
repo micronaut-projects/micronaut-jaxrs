@@ -24,6 +24,7 @@ import io.micronaut.inject.annotation.NamedAnnotationMapper;
 import io.micronaut.inject.visitor.VisitorContext;
 
 import java.lang.annotation.Annotation;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -60,12 +61,32 @@ public class ProducesMapper implements NamedAnnotationMapper {
     }
 
     /**
-     * JAX-RS allows literal commas inside the strings, we need to split those.
+     * JAX-RS allows literal commas inside the strings, we need to split those: not the ones in a
+     * quoted parameter value (RFC 9110 5.6.4).
      */
     static String[] splitMediaTypes(String[] mediaTypes) {
         return Arrays.stream(mediaTypes)
-            .flatMap(t -> Arrays.stream(t.split(",")))
+            .flatMap(t -> split(t).stream())
             .map(String::trim)
             .toArray(String[]::new);
+    }
+
+    private static List<String> split(String mediaTypes) {
+        List<String> parts = new ArrayList<>();
+        boolean quoted = false;
+        int start = 0;
+        for (int i = 0; i < mediaTypes.length(); i++) {
+            char c = mediaTypes.charAt(i);
+            if (quoted && c == '\\') {
+                i++;
+            } else if (c == '"') {
+                quoted = !quoted;
+            } else if (!quoted && c == ',') {
+                parts.add(mediaTypes.substring(start, i));
+                start = i + 1;
+            }
+        }
+        parts.add(mediaTypes.substring(start));
+        return parts;
     }
 }

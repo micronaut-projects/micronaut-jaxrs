@@ -31,6 +31,7 @@ import org.jspecify.annotations.Nullable;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.FilterOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.annotation.Annotation;
@@ -156,7 +157,7 @@ public final class JaxRsEntityPart implements EntityPart {
         if (content instanceof String string) {
             return new ByteArrayInputStream(string.getBytes(charset()));
         }
-        return new ByteArrayInputStream(bytes(providers));
+        return new ByteArrayInputStream(bytes(providers, new MultivaluedHashMap<>(headers)));
     }
 
     @Override
@@ -213,23 +214,39 @@ public final class JaxRsEntityPart implements EntityPart {
      * @param providers The providers that write the content of another type than the standard ones
      * @throws IOException if the content cannot be written
      */
-    @SuppressWarnings({"unchecked", "rawtypes"})
     void write(OutputStream out, @Nullable Providers providers) throws IOException {
+        write(out, providers, partHeaders -> { });
+    }
+
+    /**
+     * Write the headers, then the content of the part: the headers are the ones of the part, as the
+     * writer of the content leaves them (MessageBodyWriter#writeTo), e.g. with another charset.
+     *
+     * @param out       The stream
+     * @param providers The providers that write the content of another type than the standard ones
+     * @param head      Writes the headers, before the first byte of the content
+     * @throws IOException if the content cannot be written
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void write(OutputStream out, @Nullable Providers providers, HeadWriter head) throws IOException {
         Providers available = providers != null ? providers : this.providers;
+        MultivaluedMap<String, Object> partHeaders = new MultivaluedHashMap<>(headers);
+        HeadOutputStream headOut = new HeadOutputStream(out, head, partHeaders);
         if (content instanceof InputStream stream) {
             // a writer of the application selected first, also for a stream
             MessageBodyWriter writer = writer(available);
             try (stream) {
                 if (writer == null) {
-                    stream.transferTo(out);
+                    stream.transferTo(headOut);
                 } else {
                     GenericType<?> type = type();
-                    writer.writeTo(content, type.getRawType(), type.getType(), NO_ANNOTATIONS, mediaType, new MultivaluedHashMap<String, Object>(headers), out);
+                    writer.writeTo(content, type.getRawType(), type.getType(), NO_ANNOTATIONS, mediaType, partHeaders, headOut);
                 }
             }
         } else {
-            out.write(bytes(available));
+            headOut.write(bytes(available, partHeaders));
         }
+        headOut.writeHead();
     }
 
     private void consume() {
@@ -250,7 +267,7 @@ public final class JaxRsEntityPart implements EntityPart {
         if (content instanceof String string) {
             return new ByteArrayInputStream(string.getBytes(charset()));
         }
-        return new ByteArrayInputStream(bytes(providers));
+        return new ByteArrayInputStream(bytes(providers, new MultivaluedHashMap<>(headers)));
     }
 
     private Charset charset() {
@@ -259,7 +276,7 @@ public final class JaxRsEntityPart implements EntityPart {
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private byte[] bytes(@Nullable Providers providers) {
+    private byte[] bytes(@Nullable Providers providers, MultivaluedMap<String, Object> partHeaders) {
         // the writer the providers select, e.g. one of the application, else the standard
         // serialization of a string or of bytes (EntityPart.Builder#content)
         MessageBodyWriter writer = writer(providers);
@@ -275,7 +292,7 @@ public final class JaxRsEntityPart implements EntityPart {
         GenericType<?> type = type();
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try {
-            writer.writeTo(content, type.getRawType(), type.getType(), NO_ANNOTATIONS, mediaType, new MultivaluedHashMap<String, Object>(headers), out);
+            writer.writeTo(content, type.getRawType(), type.getType(), NO_ANNOTATIONS, mediaType, partHeaders, out);
         } catch (IOException e) {
             throw new ProcessingException(e);
         }
@@ -296,5 +313,63 @@ public final class JaxRsEntityPart implements EntityPart {
     @Override
     public String toString() {
         return "EntityPart{name=" + name + ", fileName=" + fileName + ", mediaType=" + mediaType + ", headers=" + headers + '}';
+    }
+
+    /**
+     * Writes the headers of a part.
+     */
+    @FunctionalInterface
+    interface HeadWriter {
+        /**
+         * @param headers The headers of the part, as its writer left them
+         * @throws IOException if they cannot be written
+         */
+        void write(MultivaluedMap<String, Object> headers) throws IOException;
+    }
+
+    /**
+     * A stream that writes the headers of a part before its first byte.
+     */
+    private static final class HeadOutputStream extends FilterOutputStream {
+        private final HeadWriter head;
+        private final MultivaluedMap<String, Object> headers;
+        private boolean written;
+
+        HeadOutputStream(OutputStream out, HeadWriter head, MultivaluedMap<String, Object> headers) {
+            super(out);
+            this.head = head;
+            this.headers = headers;
+        }
+
+        void writeHead() throws IOException {
+            if (!written) {
+                written = true;
+                head.write(headers);
+            }
+        }
+
+        @Override
+        public void write(int b) throws IOException {
+            writeHead();
+            out.write(b);
+        }
+
+        @Override
+        public void write(byte[] b, int off, int len) throws IOException {
+            writeHead();
+            out.write(b, off, len);
+        }
+
+        @Override
+        public void flush() throws IOException {
+            writeHead();
+            out.flush();
+        }
+
+        @Override
+        public void close() throws IOException {
+            // the stream of the multipart entity stays open
+            flush();
+        }
     }
 }

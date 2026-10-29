@@ -276,6 +276,36 @@ final class Encode {
     }
 
     /**
+     * Encode the value of a template parameter of a URI component other than the path, e.g. a host,
+     * so that it cannot end the component (RFC 3986 3.2).
+     *
+     * @param value         The value
+     * @param component     The component
+     * @param saveEncodings Whether to keep the valid encodings of the value
+     * @return The encoded value
+     */
+    public static String encodeComponentValue(String value, Component component, boolean saveEncodings) {
+        String[] encoding = switch (component) {
+            case USER_INFO -> USER_INFO_ENCODING;
+            case HOST -> HOST_ENCODING;
+            case FRAGMENT -> QUERY_STRING_ENCODING;
+        };
+        if (saveEncodings) {
+            return encodeNonCodes(encodeFromArray(value, encoding, false));
+        }
+        return encodeFromArray(value, encoding, true);
+    }
+
+    /**
+     * The components of a URI whose template parameters have an encoding of their own.
+     */
+    enum Component {
+        USER_INFO,
+        HOST,
+        FRAGMENT
+    }
+
+    /**
      * Encode '%' if it is not an encoding sequence.
      *
      * @param string value to encode

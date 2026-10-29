@@ -112,4 +112,12 @@ class NewCookieSpec extends Specification {
         then:
         response.getCookies()["a"].value == "2"
     }
+
+    void "a semicolon or a quote in a quoted attribute is part of the value"() {
+        given:
+        def cookie = new NewCookie.Builder("n").value("v").comment('a;b"c').build()
+
+        expect:
+        delegate.fromString(delegate.toString(cookie)).comment == 'a;b"c'
+    }
 }

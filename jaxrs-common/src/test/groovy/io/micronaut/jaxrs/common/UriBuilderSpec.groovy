@@ -45,4 +45,25 @@ class UriBuilderSpec extends Specification {
         UriBuilder.fromUri("http://x.test/{x}").resolveTemplatesFromEncoded([x: "a/b"]).build().toString() == "http://x.test/a/b"
         UriBuilder.fromUri("http://x.test/{x}").buildFromEncoded("a/b").toString() == "http://x.test/a/b"
     }
+
+    void "a template value cannot change the authority"() {
+        expect:
+        UriBuilder.fromUri("http://{host}/").build("trusted.example@evil.example").host != "evil.example"
+        UriBuilder.fromUri("http://{user}@host/").build("a@b").host == "host"
+        UriBuilder.fromUri("http://host/#{f}").build("a#b").rawFragment == "a%23b"
+        UriBuilder.fromUri("http://{host}:8080/p").build("example.org").toString() == "http://example.org:8080/p"
+    }
+
+    void "an opaque scheme-specific part replaces the hierarchical components"() {
+        expect:
+        UriBuilder.fromUri("http://old/a").scheme("mailto").schemeSpecificPart("{user}@example.org").build("alice").toString() == "mailto:alice@example.org"
+        UriBuilder.fromUri("http://old/a?q=1").scheme("mailto").schemeSpecificPart("bob@example.org").build().toString() == "mailto:bob@example.org"
+        UriBuilder.fromUri("http://old/a#f").scheme("mailto").schemeSpecificPart("{user}@example.org").build("alice").toString() == "mailto:alice@example.org#f"
+    }
+
+    void "removing the matrix parameters removes their semicolon"() {
+        expect:
+        UriBuilder.fromPath("/a;x=1").replaceMatrix(null).build().toString() == "/a"
+        UriBuilder.fromPath("/a;x=1").replaceMatrix("y=2").build().toString() == "/a;y=2"
+    }
 }

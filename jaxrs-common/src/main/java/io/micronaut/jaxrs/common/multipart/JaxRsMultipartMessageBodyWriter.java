@@ -20,12 +20,14 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.Introspected;
 import io.micronaut.core.annotation.Order;
 import io.micronaut.core.order.Ordered;
+import io.micronaut.jaxrs.common.JaxRsHeaderUtil;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.EntityPart;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.ext.MessageBodyWriter;
 import jakarta.ws.rs.ext.Providers;
@@ -87,23 +89,13 @@ public final class JaxRsMultipartMessageBodyWriter implements MessageBodyWriter<
             httpHeaders.putSingle(HttpHeaders.CONTENT_TYPE, new MediaType(multipart.getType(), multipart.getSubtype(), parameters));
         }
         for (EntityPart part : parts) {
-            StringBuilder head = new StringBuilder("--").append(boundary).append("\r\n");
-            head.append(Multipart.CONTENT_DISPOSITION).append(": form-data; name=\"").append(Multipart.quoted(part.getName())).append('"');
-            part.getFileName().ifPresent(fileName -> head.append("; filename=\"").append(Multipart.quoted(fileName)).append('"'));
-            head.append("\r\n").append(HttpHeaders.CONTENT_TYPE).append(": ").append(part.getMediaType()).append("\r\n");
-            part.getHeaders().forEach((name, values) -> {
-                if (!name.equalsIgnoreCase(Multipart.CONTENT_DISPOSITION) && !name.equalsIgnoreCase(HttpHeaders.CONTENT_TYPE) && values != null) {
-                    for (String value : values) {
-                        head.append(name).append(": ").append(value).append("\r\n");
-                    }
-                }
-            });
-            head.append("\r\n");
-            entityStream.write(head.toString().getBytes(StandardCharsets.UTF_8));
+            String delimiter = "--" + boundary + "\r\n";
             if (part instanceof JaxRsEntityPart entityPart) {
-                entityPart.write(entityStream, providers);
+                // the headers as the writer of the content leaves them (MessageBodyWriter#writeTo)
+                entityPart.write(entityStream, providers, headers -> writeHead(entityStream, delimiter, part, headers));
             } else {
                 // a part of another implementation
+                writeHead(entityStream, delimiter, part, new MultivaluedHashMap<>(part.getHeaders()));
                 try (var content = part.getContent()) {
                     content.transferTo(entityStream);
                 }
@@ -111,5 +103,28 @@ public final class JaxRsMultipartMessageBodyWriter implements MessageBodyWriter<
             entityStream.write(new byte[] {'\r', '\n'});
         }
         entityStream.write(("--" + boundary + "--\r\n").getBytes(StandardCharsets.ISO_8859_1));
+    }
+
+    private static void writeHead(OutputStream entityStream, String delimiter, EntityPart part,
+                                  MultivaluedMap<String, Object> headers) throws IOException {
+        StringBuilder head = new StringBuilder(delimiter);
+        head.append(Multipart.CONTENT_DISPOSITION).append(": form-data; name=\"").append(Multipart.quoted(part.getName())).append('"');
+        part.getFileName().ifPresent(fileName -> head.append("; filename=\"").append(Multipart.quoted(fileName)).append('"'));
+        Object contentType = part.getMediaType();
+        for (Map.Entry<String, List<Object>> entry : headers.entrySet()) {
+            if (entry.getKey().equalsIgnoreCase(HttpHeaders.CONTENT_TYPE) && entry.getValue() != null && !entry.getValue().isEmpty()) {
+                contentType = entry.getValue().get(0);
+            }
+        }
+        head.append("\r\n").append(HttpHeaders.CONTENT_TYPE).append(": ").append(JaxRsHeaderUtil.headerToString(contentType)).append("\r\n");
+        headers.forEach((name, values) -> {
+            if (!name.equalsIgnoreCase(Multipart.CONTENT_DISPOSITION) && !name.equalsIgnoreCase(HttpHeaders.CONTENT_TYPE) && values != null) {
+                for (Object value : values) {
+                    head.append(name).append(": ").append(JaxRsHeaderUtil.headerToString(value)).append("\r\n");
+                }
+            }
+        });
+        head.append("\r\n");
+        entityStream.write(head.toString().getBytes(StandardCharsets.UTF_8));
     }
 }
