@@ -20,6 +20,7 @@ import io.micronaut.core.type.Argument;
 import io.micronaut.http.body.MessageBodyReader;
 import io.micronaut.http.simple.SimpleHttpHeaders;
 import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
+import io.micronaut.jaxrs.common.JaxRsIOException;
 import io.micronaut.jaxrs.common.JaxRsUtils;
 import jakarta.ws.rs.ProcessingException;
 import jakarta.ws.rs.core.GenericType;
@@ -117,13 +118,20 @@ final class JaxRsInboundSseEvent implements InboundSseEvent {
         byte[] bytes = data == null ? new byte[0] : data.getBytes(StandardCharsets.UTF_8);
         // the reader is selected and reads with the providers of the client as the current ones, like
         // for a response: isReadable and readFrom can look up its context resolvers (JAX-RS 4.3)
-        return configuration.providers().withProviders(() -> {
-            MessageBodyReader<T> reader = configuration.providers().findReader(type, micronautType);
-            if (reader == null) {
-                throw new ProcessingException("No reader reads the data of the event as " + type + " and " + mediaType);
-            }
-            return reader.read(type, micronautType, new SimpleHttpHeaders(), new ByteArrayInputStream(bytes));
-        });
+        try {
+            return configuration.providers().withProviders(() -> {
+                MessageBodyReader<T> reader = configuration.providers().findReader(type, micronautType);
+                if (reader == null) {
+                    throw new ProcessingException("No reader reads the data of the event as " + type + " and " + mediaType);
+                }
+                return reader.read(type, micronautType, new SimpleHttpHeaders(), new ByteArrayInputStream(bytes));
+            });
+        } catch (ProcessingException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            // a failure of the reader, e.g. its IOException: a ProcessingException (JAX-RS, InboundSseEvent#readData)
+            throw new ProcessingException(e instanceof JaxRsIOException && e.getCause() != null ? e.getCause() : e);
+        }
     }
 
     @Override

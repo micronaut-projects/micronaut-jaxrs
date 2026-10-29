@@ -191,7 +191,8 @@ public final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
     @Override
     public JaxRsWebTarget target(UriBuilder uriBuilder) {
         checkOpen();
-        return new JaxRsWebTarget(this, Objects.requireNonNull(uriBuilder, "uriBuilder"), config.copy());
+        // a copy: a later change of the builder does not change the target (JAX-RS 5.3)
+        return new JaxRsWebTarget(this, Objects.requireNonNull(uriBuilder, "uriBuilder").clone(), config.copy());
     }
 
     @Override

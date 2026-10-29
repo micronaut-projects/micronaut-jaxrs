@@ -107,6 +107,44 @@ class JaxRsClientTest {
     }
 
     @Test
+    void theEncodingOfTheEntityVariantIsAHeader() {
+        String encoding = target("echo")
+            .register((ClientRequestFilter) requestContext -> requestContext.abortWith(
+                Response.ok(String.valueOf(requestContext.getHeaderString(HttpHeaders.CONTENT_ENCODING))).build()))
+            .request()
+            .post(Entity.entity("body", new jakarta.ws.rs.core.Variant(MediaType.TEXT_PLAIN_TYPE, (String) null, "gzip")), String.class);
+        assertEquals("gzip", encoding);
+    }
+
+    @Test
+    void aFailingReaderOfEventDataIsAProcessingException() {
+        WebTarget target = target("events").register(new MessageBodyReader<String>() {
+            @Override
+            public boolean isReadable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+                return type == String.class;
+            }
+
+            @Override
+            public String readFrom(Class<String> type, Type genericType, Annotation[] annotations, MediaType mediaType,
+                                   MultivaluedMap<String, String> httpHeaders, InputStream entityStream) throws IOException {
+                throw new IOException("broken");
+            }
+        });
+        var event = new JaxRsInboundSseEvent(null, null, null, InboundSseEvent.RECONNECT_NOT_SET, "data",
+            ((JaxRsWebTarget) target).getConfiguration());
+        ProcessingException e = assertThrows(ProcessingException.class, () -> event.readData(String.class));
+        assertInstanceOf(IOException.class, e.getCause());
+    }
+
+    @Test
+    void aTargetDoesNotFollowItsUriBuilder() {
+        jakarta.ws.rs.core.UriBuilder builder = jakarta.ws.rs.core.UriBuilder.fromUri("http://localhost/first");
+        WebTarget first = client.target(builder);
+        builder.path("second");
+        assertEquals("http://localhost/first", first.getUri().toString());
+    }
+
+    @Test
     void relativeLinksAreResolvedAgainstTheRequestUri() {
         Response response = target("links").request().get();
         assertEquals(target("first").getUri(), response.getLink("first").getUri());
