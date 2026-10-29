@@ -21,6 +21,7 @@ import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpRequestWrapper;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.ServerHttpRequest;
+import io.micronaut.http.exceptions.ConnectionClosedException;
 import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.scheduling.TaskScheduler;
 import jakarta.ws.rs.ServiceUnavailableException;
@@ -68,7 +69,8 @@ import java.util.function.Supplier;
  * <p>A {@link ConnectionCallback} is supported if the server tells when the client goes away
  * ({@link ServerHttpRequest#whenAbandoned}): it is called when the client closes the HTTP/1.1
  * connection, or resets the HTTP/2 stream, before the response was written, and the pending
- * timeout is cancelled. Else registering it registers nothing.</p>
+ * timeout is cancelled: a suspended response is then done and is no longer resumed. Else
+ * registering it registers nothing.</p>
  *
  * @author Denis Stepanov
  * @since 5.0.0
@@ -175,17 +177,23 @@ final class JaxRsAsyncResponse implements AsyncResponse {
     }
 
     /**
-     * The client went away before the response was written: cancel the timeout and call the
-     * connection callbacks.
+     * The client went away before the response was written: the processing ends, a suspended
+     * response is no longer resumed (JAX-RS, AsyncResponse#isDone), its timeout is cancelled and
+     * the connection callbacks are called.
      */
     private void abandoned() {
         List<ConnectionCallback> callbacks;
         ScheduledFuture<?> scheduled;
+        boolean suspended;
         synchronized (this) {
             if (abandoned) {
                 return;
             }
             abandoned = true;
+            suspended = state == State.SUSPENDED;
+            if (suspended) {
+                state = State.DISCONNECTED;
+            }
             // the abandonment can be reported while bind registers it
             abandonment = true;
             callbacks = new ArrayList<>(connectionCallbacks);
@@ -196,6 +204,10 @@ final class JaxRsAsyncResponse implements AsyncResponse {
         }
         if (scheduled != null) {
             scheduled.cancel(false);
+        }
+        if (suspended) {
+            // nothing is written: the stage of the response is settled
+            response.completeExceptionally(new ConnectionClosedException("The client disconnected"));
         }
         for (ConnectionCallback callback : callbacks) {
             disconnect(callback);
@@ -484,6 +496,8 @@ final class JaxRsAsyncResponse implements AsyncResponse {
     private enum State {
         SUSPENDED,
         RESUMED,
-        CANCELLED
+        CANCELLED,
+        // the client went away while the response was suspended
+        DISCONNECTED
     }
 }
