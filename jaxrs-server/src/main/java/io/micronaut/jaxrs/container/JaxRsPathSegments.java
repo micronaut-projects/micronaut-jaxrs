@@ -17,6 +17,7 @@ package io.micronaut.jaxrs.container;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.HttpRequest;
+import io.micronaut.jaxrs.runtime.ext.bind.JaxRsRequestUri;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.UriRouteMatch;
 import jakarta.ws.rs.core.MultivaluedHashMap;
@@ -84,7 +85,7 @@ final class JaxRsPathSegments {
      * @return The segments
      */
     static List<PathSegment> pathSegments(HttpRequest<?> request, String name, String value, boolean encoded) {
-        String[] segments = request.getUri().getRawPath().split("/", -1);
+        String[] segments = JaxRsRequestUri.of(request).rawPathSegments();
         Location location = locate(request, name, segments.length);
         if (location != null) {
             // split as it appears in the path: an encoded slash is not a separator
@@ -114,7 +115,7 @@ final class JaxRsPathSegments {
      * @return The segment
      */
     static PathSegment pathSegment(HttpRequest<?> request, String name, String value, boolean encoded) {
-        String[] segments = request.getUri().getRawPath().split("/", -1);
+        String[] segments = JaxRsRequestUri.of(request).rawPathSegments();
         Location location = locate(request, name, segments.length);
         if (location != null) {
             return segment(segments[location.index() + location.count() - 1], encoded);
@@ -154,47 +155,23 @@ final class JaxRsPathSegments {
             return null;
         }
         Map<String, Object> rawValues = match.getRawVariableValues();
-        String template = JaxRsRouteTemplateEngine.withoutMarks(match.getRouteInfo().getRouteTemplate().expression());
-        int slashes = 0;
+        JaxRsTemplateDescription description = JaxRsRouteTemplateEngine.description(match.getRouteInfo().getRouteTemplate());
+        int slashes = description.slashes();
         int index = -1;
         int count = 1;
-        int i = 0;
-        while (i < template.length()) {
-            char c = template.charAt(i);
-            if (c == '/') {
-                slashes++;
-            } else if (c == '{') {
-                // the end of the variable, its regular expression can have braces
-                int depth = 1;
-                int end = i + 1;
-                while (end < template.length() && depth > 0) {
-                    char e = template.charAt(end);
-                    if (e == '{') {
-                        depth++;
-                    } else if (e == '}') {
-                        depth--;
-                    }
-                    end++;
-                }
-                String variable = template.substring(i + 1, Math.max(i + 1, end - 1));
-                int colon = variable.indexOf(':');
-                String variableName = (colon < 0 ? variable : variable.substring(0, colon)).trim();
-                Object raw = rawValues.get(variableName);
-                // a variable over several segments
-                int over = raw == null ? 0 : (int) raw.toString().chars().filter(ch -> ch == '/').count();
-                if (variableName.equals(name)) {
-                    index = slashes;
-                    count = over + 1;
-                }
-                slashes += over;
-                i = end;
-                continue;
+        for (JaxRsTemplateDescription.Occurrence occurrence : description.occurrences()) {
+            Object raw = rawValues.get(occurrence.name());
+            // a variable over several segments
+            int over = raw == null ? 0 : (int) raw.toString().chars().filter(ch -> ch == '/').count();
+            if (occurrence.name().equals(name)) {
+                index = occurrence.slashesBefore() + slashes - description.slashes();
+                count = over + 1;
             }
-            i++;
+            slashes += over;
         }
         String path = request.getUri().getRawPath();
         // a trailing slash the template does not have
-        int pathSlashes = segments - 1 - (path.endsWith("/") && !template.endsWith("/") ? 1 : 0);
+        int pathSlashes = segments - 1 - (path.endsWith("/") && !description.expression().endsWith("/") ? 1 : 0);
         int offset = pathSlashes - slashes;
         if (index < 0 || offset < 0 || index + offset + count > segments) {
             return null;

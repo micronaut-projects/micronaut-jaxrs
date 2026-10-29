@@ -3,10 +3,8 @@ package io.micronaut.jaxrs.container;
 import io.micronaut.context.annotation.Property;
 import io.micronaut.context.annotation.Requires;
 import io.micronaut.http.HttpRequest;
-import io.micronaut.http.HttpResponse;
 import io.micronaut.http.client.HttpClient;
 import io.micronaut.http.client.annotation.Client;
-import io.micronaut.http.client.exceptions.HttpClientResponseException;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;
@@ -89,12 +87,7 @@ class ExceptionStatusTest {
     }
 
     private int status(HttpRequest<?> request) {
-        try {
-            HttpResponse<String> response = client.toBlocking().exchange(request, String.class);
-            return response.code();
-        } catch (HttpClientResponseException e) {
-            return e.code();
-        }
+        return TestResponses.status(client, request);
     }
 
     static class NullMappedException extends RuntimeException {

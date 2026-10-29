@@ -234,7 +234,7 @@ public final class UriInfoImpl implements UriInfo {
     @Override
     public MultivaluedMap<String, String> getQueryParameters(boolean decode) {
         var map = new MultivaluedHashMap<String, String>();
-        queryParameters(request.getUri(), decode).forEach((name, values) -> values.forEach(value -> map.add(name, value)));
+        JaxRsRequestUri.of(request).queryParameters(decode).forEach((name, values) -> values.forEach(value -> map.add(name, value)));
         return unmodifiable(map);
     }
 
