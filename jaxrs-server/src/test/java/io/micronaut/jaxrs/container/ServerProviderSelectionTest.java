@@ -110,7 +110,47 @@ class ServerProviderSelectionTest {
         assertEquals("feature:x", client.toBlocking().retrieve(HttpRequest.GET("/code?value=x")));
     }
 
+    @Test
+    void thePriorityOfAFeatureOrdersTheContextResolvers() {
+        assertEquals("feature", client.toBlocking().retrieve(HttpRequest.GET("/greeting")));
+    }
+
     public record Thing(String value) {
+    }
+
+    public record Greeting(String value) {
+    }
+
+    public abstract static class GreetingResolver implements ContextResolver<Greeting> {
+        private final String name;
+
+        GreetingResolver(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public Greeting getContext(Class<?> type) {
+            return new Greeting(name);
+        }
+    }
+
+    @Requires(property = "spec.name", value = "ServerProviderSelectionTest")
+    @Provider
+    @Priority(100)
+    public static class AnnotatedGreetingResolver extends GreetingResolver {
+        public AnnotatedGreetingResolver() {
+            super("annotated");
+        }
+    }
+
+    // a bean: a feature registers a class that is not one only with reflection, see JaxRsReflection
+    @Requires(property = "spec.name", value = "ServerProviderSelectionTest")
+    @jakarta.inject.Singleton
+    @Priority(5000)
+    public static class FeatureGreetingResolver extends GreetingResolver {
+        public FeatureGreetingResolver() {
+            super("feature");
+        }
     }
 
     public record Code(String value) {
@@ -310,6 +350,7 @@ class ServerProviderSelectionTest {
             context.register(FeatureWriter.class, 1);
             context.register(FeatureMapper.class, 1);
             context.register(FeatureCodeConverters.class, 1);
+            context.register(FeatureGreetingResolver.class, 1);
             return true;
         }
     }
@@ -383,6 +424,13 @@ class ServerProviderSelectionTest {
         @Produces(MediaType.TEXT_PLAIN)
         public String code(@QueryParam("value") Code code) {
             return code.value();
+        }
+
+        @GET
+        @Path("greeting")
+        @Produces(MediaType.TEXT_PLAIN)
+        public String greeting(@Context Providers providers) {
+            return providers.getContextResolver(Greeting.class, MediaType.WILDCARD_TYPE).getContext(String.class).value();
         }
 
         @GET
