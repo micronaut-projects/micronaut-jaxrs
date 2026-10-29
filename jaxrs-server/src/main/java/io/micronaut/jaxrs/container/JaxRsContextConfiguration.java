@@ -20,6 +20,7 @@ import io.micronaut.context.BeanProvider;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.inject.BeanDefinition;
 import io.micronaut.inject.qualifiers.Qualifiers;
+import io.micronaut.jaxrs.common.JaxRsProviderRegistrations;
 import io.micronaut.jaxrs.common.JaxRsRouteInterceptors;
 import io.micronaut.jaxrs.common.JaxRsUtils;
 import jakarta.ws.rs.Path;
@@ -38,23 +39,30 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 /**
  * The server {@link Configuration} injected with {@code @Context}: the properties, classes and
- * singletons of the {@link Application} of the application.
+ * singletons of the {@link Application} of the application, a view of the registrations of the
+ * application and of its features, which are the {@link JaxRsProviderRegistrations} of the
+ * provider lookups too. Once the features are configured, the registrations do not change: the
+ * ones of a class are cached then.
  *
  * @author Denis Stepanov
  * @since 5.2.0
  */
 @Internal
 @Singleton
-final class JaxRsContextConfiguration implements Configuration {
+final class JaxRsContextConfiguration implements Configuration, JaxRsProviderRegistrations {
 
     private final Supplier<@Nullable Application> application;
     private final BeanProvider<JaxRsFeatures> features;
     private final Supplier<Set<Class<?>>> discovered;
     private final BeanContext context;
+    // the registrations of the classes, once the features are configured
+    private final Map<Class<?>, Boolean> registered = new ConcurrentHashMap<>();
+    private final Map<Class<?>, Map<Class<?>, Integer>> contracts = new ConcurrentHashMap<>();
 
     JaxRsContextConfiguration(BeanProvider<Application> application, BeanProvider<JaxRsFeatures> features, BeanContext context) {
         this.features = features;
@@ -117,6 +125,27 @@ final class JaxRsContextConfiguration implements Configuration {
 
     @Override
     public boolean isRegistered(Class<?> componentClass) {
+        if (features.get().isConfigured()) {
+            return registered.computeIfAbsent(componentClass, this::registered);
+        }
+        return registered(componentClass);
+    }
+
+    @Override
+    public boolean isRegistered(Class<?> providerClass, Class<?> contract) {
+        if (!isRegistered(providerClass)) {
+            return false;
+        }
+        Map<Class<?>, Integer> registeredContracts = getContracts(providerClass);
+        return registeredContracts.isEmpty() || registeredContracts.containsKey(contract);
+    }
+
+    @Override
+    public @Nullable Integer priority(Class<?> providerClass, Class<?> contract) {
+        return isRegistered(providerClass) ? getContracts(providerClass).get(contract) : null;
+    }
+
+    private boolean registered(Class<?> componentClass) {
         Application app = application.get();
         if (app != null && app.getClasses().contains(componentClass)) {
             return true;
@@ -144,6 +173,13 @@ final class JaxRsContextConfiguration implements Configuration {
 
     @Override
     public Map<Class<?>, Integer> getContracts(Class<?> componentClass) {
+        if (features.get().isConfigured()) {
+            return contracts.computeIfAbsent(componentClass, this::contracts);
+        }
+        return contracts(componentClass);
+    }
+
+    private Map<Class<?>, Integer> contracts(Class<?> componentClass) {
         Map<Class<?>, Integer> contracts = features.get().contracts(componentClass);
         if (!contracts.isEmpty() || !isRegistered(componentClass)) {
             return contracts;

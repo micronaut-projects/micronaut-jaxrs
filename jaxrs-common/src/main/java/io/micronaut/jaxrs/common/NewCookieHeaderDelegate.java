@@ -190,11 +190,9 @@ class NewCookieHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Object> 
 
     private void quote(StringBuilder b, String value) {
 
-        if (MediaTypeHeaderDelegate.quoted(value)) {
+        if (MediaTypeHeaderDelegate.requiresQuoting(value)) {
             // a quote or a backslash in a quoted string is a quoted-pair
-            b.append('"');
-            b.append(value.replace("\\", "\\\\").replace("\"", "\\\""));
-            b.append('"');
+            JaxRsHeaderUtil.appendQuoted(b, value);
         } else {
             b.append(value);
         }

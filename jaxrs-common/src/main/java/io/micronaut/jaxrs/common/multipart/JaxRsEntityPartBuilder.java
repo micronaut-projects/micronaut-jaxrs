@@ -138,8 +138,7 @@ public final class JaxRsEntityPartBuilder implements EntityPart.Builder {
         String header = headers.getFirst(HttpHeaders.CONTENT_TYPE);
         MediaType type = header != null ? MediaType.valueOf(header) : mediaType != null ? mediaType
             : fileName != null ? MediaType.APPLICATION_OCTET_STREAM_TYPE : MediaType.TEXT_PLAIN_TYPE;
-        MultivaluedMap<String, String> copied = JaxRsEntityPart.headers();
-        copied.putAll(headers);
-        return new JaxRsEntityPart(name, fileName, type, copied, content, contentType, null);
+        // the part copies the headers
+        return new JaxRsEntityPart(name, fileName, type, headers, content, contentType, null);
     }
 }

@@ -21,10 +21,15 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.convert.ConversionService;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.PathVariables;
+import io.micronaut.http.bind.MatchedPathVariables;
 import io.micronaut.http.context.ServerRequestContext;
 import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
+import io.micronaut.web.router.RouteAttributes;
+import io.micronaut.web.router.UriRouteMatch;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.container.ResourceContext;
+
+import java.util.Map;
 
 /**
  * The {@link ResourceContext} injected with {@code @Context}: in a request, resources are created and
@@ -68,7 +73,18 @@ final class JaxRsContextResourceContext implements ResourceContext {
         return routes.get().initResource(resource, request, pathVariables(request));
     }
 
+    /**
+     * The path variables of the route the request matched, none if it matched none: only their
+     * strings are read, converted by the JAX-RS parameter readers.
+     */
     private PathVariables pathVariables(HttpRequest<?> request) {
-        return JaxRsPathVariables.of(request, conversionService);
+        UriRouteMatch<?, ?> match = RouteAttributes.getRouteMatch(request)
+            .filter(UriRouteMatch.class::isInstance)
+            .<UriRouteMatch<?, ?>>map(m -> (UriRouteMatch<?, ?>) m)
+            .orElse(null);
+        if (match == null) {
+            return new MatchedPathVariables(Map.of(), conversionService);
+        }
+        return new MatchedPathVariables(match.getVariableValues(), match.getRawVariableValues(), conversionService);
     }
 }

@@ -17,6 +17,7 @@ package io.micronaut.jaxrs.servlet;
 
 import io.micronaut.context.BeanContext;
 import io.micronaut.context.annotation.Replaces;
+import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.convert.ArgumentConversionContext;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.bind.binders.TypedRequestArgumentBinder;
@@ -36,6 +37,7 @@ import java.util.Optional;
  * @author graemerocher
  * @since 4.6.0
  */
+@Internal
 @Singleton
 @Replaces(ContextAnnotationBinder.class)
 public class ServletContextAnnotationBinder<T> extends ContextAnnotationBinder<T> {

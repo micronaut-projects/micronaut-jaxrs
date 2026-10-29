@@ -30,6 +30,8 @@ import io.micronaut.jaxrs.common.JaxRsMessageBodyReader;
 import io.micronaut.jaxrs.common.JaxRsMessageBodyReaderDefinition;
 import io.micronaut.jaxrs.common.JaxRsMessageBodyWriter;
 import io.micronaut.jaxrs.common.JaxRsRouteInterceptors;
+import io.micronaut.jaxrs.common.JaxRsProviderSelection;
+import io.micronaut.jaxrs.common.JaxRsProviderSelection.Rank;
 import io.micronaut.jaxrs.common.JaxRsUtils;
 import io.micronaut.jaxrs.common.body.standard.JaxRsByteArrayMessageBodyReaderWriter;
 import io.micronaut.jaxrs.common.body.standard.JaxRsStringMessageBodyReaderWriter;
@@ -290,14 +292,15 @@ final class JaxRsClientProviders implements Providers {
                                                                                 @Nullable MediaType mediaType) {
         // First, the JAX-RS reader in the order of the readers (JAX-RS 4.2.1)
         io.micronaut.http.body.MessageBodyReader<T> best = null;
-        ReaderRank bestRank = null;
+        Rank bestRank = null;
         for (JaxRsMessageBodyReaderDefinition readerDer : getReaders()) {
             io.micronaut.http.body.MessageBodyReader<T> reader = (io.micronaut.http.body.MessageBodyReader<T>) readerDer.messageBodyReader();
             if (reader instanceof JaxRsMessageBodyReader<?> jaxRsReader
                 && isCompatible(readerDer.metadata(), Consumes.class, mediaType)
                 && readerDer.type().isAssignableFrom(argument.getType()) && reader.isReadable(argument, mediaType)) {
-                ReaderRank rank = ReaderRank.of(readerDer, jaxRsReader.delegate(), argument.getType(), mediaType);
-                if (bestRank == null || rank.compareTo(bestRank) < 0) {
+                Rank rank = rank(readerDer.type().getType(), jaxRsReader.delegate(), readerDer.metadata(), Consumes.class, readerDer.priority(),
+                    argument.getType(), mediaType);
+                if (bestRank == null || JaxRsProviderSelection.APPLICATION_FIRST_READER_ORDER.compare(rank, bestRank) < 0) {
                     best = reader;
                     bestRank = rank;
                 }
@@ -322,14 +325,15 @@ final class JaxRsClientProviders implements Providers {
                                                                                 MediaType mediaType) {
         // First, the JAX-RS writer in the order of the providers, then of their priority
         io.micronaut.http.body.MessageBodyWriter<T> best = null;
-        long bestRank = Long.MAX_VALUE;
+        Rank bestRank = null;
         for (JaxRsMessageBodyWriterDefinition writerDef : getWriters()) {
             io.micronaut.http.body.MessageBodyWriter<T> writer = (io.micronaut.http.body.MessageBodyWriter<T>) writerDef.messageBodyWriter();
             if (writer instanceof JaxRsMessageBodyWriter<?> jaxRsWriter
                 && isCompatible(writerDef.metadata(), Produces.class, mediaType)
                 && writerDef.type().isAssignableFrom(argument.getType()) && writer.isWriteable(argument, mediaType)) {
-                long rank = rank(writerDef.type().getType(), jaxRsWriter.delegate(), writerDef.metadata(), Produces.class, argument.getType(), mediaType);
-                if (rank < bestRank) {
+                Rank rank = rank(writerDef.type().getType(), jaxRsWriter.delegate(), writerDef.metadata(), Produces.class, writerDef.priority(),
+                    argument.getType(), mediaType);
+                if (bestRank == null || JaxRsProviderSelection.WRITER_ORDER.compare(rank, bestRank) < 0) {
                     best = writer;
                     bestRank = rank;
                 }
@@ -355,33 +359,19 @@ final class JaxRsClientProviders implements Providers {
      * or {@code @Produces}, any type without one, are compatible with it (JAX-RS 4.2.1, 4.2.2).
      */
     private static boolean isCompatible(AnnotationMetadata metadata, Class<? extends Annotation> declaring, @Nullable MediaType mediaType) {
-        String[] declared = metadata.stringValues(declaring);
-        if (mediaType == null || declared.length == 0) {
-            return true;
-        }
-        for (String value : declared) {
-            for (String type : value.split(",")) {
-                MediaType candidate = new MediaType(type.trim());
-                if (JaxRsUtils.isCompatible(candidate, mediaType)) {
-                    return true;
-                }
-            }
-        }
-        return false;
+        // a value of the annotation may be a comma separated list
+        return mediaType == null || JaxRsProviderSelection.isCompatible(JaxRsProviderSelection.declared(metadata, declaring, true), mediaType);
     }
 
     /**
-     * The order of a JAX-RS provider, like the one of the server (JAX-RS 4.2.2, step 4): the nearest
-     * type first, then the most specific media type, then the providers of the application before
-     * the standard ones. Equal ones keep the order of their priority.
+     * The rank of a JAX-RS provider for an entity, which {@link JaxRsProviderSelection#APPLICATION_FIRST_READER_ORDER}
+     * orders the readers with and {@link JaxRsProviderSelection#WRITER_ORDER} the writers.
      */
-    private static long rank(Class<?> provided, Object provider, AnnotationMetadata metadata, Class<? extends Annotation> declaring,
-                             Class<?> type, @Nullable MediaType mediaType) {
-        String[] declared = metadata.stringValues(declaring);
-        int distance = JaxRsUtils.typeDistance(provided, type);
-        int specificity = mediaType == null ? 0 : JaxRsUtils.mediaTypeSpecificity(declared, List.of(mediaType));
-        int standard = provider.getClass().getName().startsWith("io.micronaut.") ? 1 : 0;
-        return ((long) distance * 3 + (2 - specificity)) * 2 + standard;
+    private static Rank rank(Class<?> provided, Object provider, AnnotationMetadata metadata, Class<? extends Annotation> declaring,
+                             int priority, Class<?> type, @Nullable MediaType mediaType) {
+        int specificity = mediaType == null ? 0
+            : JaxRsProviderSelection.specificity(JaxRsProviderSelection.declared(metadata, declaring, true), List.of(mediaType));
+        return new Rank(specificity, JaxRsProviderSelection.isStandard(provider.getClass()), priority, JaxRsUtils.typeDistance(provided, type));
     }
 
     List<ClientRequestFilter> getRequestFilters() {
@@ -496,14 +486,15 @@ final class JaxRsClientProviders implements Providers {
         // selected like the readers of the entities (JAX-RS 4.2.1)
         MediaType micronautMediaType = JaxRsUtils.convert(mediaType);
         MessageBodyReader<T> best = null;
-        ReaderRank bestRank = null;
+        Rank bestRank = null;
         for (JaxRsMessageBodyReaderDefinition definition : getReaders()) {
             if (definition.messageBodyReader() instanceof JaxRsMessageBodyReader<?> jaxRsReader
                 && isCompatible(definition.metadata(), Consumes.class, micronautMediaType)
                 && definition.type().isAssignableFrom(type)
                 && jaxRsReader.delegate().isReadable(type, genericType, annotations, mediaType)) {
-                ReaderRank rank = ReaderRank.of(definition, jaxRsReader.delegate(), type, micronautMediaType);
-                if (bestRank == null || rank.compareTo(bestRank) < 0) {
+                Rank rank = rank(definition.type().getType(), jaxRsReader.delegate(), definition.metadata(), Consumes.class, definition.priority(),
+                    type, micronautMediaType);
+                if (bestRank == null || JaxRsProviderSelection.APPLICATION_FIRST_READER_ORDER.compare(rank, bestRank) < 0) {
                     best = (MessageBodyReader<T>) jaxRsReader.delegate();
                     bestRank = rank;
                 }
@@ -518,14 +509,15 @@ final class JaxRsClientProviders implements Providers {
         // selected like the writers of the entities (JAX-RS 4.2.2)
         MediaType micronautMediaType = JaxRsUtils.convert(mediaType);
         MessageBodyWriter<T> best = null;
-        long bestRank = Long.MAX_VALUE;
+        Rank bestRank = null;
         for (JaxRsMessageBodyWriterDefinition definition : getWriters()) {
             if (definition.messageBodyWriter() instanceof JaxRsMessageBodyWriter<?> jaxRsWriter
                 && isCompatible(definition.metadata(), Produces.class, micronautMediaType)
                 && definition.type().isAssignableFrom(type)
                 && jaxRsWriter.delegate().isWriteable(type, genericType, annotations, mediaType)) {
-                long rank = rank(definition.type().getType(), jaxRsWriter.delegate(), definition.metadata(), Produces.class, type, micronautMediaType);
-                if (rank < bestRank) {
+                Rank rank = rank(definition.type().getType(), jaxRsWriter.delegate(), definition.metadata(), Produces.class, definition.priority(),
+                    type, micronautMediaType);
+                if (bestRank == null || JaxRsProviderSelection.WRITER_ORDER.compare(rank, bestRank) < 0) {
                     best = (MessageBodyWriter<T>) jaxRsWriter.delegate();
                     bestRank = rank;
                 }
@@ -709,42 +701,6 @@ final class JaxRsClientProviders implements Providers {
         @Override
         public String toString() {
             return current(fallback).toString();
-        }
-    }
-
-    /**
-     * The order of a JAX-RS reader (JAX-RS 4.2.1): the providers of the application before the
-     * standard ones (4.1.3), e.g. a reader of any media type before the standard one of JSON, then
-     * the most specific media type, then the highest priority, then, which it leaves open, the
-     * nearest type.
-     *
-     * @param specificity The specificity of the media type the reader consumes, 2 for a concrete one
-     * @param standard    1 for a standard provider, else 0
-     * @param priority    The priority of the reader
-     * @param distance    The distance of the type the reader reads to the type of the entity
-     */
-    private record ReaderRank(int specificity, int standard, int priority, int distance) implements Comparable<ReaderRank> {
-
-        static ReaderRank of(JaxRsMessageBodyReaderDefinition definition, Object reader, Class<?> type, @Nullable MediaType mediaType) {
-            String[] declared = definition.metadata().stringValues(Consumes.class);
-            return new ReaderRank(
-                mediaType == null ? 0 : JaxRsUtils.mediaTypeSpecificity(declared, List.of(mediaType)),
-                reader.getClass().getName().startsWith("io.micronaut.") ? 1 : 0,
-                definition.priority(),
-                JaxRsUtils.typeDistance(definition.type().getType(), type)
-            );
-        }
-
-        @Override
-        public int compareTo(ReaderRank other) {
-            int result = Integer.compare(standard, other.standard);
-            if (result == 0) {
-                result = Integer.compare(other.specificity, specificity);
-            }
-            if (result == 0) {
-                result = Integer.compare(priority, other.priority);
-            }
-            return result == 0 ? Integer.compare(distance, other.distance) : result;
         }
     }
 

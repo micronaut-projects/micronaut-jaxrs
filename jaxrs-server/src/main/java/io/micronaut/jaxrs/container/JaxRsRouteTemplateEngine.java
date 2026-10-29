@@ -17,7 +17,6 @@ package io.micronaut.jaxrs.container;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.HttpRequest;
-import io.micronaut.http.MediaType;
 import io.micronaut.http.uri.RouteCaptures;
 import io.micronaut.http.uri.RouteTemplate;
 import io.micronaut.http.uri.RouteTemplateParser;
@@ -33,7 +32,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -50,7 +48,7 @@ import java.util.regex.Pattern;
  * parses: the resource method selection of JAX-RS.
  *
  * <p>One instance per application context: it records the root resource classes of the routes it
- * parses, see {@link #committed}.</p>
+ * parses, see {@link JaxRsRouteSelector}.</p>
  *
  * @author Denis Stepanov
  * @since 5.2.0
@@ -70,17 +68,11 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
      */
     public static final char LOCATOR_MARK = '\u001F';
 
-    private static final String DEFAULT_REGEX = "[^/]+?";
-
-    private static final String QS = "qs";
-
-    private static final String WILDCARD = "*";
-
     /**
      * The order of specificity of JAX-RS (section 3.7.2): more literal characters, then more
      * template variables, then more variables with a regular expression.
      */
-    private static final Comparator<RouteTemplate> SPECIFICITY = Comparator
+    static final Comparator<RouteTemplate> SPECIFICITY = Comparator
         .comparingInt(RouteTemplate::rawLength).reversed()
         .thenComparing(Comparator.comparingInt(RouteTemplate::pathVariableCount).reversed())
         .thenComparing(Comparator.comparingInt(RouteTemplate::patternVariableCount).reversed());
@@ -89,7 +81,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
      * The order of JAX-RS routes: the root resource class, by the specificity of its {@code @Path},
      * then the whole template, then fewer sub-resource locators.
      */
-    private static final Comparator<RouteTemplate> ORDER = (a, b) -> {
+    static final Comparator<RouteTemplate> ORDER = (a, b) -> {
         if (a instanceof Parsed pa && b instanceof Parsed pb) {
             // the templates of this engine know their root resource class and their locators
             int result = SPECIFICITY.compare(pa.root(), pb.root());
@@ -101,6 +93,8 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
         return SPECIFICITY.compare(a, b);
     };
 
+    private static final String DEFAULT_REGEX = "[^/]+?";
+
     /**
      * The order of the routes: a locator route by the template of its prefix, which has the mark
      * of the locator, so that a resource method is selected before a locator with the same
@@ -110,15 +104,11 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
 
     private static final Parsed EMPTY = new Parsed(null, "", List.of(), null, 0);
 
-    /**
-     * The root resource classes of the routes, most specific first, see {@link #committed}.
-     */
-    private volatile List<Root> roots = List.of();
+    // the selection of the routes, which knows the root resource classes of the templates this engine parses
+    private final JaxRsRouteSelector selector = new JaxRsRouteSelector();
 
-    /**
-     * The templates of the root resource classes mounted by the router, by the template they mount.
-     */
-    private final Map<String, Parsed> mountedRoots = new ConcurrentHashMap<>();
+    // the templates of the root resource classes of the prefixes of the locator routes, parsed once
+    private final Map<String, Optional<Parsed>> locatorRoots = new ConcurrentHashMap<>();
 
     private static RouteTemplate template(UriRouteInfo<?, ?> route) {
         RouteTemplate prefix = RouteLocator.locatorPrefix(route);
@@ -151,130 +141,11 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
     }
 
     /**
-     * Select the resource method of JAX-RS (section 3.7.2): the most specific templates, then the
-     * content type of the request against the consumed types, then the accepted types, with their
-     * quality, against the produced types, with their {@code qs}. The response type is the
-     * combined type of the selected method, when the method declares the types it produces.
-     * When no method of the most specific templates consumes the content type of the request, the
-     * request is answered with {@code 415}, and when none produces an accepted type, with
-     * {@code 406}.
+     * Select the resource method of JAX-RS (section 3.7.2), see {@link JaxRsRouteSelector#select}.
      */
     @Override
     public List<Selection> select(HttpRequest<?> request, List<UriRouteMatch<?, ?>> matches) {
-        RouteTemplate best = null;
-        List<UriRouteMatch<?, ?>> candidates = new ArrayList<>(matches.size());
-        for (UriRouteMatch<?, ?> match : matches) {
-            RouteTemplate parsed = match.getRouteInfo().getRouteTemplate();
-            int compare = best == null ? -1 : ORDER.compare(parsed, best);
-            if (compare < 0) {
-                best = parsed;
-                candidates.clear();
-                candidates.add(match);
-            } else if (compare == 0) {
-                candidates.add(match);
-            }
-        }
-        if (best instanceof Parsed parsed && parsed.rootPart != null && !committed(request, parsed.root())) {
-            return List.of();
-        }
-        if (candidates.size() > 1 && candidates.stream().anyMatch(c -> !c.getRouteInfo().isImplicitHead())) {
-            // a HEAD request selects among the HEAD methods, and only without one among the GET
-            // methods (JAX-RS 3.3.5): the implicit HEAD routes of the GET methods are not candidates
-            // beside an explicit HEAD method, whatever the media types they produce
-            candidates.removeIf(c -> c.getRouteInfo().isImplicitHead());
-        }
-        MediaType contentType = request.getContentType().orElse(null);
-        List<MediaType> accepted = request.getHeaders().accept();
-        if (accepted.isEmpty()) {
-            accepted = List.of(MediaType.ALL_TYPE);
-        }
-        UriRouteMatch<?, ?> selected = null;
-        Negotiated selectedType = null;
-        int selectedConsumes = -1;
-        UriRouteMatch<?, ?> unsupported = null;
-        UriRouteMatch<?, ?> notAcceptable = null;
-        for (UriRouteMatch<?, ?> candidate : candidates) {
-            // a request without a content type is */*: the most specific consumed type is the
-            // best match (JAX-RS 3.7.2, step 3b)
-            int consumes = consumes(contentType == null ? MediaType.ALL_TYPE : contentType, candidate.getRouteInfo().getConsumes());
-            if (consumes < 0) {
-                if (candidate.getRouteInfo().getHttpMethod().permitsRequestBody()) {
-                    unsupported = unsupported == null ? candidate : unsupported;
-                    continue;
-                }
-                // the content type of a request without a body does not select the method
-                consumes = 0;
-            }
-            Negotiated negotiated = negotiate(accepted, candidate.getRouteInfo().getProduces());
-            if (negotiated == null) {
-                notAcceptable = notAcceptable == null ? candidate : notAcceptable;
-                continue;
-            }
-            if (selectedType == null || consumes > selectedConsumes
-                || consumes == selectedConsumes && negotiated.compareTo(selectedType) > 0) {
-                selected = candidate;
-                selectedType = negotiated;
-                selectedConsumes = consumes;
-            }
-        }
-        if (selected == null || selectedType == null) {
-            if (notAcceptable != null) {
-                return List.of(Selection.notAcceptable(notAcceptable));
-            }
-            return unsupported == null ? List.of() : List.of(Selection.unsupportedMediaType(unsupported));
-        }
-        List<MediaType> produces = selected.getRouteInfo().getProduces();
-        boolean declared = !(produces.size() == 1 && produces.get(0).equals(MediaType.ALL_TYPE));
-        MediaType type = selectedType.type;
-        if (declared && specificity(type) < 2 && octetStreamFallback(accepted, produces)) {
-            // not concrete: JAX-RS answers with application/octet-stream
-            type = MediaType.APPLICATION_OCTET_STREAM_TYPE;
-        }
-        return List.of(Selection.of(selected, declared ? type : null));
-    }
-
-    /**
-     * Whether the root resource class of a route is the one JAX-RS commits to (section 3.7.2,
-     * step 1): no root resource class with a more specific {@code @Path} matches the path. When
-     * one does, the request is not found, even if a route of a less specific class matches.
-     */
-    private boolean committed(HttpRequest<?> request, RouteTemplate root) {
-        String path = null;
-        for (Root candidate : roots) {
-            if (SPECIFICITY.compare(candidate.template, root) >= 0) {
-                return true;
-            }
-            if (path == null) {
-                path = UriTemplateMatcher.normalizeForMatching(withoutMatrixParameters(request.getUri().getRawPath()));
-            }
-            Matcher matcher = candidate.pattern.matcher(path);
-            if (matcher.matches() && (candidate.subResources || matcher.group(matcher.groupCount()) == null)) {
-                // a class with no sub-resource methods or locators matches its path only (step 1(c))
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
-     * Whether JAX-RS commits to the root resource class of a sub-resource locator route, see
-     * {@link #committed}: the router never gives a locator route to {@link #select}, it locates
-     * the target of the most specific one first.
-     *
-     * @param request The request
-     * @param prefix  The prefix the locator route was declared with, with the mark of its root resource class
-     * @return Whether the root resource class of the locator is the one JAX-RS commits to
-     */
-    boolean commitsToLocator(HttpRequest<?> request, String prefix) {
-        Parsed root = parsed(null, prefix, "").rootPart;
-        if (root == null) {
-            return true;
-        }
-        // the template the router matches, mounted under the context path
-        for (Parsed mounted = mountedRoots.get(root.expression); mounted != null; mounted = mountedRoots.get(root.expression)) {
-            root = mounted;
-        }
-        return committed(request, root);
+        return selector.select(request, matches);
     }
 
     /**
@@ -284,29 +155,31 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
      * @param replaced      The template it replaces, the unmounted one of a mounted template, or {@code null}
      * @param subResources  Whether the route is one of a sub-resource method or locator of the class
      */
-    private synchronized void addRoot(Parsed root, @Nullable Parsed replaced, boolean subResources) {
-        List<Root> added = new ArrayList<>(roots.size() + 1);
-        boolean present = false;
-        for (Root existing : roots) {
-            if (replaced != null && existing.template.expression.equals(replaced.expression)) {
-                subResources |= existing.subResources;
-                continue;
-            }
-            if (existing.template.expression.equals(root.expression)) {
-                present = true;
-                added.add(new Root(existing.template, existing.pattern, existing.subResources || subResources));
-                continue;
-            }
-            added.add(existing);
-        }
-        if (!present) {
-            // the path of the class, followed by anything (JAX-RS 3.7.3)
-            StringBuilder regex = regex(withoutTrailingSlash(root.parts), new ArrayList<>());
-            regex.append("(/.*)?");
-            added.add(new Root(root, Pattern.compile(regex.toString()), subResources));
-        }
-        added.sort(Comparator.comparing(Root::template, SPECIFICITY));
-        roots = List.copyOf(added);
+    private void addRoot(Parsed root, @Nullable Parsed replaced, boolean subResources) {
+        // the path of the class, followed by anything (JAX-RS 3.7.3)
+        selector.addRoot(root, () -> Pattern.compile(regex(withoutTrailingSlash(root.parts), new ArrayList<>()).append("(/.*)?").toString()),
+            replaced == null ? null : replaced.expression, subResources);
+    }
+
+    /**
+     * @param template A template of a route
+     * @return The template of the root resource class of a template of this engine, else {@code null}
+     */
+    static @Nullable RouteTemplate rootOf(RouteTemplate template) {
+        return template instanceof Parsed parsed && parsed.rootPart != null ? parsed.rootPart : null;
+    }
+
+    /**
+     * Whether JAX-RS commits to the root resource class of a sub-resource locator route, see
+     * {@link JaxRsRouteSelector#commitsToLocator}.
+     *
+     * @param request The request
+     * @param prefix  The prefix the locator route was declared with, with the mark of its root resource class
+     * @return Whether the root resource class of the locator is the one JAX-RS commits to
+     */
+    boolean commitsToLocator(HttpRequest<?> request, String prefix) {
+        Parsed root = locatorRoots.computeIfAbsent(prefix, p -> Optional.ofNullable(parsed(null, p, "").rootPart)).orElse(null);
+        return root == null || selector.commitsToLocator(request, root);
     }
 
     /**
@@ -320,168 +193,6 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
         }
         String rest = strip(withoutMarks(expression.substring(rootMark + 1)));
         return !rest.isEmpty() && !rest.equals("/");
-    }
-
-    /**
-     * The response type of JAX-RS (section 3.8) for accepted and produced types: the most
-     * acceptable combined type, {@code application/octet-stream} for a wildcard one.
-     *
-     * @param accepted The accepted types, empty for any
-     * @param produces The produced types
-     * @return The type, or {@code null} if none is acceptable, or the combined type has a wildcard
-     * subtype other than {@code application/*}
-     */
-    static @Nullable MediaType responseType(List<MediaType> accepted, List<MediaType> produces) {
-        Negotiated negotiated = negotiate(accepted.isEmpty() ? List.of(MediaType.ALL_TYPE) : accepted, produces);
-        if (negotiated == null) {
-            return null;
-        }
-        MediaType type = negotiated.type;
-        if (specificity(type) < 2 && octetStreamFallback(accepted.isEmpty() ? List.of(MediaType.ALL_TYPE) : accepted, produces)) {
-            return MediaType.APPLICATION_OCTET_STREAM_TYPE;
-        }
-        return specificity(type) == 2 ? type : null;
-    }
-
-    /**
-     * Whether the acceptable combined types of accepted and produced types, not only the most
-     * acceptable one, include {@code *}{@code /*} or {@code application/*}: without a concrete
-     * type, the response type is then {@code application/octet-stream} (JAX-RS 3.8, step 9).
-     */
-    private static boolean octetStreamFallback(List<MediaType> accepted, List<MediaType> produces) {
-        for (MediaType accept : accepted) {
-            if (accept.getQualityAsNumber().doubleValue() <= 0) {
-                continue;
-            }
-            for (MediaType produce : produces) {
-                if (!accept.matches(produce) && !produce.matches(accept)) {
-                    continue;
-                }
-                MediaType type = specificity(produce) >= specificity(accept) ? produce : accept;
-                if (specificity(type) == 0 || specificity(type) == 1 && "application".equals(type.getType())) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    /**
-     * How closely a content type matches the consumed types: 2 for a type, 1 for a type with a
-     * wildcard subtype, 0 for any type, -1 when no consumed type matches.
-     */
-    private static int consumes(MediaType contentType, List<MediaType> consumes) {
-        int best = -1;
-        for (MediaType consumed : consumes) {
-            if (consumed.matches(contentType) || contentType.matches(consumed)) {
-                best = Math.max(best, specificity(consumed));
-            }
-        }
-        return best;
-    }
-
-    private static @Nullable Negotiated negotiate(List<MediaType> accepted, List<MediaType> produces) {
-        Negotiated best = null;
-        for (MediaType accept : accepted) {
-            double quality = accept.getQualityAsNumber().doubleValue();
-            if (quality <= 0) {
-                // q=0: not acceptable (RFC 9110, 12.4.2)
-                continue;
-            }
-            for (MediaType produce : produces) {
-                if (!accept.matches(produce) && !produce.matches(accept)) {
-                    continue;
-                }
-                // the more specific of the two, with its parameters but q and qs (JAX-RS 3.8)
-                MediaType type = specificity(produce) >= specificity(accept) ? produce : accept;
-                if (overridden(accepted, accept, type)) {
-                    continue;
-                }
-                // the wildcard components of one matched against concrete ones of the other (JAX-RS 3.7.2)
-                int distance = Math.abs(specificity(produce) - specificity(accept));
-                Negotiated negotiated = new Negotiated(withoutQuality(type), quality, qs(produce), distance);
-                if (best == null || negotiated.compareTo(best) > 0) {
-                    best = negotiated;
-                }
-            }
-        }
-        return best;
-    }
-
-    /**
-     * Whether an accepted range more specific than the matching one also covers a type: the most
-     * specific range determines the quality (RFC 9110, 12.5.1), also a nonzero one, so the
-     * matching range does not apply. A range with parameters is more specific than the same
-     * range without them, and covers only a type with the same parameters.
-     */
-    private static boolean overridden(List<MediaType> accepted, MediaType matching, MediaType type) {
-        for (MediaType accept : accepted) {
-            if (moreSpecific(accept, matching)
-                && accept.matches(type)
-                && parametersMatch(accept, type)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean moreSpecific(MediaType range, MediaType other) {
-        int specificity = Integer.compare(specificity(range), specificity(other));
-        if (specificity != 0) {
-            return specificity > 0;
-        }
-        return parameterCount(range) > parameterCount(other);
-    }
-
-    /**
-     * Whether a type has every parameter of a range, but {@code q} and {@code qs}.
-     */
-    private static boolean parametersMatch(MediaType range, MediaType type) {
-        for (CharSequence parameter : range.getParameters()) {
-            String name = parameter.toString();
-            if (MediaType.Q_PARAMETER.equals(name) || QS.equals(name)) {
-                continue;
-            }
-            String value = type.getParameters().get(name).orElse(null);
-            if (value == null || !value.equalsIgnoreCase(range.getParameters().get(name).orElse(null))) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private static int parameterCount(MediaType type) {
-        int count = 0;
-        for (CharSequence parameter : type.getParameters()) {
-            String name = parameter.toString();
-            if (!MediaType.Q_PARAMETER.equals(name) && !QS.equals(name)) {
-                count++;
-            }
-        }
-        return count;
-    }
-
-    private static MediaType withoutQuality(MediaType type) {
-        Map<String, String> parameters = new LinkedHashMap<>();
-        type.getParameters().forEach((name, value) -> {
-            String key = name.toString();
-            if (!MediaType.Q_PARAMETER.equals(key) && !QS.equals(key)) {
-                parameters.put(key, value);
-            }
-        });
-        return new MediaType(type.getType() + "/" + type.getSubtype(), parameters);
-    }
-
-    private static int specificity(MediaType type) {
-        if (WILDCARD.equals(type.getType())) {
-            return 0;
-        }
-        return WILDCARD.equals(type.getSubtype()) ? 1 : 2;
-    }
-
-    private static double qs(MediaType type) {
-        String qs = type.getParameters().get(QS).orElse(null);
-        return qs == null ? 1 : Double.parseDouble(qs);
     }
 
     /**
@@ -530,7 +241,18 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
         return name + LOCATOR_MARK + fromLast;
     }
 
-        /**
+    /**
+     * The description of the structure of a route template: the one a template of this engine
+     * parsed once, else one parsed now.
+     *
+     * @param template The template of a route
+     * @return Its description
+     */
+    static JaxRsTemplateDescription description(RouteTemplate template) {
+        return template instanceof Parsed parsed ? parsed.description() : JaxRsTemplateDescription.of(template.expression());
+    }
+
+    /**
      * @param expression A template, possibly with the marks of its root resource class and locators
      * @return The template as it was written, without the marks
      */
@@ -584,7 +306,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
      * @param path The raw path
      * @return The path, the same instance if it has no matrix parameters
      */
-    private static String withoutMatrixParameters(String path) {
+    static String withoutMatrixParameters(String path) {
         return path.indexOf(';') < 0 ? path : withoutMatrixParameters(path, null);
     }
 
@@ -712,42 +434,6 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
     }
 
     /**
-     * A combined media type of JAX-RS: compared by specificity, then the quality of the accepted
-     * type, then the {@code qs} of the produced type, then the distance, the smaller the better.
-     *
-     * @param type     The media type
-     * @param q        The quality of the accepted type
-     * @param qs       The quality of the produced type
-     * @param distance The distance of the types
-     */
-    private record Negotiated(MediaType type, double q, double qs, int distance) implements Comparable<Negotiated> {
-        @Override
-        public int compareTo(Negotiated other) {
-            int result = Integer.compare(specificity(type), specificity(other.type));
-            if (result == 0) {
-                result = Double.compare(q, other.q);
-            }
-            if (result == 0) {
-                result = Double.compare(qs, other.qs);
-            }
-            if (result == 0) {
-                result = Integer.compare(other.distance, distance);
-            }
-            return result;
-        }
-    }
-
-    /**
-     * A root resource class: its template, and the pattern of the paths it matches.
-     *
-     * @param template     The template
-     * @param pattern      The pattern of the paths it matches
-     * @param subResources Whether the class has sub-resource methods or locators
-     */
-    private record Root(Parsed template, Pattern pattern, boolean subResources) {
-    }
-
-    /**
      * A literal part, or a variable.
      *
      * @param text     The literal text
@@ -757,6 +443,23 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
     private record Part(@Nullable String text, @Nullable String variable, @Nullable String regex) {
         static Part literal(String text) {
             return new Part(text, null, null);
+        }
+    }
+
+    /**
+     * The compiled pattern of a template, published as a whole.
+     *
+     * @param pattern The pattern
+     * @param groups  The groups of the variables in the pattern, in the order of the variables
+     */
+    private record Compiled(Pattern pattern, List<Integer> groups) {
+
+        RouteCaptures captures(String path, Matcher matcher, List<RouteTemplateVariable> variables) {
+            List<@Nullable String> values = new ArrayList<>(groups.size());
+            for (int group : groups) {
+                values.add(matcher.group(group));
+            }
+            return RouteCaptures.of(path, variables, values);
         }
     }
 
@@ -771,9 +474,11 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
         private final @Nullable Parsed rootPart;
         private final int locators;
         private final List<RouteTemplateVariable> variables;
-        private @Nullable Pattern pattern;
-        private @Nullable Pattern prefixPattern;
-        private @Nullable List<Integer> groups;
+        private final int rawLength;
+        private final int patternVariableCount;
+        private volatile @Nullable Compiled compiled;
+        private volatile @Nullable Pattern prefixPattern;
+        private volatile @Nullable JaxRsTemplateDescription description;
 
         /**
          * @param engine     The engine that parsed it, or {@code null} for the template of a root resource class
@@ -789,6 +494,16 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
             this.rootPart = rootPart;
             this.locators = locators;
             this.variables = variables(parts);
+            int length = 0;
+            int regexVariables = 0;
+            for (Part part : parts) {
+                length += part.text != null ? part.text.length() : 0;
+                if (part.regex != null) {
+                    regexVariables++;
+                }
+            }
+            this.rawLength = length;
+            this.patternVariableCount = regexVariables;
         }
 
         /**
@@ -803,6 +518,18 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
             return expression;
         }
 
+        /**
+         * @return The description of its structure, parsed when first used
+         */
+        JaxRsTemplateDescription description() {
+            JaxRsTemplateDescription d = description;
+            if (d == null) {
+                d = JaxRsTemplateDescription.of(expression);
+                description = d;
+            }
+            return d;
+        }
+
         @Override
         public List<RouteTemplateVariable> variables() {
             return variables;
@@ -811,8 +538,9 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
         @Override
         public @Nullable RouteCaptures match(String rawPath) {
             String normalized = UriTemplateMatcher.normalizeForMatching(withoutMatrixParameters(rawPath));
-            Matcher matcher = pattern().matcher(normalized);
-            return matcher.matches() ? captures(normalized, matcher) : null;
+            Compiled c = compiled();
+            Matcher matcher = c.pattern.matcher(normalized);
+            return matcher.matches() ? c.captures(normalized, matcher, variables) : null;
         }
 
         /**
@@ -837,31 +565,27 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
             int end = matcher.start(rest) < 0 ? path.length() : matcher.start(rest);
             int rawEnd = indexes[end];
             String matched = rawEnd == 0 ? "/" : rawPath.substring(0, rawEnd);
-            Matcher variables = pattern().matcher(UriTemplateMatcher.normalizeForMatching(path.substring(0, end)));
-            if (!variables.matches()) {
+            Compiled c = compiled();
+            Matcher variableMatcher = c.pattern.matcher(UriTemplateMatcher.normalizeForMatching(path.substring(0, end)));
+            if (!variableMatcher.matches()) {
                 return null;
             }
-            return captures(matched, variables);
+            return c.captures(matched, variableMatcher, variables);
         }
 
-        private RouteCaptures captures(String path, Matcher matcher) {
-            List<Integer> g = Objects.requireNonNull(groups);
-            List<@Nullable String> values = new ArrayList<>(g.size());
-            for (int group : g) {
-                values.add(matcher.group(group));
+        /**
+         * The compiled pattern, when first used: compiling it validates the regular expressions
+         * of the template.
+         */
+        private Compiled compiled() {
+            Compiled c = compiled;
+            if (c == null) {
+                List<Integer> groups = new ArrayList<>();
+                Pattern pattern = Pattern.compile(regex(withoutTrailingSlash(parts), groups).toString());
+                c = new Compiled(pattern, List.copyOf(groups));
+                compiled = c;
             }
-            return RouteCaptures.of(path, variables, values);
-        }
-
-        private Pattern pattern() {
-            Pattern p = pattern;
-            if (p == null) {
-                List<Integer> g = new ArrayList<>();
-                p = Pattern.compile(regex(withoutTrailingSlash(parts), g).toString());
-                groups = List.copyOf(g);
-                pattern = p;
-            }
-            return p;
+            return c;
         }
 
         @Override
@@ -871,7 +595,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
                 // the root resource class is matched under the prefix
                 engine.addRoot(mounted.rootPart, rootPart, hasSubResource(mounted.expression));
                 if (rootPart != null && !rootPart.expression.equals(mounted.rootPart.expression)) {
-                    engine.mountedRoots.put(rootPart.expression, mounted.rootPart);
+                    engine.selector.mount(rootPart.expression, mounted.rootPart);
                 }
             }
             return mounted;
@@ -916,11 +640,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
 
         @Override
         public int rawLength() {
-            int length = 0;
-            for (Part part : parts) {
-                length += part.text != null ? part.text.length() : 0;
-            }
-            return length;
+            return rawLength;
         }
 
         @Override
@@ -930,13 +650,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
 
         @Override
         public int patternVariableCount() {
-            int count = 0;
-            for (Part part : parts) {
-                if (part.regex != null) {
-                    count++;
-                }
-            }
-            return count;
+            return patternVariableCount;
         }
 
         @Override

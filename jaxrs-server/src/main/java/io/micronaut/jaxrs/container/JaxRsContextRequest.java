@@ -84,10 +84,20 @@ final class JaxRsContextRequest implements Request {
         if (!vary.isEmpty()) {
             request().setAttribute(VARY, String.join(", ", vary));
         }
+        // the accepted ranges, parsed once: an invalid one is ignored, as by the route negotiation
+        List<AcceptedRange> ranges = new ArrayList<>(accept.size());
+        for (Weighted weighted : accept) {
+            try {
+                ranges.add(new AcceptedRange(MediaType.valueOf(weighted.value), weighted.quality));
+            } catch (IllegalArgumentException e) {
+                // ignored
+            }
+        }
+        boolean anyAccept = !accept.isEmpty();
         Variant best = null;
         double bestScore = 0;
         for (Variant variant : variants) {
-            double score = mediaTypeScore(accept, variant.getMediaType())
+            double score = mediaTypeScore(anyAccept, ranges, variant.getMediaType())
                 * languageScore(languages, variant.getLanguage())
                 * encodingScore(encodings, variant.getEncoding());
             if (score > bestScore) {
@@ -281,8 +291,8 @@ final class JaxRsContextRequest implements Request {
         return opaque(tag).equals(eTag.getValue());
     }
 
-    private static double mediaTypeScore(List<Weighted> accept, @Nullable MediaType mediaType) {
-        if (mediaType == null || accept.isEmpty()) {
+    private static double mediaTypeScore(boolean anyAccept, List<AcceptedRange> accept, @Nullable MediaType mediaType) {
+        if (mediaType == null || !anyAccept) {
             return 1;
         }
         // the most specific accepted range determines the quality (RFC 9110, 12.5.1); a range with
@@ -296,22 +306,16 @@ final class JaxRsContextRequest implements Request {
     /**
      * @return The score of the most specific matching range, -1 if none matches
      */
-    private static double mediaTypeScore(List<Weighted> accept, MediaType mediaType, boolean withParameters) {
+    private static double mediaTypeScore(List<AcceptedRange> accept, MediaType mediaType, boolean withParameters) {
         double best = -1;
         int bestSpecificity = -1;
-        for (Weighted weighted : accept) {
-            MediaType accepted;
-            try {
-                accepted = MediaType.valueOf(weighted.value);
-            } catch (IllegalArgumentException e) {
-                // an invalid media range is ignored, as by the route negotiation
-                continue;
-            }
+        for (AcceptedRange range : accept) {
+            MediaType accepted = range.type;
             if (accepted.isCompatible(mediaType) && (!withParameters || parametersMatch(accepted, mediaType))) {
                 int level = accepted.isWildcardType() ? 0 : accepted.isWildcardSubtype() ? 1 : 2;
                 int specificity = withParameters ? level * 1000 + parameterCount(accepted) : level;
                 // a more specific accepted type counts more
-                double score = weighted.quality * (level == 0 ? 0.98 : level == 1 ? 0.99 : 1);
+                double score = range.quality * (level == 0 ? 0.98 : level == 1 ? 0.99 : 1);
                 if (specificity > bestSpecificity) {
                     bestSpecificity = specificity;
                     best = score;
@@ -437,5 +441,14 @@ final class JaxRsContextRequest implements Request {
      * @param quality The quality
      */
     private record Weighted(String value, double quality) {
+    }
+
+    /**
+     * An accepted media range, parsed.
+     *
+     * @param type    The range
+     * @param quality Its quality
+     */
+    private record AcceptedRange(MediaType type, double quality) {
     }
 }

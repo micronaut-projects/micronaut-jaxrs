@@ -39,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 /**
@@ -52,6 +53,14 @@ import java.util.function.Function;
 final class MetadataJaxRsReflection implements JaxRsReflection {
 
     private static final String MICRONAUT_ANNOTATIONS = "io.micronaut.";
+
+    // the application annotations of the methods of a class, by executable method or by MethodKey
+    private static final ClassValue<Map<Object, MethodAnnotations>> METHOD_ANNOTATIONS = new ClassValue<>() {
+        @Override
+        protected Map<Object, MethodAnnotations> computeValue(Class<?> type) {
+            return new ConcurrentHashMap<>();
+        }
+    };
 
     @Override
     public boolean isReflective() {
@@ -112,16 +121,28 @@ final class MetadataJaxRsReflection implements JaxRsReflection {
 
     @Override
     public AnnotationMetadata methodAnnotations(ExecutableMethod<?, ?> method) {
-        return applicationAnnotations(method.getAnnotationMetadata());
+        return methodAnnotationsOf(method).metadata();
+    }
+
+    private static MethodAnnotations methodAnnotationsOf(ExecutableMethod<?, ?> method) {
+        return METHOD_ANNOTATIONS.get(method.getDeclaringType())
+            .computeIfAbsent(method, m -> new MethodAnnotations(applicationAnnotations(method.getAnnotationMetadata())));
     }
 
     @Override
     public AnnotationMetadata methodAnnotations(Class<?> type, String name, Class<?>... parameterTypes) {
+        MethodAnnotations cached = METHOD_ANNOTATIONS.get(type).get(new MethodKey(name, List.of(parameterTypes)));
+        if (cached != null) {
+            return cached.metadata();
+        }
         BeanIntrospection<?> introspection = introspection(type);
         if (introspection != null) {
             for (BeanMethod<?, Object> method : introspection.getBeanMethods()) {
                 if (method.getName().equals(name) && Arrays.equals(Argument.toClassArray(method.getArguments()), parameterTypes)) {
-                    return applicationAnnotations(method.getAnnotationMetadata());
+                    return METHOD_ANNOTATIONS.get(type)
+                        .computeIfAbsent(new MethodKey(name, List.of(parameterTypes)),
+                            key -> new MethodAnnotations(applicationAnnotations(method.getAnnotationMetadata())))
+                        .metadata();
                 }
             }
         }
@@ -153,7 +174,8 @@ final class MetadataJaxRsReflection implements JaxRsReflection {
 
     @Override
     public Annotation[] annotations(ExecutableMethod<?, ?> method) {
-        return methodAnnotations(method).synthesizeAll();
+        // a copy, which the caller may change
+        return methodAnnotationsOf(method).annotations().clone();
     }
 
     @Override
@@ -233,5 +255,39 @@ final class MetadataJaxRsReflection implements JaxRsReflection {
 
     private static String unsupported(String what) {
         return what + " needs reflection: add io.micronaut:micronaut-reflection to the runtime classpath";
+    }
+
+    /**
+     * The name and the parameter types of a method.
+     *
+     * @param name           The name
+     * @param parameterTypes The parameter types
+     */
+    private record MethodKey(String name, List<Class<?>> parameterTypes) {
+    }
+
+    /**
+     * The application annotations of a method, as metadata and synthesized once.
+     */
+    private static final class MethodAnnotations {
+        private final AnnotationMetadata metadata;
+        private volatile Annotation @Nullable [] annotations;
+
+        MethodAnnotations(AnnotationMetadata metadata) {
+            this.metadata = metadata;
+        }
+
+        AnnotationMetadata metadata() {
+            return metadata;
+        }
+
+        Annotation[] annotations() {
+            Annotation[] synthesized = annotations;
+            if (synthesized == null) {
+                synthesized = metadata.synthesizeAll();
+                annotations = synthesized;
+            }
+            return synthesized;
+        }
     }
 }

@@ -19,6 +19,7 @@ import io.micronaut.context.BeanContext;
 import io.micronaut.context.BeanRegistration;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.type.Argument;
+import io.micronaut.inject.BeanDefinition;
 import io.micronaut.inject.qualifiers.MatchArgumentQualifier;
 import io.micronaut.jaxrs.common.JaxRsContainerMessageBodyHandlerRegistry;
 import io.micronaut.jaxrs.common.JaxRsUtils;
@@ -42,6 +43,8 @@ import java.lang.reflect.Type;
 import java.util.List;
 import java.util.Comparator;
 import java.util.ArrayList;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * The JAX-RS {@link Providers}.
@@ -53,6 +56,9 @@ import java.util.ArrayList;
 @Singleton
 final class JaxRsProviders implements Providers {
     private final BeanContext beanContext;
+    // what is known of the exception mappers and of the context resolvers, by bean definition
+    private final Map<BeanDefinition<?>, MapperMetadata> mappers = new ConcurrentHashMap<>();
+    private final Map<BeanDefinition<?>, ResolverMetadata> resolvers = new ConcurrentHashMap<>();
 
     JaxRsProviders(BeanContext beanContext) {
         this.beanContext = beanContext;
@@ -117,13 +123,13 @@ final class JaxRsProviders implements Providers {
         int nearestPriority = Integer.MAX_VALUE;
         for (BeanRegistration<ExceptionMapper> registration : beanContext.getBeanRegistrations(ExceptionMapper.class,
                 MatchArgumentQualifier.contravariant(ExceptionMapper.class, Argument.of(type)))) {
+            MapperMetadata metadata = mappers.computeIfAbsent(registration.getBeanDefinition(), MapperMetadata::of);
             if (!registry.isRegistered(registration.getBeanDefinition().getBeanType(), ExceptionMapper.class)
-                || !JaxRsUtils.isServerProvider(registration.getBeanDefinition().getAnnotationMetadata())) {
+                || !metadata.server()) {
                 // not registered, or constrained to the client (@ConstrainedTo)
                 continue;
             }
-            List<Argument<?>> arguments = registration.getBeanDefinition().getTypeArguments(ExceptionMapper.class);
-            Class<?> mapped = arguments.isEmpty() ? Throwable.class : arguments.get(0).getType();
+            Class<?> mapped = metadata.mapped();
             int distance = 0;
             for (Class<?> t = type; t != null && t != mapped; t = t.getSuperclass()) {
                 distance++;
@@ -148,21 +154,22 @@ final class JaxRsProviders implements Providers {
         JaxRsContainerMessageBodyHandlerRegistry registry = registry();
         List<Candidate<T>> candidates = new ArrayList<>();
         for (BeanRegistration<ContextResolver> registration : beanContext.getBeanRegistrations(ContextResolver.class)) {
-            List<Argument<?>> arguments = registration.getBeanDefinition().getTypeArguments(ContextResolver.class);
+            ResolverMetadata metadata = resolvers.computeIfAbsent(registration.getBeanDefinition(), ResolverMetadata::of);
             // a raw resolver, whose context type is not known, may resolve the context type too: its
             // contexts are checked, see below
-            boolean known = !arguments.isEmpty();
-            if (known && !contextType.isAssignableFrom(arguments.get(0).getType())) {
+            Class<?> resolved = metadata.contextType();
+            boolean known = resolved != null;
+            if (resolved != null && !contextType.isAssignableFrom(resolved)) {
                 // the generic type of the resolver is assignable to the context type, e.g. not the
                 // one of a resolver of objects for integers
                 continue;
             }
             if (!registry.isRegistered(registration.getBeanDefinition().getBeanType(), ContextResolver.class)
-                || !JaxRsUtils.isServerProvider(registration.getBeanDefinition().getAnnotationMetadata())) {
+                || !metadata.server()) {
                 // not registered, or constrained to the client (@ConstrainedTo)
                 continue;
             }
-            int specificity = specificity(registration.getBeanDefinition().getAnnotationMetadata().stringValues(Produces.class), mediaType);
+            int specificity = specificity(metadata.produces(), mediaType);
             if (specificity >= 0) {
                 candidates.add(new Candidate<>((ContextResolver<T>) registration.getBean(), specificity, known));
             }
@@ -192,13 +199,12 @@ final class JaxRsProviders implements Providers {
      * How specifically a context resolver produces a media type: 2 for the type, 1 for a type with a
      * wildcard subtype, 0 for any type, and -1 if it does not produce it.
      */
-    private static int specificity(String[] produces, MediaType mediaType) {
-        if (produces.length == 0) {
+    private static int specificity(List<MediaType> produces, MediaType mediaType) {
+        if (produces.isEmpty()) {
             return 0;
         }
         int best = -1;
-        for (String value : produces) {
-            MediaType produced = MediaType.valueOf(value);
+        for (MediaType produced : produces) {
             if (produced.isCompatible(mediaType)) {
                 int specificity = produced.isWildcardType() ? 0 : produced.isWildcardSubtype() ? 1 : 2;
                 best = Math.max(best, specificity);
@@ -216,5 +222,38 @@ final class JaxRsProviders implements Providers {
      * @param <T>         The type of the context
      */
     private record Candidate<T>(ContextResolver<T> resolver, int specificity, boolean known) {
+    }
+
+    /**
+     * What is known of an exception mapper, read once.
+     *
+     * @param mapped The type of the exceptions it maps
+     * @param server Whether the server uses it, see {@link JaxRsUtils#isServerProvider}
+     */
+    private record MapperMetadata(Class<?> mapped, boolean server) {
+        static MapperMetadata of(BeanDefinition<?> definition) {
+            List<Argument<?>> arguments = definition.getTypeArguments(ExceptionMapper.class);
+            return new MapperMetadata(arguments.isEmpty() ? Throwable.class : arguments.get(0).getType(),
+                JaxRsUtils.isServerProvider(definition.getAnnotationMetadata()));
+        }
+    }
+
+    /**
+     * What is known of a context resolver, read once.
+     *
+     * @param contextType The type of its contexts, {@code null} for a raw resolver
+     * @param produces    The media types of its {@code @Produces}
+     * @param server      Whether the server uses it, see {@link JaxRsUtils#isServerProvider}
+     */
+    private record ResolverMetadata(@Nullable Class<?> contextType, List<MediaType> produces, boolean server) {
+        static ResolverMetadata of(BeanDefinition<?> definition) {
+            List<Argument<?>> arguments = definition.getTypeArguments(ContextResolver.class);
+            List<MediaType> produces = new ArrayList<>();
+            for (String value : definition.getAnnotationMetadata().stringValues(Produces.class)) {
+                produces.add(MediaType.valueOf(value));
+            }
+            return new ResolverMetadata(arguments.isEmpty() ? null : arguments.get(0).getType(), List.copyOf(produces),
+                JaxRsUtils.isServerProvider(definition.getAnnotationMetadata()));
+        }
     }
 }

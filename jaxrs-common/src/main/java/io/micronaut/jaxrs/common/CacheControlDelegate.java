@@ -56,7 +56,7 @@ class CacheControlDelegate implements RuntimeDelegate.HeaderDelegate<CacheContro
         for (String directive : directives(value)) {
             int eq = directive.indexOf('=');
             String name = (eq < 0 ? directive : directive.substring(0, eq)).trim();
-            String val = eq < 0 ? null : unquote(directive.substring(eq + 1).trim());
+            String val = eq < 0 ? null : JaxRsHeaderUtil.unquote(directive.substring(eq + 1).trim());
 
             String lowercase = name.toLowerCase();
             switch (lowercase) {
@@ -101,43 +101,13 @@ class CacheControlDelegate implements RuntimeDelegate.HeaderDelegate<CacheContro
      */
     private static List<String> directives(String value) {
         var directives = new ArrayList<String>();
-        boolean quoted = false;
-        int start = 0;
-        for (int i = 0; i < value.length(); i++) {
-            char c = value.charAt(i);
-            if (quoted && c == '\\') {
-                i++;
-            } else if (c == '"') {
-                quoted = !quoted;
-            } else if (c == ',' && !quoted) {
-                addDirective(value.substring(start, i), directives);
-                start = i + 1;
+        for (String directive : JaxRsHeaderUtil.split(value, ",")) {
+            String trimmed = directive.trim();
+            if (!trimmed.isEmpty()) {
+                directives.add(trimmed);
             }
         }
-        addDirective(value.substring(start), directives);
         return directives;
-    }
-
-    private static void addDirective(String directive, List<String> directives) {
-        String trimmed = directive.trim();
-        if (!trimmed.isEmpty()) {
-            directives.add(trimmed);
-        }
-    }
-
-    private static String unquote(String value) {
-        if (value.length() < 2 || !value.startsWith("\"") || !value.endsWith("\"")) {
-            return value;
-        }
-        var buffer = new StringBuilder(value.length());
-        for (int i = 1; i < value.length() - 1; i++) {
-            char c = value.charAt(i);
-            if (c == '\\' && i + 1 < value.length() - 1) {
-                c = value.charAt(++i);
-            }
-            buffer.append(c);
-        }
-        return buffer.toString();
     }
 
     private static void addFields(@Nullable String value, List<String> fields) {

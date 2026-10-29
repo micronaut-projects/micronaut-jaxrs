@@ -83,11 +83,11 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
     }
 
     /**
-     * The reader interceptor beans, and the ones of the resource method of the current request.
+     * The reader interceptors of the resource method of the current request, bound and ordered,
+     * {@code null} if there are none at all, see {@link JaxRsRouteInterceptors#bound}.
      */
-    private List<BeanRegistration<ReaderInterceptor>> readerInterceptors() {
-        return JaxRsRouteInterceptors.merge(features.registered(readerInterceptorsRegsRegistrations, ReaderInterceptor.class), features.readerInterceptors(),
-            interceptor -> features.priority(interceptor, ReaderInterceptor.class));
+    private @Nullable List<ReaderInterceptor> readerInterceptors() {
+        return features.bound(readerInterceptorsRegsRegistrations, ReaderInterceptor.class, nameBindingPredicate);
     }
 
     /**
@@ -128,11 +128,11 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
     public @Nullable Object readEntity(Argument<?> type, @Nullable MediaType contentType, Headers httpHeaders, InputStream entity,
                                        EntityReader reader) {
         MediaType mediaType = mediaType(contentType);
-        List<BeanRegistration<ReaderInterceptor>> interceptors = readerInterceptors();
-        if (interceptors.isEmpty()) {
+        List<ReaderInterceptor> interceptors = readerInterceptors();
+        if (interceptors == null) {
             return reader.read((Argument) type, mediaType, httpHeaders, entity);
         }
-        return new JaxRsInterceptedRead<Object>(interceptors, JaxRsRouteInterceptors.predicate(nameBindingPredicate)) {
+        return new JaxRsInterceptedRead<Object>(interceptors) {
 
             @Override
             protected @Nullable Object readFromAfterInterception(Argument<Object> type, @Nullable MediaType mediaType, Headers httpHeaders, InputStream inputStream) {
@@ -162,8 +162,8 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
     @Override
     public @Nullable T read(@NonNull Argument<T> type, @Nullable MediaType contentType, @NonNull Headers httpHeaders, @NonNull ByteBuffer<?> byteBuffer) throws CodecException {
         MediaType mediaType = mediaType(contentType);
-        List<BeanRegistration<ReaderInterceptor>> interceptors = readerInterceptors();
-        if (interceptors.isEmpty()) {
+        List<ReaderInterceptor> interceptors = readerInterceptors();
+        if (interceptors == null) {
             Optional<MessageBodyReader<T>> reader = registry.findSelectingReader(type, getMediaTypes(mediaType));
             if (reader.isPresent()) {
                 return reader
@@ -171,7 +171,7 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
             }
             throw new CodecException("No reader registered for " + type + " with media type " + mediaType);
         }
-        return new JaxRsInterceptedRead<T>(interceptors, JaxRsRouteInterceptors.predicate(nameBindingPredicate)) {
+        return new JaxRsInterceptedRead<T>(interceptors) {
 
             @Override
             protected @Nullable T readFromAfterInterception(Argument<Object> type, @Nullable MediaType mediaType, Headers httpHeaders, InputStream inputStream) {
@@ -188,15 +188,15 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
     @Override
     public @Nullable T read(@NonNull Argument<T> type, @Nullable MediaType contentType, @NonNull Headers httpHeaders, @NonNull InputStream inputStream) throws CodecException {
         MediaType mediaType = mediaType(contentType);
-        List<BeanRegistration<ReaderInterceptor>> interceptors = readerInterceptors();
-        if (interceptors.isEmpty()) {
+        List<ReaderInterceptor> interceptors = readerInterceptors();
+        if (interceptors == null) {
             Optional<MessageBodyReader<T>> reader = registry.findSelectingReader(type, getMediaTypes(mediaType));
             if (reader.isPresent()) {
                 return reader.get().read(type, mediaType, httpHeaders, inputStream);
             }
             throw new CodecException("No reader found for " + mediaType + " and type " + type);
         }
-        return new JaxRsInterceptedRead<T>(interceptors, JaxRsRouteInterceptors.predicate(nameBindingPredicate)) {
+        return new JaxRsInterceptedRead<T>(interceptors) {
 
             @Override
             protected @Nullable T readFromAfterInterception(Argument<Object> type, @Nullable MediaType mediaType, Headers httpHeaders, InputStream inputStream) {

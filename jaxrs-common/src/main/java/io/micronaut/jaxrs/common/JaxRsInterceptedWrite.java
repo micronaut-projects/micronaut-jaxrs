@@ -18,6 +18,7 @@ package io.micronaut.jaxrs.common;
 import io.micronaut.context.BeanRegistration;
 import io.micronaut.core.annotation.Internal;
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.MediaType;
@@ -45,15 +46,30 @@ public abstract class JaxRsInterceptedWrite<T, S extends JaxRsWriterInterceptorC
 
     private final List<BeanRegistration<WriterInterceptor>> writerInterceptorsRegistrations;
     private final NameBindingPredicate nameBindingPredicate;
+    // the interceptors bound and ordered already, see #JaxRsInterceptedWrite(List)
+    private final @Nullable List<WriterInterceptor> bound;
 
     public JaxRsInterceptedWrite(List<BeanRegistration<WriterInterceptor>> writerInterceptorsRegistrations,
-                                 NameBindingPredicate nameBindingPredicate) {
+                                NameBindingPredicate nameBindingPredicate) {
         this.nameBindingPredicate = nameBindingPredicate;
         if (writerInterceptorsRegistrations.isEmpty()) {
             throw new IllegalStateException("No WriterInterceptor found");
         }
         this.writerInterceptorsRegistrations = new ArrayList<>(writerInterceptorsRegistrations);
         JaxRsUtils.sortRegistrationsByPriority(this.writerInterceptorsRegistrations);
+        this.bound = null;
+    }
+
+    /**
+     * Through interceptors that are bound and ordered already, e.g. the precomputed chain of a
+     * resource method, see {@link JaxRsRouteInterceptors#bound}.
+     *
+     * @param interceptors The interceptors, in their order, possibly none
+     */
+    protected JaxRsInterceptedWrite(List<WriterInterceptor> interceptors) {
+        this.writerInterceptorsRegistrations = List.of();
+        this.nameBindingPredicate = metadata -> true;
+        this.bound = interceptors;
     }
 
     public final void intercept(@NonNull Argument<T> type,
@@ -77,7 +93,7 @@ public abstract class JaxRsInterceptedWrite<T, S extends JaxRsWriterInterceptorC
                                 S state,
                                 @NonNull Map<String, Object> properties) throws CodecException {
         try {
-            List<WriterInterceptor> writerInterceptors = writerInterceptorsRegistrations.stream()
+            List<WriterInterceptor> writerInterceptors = bound != null ? bound : writerInterceptorsRegistrations.stream()
                 .filter(br -> nameBindingPredicate.test(br.getBeanDefinition()))
                 .map(BeanRegistration::getBean)
                 .toList();

@@ -164,17 +164,11 @@ public final class JaxRsUtils {
      * @return The specificity
      */
     public static int mediaTypeSpecificity(String[] declared, List<MediaType> mediaTypes) {
-        int best = 0;
+        List<MediaType> parsed = new ArrayList<>(declared.length);
         for (String value : declared) {
-            MediaType produced = new MediaType(value);
-            for (MediaType mediaType : mediaTypes) {
-                if (isCompatible(produced, mediaType)) {
-                    int specificity = "*".equals(produced.getType()) ? 0 : produced.getSubtype().startsWith("*") ? 1 : 2;
-                    best = Math.max(best, specificity);
-                }
-            }
+            parsed.add(new MediaType(value));
         }
-        return best;
+        return JaxRsProviderSelection.specificity(parsed, mediaTypes);
     }
 
     /**

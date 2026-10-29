@@ -7,18 +7,12 @@ class ResponseCloseSpec extends Specification {
 
     void "close closes an input stream entity"() {
         given:
-        boolean closed = false
-        def stream = new ByteArrayInputStream(new byte[1]) {
-            @Override
-            void close() throws IOException {
-                closed = true
-            }
-        }
+        def stream = new TrackingInputStream(new byte[1])
 
         when:
         Response.ok(stream).build().close()
 
         then:
-        closed
+        stream.closed
     }
 }

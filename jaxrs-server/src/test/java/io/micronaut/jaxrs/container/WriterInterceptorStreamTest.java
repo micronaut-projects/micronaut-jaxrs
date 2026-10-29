@@ -5,6 +5,7 @@ import io.micronaut.context.annotation.Requires;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.client.HttpClient;
 import io.micronaut.http.client.annotation.Client;
+import io.micronaut.http.client.exceptions.HttpClientResponseException;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;
@@ -26,6 +27,7 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * The entity is written to the stream a writer interceptor installs, within proceed(), and the
@@ -50,6 +52,20 @@ class WriterInterceptorStreamTest {
     @Test
     void appendAfterProceed() {
         assertEquals("hello:footer", client.toBlocking().retrieve(HttpRequest.GET("/footer"), String.class));
+    }
+
+    @Test
+    void failureAfterWritingToTheBuffer() {
+        // the buffer the interceptor wrote to is released, the failure is a server error
+        var e = assertThrows(HttpClientResponseException.class,
+            () -> client.toBlocking().retrieve(HttpRequest.GET("/failing"), String.class));
+        assertEquals(500, e.getStatus().getCode());
+        assertEquals("hello:footer", client.toBlocking().retrieve(HttpRequest.GET("/footer"), String.class));
+    }
+
+    @NameBinding
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface Failing {
     }
 
     @NameBinding
@@ -85,6 +101,18 @@ class WriterInterceptorStreamTest {
     }
 
     @Requires(property = "spec.name", value = "WriterInterceptorStreamTest")
+    @Provider
+    @Failing
+    public static class FailingInterceptor implements WriterInterceptor {
+        @Override
+        public void aroundWriteTo(WriterInterceptorContext context) throws IOException {
+            context.getOutputStream().write("partial".getBytes(StandardCharsets.UTF_8));
+            context.proceed();
+            throw new IOException("failed");
+        }
+    }
+
+    @Requires(property = "spec.name", value = "WriterInterceptorStreamTest")
     @Path("/writer-stream")
     public static class WriterStreamResource {
 
@@ -94,6 +122,14 @@ class WriterInterceptorStreamTest {
         @Produces(MediaType.APPLICATION_OCTET_STREAM)
         public String gzip() {
             return "hello".repeat(1000);
+        }
+
+        @GET
+        @Path("failing")
+        @Failing
+        @Produces(MediaType.TEXT_PLAIN)
+        public String failing() {
+            return "hello";
         }
 
         @GET

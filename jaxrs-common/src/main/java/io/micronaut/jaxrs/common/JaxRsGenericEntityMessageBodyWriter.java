@@ -18,6 +18,7 @@ package io.micronaut.jaxrs.common;
 import io.micronaut.context.BeanProvider;
 import io.micronaut.context.BeanRegistration;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.io.buffer.ReadBufferFactory;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import io.micronaut.core.type.Argument;
@@ -102,11 +103,11 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
         }
         T entity = genericEntity.getEntity();
 
-        List<BeanRegistration<WriterInterceptor>> interceptors = writerInterceptors();
-        if (interceptors.isEmpty()) {
+        List<WriterInterceptor> interceptors = writerInterceptors();
+        if (interceptors == null) {
             write(argument, mediaType, entity, outgoingHeaders, outputStream);
         } else {
-            new JaxRsInterceptedWrite<T, JaxRsWriterInterceptorContextState.ClassicState>(interceptors, JaxRsRouteInterceptors.predicate(nameBindingPredicate)) {
+            new JaxRsInterceptedWrite<T, JaxRsWriterInterceptorContextState.ClassicState>(interceptors) {
 
                 @Override
                 protected void writeToAfterInterception(Argument<Object> argument,
@@ -133,14 +134,13 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
     }
 
     /**
-     * The writer interceptor beans, and the ones of the resource method of the current request.
+     * The writer interceptors of the resource method of the current request, bound and ordered,
+     * {@code null} if there are none at all, see {@link JaxRsRouteInterceptors#bound}.
      */
-    private List<BeanRegistration<WriterInterceptor>> writerInterceptors() {
+    private @Nullable List<WriterInterceptor> writerInterceptors() {
         return routeInterceptors.isPresent()
-            ? JaxRsRouteInterceptors.merge(routeInterceptors.get().registered(writerInterceptorsRegistrations, WriterInterceptor.class),
-                routeInterceptors.get().writerInterceptors(),
-                interceptor -> routeInterceptors.get().priority(interceptor, WriterInterceptor.class))
-            : writerInterceptorsRegistrations;
+            ? routeInterceptors.get().bound(writerInterceptorsRegistrations, WriterInterceptor.class, nameBindingPredicate)
+            : JaxRsRouteInterceptors.bind(writerInterceptorsRegistrations, nameBindingPredicate);
     }
 
     private <K> void write(Argument<K> argument, MediaType mediaType, K entity, MutableHeaders outgoingHeaders, OutputStream outputStream) {
@@ -231,15 +231,19 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
          * {@link io.micronaut.http.body.ByteBody} through an {@link OutputStream}.
          */
         boolean outputIntercepted = false;
-        // TODO: we can use https://github.com/micronaut-projects/micronaut-core/pull/11934 in core 4.10.x
         /**
-         * Destination buffer that will be turned into the final
+         * Destination buffer supplied by a response filter, which will be turned into the final
          * {@link io.micronaut.http.body.ByteBody}.
          */
         @Nullable
-        ByteArrayOutputStream bufferStream;
+        ByteArrayOutputStream delegateStream;
         /**
-         * Current stream for {@link #getOutputStream()}. Sometimes it's {@link #bufferStream},
+         * Destination buffer created here, which will be turned into the final
+         * {@link io.micronaut.http.body.ByteBody} without a copy.
+         */
+        ReadBufferFactory.@Nullable BufferingOutputStream buffer;
+        /**
+         * Current stream for {@link #getOutputStream()}. Sometimes it's the buffer,
          * sometimes it's a wrapper around it, etc.
          */
         @Nullable
@@ -247,7 +251,7 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
 
         /**
          * {@link CloseableByteBody} from the downstream {@link ResponseBodyWriter}. At the end of
-         * {@link #run()}, this is replaced by the data from {@link #bufferStream} if applicable.
+         * {@link #run()}, this is replaced by the data of the buffer if applicable.
          */
         @Nullable
         CloseableByteBody body;
@@ -271,7 +275,7 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
                 ByteArrayOutputStream delegateEntityStream = jaxRsGenericEntity.getDelegateEntityStream();
                 if (delegateEntityStream != null) {
                     outputIntercepted = true;
-                    bufferStream = delegateEntityStream;
+                    delegateStream = delegateEntityStream;
                     outputStream = delegateEntityStream;
                 }
                 OutputStream customEntityStream = jaxRsGenericEntity.getCustomEntityStream();
@@ -297,8 +301,7 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
         @Override
         public OutputStream getOutputStream() {
             if (!outputIntercepted) {
-                bufferStream = new ByteArrayOutputStream();
-                outputStream = bufferStream;
+                outputStream = newBuffer();
                 outputIntercepted = true;
                 // e.g. an interceptor appending to the entity after proceed()
                 transferWritten();
@@ -311,12 +314,35 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
             if (!outputIntercepted) {
                 // this will probably remain empty, but that's what the caller wants if they didn't
                 // call getOutputStream first
-                bufferStream = new ByteArrayOutputStream();
-                this.outputStream = bufferStream;
+                this.outputStream = newBuffer();
                 outputIntercepted = true;
                 transferWritten();
             }
             this.outputStream = outputStream;
+        }
+
+        /**
+         * A new buffer of the body factory, the end of the chain of the interceptors' streams.
+         */
+        private OutputStream newBuffer() {
+            ReadBufferFactory.BufferingOutputStream newBuffer = bodyFactory.readBufferFactory().outputStreamBuffer();
+            buffer = newBuffer;
+            return newBuffer.stream();
+        }
+
+        /**
+         * Release the buffer created here, e.g. when the interceptors fail.
+         */
+        private void closeBuffer() {
+            ReadBufferFactory.BufferingOutputStream current = buffer;
+            if (current != null) {
+                buffer = null;
+                try {
+                    current.close();
+                } catch (IOException e) {
+                    // discarding the content, nothing is left to release
+                }
+            }
         }
 
         @Override
@@ -351,12 +377,21 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
         }
 
         final void run() {
-            List<BeanRegistration<WriterInterceptor>> interceptors = writerInterceptors();
-            if (interceptors.isEmpty()) {
+            try {
+                run0();
+            } catch (RuntimeException e) {
+                closeBuffer();
+                throw e;
+            }
+        }
+
+        private void run0() {
+            List<WriterInterceptor> interceptors = writerInterceptors();
+            if (interceptors == null) {
                 writeInner();
             } else {
                 try {
-                    new JaxRsInterceptedWrite<T, ByteBodyState>(interceptors, JaxRsRouteInterceptors.predicate(nameBindingPredicate)) {
+                    new JaxRsInterceptedWrite<T, ByteBodyState>(interceptors) {
 
                         @Override
                         protected void writeToAfterInterception(Argument<Object> argument,
@@ -383,10 +418,16 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
             if (outputIntercepted) {
                 try {
                     finish();
+                    ReadBufferFactory.BufferingOutputStream current = buffer;
+                    if (current != null) {
+                        buffer = null;
+                        body = bodyFactory.adapt(current.finishBuffer());
+                    } else {
+                        body = bodyFactory.adapt(Objects.requireNonNull(delegateStream).toByteArray());
+                    }
                 } catch (IOException e) {
                     throw JaxRsIOException.writing(e);
                 }
-                body = bodyFactory.adapt(Objects.requireNonNull(bufferStream).toByteArray());
             }
         }
 

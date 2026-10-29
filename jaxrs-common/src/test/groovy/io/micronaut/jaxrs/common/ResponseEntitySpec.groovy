@@ -13,13 +13,7 @@ class ResponseEntitySpec extends Specification {
 
     void "readEntity of an input stream does not close the stream nor the response"() {
         given:
-        boolean closed = false
-        def stream = new ByteArrayInputStream("abc".bytes) {
-            @Override
-            void close() throws IOException {
-                closed = true
-            }
-        }
+        def stream = new TrackingInputStream("abc".bytes)
         def response = received("ignored")
         response.setEntityStream(stream)
 
@@ -28,7 +22,7 @@ class ResponseEntitySpec extends Specification {
 
         then:
         read.is(stream)
-        !closed
+        !stream.closed
         read.text == "abc"
 
         when: "the stream was consumed"
@@ -41,24 +35,18 @@ class ResponseEntitySpec extends Specification {
         response.close()
 
         then:
-        closed
+        stream.closed
     }
 
     void "readEntity of another type closes the entity stream"() {
         given:
-        boolean closed = false
-        def stream = new ByteArrayInputStream("abc".bytes) {
-            @Override
-            void close() throws IOException {
-                closed = true
-            }
-        }
+        def stream = new TrackingInputStream("abc".bytes)
         def response = received("ignored")
         response.setEntityStream(stream)
 
         expect:
         response.readEntity(String) == "abc"
-        closed
+        stream.closed
 
         when: "the entity was consumed, as the TCK expects"
         response.getEntity()
@@ -193,18 +181,12 @@ class ResponseEntitySpec extends Specification {
 
     void "an input stream entity is buffered"() {
         given:
-        boolean closed = false
-        def stream = new ByteArrayInputStream("abc".bytes) {
-            @Override
-            void close() throws IOException {
-                closed = true
-            }
-        }
+        def stream = new TrackingInputStream("abc".bytes)
         def response = Response.ok(stream).build()
 
         expect:
         response.bufferEntity()
-        closed
+        stream.closed
         response.readEntity(String) == "abc"
         response.readEntity(String) == "abc"
     }

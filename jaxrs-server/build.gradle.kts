@@ -39,7 +39,7 @@ dependencies {
 noReflection {
     // reflection is used only through JaxRsReflection, when the micronaut-reflection module is on the classpath
     // the parameter converters are handed the annotations as Annotation[], synthesized from the metadata
-    allowIn("io.micronaut.jaxrs.container.JaxRsRouteSupport", "ANNOTATION_SYNTHESIS")
+    allowIn("io.micronaut.jaxrs.container.JaxRsParameterBinding", "ANNOTATION_SYNTHESIS")
     // the Feature services
     allowIn("io.micronaut.jaxrs.container.JaxRsFeatures", "SERVICE_LOADING")
     // the Application class named by the configuration

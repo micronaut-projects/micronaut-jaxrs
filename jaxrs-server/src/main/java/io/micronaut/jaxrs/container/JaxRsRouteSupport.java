@@ -33,7 +33,6 @@ import io.micronaut.http.context.ServerRequestContext;
 import io.micronaut.core.beans.BeanIntrospection;
 import io.micronaut.core.beans.BeanMethod;
 import io.micronaut.inject.annotation.AnnotationMetadataHierarchy;
-import io.micronaut.core.beans.BeanProperty;
 import io.micronaut.core.bind.ArgumentBinder;
 import io.micronaut.core.convert.ArgumentConversionContext;
 import io.micronaut.core.convert.ConversionContext;
@@ -82,34 +81,21 @@ import io.micronaut.web.router.builder.RouteSpec;
 import io.micronaut.web.router.spi.RouteMatchSelector;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.BadRequestException;
-import jakarta.ws.rs.BeanParam;
-import jakarta.ws.rs.CookieParam;
-import jakarta.ws.rs.DefaultValue;
-import jakarta.ws.rs.Encoded;
-import jakarta.ws.rs.FormParam;
 import jakarta.ws.rs.core.EntityPart;
-import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.InternalServerErrorException;
-import jakarta.ws.rs.MatrixParam;
-import jakarta.ws.rs.PathParam;
-import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.NotAcceptableException;
 import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.NotSupportedException;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.sse.SseEventSink;
 import jakarta.ws.rs.sse.OutboundSseEvent;
-import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.Application;
 import jakarta.ws.rs.core.Form;
 import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.NoContentException;
-import jakarta.ws.rs.core.PathSegment;
-import io.micronaut.jaxrs.runtime.ext.bind.UriInfoImpl;
 import jakarta.ws.rs.core.SecurityContext;
 import jakarta.ws.rs.core.Response;
-import jakarta.ws.rs.ext.ParamConverter;
 import jakarta.ws.rs.ext.ParamConverterProvider;
 import org.jspecify.annotations.Nullable;
 
@@ -123,12 +109,8 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.io.ByteArrayOutputStream;
 import java.net.URLDecoder;
-import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
@@ -138,8 +120,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
@@ -208,11 +188,9 @@ public final class JaxRsRouteSupport {
     // the executors of the sub-resource locators that read the form, by name
     private final Map<String, Executor> locatorExecutors = new ConcurrentHashMap<>();
 
-    private final Map<ConverterKey, StringConverter> converters = new ConcurrentHashMap<>();
-
-    private final Map<Class<?>, BeanParamBinder> beanParams = new ConcurrentHashMap<>();
-
     private final JaxRsRouteTemplateEngine templates = new JaxRsRouteTemplateEngine();
+
+    private final JaxRsParameterBinding parameters;
 
     private volatile @Nullable JaxRsMessageBodyReaders<?> readers;
 
@@ -251,6 +229,7 @@ public final class JaxRsRouteSupport {
         });
         this.binderRegistry = binderRegistry;
         this.beanContext = beanContext;
+        this.parameters = new JaxRsParameterBinding(this, applicationProvider, conversionService, paramConverterProviders);
         this.threadSelection = SupplierUtil.memoized(() -> beanContext.findBean(HttpServerConfiguration.class)
             .map(HttpServerConfiguration::getThreadSelection).orElse(ThreadSelection.MANUAL));
         this.blockingExecutor = SupplierUtil.memoized(() ->
@@ -612,170 +591,11 @@ public final class JaxRsRouteSupport {
     }
 
     /**
-     * @param request       The request
-     * @param pathVariables The path variables of the matched route
-     * @param name          The name of the path parameter
-     * @param argument      The type of the parameter
-     * @param defaultValue  The {@code @DefaultValue}
-     * @param encoded       Whether the value is kept encoded ({@code @Encoded})
-     * @return The value, converted
-     */
-    public @Nullable Object pathParam(HttpRequest<?> request, PathVariables pathVariables, String name, Argument<?> argument,
-                                      @Nullable String defaultValue, boolean encoded) {
-        // an @Encoded parameter gets the value as it appears in the path
-        PathVariables variables = encoded ? pathVariables.raw() : pathVariables;
-        Optional<String> value = variables.findString(name);
-        Class<?> type = argument.getType();
-        if (type == PathSegment.class) {
-            return value.map(v -> JaxRsPathSegments.pathSegment(request, name, v, encoded)).orElse(null);
-        }
-        if (type == List.class && argument.getFirstTypeVariable().map(Argument::getType).orElse(null) == PathSegment.class) {
-            // a variable over several segments
-            return value.map(v -> JaxRsPathSegments.pathSegments(request, name, v, encoded))
-                .orElse(List.of());
-        }
-        List<String> values;
-        if (value.isEmpty()) {
-            values = List.of();
-        } else {
-            // a variable that repeats: the values of every occurrence, the last one first
-            Optional<String> earlier = variables.findString(JaxRsRouteTemplateEngine.repeated(name, 1));
-            if (earlier.isEmpty()) {
-                values = List.of(value.get());
-            } else {
-                values = new ArrayList<>();
-                values.add(value.get());
-                for (int i = 1; earlier.isPresent(); earlier = variables.findString(JaxRsRouteTemplateEngine.repeated(name, ++i))) {
-                    values.add(earlier.get());
-                }
-            }
-        }
-        return convert(values, argument, defaultValue, true);
-    }
-
-    /**
-     * @param request      The request
-     * @param name         The name of the query parameter
-     * @param argument     The type of the parameter
-     * @param defaultValue The {@code @DefaultValue}
-     * @param encoded      Whether the value is kept encoded ({@code @Encoded})
-     * @return The value, converted
-     */
-    public @Nullable Object queryParam(HttpRequest<?> request, String name, Argument<?> argument,
-                                       @Nullable String defaultValue, boolean encoded) {
-        // the name is decoded, with @Encoded the values are not
-        List<String> values = new ArrayList<>(1);
-        UriInfoImpl.queryParameters(request.getUri(), false).forEach((raw, rawValues) -> {
-            if (UriInfoImpl.decodeQuery(raw).equals(name)) {
-                rawValues.forEach(value -> values.add(encoded ? value : UriInfoImpl.decodeQuery(value)));
-            }
-        });
-        return convert(values, argument, defaultValue, true);
-    }
-
-    /**
-     * @param request      The request
-     * @param name         The name of the matrix parameter, of the last segment of the path, or
-     *                     of the last one a sub-resource locator matched
-     * @param argument     The type of the parameter
-     * @param defaultValue The {@code @DefaultValue}
-     * @param encoded      Whether the value is kept encoded ({@code @Encoded})
-     * @return The value, converted
-     */
-    public @Nullable Object matrixParam(HttpRequest<?> request, String name, Argument<?> argument,
-                                        @Nullable String defaultValue, boolean encoded) {
-        int matched = request.getAttribute(MATCHED_SEGMENTS, Integer.class).orElse(-1);
-        if (matched > 0) {
-            // a parameter of a sub-resource locator: of the last segment it matched
-            List<PathSegment> segments = new UriInfoImpl(request, applicationProvider.getPath(), applicationProvider.getContextPath())
-                .getPathSegments(!encoded);
-            List<String> values = new ArrayList<>(1);
-            if (matched <= segments.size()) {
-                // the name is decoded, with @Encoded the values are not
-                segments.get(matched - 1).getMatrixParameters().forEach((key, keyValues) -> {
-                    if ((encoded ? JaxRsPathSegments.decode(key) : key).equals(name)) {
-                        keyValues.forEach(value -> values.add(value == null ? "" : value));
-                    }
-                });
-            }
-            return convert(values, argument, defaultValue, true);
-        }
-        return convert(JaxRsPathSegments.values(request, name, encoded), argument, defaultValue, true);
-    }
-
-    /**
-     * @param request      The request
-     * @param name         The name of the header
-     * @param argument     The type of the parameter
-     * @param defaultValue The {@code @DefaultValue}
-     * @return The value, converted
-     */
-    public @Nullable Object headerParam(HttpRequest<?> request, String name, Argument<?> argument, @Nullable String defaultValue) {
-        return convert(request.getHeaders().getAll(name), argument, defaultValue, false);
-    }
-
-    /**
-     * @param request      The request
-     * @param name         The name of the cookie
-     * @param argument     The type of the parameter
-     * @param defaultValue The {@code @DefaultValue}
-     * @return The value, converted
-     */
-    public @Nullable Object cookieParam(HttpRequest<?> request, String name, Argument<?> argument, @Nullable String defaultValue) {
-        Optional<io.micronaut.http.cookie.Cookie> cookie = request.getCookies().findCookie(name);
-        if (argument.getType() == Cookie.class) {
-            if (cookie.isPresent()) {
-                io.micronaut.http.cookie.Cookie c = cookie.get();
-                return new Cookie.Builder(c.getName()).value(c.getValue()).path(c.getPath()).domain(c.getDomain()).build();
-            }
-            return defaultValue == null ? null : new Cookie.Builder(name).value(defaultValue).build();
-        }
-        return convert(cookie.map(c -> List.of(c.getValue())).orElse(List.of()), argument, defaultValue, false);
-    }
-
-    /**
-     * @param request      The request
-     * @param form         The form
-     * @param name         The name of the field
-     * @param argument     The type of the parameter
-     * @param defaultValue The {@code @DefaultValue}
-     * @param encoded      Whether the value is kept encoded ({@code @Encoded})
-     * @return The value, converted
-     */
-    public @Nullable Object formParam(HttpRequest<?> request, @Nullable FormData form, String name, Argument<?> argument,
-                                      @Nullable String defaultValue, boolean encoded) {
-        if (form == null) {
-            // no form entity: the default, never the query (FormParam javadoc)
-            Class<?> type = argument.getType();
-            return type == EntityPart.class || type == InputStream.class ? null : convert(List.of(), argument, defaultValue, false);
-        }
-        Class<?> type = argument.getType();
-        if (type == EntityPart.class || type == InputStream.class) {
-            // a part of a multipart form (JAX-RS 3.1 section 3.5.4)
-            EntityPart part = formPart(request, form, name);
-            return part == null || type == EntityPart.class ? part : part.getContent();
-        }
-        // the form of a route with an @Encoded form parameter is read with its raw values
-        List<String> values = form.getValues(name);
-        if (isRawForm(request)) {
-            if (!encoded) {
-                Charset charset = formCharset(request);
-                values = values.stream().map(value -> URLDecoder.decode(value, charset)).toList();
-            }
-        } else if (encoded) {
-            // the decoded values of a form read for parameters that are not @Encoded: form encoding, a space is a plus
-            Charset charset = formCharset(request);
-            values = values.stream().map(value -> URLEncoder.encode(value, charset)).toList();
-        }
-        return convert(values, argument, defaultValue, false);
-    }
-
-    /**
      * A part of a multipart form: a new {@link EntityPart} each time, as its content is read once,
      * over the content of the field, which is read once per request. The file of an asynchronous
      * resource method was read before it is called; a resource method that blocks reads it here.
      */
-    private @Nullable EntityPart formPart(HttpRequest<?> request, FormData form, String name) {
+    @Nullable EntityPart formPart(HttpRequest<?> request, FormData form, String name) {
         Map<String, FormPart> parts = formParts(request);
         FormPart part;
         synchronized (parts) {
@@ -1298,12 +1118,10 @@ public final class JaxRsRouteSupport {
      * The response of a resource method declared to return {@code Object}: what it is is known
      * only at runtime.
      *
-     * @param request    The request
-     * @param result     The result
-     * @param returnType The declared type
+     * @param result The result
      * @return The response
      */
-    public HttpResponse<?> anyResponse(HttpRequest<?> request, @Nullable Object result, Argument<?> returnType) {
+    public HttpResponse<?> anyResponse(@Nullable Object result) {
         if (result instanceof Response response) {
             return jaxRsResponse(response);
         }
@@ -1362,7 +1180,7 @@ public final class JaxRsRouteSupport {
             // acceptable type it has a writer for
             return writableType(request, mutable, type, body, deferrable);
         }
-        MediaType mediaType = JaxRsRouteTemplateEngine.responseType(request.getHeaders().accept(), producible);
+        MediaType mediaType = JaxRsMediaNegotiation.responseType(request.getHeaders().accept(), producible);
         if (mediaType == null) {
             return unacceptable(request, mutable, body, deferrable, false);
         }
@@ -1417,7 +1235,7 @@ public final class JaxRsRouteSupport {
         if (accepted.isEmpty()) {
             return response;
         }
-        MediaType mediaType = JaxRsRouteTemplateEngine.responseType(accepted, writable);
+        MediaType mediaType = JaxRsMediaNegotiation.responseType(accepted, writable);
         if (mediaType == null) {
             return unacceptable(request, response, body, deferrable, false);
         }
@@ -1509,7 +1327,7 @@ public final class JaxRsRouteSupport {
                     writable.add(produced);
                 }
             }
-            MediaType mediaType = JaxRsRouteTemplateEngine.responseType(request.getHeaders().accept(), writable);
+            MediaType mediaType = JaxRsMediaNegotiation.responseType(request.getHeaders().accept(), writable);
             if (mediaType == null) {
                 // no writer for the negotiated type: a response filter can repair the response,
                 // it is a server error if it does not (JAX-RS 4.2.2, step 5)
@@ -1536,274 +1354,28 @@ public final class JaxRsRouteSupport {
     }
 
     /**
-     * A {@code @BeanParam}: an introspected type, instantiated and filled with the values of the
-     * request its constructor arguments and properties are annotated with.
+     * How to read the value of an annotated parameter, constructor argument or property, see
+     * {@link JaxRsParameterBinding#reader}.
      *
-     * @param type          The type
-     * @param request       The request
-     * @param pathVariables The path variables
-     * @param form          The form, if the route reads one
-     * @return The bean parameter
+     * @param metadata    The annotations
+     * @param argument    The parameter
+     * @param encodedType Whether its class is {@code @Encoded}
+     * @return The reader, {@code null} if it is not annotated with a value of the request
      */
-    public Object beanParam(Class<?> type, HttpRequest<?> request, PathVariables pathVariables, @Nullable FormData form) {
-        return beanParamBinder(type).bind(request, pathVariables, form);
-    }
-
-    /**
-     * The binder of a {@code @BeanParam} type, built once: not in a {@code computeIfAbsent}, as
-     * building it builds the binders of the bean parameters it has.
-     */
-    private BeanParamBinder beanParamBinder(Class<?> type) {
-        BeanParamBinder binder = beanParams.get(type);
-        if (binder == null) {
-            binder = newBeanParamBinder(type);
-            BeanParamBinder existing = beanParams.putIfAbsent(type, binder);
-            if (existing != null) {
-                binder = existing;
-            }
-        }
-        return binder;
-    }
-
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    private BeanParamBinder newBeanParamBinder(Class<?> type) {
-        BeanIntrospection<Object> introspection = (BeanIntrospection<Object>) Optional.ofNullable(JaxRsReflection.get().introspection(type))
-            .orElseThrow(() -> new IllegalStateException("The @BeanParam type " + type.getName() + " is not introspected"));
-        boolean encoded = introspection.hasAnnotation(Encoded.class);
-        Argument<?>[] constructorArguments = introspection.getConstructorArguments();
-        ValueReader[] constructorReaders = new ValueReader[constructorArguments.length];
-        for (int i = 0; i < constructorArguments.length; i++) {
-            ValueReader reader = reader(constructorArguments[i].getAnnotationMetadata(), constructorArguments[i], encoded);
-            constructorReaders[i] = reader == null ? (r, p, f) -> null : reader;
-        }
-        List<Map.Entry<BeanProperty<Object, Object>, ValueReader>> properties = new ArrayList<>();
-        for (BeanProperty<Object, Object> property : introspection.getBeanProperties()) {
-            if (property.isReadOnly()) {
-                continue;
-            }
-            ValueReader reader = reader(property.getAnnotationMetadata(), property.asArgument(), encoded);
-            if (reader != null) {
-                properties.add(Map.entry(property, reader));
-            }
-        }
-        return (request, pathVariables, form) -> {
-            Object[] arguments = new Object[constructorReaders.length];
-            for (int i = 0; i < arguments.length; i++) {
-                arguments[i] = constructorReaders[i].read(request, pathVariables, form);
-            }
-            Object instance = arguments.length == 0 ? introspection.instantiate() : introspection.instantiate(arguments);
-            for (Map.Entry<BeanProperty<Object, Object>, ValueReader> property : properties) {
-                property.getKey().set(instance, property.getValue().read(request, pathVariables, form));
-            }
-            return instance;
-        };
-    }
-
-    /**
-     * How to read the value of an annotated constructor argument or property of a bean parameter.
-     */
-    @Nullable ValueReader reader(AnnotationMetadata metadata, Argument<?> argument, boolean encodedType) {
-        String defaultValue = metadata.stringValue(DefaultValue.class).orElse(null);
-        boolean encoded = encodedType || metadata.hasAnnotation(Encoded.class);
-        String pathParam = metadata.stringValue(PathParam.class).orElse(null);
-        String queryParam = metadata.stringValue(QueryParam.class).orElse(null);
-        String matrixParam = metadata.stringValue(MatrixParam.class).orElse(null);
-        String headerParam = metadata.stringValue(HeaderParam.class).orElse(null);
-        String cookieParam = metadata.stringValue(CookieParam.class).orElse(null);
-        String formParam = metadata.stringValue(FormParam.class).orElse(null);
-        if (defaultValue != null && (pathParam != null || queryParam != null || matrixParam != null || headerParam != null
-            || cookieParam != null || formParam != null)) {
-            convertDefault(argument, defaultValue);
-        }
-        if (pathParam != null) {
-            return (request, pathVariables, form) -> pathParam(request, pathVariables, pathParam, argument, defaultValue, encoded);
-        } else if (queryParam != null) {
-            return (request, pathVariables, form) -> queryParam(request, queryParam, argument, defaultValue, encoded);
-        } else if (matrixParam != null) {
-            return (request, pathVariables, form) -> matrixParam(request, matrixParam, argument, defaultValue, encoded);
-        } else if (headerParam != null) {
-            return (request, pathVariables, form) -> headerParam(request, headerParam, argument, defaultValue);
-        } else if (cookieParam != null) {
-            return (request, pathVariables, form) -> cookieParam(request, cookieParam, argument, defaultValue);
-        } else if (formParam != null) {
-            return (request, pathVariables, form) -> formParam(request, form, formParam, argument, defaultValue, encoded);
-        } else if (metadata.hasAnnotation(BeanParam.class)) {
-            // built with the routes: the default values of its members are converted eagerly too
-            BeanParamBinder binder = beanParamBinder(argument.getType());
-            return binder::bind;
-        } else if (metadata.hasAnnotation(jakarta.ws.rs.core.Context.class)) {
-            String named = metadata.stringValue("jakarta.inject.Named").orElse(null);
-            return (request, pathVariables, form) -> context(request, argument, named);
-        }
-        return null;
-    }
-
-    /**
-     * Convert the default value of a parameter with its {@link ParamConverter} when the routes are
-     * built: a converter that is not {@link ParamConverter.Lazy} converts it eagerly, and a
-     * failure fails the deployment (see {@link ParamConverter}).
-     */
-    private void convertDefault(Argument<?> argument, String defaultValue) {
-        Class<?> type = argument.getType();
-        Argument<?> target = argument;
-        if (type == List.class || type == Set.class || type == SortedSet.class || type == Collection.class) {
-            target = element(argument.getFirstTypeVariable().orElse(Argument.STRING), argument);
-        } else if (type.isArray()) {
-            target = element(Argument.of(type.getComponentType()), argument);
-        }
-        Annotation[] annotations = target.synthesizeAll();
-        for (ParamConverterProvider provider : paramConverterProviders.get()) {
-            ParamConverter<?> converter = provider.getConverter(target.getType(), target.asType(), annotations);
-            if (converter == null) {
-                continue;
-            }
-            if (!JaxRsReflection.get().annotationMetadata(converter.getClass()).hasAnnotation(ParamConverter.Lazy.class)) {
-                try {
-                    converter.fromString(defaultValue);
-                } catch (RuntimeException e) {
-                    throw new IllegalStateException("The default value [" + defaultValue + "] of the parameter " + argument.getName()
-                        + " cannot be converted to " + target.getTypeName() + ": " + e.getMessage(), e);
-                }
-            }
-            return;
-        }
-    }
-
-    /**
-     * Create a resource for a request: a resource whose constructor reads values of the request
-     * is a prototype, and gets them as its {@code @Parameter}s.
-     *
-     * @param type   The resource class
-     * @param names  The names of the constructor parameters read from the request
-     * @param values Their values
-     * @param <T>    The type of the resource
-     * @return The resource
-     */
-    public <T> T create(Class<T> type, String[] names, @Nullable Object[] values) {
-        if (!beanContext.containsBean(type)) {
-            // a sub-resource or a bean parameter that is not a bean
-            return JaxRsReflection.get().instantiate(type);
-        }
-        Map<String, Object> arguments = new java.util.HashMap<>(names.length * 2);
-        for (int i = 0; i < names.length; i++) {
-            arguments.put(names[i], values[i]);
-        }
-        return beanContext.createBean(type, arguments);
+    JaxRsParameterBinding.@Nullable ValueReader reader(AnnotationMetadata metadata, Argument<?> argument, boolean encodedType) {
+        return parameters.reader(metadata, argument, encodedType);
     }
 
     private static boolean isUrlEncoded(HttpRequest<?> request) {
         return request.getContentType().map(MediaType.APPLICATION_FORM_URLENCODED_TYPE::matches).orElse(false);
     }
 
-    private static boolean isRawForm(HttpRequest<?> request) {
+    static boolean isRawForm(HttpRequest<?> request) {
         return request.getAttribute(RAW_FORM).isPresent();
     }
 
-    private static Charset formCharset(HttpRequest<?> request) {
+    static Charset formCharset(HttpRequest<?> request) {
         return request.getContentType().flatMap(MediaType::getCharset).orElse(StandardCharsets.UTF_8);
-    }
-
-    private @Nullable Object convert(List<String> values, Argument<?> argument, @Nullable String defaultValue, boolean notFound) {
-        Class<?> type = argument.getType();
-        if (type == List.class || type == Set.class || type == SortedSet.class || type == Collection.class) {
-            Argument<?> elementType = element(argument.getFirstTypeVariable().orElse(Argument.STRING), argument);
-            List<String> elements = values.isEmpty() && defaultValue != null ? List.of(defaultValue) : values;
-            Collection<Object> result = type == Set.class ? new LinkedHashSet<>() : type == SortedSet.class ? new TreeSet<>() : new ArrayList<>();
-            for (String element : elements) {
-                result.add(convertOne(element, elementType, notFound));
-            }
-            // read-only, like the collections of every parameter
-            if (type == List.class || type == Collection.class) {
-                return List.copyOf(result);
-            }
-            return type == SortedSet.class ? Collections.unmodifiableSortedSet((SortedSet<Object>) result) : Collections.unmodifiableSet((Set<Object>) result);
-        }
-        if (type.isArray()) {
-            Argument<?> componentType = element(Argument.of(type.getComponentType()), argument);
-            List<String> elements = values.isEmpty() && defaultValue != null ? List.of(defaultValue) : values;
-            List<Object> converted = new ArrayList<>(elements.size());
-            for (String element : elements) {
-                converted.add(convertOne(element, componentType, notFound));
-            }
-            return conversionService.convertRequired(converted, type);
-        }
-        String value = values.isEmpty() ? defaultValue : values.get(0);
-        if (value == null) {
-            return missing(argument);
-        }
-        return convertOne(value, argument, notFound);
-    }
-
-    /**
-     * The type of the elements of a collection or array parameter, carrying the annotations of the
-     * parameter: a {@link ParamConverterProvider} converting an element sees them.
-     */
-    private static Argument<?> element(Argument<?> element, Argument<?> parameter) {
-        return Argument.of(element.getType(), parameter.getName(), parameter.getAnnotationMetadata(), element.getTypeParameters());
-    }
-
-    private @Nullable Object missing(Argument<?> argument) {
-        Class<?> type = argument.getType();
-        if (type == Optional.class) {
-            return Optional.empty();
-        }
-        if (!type.isPrimitive()) {
-            return null;
-        }
-        if (type == boolean.class) {
-            return false;
-        }
-        if (type == char.class) {
-            return '\0';
-        }
-        return conversionService.convertRequired(0, type);
-    }
-
-    private @Nullable Object convertOne(String value, Argument<?> argument, boolean notFound) {
-        // the annotations are part of the key: a ParamConverterProvider sees them, and arguments
-        // are equal without them
-        StringConverter converter = converters.computeIfAbsent(new ConverterKey(argument, argument.getAnnotationMetadata()),
-            key -> converter(key.argument()));
-        Object converted;
-        try {
-            converted = converter.convert(value);
-        } catch (WebApplicationException e) {
-            throw e;
-        } catch (Exception e) {
-            throw notFound ? new NotFoundException(e) : new BadRequestException(e);
-        }
-        if (converted == null) {
-            IllegalArgumentException cause = new IllegalArgumentException("Cannot convert [" + value + "] to " + argument.getTypeName());
-            throw notFound ? new NotFoundException(cause) : new BadRequestException(cause);
-        }
-        return converted;
-    }
-
-    /**
-     * How a parameter of a type is converted from a string, resolved once: by a
-     * {@link ParamConverterProvider}, else by the rules of JAX-RS for the type (a static
-     * {@code fromString} or {@code valueOf} method, or a constructor with a string), else by the
-     * conversion service.
-     */
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    private StringConverter converter(Argument<?> argument) {
-        Class<?> type = argument.getType();
-        Annotation[] annotations = argument.synthesizeAll();
-        for (ParamConverterProvider provider : paramConverterProviders.get()) {
-            ParamConverter paramConverter = provider.getConverter(type, argument.asType(), annotations);
-            if (paramConverter != null) {
-                return paramConverter::fromString;
-            }
-        }
-        if (type == String.class) {
-            return value -> value;
-        }
-        // a static valueOf or fromString method, or a constructor with a string (JAX-RS 3.2)
-        java.util.function.Function<String, Object> conversion = JaxRsReflection.get().stringConversion(type);
-        if (conversion != null) {
-            return conversion::apply;
-        }
-        return value -> conversionService.convert(value, argument).orElse(null);
     }
 
     private static MediaType[] mediaTypes(String[] values) {
@@ -1825,30 +1397,6 @@ public final class JaxRsRouteSupport {
     }
 
     /**
-     * Reads a value of the request.
-     */
-    @FunctionalInterface
-    interface ValueReader {
-        @Nullable Object read(HttpRequest<?> request, PathVariables pathVariables, @Nullable FormData form);
-    }
-
-    /**
-     * Creates a bean parameter.
-     */
-    @FunctionalInterface
-    private interface BeanParamBinder {
-        Object bind(HttpRequest<?> request, PathVariables pathVariables, @Nullable FormData form);
-    }
-
-    /**
-     * Converts the string value of a parameter.
-     */
-    @FunctionalInterface
-    private interface StringConverter {
-        @Nullable Object convert(String value) throws Exception;
-    }
-
-    /**
      * What the runtime routes know about a resource method.
      */
     public static final class RouteMetadata {
@@ -1857,7 +1405,6 @@ public final class JaxRsRouteSupport {
         private final Class<?>[] parameterTypes;
         private final String[] produces;
         private final String[] consumes;
-        private final Class<?> rootClass;
 
         /**
          * @param resourceClass  The resource class
@@ -1865,25 +1412,15 @@ public final class JaxRsRouteSupport {
          * @param parameterTypes The parameter types of the method
          * @param produces       Its {@code @Produces} media types, of the method or else of the class
          * @param consumes       Its {@code @Consumes} media types, of the method or else of the class
-         * @param rootClass      The root resource class, which has the method or its sub-resource locators
          */
         public RouteMetadata(Class<?> resourceClass, String methodName, Class<?>[] parameterTypes,
-                             String[] produces, String[] consumes, Class<?> rootClass) {
+                             String[] produces, String[] consumes) {
             this.resourceClass = resourceClass;
             this.methodName = methodName;
             this.parameterTypes = parameterTypes;
             this.produces = produces;
             this.consumes = consumes;
-            this.rootClass = rootClass;
         }
-
-        /**
-         * @return The resource class
-         */
-        public Class<?> resourceClass() {
-            return resourceClass;
-        }
-
     }
 
     /**
@@ -1898,15 +1435,6 @@ public final class JaxRsRouteSupport {
         public AnnotationMetadata getAnnotationMetadata() {
             return annotationMetadata;
         }
-    }
-
-    /**
-     * The key of the converter of a parameter: its type, and its annotations.
-     *
-     * @param argument    The parameter
-     * @param annotations The annotations of the parameter
-     */
-    private record ConverterKey(Argument<?> argument, AnnotationMetadata annotations) {
     }
 
     /**

@@ -15,7 +15,6 @@
  */
 package io.micronaut.jaxrs.providers;
 
-import io.micronaut.context.BeanProvider;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.Order;
 import io.micronaut.core.order.Ordered;
@@ -27,7 +26,6 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.ext.MessageBodyReader;
 import jakarta.ws.rs.ext.MessageBodyWriter;
-import jakarta.ws.rs.ext.Providers;
 import jakarta.xml.bind.JAXBElement;
 
 import java.io.IOException;
@@ -54,16 +52,12 @@ public final class JaxRsJaxbElementMessageBodyReaderWriter implements MessageBod
 
     private final JaxRsJaxbMessageBodyReaderWriter jaxb;
 
-    @Inject
-    JaxRsJaxbElementMessageBodyReaderWriter(BeanProvider<Providers> providers) {
-        this.jaxb = new JaxRsJaxbMessageBodyReaderWriter(providers);
-    }
-
     /**
-     * A provider without the context resolvers of an application, for the client.
+     * @param jaxb The provider of JAXB of the same provider set, whose contexts it shares
      */
-    JaxRsJaxbElementMessageBodyReaderWriter() {
-        this.jaxb = new JaxRsJaxbMessageBodyReaderWriter();
+    @Inject
+    JaxRsJaxbElementMessageBodyReaderWriter(JaxRsJaxbMessageBodyReaderWriter jaxb) {
+        this.jaxb = jaxb;
     }
 
     @Override

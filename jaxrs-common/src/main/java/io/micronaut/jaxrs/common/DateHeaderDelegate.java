@@ -17,6 +17,7 @@ package io.micronaut.jaxrs.common;
 
 import io.micronaut.core.annotation.Internal;
 import jakarta.ws.rs.ext.RuntimeDelegate;
+import org.jspecify.annotations.Nullable;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -26,7 +27,6 @@ import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoField;
 import java.util.Date;
-import java.util.List;
 import java.util.Locale;
 
 /**
@@ -55,15 +55,26 @@ final class DateHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Date> {
     public Date fromString(String value) {
         JaxRsUtils.requireNonNull("value", value);
         String trimmed = value.trim();
-        List<DateTimeFormatter> parsers = List.of(DateTimeFormatter.RFC_1123_DATE_TIME, rfc850(), ASCTIME);
-        for (DateTimeFormatter parser : parsers) {
-            try {
-                return Date.from(ZonedDateTime.parse(trimmed, parser).toInstant());
-            } catch (DateTimeParseException e) {
-                // the next format
-            }
+        Date date = parse(trimmed, DateTimeFormatter.RFC_1123_DATE_TIME);
+        if (date == null) {
+            // the obsolete formats, the RFC 850 parser built only when needed
+            date = parse(trimmed, rfc850());
         }
-        throw new IllegalArgumentException("Not an HTTP date: " + value);
+        if (date == null) {
+            date = parse(trimmed, ASCTIME);
+        }
+        if (date == null) {
+            throw new IllegalArgumentException("Not an HTTP date: " + value);
+        }
+        return date;
+    }
+
+    private static @Nullable Date parse(String value, DateTimeFormatter parser) {
+        try {
+            return Date.from(ZonedDateTime.parse(value, parser).toInstant());
+        } catch (DateTimeParseException e) {
+            return null;
+        }
     }
 
     /**

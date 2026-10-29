@@ -1,5 +1,6 @@
 package io.micronaut.jaxrs.common.multipart
 
+import io.micronaut.jaxrs.common.TrackingInputStream
 import jakarta.ws.rs.core.EntityPart
 import jakarta.ws.rs.core.GenericType
 import jakarta.ws.rs.core.MediaType
@@ -103,18 +104,12 @@ class MultipartPartHeadersSpec extends Specification {
 
     void "a typed read closes the content stream"() {
         given:
-        boolean closed = false
-        def stream = new ByteArrayInputStream("abc".bytes) {
-            @Override
-            void close() throws IOException {
-                closed = true
-            }
-        }
+        def stream = new TrackingInputStream("abc".bytes)
         def part = EntityPart.withName("x").content(stream).build()
 
         expect:
         part.getContent(String) == "abc"
-        closed
+        stream.closed
     }
 
     void "the headers of a part are immutable"() {

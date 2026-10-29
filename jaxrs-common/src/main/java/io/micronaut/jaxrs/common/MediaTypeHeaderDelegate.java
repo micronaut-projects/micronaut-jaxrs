@@ -53,12 +53,12 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Ob
     }
 
     /**
-     * Checks whether a string is quoted.
+     * Checks whether a value contains a character that requires a quoted string.
      *
-     * @param str The str
-     * @return True if it is
+     * @param str The value
+     * @return True if it requires quoting
      */
-    static boolean quoted(String str) {
+    static boolean requiresQuoting(String str) {
         for (int i = 0; i < str.length(); i++) {
             char c = str.charAt(i);
             for (char q : QUOTED_CHARS) {
@@ -156,9 +156,9 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Ob
         for (String name : type.getParameters().keySet()) {
             buf.append(';').append(name).append('=');
             String val = type.getParameters().get(name);
-            if (val.isEmpty() || quoted(val)) {
+            if (val.isEmpty() || requiresQuoting(val)) {
                 // RFC 9110 5.6.4: a quote or a backslash in a quoted-string is a quoted-pair
-                buf.append('"').append(val.replace("\\", "\\\\").replace("\"", "\\\"")).append('"');
+                JaxRsHeaderUtil.appendQuoted(buf, val);
             } else {
                 buf.append(val);
             }
