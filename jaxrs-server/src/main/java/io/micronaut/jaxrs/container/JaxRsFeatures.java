@@ -476,16 +476,24 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
                       Map<Object, Integer> defaultPriorities) {
         static final Components EMPTY = new Components(List.of(), List.of(), List.of(), List.of(), Map.of(), Map.of());
 
-        boolean isEmpty() {
-            return requestFilters.isEmpty() && responseFilters.isEmpty() && readerInterceptors.isEmpty() && writerInterceptors.isEmpty();
-        }
-
         /**
          * @param component A component
          * @param contract  The contract it is used as, e.g. {@link ContainerRequestFilter}
          * @return The priority it was registered with for the contract, else its {@code @Priority}
          */
         int priority(Object component, Class<?> contract) {
+            return priority(priorities, defaultPriorities, component, contract);
+        }
+
+        /**
+         * @param priorities        The priorities components were registered with, by contract
+         * @param defaultPriorities The priorities of the annotations of the components
+         * @param component         A component
+         * @param contract          The contract it is used as
+         * @return The priority it was registered with for the contract, else its {@code @Priority}
+         */
+        static int priority(Map<Object, Map<@Nullable Class<?>, Integer>> priorities, Map<Object, Integer> defaultPriorities,
+                            Object component, Class<?> contract) {
             Map<@Nullable Class<?>, Integer> byContract = priorities.get(component);
             if (byContract != null) {
                 Integer priority = byContract.get(contract);
@@ -882,9 +890,8 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
                     Collection<Class<?>> contracts = registered != null ? registered
                         : CONTRACTS.stream().filter(contract -> contract.isInstance(instance)).toList();
                     Map<Class<?>, Integer> byContract = new LinkedHashMap<>();
-                    Components components = local.components();
                     for (Class<?> contract : contracts) {
-                        byContract.put(contract, components.priority(instance, contract));
+                        byContract.put(contract, Components.priority(local.priorities, local.defaultPriorities, instance, contract));
                     }
                     return byContract;
                 }

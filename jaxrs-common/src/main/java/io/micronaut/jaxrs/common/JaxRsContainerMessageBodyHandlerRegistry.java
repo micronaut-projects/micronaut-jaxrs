@@ -244,23 +244,9 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
     }
 
     /**
-     * Whether an application JAX-RS reader may read a type as one of the media types: it has
-     * readers of the type for the media types. Which one reads is decided when a value is read,
-     * with its argument and annotations, so the answer does not depend on the annotations: callers
-     * that cache it per type, like the router per route, stay correct.
-     *
-     * @param type       The type
-     * @param mediaTypes The media types
-     * @param <T>        The type
-     * @return Whether it has candidate readers
-     */
-    public <T> boolean hasReaders(Argument<T> type, List<MediaType> mediaTypes) {
-        return !selectingReader(type, mediaTypes).candidates.isEmpty();
-    }
-
-    /**
-     * The reader of a type and media types that selects the JAX-RS reader when a value is read,
-     * see {@link #hasReaders(Argument, List)}.
+     * The reader of a type and media types that selects the JAX-RS reader when a value is read:
+     * which one reads is decided then, with the argument of the value and its annotations, so
+     * whether it is present does not depend on the annotations and callers may cache it per type.
      *
      * @param type       The type
      * @param mediaTypes The media types
