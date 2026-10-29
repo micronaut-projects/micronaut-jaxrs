@@ -76,17 +76,8 @@ final class LinkDelegate implements RuntimeDelegate.HeaderDelegate<Link> {
         buf.append(value.getUri().toString()).append(">");
 
         for (Map.Entry<String, String> entry : value.getParams().entrySet()) {
-            buf.append("; ").append(entry.getKey()).append("=\"");
-            // a quoted-string, its quotes and backslashes escaped (RFC 9110 5.6.4)
-            String param = entry.getValue();
-            for (int i = 0; i < param.length(); i++) {
-                char c = param.charAt(i);
-                if (c == '"' || c == '\\') {
-                    buf.append('\\');
-                }
-                buf.append(c);
-            }
-            buf.append('"');
+            buf.append("; ").append(entry.getKey()).append('=');
+            JaxRsHeaderUtil.appendQuoted(buf, entry.getValue());
         }
 
         return buf.toString();

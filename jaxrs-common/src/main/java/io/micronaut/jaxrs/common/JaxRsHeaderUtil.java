@@ -76,6 +76,25 @@ public final class JaxRsHeaderUtil {
     }
 
     /**
+     * Append a value as a quoted string, whose quotes and backslashes are quoted-pairs (RFC 9110 5.6.4).
+     *
+     * @param buffer The buffer
+     * @param value  The value
+     * @return The buffer
+     */
+    public static StringBuilder appendQuoted(StringBuilder buffer, String value) {
+        buffer.append('"');
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c == '"' || c == '\\') {
+                buffer.append('\\');
+            }
+            buffer.append(c);
+        }
+        return buffer.append('"');
+    }
+
+    /**
      * Remove the quotes of a quoted string and unescape its quoted-pairs (RFC 9110 5.6.4).
      *
      * @param value The value, trimmed
