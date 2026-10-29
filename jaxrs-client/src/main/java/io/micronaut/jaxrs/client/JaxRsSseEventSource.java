@@ -46,23 +46,12 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Date;
-import java.util.List;
 import java.util.Map;
-import java.util.Queue;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /**
@@ -82,20 +71,9 @@ final class JaxRsSseEventSource implements SseEventSource {
     private static final Logger LOG = LoggerFactory.getLogger(JaxRsSseEventSource.class);
 
     private final JaxRsWebTarget target;
-    private final List<Consumer<InboundSseEvent>> onEvent = new CopyOnWriteArrayList<>();
-    private final List<Consumer<Throwable>> onError = new CopyOnWriteArrayList<>();
-    private final List<Runnable> onComplete = new CopyOnWriteArrayList<>();
     private final ScheduledExecutorService scheduler;
-    private final Executor executor;
-    // the callbacks to run on the executor, one at a time and in order
-    private final Queue<Runnable> callbacks = new ConcurrentLinkedQueue<>();
-    private final AtomicInteger pendingCallbacks = new AtomicInteger();
-    // completed once the callbacks dispatched before the end of the processing ran
-    private final CompletableFuture<@Nullable Void> processed = new CompletableFuture<>();
-    // the thread running the callbacks, which close cannot wait for
-    private volatile @Nullable Thread callbackThread;
-    // whether onComplete or onError was invoked: the processing ended
-    private final AtomicBoolean ended = new AtomicBoolean();
+    // the consumers, and the execution of the callbacks, which outlives the connection
+    private final JaxRsSseCallbacks callbacks;
     // whether a connection received an event stream: then a broken connection is reconnected
     private volatile boolean connected;
     // the reconnect delay of the builder, unless the stream gave a reconnection time
@@ -120,12 +98,12 @@ final class JaxRsSseEventSource implements SseEventSource {
         this.configuredReconnectDelay = reconnectDelay;
         ScheduledExecutorService clientScheduler = target.client().getScheduledExecutorService();
         this.scheduler = clientScheduler != null ? clientScheduler : DefaultScheduler.INSTANCE;
-        this.executor = target.client().getExecutorService();
+        this.callbacks = new JaxRsSseCallbacks(target.client().getExecutorService());
     }
 
     @Override
     public void register(Consumer<InboundSseEvent> onEvent) {
-        this.onEvent.add(requireNonNull("onEvent", onEvent));
+        callbacks.onEvent(requireNonNull("onEvent", onEvent));
     }
 
     @Override
@@ -133,7 +111,7 @@ final class JaxRsSseEventSource implements SseEventSource {
         requireNonNull("onEvent", onEvent);
         requireNonNull("onError", onError);
         register(onEvent);
-        this.onError.add(onError);
+        callbacks.onError(onError);
     }
 
     @Override
@@ -142,7 +120,7 @@ final class JaxRsSseEventSource implements SseEventSource {
         requireNonNull("onError", onError);
         requireNonNull("onComplete", onComplete);
         register(onEvent, onError);
-        this.onComplete.add(onComplete);
+        callbacks.onComplete(onComplete);
     }
 
     private static <T> T requireNonNull(String name, @Nullable T value) {
@@ -192,7 +170,7 @@ final class JaxRsSseEventSource implements SseEventSource {
         if (closedAgain) {
             // closed again: true only once the processing completed (JAX-RS, SseEventSource#close),
             // waited for without the lock, which a callback closing the source would wait for
-            return awaitProcessed(timeout, unit);
+            return callbacks.awaitProcessed(timeout, unit);
         }
         target.client().closed(this);
         if (reconnect != null) {
@@ -210,26 +188,7 @@ final class JaxRsSseEventSource implements SseEventSource {
         }
         // the processing ends, e.g. before a pending reconnect (JAX-RS, SseEventSource#register)
         complete();
-        return awaitProcessed(timeout, unit);
-    }
-
-    /**
-     * Wait for the callbacks to run, up to the timeout (JAX-RS, SseEventSource#close).
-     */
-    private boolean awaitProcessed(long timeout, TimeUnit unit) {
-        if (callbackThread == Thread.currentThread()) {
-            // closed by a consumer: its callbacks run after it returns
-            return processed.isDone();
-        }
-        try {
-            processed.get(timeout, unit);
-            return true;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return false;
-        } catch (ExecutionException | TimeoutException e) {
-            return false;
-        }
+        return callbacks.awaitProcessed(timeout, unit);
     }
 
     /**
@@ -268,7 +227,7 @@ final class JaxRsSseEventSource implements SseEventSource {
         }
         // the response filters may block: they run on the executor of the client, not on the
         // event loop of the HTTP client (JAX-RS, ClientBuilder#executorService)
-        client.toAsyncStreaming().exchangeEventStream(request, Argument.STRING).whenComplete((response, error) -> dispatch(() -> {
+        client.toAsyncStreaming().exchangeEventStream(request, Argument.STRING).whenComplete((response, error) -> callbacks.dispatch(() -> {
             if (error != null) {
                 failed(error instanceof CompletionException && error.getCause() != null ? error.getCause() : error, requestContext);
             } else {
@@ -357,7 +316,7 @@ final class JaxRsSseEventSource implements SseEventSource {
             connected = true;
         }
         // the next event is read once the consumers processed this one: a slow consumer slows the stream
-        body.forEach(this::received).whenComplete((done, error) -> {
+        body.forEach(event -> callbacks.received(inbound(event))).whenComplete((done, error) -> {
             events = null;
             if (!open) {
                 return;
@@ -395,7 +354,7 @@ final class JaxRsSseEventSource implements SseEventSource {
                 decoder.decode(buffer, 0, read, event -> {
                     if (EventStreamDecoder.deliver(event, streamState)) {
                         // already on the executor: the consumers process the event before the next one is read
-                        deliver(inbound(Event.of(event, new String(event.getData(), StandardCharsets.UTF_8))));
+                        callbacks.deliver(inbound(Event.of(event, new String(event.getData(), StandardCharsets.UTF_8))));
                     }
                 });
             }
@@ -480,24 +439,6 @@ final class JaxRsSseEventSource implements SseEventSource {
     }
 
     /**
-     * Dispatch an event to the consumers.
-     *
-     * @return The stage completed once the consumers processed it
-     */
-    private CompletableFuture<@Nullable Void> received(Event<String> event) {
-        InboundSseEvent inbound = inbound(event);
-        CompletableFuture<@Nullable Void> delivered = new CompletableFuture<>();
-        dispatch(() -> {
-            try {
-                deliver(inbound);
-            } finally {
-                delivered.complete(null);
-            }
-        });
-        return delivered;
-    }
-
-    /**
      * @return The event the consumers receive: the state of the stream follows its id and retry for a reconnect
      */
     private InboundSseEvent inbound(Event<String> event) {
@@ -508,20 +449,6 @@ final class JaxRsSseEventSource implements SseEventSource {
         }
         return new JaxRsInboundSseEvent(event.getName(), event.getId(), event.getComment(), delay,
             event.getData(), target.getConfiguration());
-    }
-
-    private void deliver(InboundSseEvent inbound) {
-        if (ended.get()) {
-            return;
-        }
-        for (Consumer<InboundSseEvent> consumer : onEvent) {
-            try {
-                consumer.accept(inbound);
-            } catch (RuntimeException e) {
-                // a failing consumer does not stop the processing of the events
-                LOG.warn("An event consumer failed: {}", e.getMessage(), e);
-            }
-        }
     }
 
     private void failed(Throwable throwable, JaxRsClientRequestContext requestContext) {
@@ -587,46 +514,11 @@ final class JaxRsSseEventSource implements SseEventSource {
 
     private void error(Throwable throwable) {
         open = false;
-        dispatch(() -> {
-            notifyError(throwable);
-            processed.complete(null);
-        });
-    }
-
-    private void notifyError(Throwable throwable) {
-        if (!ended.compareAndSet(false, true)) {
-            return;
-        }
-        if (onError.isEmpty()) {
-            LOG.warn("The event source failed: {}", throwable.getMessage(), throwable);
-        }
-        for (Consumer<Throwable> consumer : onError) {
-            try {
-                consumer.accept(throwable);
-            } catch (RuntimeException e) {
-                LOG.warn("An error consumer failed: {}", e.getMessage(), e);
-            }
-        }
+        callbacks.error(throwable);
     }
 
     private void complete() {
-        dispatch(() -> {
-            notifyComplete();
-            processed.complete(null);
-        });
-    }
-
-    private void notifyComplete() {
-        if (!ended.compareAndSet(false, true)) {
-            return;
-        }
-        for (Runnable callback : onComplete) {
-            try {
-                callback.run();
-            } catch (RuntimeException e) {
-                LOG.warn("A completion callback failed: {}", e.getMessage(), e);
-            }
-        }
+        callbacks.complete();
     }
 
     /**
@@ -655,47 +547,10 @@ final class JaxRsSseEventSource implements SseEventSource {
     }
 
     /**
-     * Run a callback on the executor of the client, after the callbacks dispatched before it.
-     */
-    private void dispatch(Runnable callback) {
-        callbacks.add(callback);
-        if (pendingCallbacks.getAndIncrement() == 0) {
-            try {
-                executor.execute(this::drainCallbacks);
-            } catch (RejectedExecutionException e) {
-                // the executor is shut down: run on this thread
-                drainCallbacks();
-            }
-        }
-    }
-
-    /**
      * @return The number of callbacks dispatched and not yet run
      */
     int pendingCallbacks() {
-        return pendingCallbacks.get();
-    }
-
-    private void drainCallbacks() {
-        callbackThread = Thread.currentThread();
-        try {
-            drainCallbacksOnThisThread();
-        } finally {
-            callbackThread = null;
-        }
-    }
-
-    private void drainCallbacksOnThisThread() {
-        do {
-            Runnable callback = callbacks.poll();
-            if (callback != null) {
-                try {
-                    callback.run();
-                } catch (RuntimeException e) {
-                    LOG.warn("An event source callback failed: {}", e.getMessage(), e);
-                }
-            }
-        } while (pendingCallbacks.decrementAndGet() != 0);
+        return callbacks.pendingCallbacks();
     }
 
     /**
