@@ -139,6 +139,11 @@ public final class ReflectiveJaxRsReflection implements JaxRsReflection {
     }
 
     @Override
+    public Class<?>[] interfaces(Class<?> type) {
+        return type.getInterfaces();
+    }
+
+    @Override
     public <T> @Nullable BeanIntrospection<T> introspection(Class<T> type) {
         BeanIntrospection<T> introspection = BeanIntrospector.SHARED.findIntrospection(type).orElse(null);
         if (introspection != null) {

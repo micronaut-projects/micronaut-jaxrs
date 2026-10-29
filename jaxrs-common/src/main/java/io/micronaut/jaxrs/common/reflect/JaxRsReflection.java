@@ -168,6 +168,17 @@ public interface JaxRsReflection {
     Argument<?> argument(Type type);
 
     /**
+     * The interfaces a class or an interface directly implements or extends, e.g. to know the
+     * distance of a type to the type of a provider (JAX-RS 4.2.2).
+     *
+     * @param type The class
+     * @return The interfaces, {@code null} when they are not known without reflection
+     */
+    default Class<?> @Nullable [] interfaces(Class<?> type) {
+        return null;
+    }
+
+    /**
      * @param type A class
      * @param <T>  The type
      * @return Its introspection, {@code null} when it has none

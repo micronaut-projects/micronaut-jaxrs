@@ -21,12 +21,16 @@ import io.micronaut.core.annotation.Order;
 import io.micronaut.inject.BeanDefinition;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.MediaType;
+import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import jakarta.annotation.Priority;
 import jakarta.ws.rs.Priorities;
 import org.jspecify.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * The JAX-RS utils.
@@ -98,7 +102,8 @@ public final class JaxRsUtils {
 
     /**
      * The number of steps from a type to the type a reader reads or a writer writes, through the
-     * superclasses and interfaces: 0 for the type itself, {@link Integer#MAX_VALUE} for another type.
+     * superclasses and interfaces, the shortest path of the hierarchy: 0 for the type itself, the
+     * most for {@code Object}, which every type is nearer to, {@link Integer#MAX_VALUE} for another type.
      *
      * @param provided The type of the provider
      * @param type     The type
@@ -108,17 +113,46 @@ public final class JaxRsUtils {
         if (!provided.isAssignableFrom(type)) {
             return Integer.MAX_VALUE;
         }
-        int distance = 0;
-        for (Class<?> t = type; t != null; t = t.getSuperclass()) {
-            if (t == provided) {
+        if (provided == type) {
+            return 0;
+        }
+        if (provided == Object.class) {
+            return Integer.MAX_VALUE - 1;
+        }
+        if (provided.isInterface() && JaxRsReflection.get().interfaces(type) == null) {
+            // the interfaces are not known: an interface is one step from the first class implementing it
+            int distance = 0;
+            for (Class<?> t = type; t != null; t = t.getSuperclass()) {
+                if (provided.isAssignableFrom(t) && (t.getSuperclass() == null || !provided.isAssignableFrom(t.getSuperclass()))) {
+                    return distance + 1;
+                }
+                distance++;
+            }
+            return distance;
+        }
+        // breadth first: e.g. List is one step from ArrayList, Collection two
+        List<Class<?>> level = List.of(type);
+        Set<Class<?>> visited = new HashSet<>();
+        for (int distance = 1; !level.isEmpty(); distance++) {
+            List<Class<?>> next = new ArrayList<>();
+            for (Class<?> t : level) {
+                Class<?> superclass = t.getSuperclass();
+                if (superclass != null && provided.isAssignableFrom(superclass) && visited.add(superclass)) {
+                    next.add(superclass);
+                }
+                Class<?>[] interfaces = JaxRsReflection.get().interfaces(t);
+                for (Class<?> anInterface : interfaces == null ? new Class<?>[0] : interfaces) {
+                    if (provided.isAssignableFrom(anInterface) && visited.add(anInterface)) {
+                        next.add(anInterface);
+                    }
+                }
+            }
+            if (next.contains(provided)) {
                 return distance;
             }
-            if (provided.isInterface() && provided.isAssignableFrom(t)) {
-                return distance + 1;
-            }
-            distance++;
+            level = next;
         }
-        return distance;
+        return Integer.MAX_VALUE - 1;
     }
 
     /**
