@@ -123,6 +123,7 @@ import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.io.ByteArrayOutputStream;
 import java.net.URLDecoder;
@@ -1684,7 +1685,11 @@ public final class JaxRsRouteSupport {
             for (String element : elements) {
                 result.add(convertOne(element, elementType, notFound));
             }
-            return type == List.class || type == Collection.class ? List.copyOf(result) : result;
+            // read-only, like the collections of every parameter
+            if (type == List.class || type == Collection.class) {
+                return List.copyOf(result);
+            }
+            return type == SortedSet.class ? Collections.unmodifiableSortedSet((SortedSet<Object>) result) : Collections.unmodifiableSet((Set<Object>) result);
         }
         if (type.isArray()) {
             Argument<?> componentType = element(Argument.of(type.getComponentType()), argument);
