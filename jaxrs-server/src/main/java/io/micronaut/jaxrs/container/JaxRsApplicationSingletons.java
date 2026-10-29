@@ -73,8 +73,11 @@ final class JaxRsApplicationSingletons implements BeanCreatedEventListener<Appli
         Application application = event.getBean();
         for (Object singleton : application.getSingletons()) {
             if (isProvider(singleton) && !isRegistered(singleton.getClass())) {
-                // the @Context fields of the instance, like the ones of a bean of its class
-                register(context.inject(singleton));
+                // the @Context fields of the instance, like the ones of a bean of its class, also of
+                // a class the annotation processors never saw, with reflection
+                Object injected = context.inject(singleton);
+                JaxRsReflection.get().injectFields(injected, jakarta.ws.rs.core.Context.class, t -> context.findBean(t).orElse(null));
+                register(injected);
             }
         }
         for (Class<?> type : application.getClasses()) {

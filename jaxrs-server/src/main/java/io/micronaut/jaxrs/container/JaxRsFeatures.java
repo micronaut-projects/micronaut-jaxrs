@@ -388,7 +388,10 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
         }
         ClassLoader classLoader = application == null ? context.getClassLoader() : application.getClass().getClassLoader();
         for (T loaded : ServiceLoader.load(type, classLoader)) {
-            instances.putIfAbsent(loaded.getClass(), loaded);
+            if (!instances.containsKey(loaded.getClass())) {
+                // injected before it is configured, like an instance of the application
+                instances.put(loaded.getClass(), type.cast(injected(loaded)));
+            }
         }
         return new ArrayList<>(instances.values());
     }
