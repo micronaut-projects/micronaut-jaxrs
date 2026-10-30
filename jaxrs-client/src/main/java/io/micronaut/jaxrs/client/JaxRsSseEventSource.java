@@ -50,11 +50,16 @@ import java.util.Date;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 /**
@@ -72,6 +77,16 @@ import java.util.function.Consumer;
 final class JaxRsSseEventSource implements SseEventSource {
 
     private static final Logger LOG = LoggerFactory.getLogger(JaxRsSseEventSource.class);
+
+    /**
+     * Releases the connections of the closed event sources, which may block: its threads do not
+     * keep the JVM alive.
+     */
+    private static final Executor CLOSER = Executors.newCachedThreadPool(runnable -> {
+        Thread thread = new Thread(runnable, "jaxrs-sse-event-source-close");
+        thread.setDaemon(true);
+        return thread;
+    });
 
     private final JaxRsWebTarget target;
     private final ScheduledExecutorService scheduler;
@@ -185,16 +200,39 @@ final class JaxRsSseEventSource implements SseEventSource {
         if (current != null) {
             current.closeAsync();
         }
-        if (replaced != null) {
-            // unblocks the read of the events
-            closeQuietly(replaced);
-        }
-        if (client != null) {
-            client.close();
+        // one deadline for the release of the connection and the processing
+        long deadline = System.nanoTime() + unit.toNanos(timeout);
+        CompletableFuture<Void> released = CompletableFuture.completedFuture(null);
+        if (replaced != null || client != null) {
+            // closing the stream a filter set unblocks the read of the events, and closing the
+            // client disconnects: both may block, waited for until the deadline only
+            Runnable release = () -> {
+                if (replaced != null) {
+                    closeQuietly(replaced);
+                }
+                if (client != null) {
+                    client.close();
+                }
+            };
+            try {
+                released = CompletableFuture.runAsync(release, CLOSER);
+            } catch (RejectedExecutionException e) {
+                release.run();
+            }
         }
         // the processing ends, e.g. before a pending reconnect (JAX-RS, SseEventSource#register)
         complete();
-        return callbacks.awaitProcessed(timeout, unit);
+        try {
+            released.get(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
+        } catch (TimeoutException e) {
+            return false;
+        } catch (ExecutionException e) {
+            LOG.debug("Releasing the connection failed: {}", e.getMessage(), e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+        return callbacks.awaitProcessed(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
     }
 
     /**
@@ -598,7 +636,9 @@ final class JaxRsSseEventSource implements SseEventSource {
         synchronized (this) {
             if (open) {
                 try {
-                    pendingReconnect = scheduler.schedule(this::connect, delay, TimeUnit.MILLISECONDS);
+                    // the timer only dispatches the connection: its request filters may block, and
+                    // the scheduler may be shared by other sources
+                    pendingReconnect = scheduler.schedule(this::dispatchConnect, delay, TimeUnit.MILLISECONDS);
                     return;
                 } catch (RuntimeException e) {
                     // the scheduler is shut down
@@ -608,6 +648,17 @@ final class JaxRsSseEventSource implements SseEventSource {
             }
         }
         complete();
+    }
+
+    /**
+     * Connect on the executor of the client, e.g. for a scheduled reconnection.
+     */
+    private void dispatchConnect() {
+        try {
+            target.client().getExecutorService().execute(this::connect);
+        } catch (RejectedExecutionException e) {
+            error(new ProcessingException(e));
+        }
     }
 
     /**
