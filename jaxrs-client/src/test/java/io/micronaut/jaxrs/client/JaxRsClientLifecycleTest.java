@@ -19,6 +19,7 @@ import jakarta.ws.rs.core.CacheControl;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.Variant;
 import jakarta.ws.rs.ext.MessageBodyWriter;
 import jakarta.ws.rs.ext.ReaderInterceptor;
 import jakarta.ws.rs.ext.WriterInterceptor;
@@ -37,11 +38,14 @@ import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.time.Duration;
+import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -240,6 +244,23 @@ class JaxRsClientLifecycleTest {
         closed.close();
         assertThrows(IllegalStateException.class, closed::getSslContext);
         assertThrows(IllegalStateException.class, closed::getHostnameVerifier);
+    }
+
+    @Test
+    void variantOfTheEntityReplacesTheHeadersOfTheBuilder() {
+        AtomicReference<List<String>> seen = new AtomicReference<>();
+        String echoed = target("echo")
+            .register((ClientRequestFilter) context -> seen.set(List.of(
+                String.valueOf(context.getStringHeaders().get("Content-Type")),
+                String.valueOf(context.getStringHeaders().get("Content-Language")),
+                String.valueOf(context.getStringHeaders().get("Content-Encoding")))))
+            .request()
+            .header("Content-Type", "application/json")
+            .header("Content-Language", "fr")
+            .header("Content-Encoding", "br")
+            .post(Entity.entity("body", new Variant(MediaType.TEXT_PLAIN_TYPE, Locale.ENGLISH, "identity")), String.class);
+        assertEquals("text/plain|body", echoed);
+        assertEquals(List.of("[text/plain]", "[en]", "[identity]"), seen.get());
     }
 
     static final class Thing {

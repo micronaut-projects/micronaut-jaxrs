@@ -360,7 +360,11 @@ final class JaxRsClientExchange {
         HttpMethod httpMethod = HttpMethod.parse(method);
         MutableHttpRequest<Object> mutableHttpRequest = httpMethod ==
             HttpMethod.CUSTOM ? HttpRequest.create(HttpMethod.CUSTOM, uri.toString(), method) : HttpRequest.create(httpMethod, uri.toString());
+        if (mutableHttpHeaders != null) {
+            mutableHttpHeaders.forEachValue(mutableHttpRequest::header);
+        }
         if (entity != null) {
+            // the variant of the entity replaces the one of the headers of the builder (JAX-RS, Invocation.Builder)
             if (entity.getMediaType() != null) {
                 mutableHttpRequest = mutableHttpRequest.contentType(MediaType.of(entity.getMediaType().toString()));
             }
@@ -373,9 +377,6 @@ final class JaxRsClientExchange {
                 // the encoding of the variant of the entity (RFC 9110, 8.4)
                 mutableHttpRequest.getHeaders().set(HttpHeaders.CONTENT_ENCODING, encoding);
             }
-        }
-        if (mutableHttpHeaders != null) {
-            mutableHttpHeaders.forEachValue(mutableHttpRequest::header);
         }
         return mutableHttpRequest;
     }
