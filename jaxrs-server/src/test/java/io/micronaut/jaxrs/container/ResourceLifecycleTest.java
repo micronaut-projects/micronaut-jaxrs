@@ -6,11 +6,13 @@ import io.micronaut.http.HttpRequest;
 import io.micronaut.http.client.HttpClient;
 import io.micronaut.http.client.annotation.Client;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
+import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.UriInfo;
 import org.junit.jupiter.api.Test;
@@ -67,6 +69,30 @@ class ResourceLifecycleTest {
             assertEquals(parts[0], parts[1]);
         }
         assertEquals(8, Set.copyOf(responses).size());
+    }
+
+    @Test
+    void postConstructSeesTheValuesOfTheRequest() {
+        assertEquals("value|value", client.toBlocking().retrieve(HttpRequest.GET("/post-construct?x=value")));
+    }
+
+    @Requires(property = "spec.name", value = "ResourceLifecycleTest")
+    @Path("/lifecycle/post-construct")
+    public static class PostConstructResource {
+        @QueryParam("x")
+        String x;
+
+        private String copied;
+
+        @PostConstruct
+        void init() {
+            copied = x;
+        }
+
+        @GET
+        public String get() {
+            return x + "|" + copied;
+        }
     }
 
     @Requires(property = "spec.name", value = "ResourceLifecycleTest")

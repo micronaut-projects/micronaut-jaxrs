@@ -64,6 +64,9 @@ final class JaxRsResourceFactory {
         FormParam.class, BeanParam.class, Context.class
     );
 
+    // the type created for a request whose members are set before its @PostConstruct methods run
+    private static final ThreadLocal<@Nullable Initializing<?>> INITIALIZING = new ThreadLocal<>();
+
     private final BeanContext beanContext;
     private final JaxRsRouteSupport support;
     // how to create the classes the locators return
@@ -272,16 +275,36 @@ final class JaxRsResourceFactory {
         }
         T instance;
         BeanIntrospection<T> introspection = requestType.introspection();
+        Initializing<T> initializing = new Initializing<>(requestType, request, pathVariables, form);
         if (requestType.bean() || introspection == null) {
-            instance = createBean(requestType.type(), requestType.requestNames(), requestValues);
+            // the members of a bean are set before its @PostConstruct methods run, see JaxRsResourceInitializer
+            Initializing<?> previous = INITIALIZING.get();
+            INITIALIZING.set(requestType.members().isEmpty() ? null : initializing);
+            try {
+                instance = createBean(requestType.type(), requestType.requestNames(), requestValues);
+            } finally {
+                INITIALIZING.set(previous);
+            }
         } else {
             instance = beanContext.inject(values.length == 0 ? introspection.instantiate() : introspection.instantiate(values));
         }
-        for (Member<T> member : requestType.members()) {
-            JaxRsParameterBinding.ValueReader reader = member.reader();
-            member.property().set(instance, reader == null ? null : reader.read(request, pathVariables, form));
+        if (!initializing.done) {
+            initializing.set(instance);
         }
         return instance;
+    }
+
+    /**
+     * Set the members of a bean created for a request with the values of the request, once it is
+     * injected, if it is the one being created.
+     *
+     * @param bean The bean being initialized
+     */
+    static void initializing(Object bean) {
+        Initializing<?> initializing = INITIALIZING.get();
+        if (initializing != null && !initializing.done && initializing.requestType.type().isInstance(bean)) {
+            initializing.setUnchecked(bean);
+        }
     }
 
     static boolean usesForm(Argument<?> argument) {
@@ -385,6 +408,39 @@ final class JaxRsResourceFactory {
     @FunctionalInterface
     private interface Creator<T> {
         T create(HttpRequest<?> request, PathVariables pathVariables, @Nullable FormData form);
+    }
+
+    /**
+     * The members of an instance of a type created for a request to set.
+     *
+     * @param <T> The type
+     */
+    private static final class Initializing<T> {
+        private final RequestType<T> requestType;
+        private final HttpRequest<?> request;
+        private final PathVariables pathVariables;
+        private final @Nullable FormData form;
+        private boolean done;
+
+        Initializing(RequestType<T> requestType, HttpRequest<?> request, PathVariables pathVariables, @Nullable FormData form) {
+            this.requestType = requestType;
+            this.request = request;
+            this.pathVariables = pathVariables;
+            this.form = form;
+        }
+
+        @SuppressWarnings("unchecked")
+        void setUnchecked(Object instance) {
+            set((T) instance);
+        }
+
+        void set(T instance) {
+            done = true;
+            for (Member<T> member : requestType.members()) {
+                JaxRsParameterBinding.ValueReader reader = member.reader();
+                member.property().set(instance, reader == null ? null : reader.read(request, pathVariables, form));
+            }
+        }
     }
 
     /**
