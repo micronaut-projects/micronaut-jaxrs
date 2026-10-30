@@ -23,15 +23,15 @@ import jakarta.ws.rs.ext.RuntimeDelegate;
 
 import org.jspecify.annotations.Nullable;
 
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
+import java.time.DateTimeException;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Date;
 import java.util.Locale;
-import java.util.TimeZone;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Forked from RESTEasy.
@@ -41,7 +41,11 @@ import java.util.TimeZone;
  */
 @Internal
 class NewCookieHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Object> {
-    private static final String OLD_COOKIE_PATTERN = "EEE, dd-MMM-yyyy HH:mm:ss z";
+    // the tokens of a cookie date (RFC 6265 section 5.1.1), followed by any non-digits
+    private static final Pattern COOKIE_TIME = Pattern.compile("(\\d{1,2}):(\\d{1,2}):(\\d{1,2})(?:\\D.*)?");
+    private static final Pattern COOKIE_DAY = Pattern.compile("(\\d{1,2})(?:\\D.*)?");
+    private static final Pattern COOKIE_YEAR = Pattern.compile("(\\d{2,4})(?:\\D.*)?");
+    private static final String MONTHS = "janfebmaraprmayjunjulaugsepoctnovdec";
     // RFC 1123 with a two-digit day, like Netty
     private static final DateTimeFormatter EXPIRES_FORMAT = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss 'GMT'", Locale.US);
 
@@ -164,17 +168,54 @@ class NewCookieHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Object> 
     }
 
     private static @Nullable Date parseExpires(String value) {
-        // RFC 1123 (e.g. Netty's), then the old Netscape format
+        // RFC 1123 (e.g. Netty's), then the cookie-date algorithm, e.g. of the old Netscape format
         try {
             return Date.from(ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant());
         } catch (DateTimeParseException e) {
-            // try the old format
+            return parseCookieDate(value);
         }
-        SimpleDateFormat format = new SimpleDateFormat(OLD_COOKIE_PATTERN, Locale.US);
-        format.setTimeZone(TimeZone.getTimeZone("GMT"));
+    }
+
+    /**
+     * Parse a cookie date with the algorithm of RFC 6265 section 5.1.1: its time, day of month,
+     * month and year tokens, in any order, a two-digit year in 1970-2069.
+     */
+    private static @Nullable Date parseCookieDate(String value) {
+        int hour = -1;
+        int minute = -1;
+        int second = -1;
+        int day = -1;
+        int month = -1;
+        int year = -1;
+        for (String token : value.split("[\\x09\\x20-\\x2F\\x3B-\\x40\\x5B-\\x60\\x7B-\\x7E]+")) {
+            if (token.isEmpty()) {
+                continue;
+            }
+            Matcher matcher;
+            if (hour < 0 && (matcher = COOKIE_TIME.matcher(token)).matches()) {
+                hour = Integer.parseInt(matcher.group(1));
+                minute = Integer.parseInt(matcher.group(2));
+                second = Integer.parseInt(matcher.group(3));
+            } else if (day < 0 && (matcher = COOKIE_DAY.matcher(token)).matches()) {
+                day = Integer.parseInt(matcher.group(1));
+            } else if (month < 0 && token.length() >= 3 && MONTHS.indexOf(token.substring(0, 3).toLowerCase(Locale.ROOT)) % 3 == 0) {
+                month = MONTHS.indexOf(token.substring(0, 3).toLowerCase(Locale.ROOT)) / 3 + 1;
+            } else if (year < 0 && (matcher = COOKIE_YEAR.matcher(token)).matches()) {
+                year = Integer.parseInt(matcher.group(1));
+            }
+        }
+        if (year >= 70 && year <= 99) {
+            year += 1900;
+        } else if (year >= 0 && year <= 69) {
+            year += 2000;
+        }
+        if (hour < 0 || day < 1 || day > 31 || month < 0 || year < 1601 || hour > 23 || minute > 59 || second > 59) {
+            return null;
+        }
         try {
-            return format.parse(value);
-        } catch (ParseException e) {
+            return Date.from(ZonedDateTime.of(year, month, day, hour, minute, second, 0, ZoneOffset.UTC).toInstant());
+        } catch (DateTimeException e) {
+            // a day the month does not have
             return null;
         }
     }
