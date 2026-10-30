@@ -69,6 +69,27 @@ class JaxRsSseEventSinkTest {
     }
 
     @Test
+    void disconnectFailsPendingSendsApartAfterClosing() {
+        // the disconnect is reported on the event loop: the callbacks of the stages run apart
+        List<Runnable> offloaded = new CopyOnWriteArrayList<>();
+        var sink = new JaxRsSseEventSink(e -> String.valueOf(e.getData()), offloaded::add);
+        var subscription = new AtomicReference<Subscription>();
+        sink.publisher().subscribe(new TestSubscriber(subscription, new CopyOnWriteArrayList<>()));
+        var closedWhenFailed = new AtomicReference<Boolean>();
+        CompletableFuture<?> pending = sink.send(event("one")).toCompletableFuture();
+        pending.whenComplete((v, t) -> closedWhenFailed.set(sink.isClosed()));
+
+        subscription.get().cancel();
+
+        assertTrue(sink.isClosed());
+        assertFalse(pending.isDone());
+        assertEquals(1, offloaded.size());
+        offloaded.get(0).run();
+        assertTrue(pending.isCompletedExceptionally());
+        assertEquals(Boolean.TRUE, closedWhenFailed.get());
+    }
+
+    @Test
     void eventsBufferedBeforeTheResponseComplete() {
         // the resource method can wait for its stages before the response is written
         var sink = new JaxRsSseEventSink(e -> String.valueOf(e.getData()));
