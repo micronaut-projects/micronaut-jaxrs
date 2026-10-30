@@ -318,6 +318,26 @@ final class JaxRsClientRequestContext implements ClientRequestContext {
         return entitySink.toByteArray();
     }
 
+    /**
+     * Close the entity stream a filter replaced, when the entity is not written through it, e.g.
+     * because its writer failed: the stream and the streams it wraps are owned by the exchange.
+     *
+     * @param failure The failure the closing failure is added to, {@code null} if none
+     */
+    void closeReplacedEntityStream(@Nullable Throwable failure) {
+        OutputStream stream = entityStream;
+        if (stream == null) {
+            return;
+        }
+        try {
+            stream.close();
+        } catch (IOException | RuntimeException e) {
+            if (failure != null && failure != e) {
+                failure.addSuppressed(e);
+            }
+        }
+    }
+
     @Override
     public Client getClient() {
         return client;

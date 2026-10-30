@@ -128,6 +128,7 @@ final class JaxRsClientExchange {
             // the injected configuration of a shared filter is the one of this invocation (JAX-RS 10.2.8)
             Response aborted = JaxRsClientFilters.filterRequest(configuration, requestContext);
             if (aborted != null) {
+                requestContext.closeReplacedEntityStream(null);
                 future.complete(new Exchanged(written(aborted), requestContext));
                 return future;
             }
@@ -203,7 +204,12 @@ final class JaxRsClientExchange {
     private MutableHttpRequest<Object> changed(MutableHttpRequest<Object> request, JaxRsClientRequestContext requestContext) throws IOException {
         request = withChangedMethod(request, requestContext);
         Object entity = requestContext.getEntity();
-        if (entity != null) {
+        if (entity == null) {
+            // the entity stream a filter replaced writes nothing
+            requestContext.closeReplacedEntityStream(null);
+            return request;
+        }
+        try {
             // the entity as the filters left it, with the media type they left
             // written to bytes when a filter replaced the entity stream, which writes them
             configuration.entityIO().writeBody(request, requestContext.getEntityArgument(), entity, requestContext.isEntityStreamReplaced(),
@@ -212,6 +218,10 @@ final class JaxRsClientExchange {
             if (body instanceof byte[] bytes) {
                 request.body(requestContext.writeThroughEntityStream(bytes));
             }
+        } catch (IOException | RuntimeException e) {
+            // the entity stream a filter replaced is closed when the entity is not written through it
+            requestContext.closeReplacedEntityStream(e);
+            throw e;
         }
         return request;
     }
