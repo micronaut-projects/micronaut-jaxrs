@@ -76,7 +76,12 @@ final class JaxRsMediaNegotiation {
                     continue;
                 }
                 MediaType type = specificity(produce) >= specificity(accept) ? produce : accept;
-                if (specificity(type) == 0 || specificity(type) == 1 && "application".equals(type.getType())) {
+                if (overridden(accepted, accept, type)) {
+                    // a more specific range rejects it, as in the negotiation
+                    continue;
+                }
+                // the names of types are case-insensitive (RFC 9110, 8.3.1)
+                if (specificity(type) == 0 || specificity(type) == 1 && "application".equalsIgnoreCase(type.getType())) {
                     return true;
                 }
             }
@@ -165,7 +170,8 @@ final class JaxRsMediaNegotiation {
     }
 
     /**
-     * Whether a type has every parameter of a range, but {@code q} and {@code qs}.
+     * Whether a type has every parameter of a range, but {@code q} and {@code qs}. The values of
+     * parameters are case-sensitive, but the one of {@code charset} (RFC 9110, 5.6.6 and 8.3.2).
      */
     private static boolean parametersMatch(MediaType range, MediaType type) {
         for (CharSequence parameter : range.getParameters()) {
@@ -174,7 +180,8 @@ final class JaxRsMediaNegotiation {
                 continue;
             }
             String value = parameter(type, name);
-            if (value == null || !value.equalsIgnoreCase(parameter(range, name))) {
+            String rangeValue = parameter(range, name);
+            if (value == null || !(MediaType.CHARSET_PARAMETER.equalsIgnoreCase(name) ? value.equalsIgnoreCase(rangeValue) : value.equals(rangeValue))) {
                 return false;
             }
         }
