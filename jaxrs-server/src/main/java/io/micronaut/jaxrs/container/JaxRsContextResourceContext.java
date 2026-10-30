@@ -29,6 +29,7 @@ import io.micronaut.web.router.UriRouteMatch;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.container.ResourceContext;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -75,9 +76,15 @@ final class JaxRsContextResourceContext implements ResourceContext {
 
     /**
      * The path variables of the route the request matched, none if it matched none: only their
-     * strings are read, converted by the JAX-RS parameter readers.
+     * strings are read, converted by the JAX-RS parameter readers. While a sub-resource locator
+     * is called, the route is not matched yet: they are the variables the locator captured.
      */
     private PathVariables pathVariables(HttpRequest<?> request) {
+        JaxRsMatched matched = JaxRsMatched.get(request);
+        if (matched != null && matched.locating() != null && !matched.locators().isEmpty()) {
+            List<JaxRsMatched.Locator> locators = matched.locators();
+            return locators.get(locators.size() - 1).variables();
+        }
         UriRouteMatch<?, ?> match = RouteAttributes.getRouteMatch(request)
             .filter(UriRouteMatch.class::isInstance)
             .<UriRouteMatch<?, ?>>map(m -> (UriRouteMatch<?, ?>) m)
