@@ -29,10 +29,12 @@ import io.micronaut.http.body.MessageBodyHandlerRegistry;
 import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
 import io.micronaut.jaxrs.common.ByteArrayByteBuffer;
 import io.micronaut.jaxrs.common.HttpMessageEntityReader;
+import io.micronaut.jaxrs.common.JaxRsIOException;
 import io.micronaut.jaxrs.common.JaxRsInterceptedRead;
 import io.micronaut.jaxrs.common.JaxRsInterceptedWrite;
 import io.micronaut.jaxrs.common.JaxRsCurrentProviders;
 import io.micronaut.jaxrs.common.JaxRsWriterInterceptorContextState;
+import jakarta.ws.rs.ProcessingException;
 import jakarta.ws.rs.ext.Providers;
 import jakarta.ws.rs.core.GenericEntity;
 import jakarta.ws.rs.ext.MessageBodyWriter;
@@ -94,6 +96,9 @@ final class JaxRsClientEntityIO {
                 Providers previous = JaxRsCurrentProviders.set(providers);
                 try {
                     return readEntityOfConfiguration(message, entityType);
+                } catch (JaxRsIOException e) {
+                    // the failure of a reader is a processing failure (JAX-RS, Response#readEntity)
+                    throw new ProcessingException(e.getCause());
                 } finally {
                     JaxRsCurrentProviders.restore(previous);
                 }
@@ -122,6 +127,8 @@ final class JaxRsClientEntityIO {
 
                     }.intercept(Argument.of(InputStream.class), mediaType, headers, entityStream, properties);
                     return read == null ? InputStream.nullInputStream() : read;
+                } catch (JaxRsIOException e) {
+                    throw new ProcessingException(e.getCause());
                 } finally {
                     JaxRsCurrentProviders.restore(previous);
                 }

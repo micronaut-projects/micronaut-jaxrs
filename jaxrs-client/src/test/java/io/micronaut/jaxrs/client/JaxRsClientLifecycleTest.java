@@ -25,6 +25,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.Variant;
+import jakarta.ws.rs.ext.MessageBodyReader;
 import jakarta.ws.rs.ext.MessageBodyWriter;
 import jakarta.ws.rs.ext.ReaderInterceptor;
 import jakarta.ws.rs.ext.WriterInterceptor;
@@ -298,6 +299,27 @@ class JaxRsClientLifecycleTest {
     }
 
     public interface RecordingRxInvoker extends RxInvoker<Object> {
+    }
+
+    @Test
+    void failureOfAReaderIsAProcessingException() {
+        try (Response response = target("hello").register(new FailingReader()).request().get()) {
+            ProcessingException e = assertThrows(ProcessingException.class, () -> response.readEntity(Thing.class));
+            assertInstanceOf(IOException.class, e.getCause());
+        }
+    }
+
+    static final class FailingReader implements MessageBodyReader<Thing> {
+        @Override
+        public boolean isReadable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+            return type == Thing.class;
+        }
+
+        @Override
+        public Thing readFrom(Class<Thing> type, Type genericType, Annotation[] annotations, MediaType mediaType,
+                              MultivaluedMap<String, String> httpHeaders, InputStream entityStream) throws IOException {
+            throw new IOException("reader failed");
+        }
     }
 
     static final class Thing {
