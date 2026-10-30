@@ -18,6 +18,7 @@ package io.micronaut.jaxrs.container;
 import io.micronaut.context.BeanContext;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.beans.BeanConstructor;
 import io.micronaut.core.beans.BeanIntrospection;
 import io.micronaut.core.beans.BeanProperty;
 import io.micronaut.core.type.Argument;
@@ -164,13 +165,15 @@ final class JaxRsResourceFactory {
      */
     @SuppressWarnings("unchecked")
     <T> T initResource(T resource, HttpRequest<?> request, PathVariables pathVariables) {
-        T instance = beanContext.inject(resource);
-        RequestType<T> requestType = contextRequestType((Class<T>) instance.getClass());
-        if (requestType != null) {
-            for (Member<T> member : requestType.members()) {
-                JaxRsParameterBinding.ValueReader reader = member.reader();
-                member.property().set(instance, reader == null ? null : reader.read(request, pathVariables, contextForm(request)));
-            }
+        RequestType<T> requestType = contextRequestType((Class<T>) resource.getClass());
+        if (requestType == null) {
+            return beanContext.inject(resource);
+        }
+        // the members are set before its @PostConstruct methods run, as for a created resource
+        Initializing<T> initializing = new Initializing<>(requestType, request, pathVariables, contextForm(request));
+        T instance = initializing(initializing, () -> beanContext.inject(resource));
+        if (!initializing.done) {
+            initializing.set(instance);
         }
         return instance;
     }
@@ -278,20 +281,29 @@ final class JaxRsResourceFactory {
         Initializing<T> initializing = new Initializing<>(requestType, request, pathVariables, form);
         if (requestType.bean() || introspection == null) {
             // the members of a bean are set before its @PostConstruct methods run, see JaxRsResourceInitializer
-            Initializing<?> previous = INITIALIZING.get();
-            INITIALIZING.set(requestType.members().isEmpty() ? null : initializing);
-            try {
-                instance = createBean(requestType.type(), requestType.requestNames(), requestValues);
-            } finally {
-                INITIALIZING.set(previous);
-            }
+            instance = initializing(initializing, () -> createBean(requestType.type(), requestType.requestNames(), requestValues));
         } else {
-            instance = beanContext.inject(values.length == 0 ? introspection.instantiate() : introspection.instantiate(values));
+            T created = values.length == 0 ? introspection.instantiate() : introspection.instantiate(values);
+            instance = initializing(initializing, () -> beanContext.inject(created));
         }
         if (!initializing.done) {
             initializing.set(instance);
         }
         return instance;
+    }
+
+    /**
+     * Create or inject an instance whose members are set once it is injected, before its
+     * {@code @PostConstruct} methods run, see {@link JaxRsResourceInitializer}.
+     */
+    private static <T> T initializing(Initializing<T> initializing, Supplier<T> injection) {
+        Initializing<?> previous = INITIALIZING.get();
+        INITIALIZING.set(initializing.requestType.members().isEmpty() ? null : initializing);
+        try {
+            return injection.get();
+        } finally {
+            INITIALIZING.set(previous);
+        }
     }
 
     /**
@@ -332,9 +344,12 @@ final class JaxRsResourceFactory {
             return false;
         }
         boolean encodedType = introspection.hasAnnotation(Encoded.class);
-        for (Argument<?> argument : introspection.getConstructorArguments()) {
+        BeanConstructor<?> constructor = JaxRsParameterBinding.beanParamConstructor(introspection);
+        boolean encodedConstructor = encodedType || constructor.getAnnotationMetadata().hasAnnotation(Encoded.class);
+        for (Argument<?> argument : constructor.getArguments()) {
             AnnotationMetadata metadata = argument.getAnnotationMetadata();
-            if (metadata.hasAnnotation(FormParam.class) && (encodedType || metadata.hasAnnotation(Encoded.class))) {
+            if (metadata.hasAnnotation(FormParam.class) && (encodedConstructor || metadata.hasAnnotation(Encoded.class))
+                || metadata.hasAnnotation(BeanParam.class) && usesEncodedForm(argument.getType(), depth + 1)) {
                 return true;
             }
         }
@@ -359,8 +374,10 @@ final class JaxRsResourceFactory {
         if (introspection == null) {
             return false;
         }
-        for (Argument<?> argument : introspection.getConstructorArguments()) {
-            if (argument.getAnnotationMetadata().hasAnnotation(FormParam.class)) {
+        for (Argument<?> argument : JaxRsParameterBinding.beanParamConstructor(introspection).getArguments()) {
+            AnnotationMetadata metadata = argument.getAnnotationMetadata();
+            if (metadata.hasAnnotation(FormParam.class)
+                || metadata.hasAnnotation(BeanParam.class) && usesForm(argument.getType(), depth + 1)) {
                 return true;
             }
         }

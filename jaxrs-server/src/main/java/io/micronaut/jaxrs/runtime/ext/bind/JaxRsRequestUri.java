@@ -20,8 +20,6 @@ import io.micronaut.http.HttpRequest;
 import org.jspecify.annotations.Nullable;
 
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -43,7 +41,6 @@ public final class JaxRsRequestUri {
     private final URI uri;
     private @Nullable Map<String, List<String>> rawQuery;
     private @Nullable Map<String, List<String>> decodedQuery;
-    private @Nullable Map<String, List<String>> boundQuery;
     private String @Nullable [] rawPathSegments;
 
     private JaxRsRequestUri(URI uri) {
@@ -89,16 +86,9 @@ public final class JaxRsRequestUri {
      * @param name The decoded name
      * @return The raw values, empty if none
      */
-    public synchronized List<String> rawQueryValues(String name) {
-        Map<String, List<String>> bound = boundQuery;
-        if (bound == null) {
-            bound = new LinkedHashMap<>();
-            for (Map.Entry<String, List<String>> entry : queryParameters(false).entrySet()) {
-                bound.computeIfAbsent(UriInfoImpl.decodeQuery(entry.getKey()), k -> new ArrayList<>(1)).addAll(entry.getValue());
-            }
-            boundQuery = bound;
-        }
-        return bound.getOrDefault(name, List.of());
+    public List<String> rawQueryValues(String name) {
+        // the names of the parsed query are already decoded
+        return queryParameters(false).getOrDefault(name, List.of());
     }
 
     /**

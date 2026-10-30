@@ -15,6 +15,8 @@
  */
 package io.micronaut.jaxrs.processor;
 
+import io.micronaut.context.annotation.Bean;
+import io.micronaut.core.annotation.AnnotationUtil;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.inject.ast.ClassElement;
 import io.micronaut.inject.ast.ConstructorElement;
@@ -134,7 +136,8 @@ final class JaxRsResources {
      * The constructor JAX-RS uses for an instance created per request: of the public constructors
      * JAX-RS can call, the one with the most parameters (JAX-RS 3.1.2), when it has parameters read
      * from the request. A constructor with parameters, none of which is read from the request, is
-     * not one, even when it has more parameters; the others may also have beans as parameters.
+     * not one, even when it has more parameters; the others may also have beans as parameters, but
+     * not a class that cannot be a bean: a concrete class declared without a bean annotation.
      *
      * @param type The class
      * @return The constructor, or {@code null}
@@ -143,12 +146,30 @@ final class JaxRsResources {
         ConstructorElement selected = null;
         for (ConstructorElement constructor : type.getEnclosedElements(ElementQuery.CONSTRUCTORS)) {
             ParameterElement[] parameters = constructor.getParameters();
-            if (constructor.isPublic() && (parameters.length == 0 || Arrays.stream(parameters).anyMatch(JaxRsResources::isRequestAnnotated))
+            if (constructor.isPublic() && (parameters.length == 0 || (Arrays.stream(parameters).anyMatch(JaxRsResources::isRequestAnnotated)
+                && Arrays.stream(parameters).allMatch(parameter -> isRequestAnnotated(parameter) || canBeBean(parameter.getGenericType()))))
                 && (selected == null || constructor.getParameters().length > selected.getParameters().length)) {
                 selected = constructor;
             }
         }
         return selected == null || selected.getParameters().length == 0 ? null : selected;
+    }
+
+    /**
+     * @param type The type of a constructor parameter that is not read from the request
+     * @return Whether the bean context may supply it: not a primitive, nor a concrete class
+     * declared without a bean annotation, unless it is a container of beans, e.g. an
+     * {@code Optional}, or a class of the JDK
+     */
+    private static boolean canBeBean(ClassElement type) {
+        if (type.isPrimitive()) {
+            return false;
+        }
+        if (type.isInterface() || type.isAbstract() || type.isOptional() || type.isContainerType()
+            || type.getName().startsWith("java.")) {
+            return true;
+        }
+        return type.hasStereotype(AnnotationUtil.SCOPE) || type.hasStereotype(Bean.class) || type.hasStereotype(AnnotationUtil.QUALIFIER);
     }
 
     /**

@@ -17,6 +17,7 @@ package io.micronaut.jaxrs.container;
 
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.beans.BeanConstructor;
 import io.micronaut.core.beans.BeanIntrospection;
 import io.micronaut.core.beans.BeanProperty;
 import io.micronaut.core.convert.ConversionService;
@@ -292,10 +293,13 @@ final class JaxRsParameterBinding {
         BeanIntrospection<Object> introspection = (BeanIntrospection<Object>) Optional.ofNullable(JaxRsReflection.get().introspection(type))
             .orElseThrow(() -> new IllegalStateException("The @BeanParam type " + type.getName() + " is not introspected"));
         boolean encoded = introspection.hasAnnotation(Encoded.class);
-        Argument<?>[] constructorArguments = introspection.getConstructorArguments();
+        BeanConstructor<Object> constructor = beanParamConstructor(introspection);
+        // an @Encoded constructor keeps the values of its parameters encoded
+        boolean encodedConstructor = encoded || constructor.getAnnotationMetadata().hasAnnotation(Encoded.class);
+        Argument<?>[] constructorArguments = constructor.getArguments();
         ValueReader[] constructorReaders = new ValueReader[constructorArguments.length];
         for (int i = 0; i < constructorArguments.length; i++) {
-            ValueReader reader = reader(constructorArguments[i].getAnnotationMetadata(), constructorArguments[i], encoded);
+            ValueReader reader = reader(constructorArguments[i].getAnnotationMetadata(), constructorArguments[i], encodedConstructor);
             constructorReaders[i] = reader == null ? (r, p, f) -> null : reader;
         }
         List<Map.Entry<BeanProperty<Object, Object>, ValueReader>> properties = new ArrayList<>();
@@ -313,12 +317,46 @@ final class JaxRsParameterBinding {
             for (int i = 0; i < arguments.length; i++) {
                 arguments[i] = constructorReaders[i].read(request, pathVariables, form);
             }
-            Object instance = arguments.length == 0 ? introspection.instantiate() : introspection.instantiate(arguments);
+            Object instance = constructor == introspection.getConstructor() && arguments.length == 0 ? introspection.instantiate()
+                : constructor.instantiate(arguments);
             for (Map.Entry<BeanProperty<Object, Object>, ValueReader> property : properties) {
                 property.getKey().set(instance, property.getValue().read(request, pathVariables, form));
             }
             return instance;
         };
+    }
+
+    /**
+     * The constructor a bean parameter is created with: the one of its introspection, unless the
+     * introspection describes others, as a reflective one does, and one of them has more
+     * parameters, all read from the request (JAX-RS 3.1.2).
+     *
+     * @param introspection The introspection of the bean parameter
+     * @param <T>           The type
+     * @return The constructor
+     */
+    static <T> BeanConstructor<T> beanParamConstructor(BeanIntrospection<T> introspection) {
+        BeanConstructor<T> selected = introspection.getConstructor();
+        if (!allRequestAnnotated(selected.getArguments())) {
+            selected = null;
+        }
+        for (BeanConstructor<T> constructor : introspection.getConstructors()) {
+            Argument<?>[] arguments = constructor.getArguments();
+            if (arguments.length > 0 && allRequestAnnotated(arguments)
+                && (selected == null || arguments.length > selected.getArguments().length)) {
+                selected = constructor;
+            }
+        }
+        return selected == null ? introspection.getConstructor() : selected;
+    }
+
+    private static boolean allRequestAnnotated(Argument<?>[] arguments) {
+        for (Argument<?> argument : arguments) {
+            if (!JaxRsResourceFactory.isRequestAnnotated(argument.getAnnotationMetadata())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
