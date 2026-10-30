@@ -457,8 +457,9 @@ class JaxRsSseEventSourceTest {
             source.register(event -> { }, failed::complete);
             source.open();
             Throwable error = failed.get(10, TimeUnit.SECONDS);
-            assertTrue(error instanceof jakarta.ws.rs.client.ResponseProcessingException, error.toString());
-            Response response = ((jakarta.ws.rs.client.ResponseProcessingException) error).getResponse();
+            // a WebApplicationException with the response (JAX-RS, SseEventSource)
+            assertTrue(error instanceof WebApplicationException, error.toString());
+            Response response = ((WebApplicationException) error).getResponse();
             assertEquals(200, response.getStatus());
             assertEquals("kept", response.getHeaderString("X-Proof"));
         } finally {
@@ -534,6 +535,130 @@ class JaxRsSseEventSourceTest {
             source.open();
             assertEquals(503, ((WebApplicationException) failed.get(10, TimeUnit.SECONDS)).getResponse().getStatus());
         } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void aBlockedReconnectionFilterDoesNotDelayAnotherSource() throws Exception {
+        // the sources share the default scheduler of the reconnections
+        Client client = ClientBuilder.newClient();
+        CountDownLatch filtering = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        AtomicInteger blockedRequests = new AtomicInteger();
+        WebTarget blocked = target(client, "dropping")
+            .register((ClientRequestFilter) context -> {
+                if (blockedRequests.incrementAndGet() == 2) {
+                    filtering.countDown();
+                    try {
+                        release.await(10, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+            });
+        CountDownLatch retried = new CountDownLatch(2);
+        WebTarget unavailable = target(client, "endless")
+            .register((ClientResponseFilter) (request, response) -> {
+                retried.countDown();
+                response.setStatus(503);
+                response.getHeaders().putSingle("Retry-After", "0");
+            });
+        try (SseEventSource first = SseEventSource.target(blocked).reconnectingEvery(10, TimeUnit.MILLISECONDS).build();
+             SseEventSource second = SseEventSource.target(unavailable).build()) {
+            first.register(event -> { });
+            second.register(event -> { });
+            first.open();
+            assertTrue(filtering.await(10, TimeUnit.SECONDS));
+            second.open();
+            assertTrue(retried.await(5, TimeUnit.SECONDS));
+        } finally {
+            release.countDown();
+            client.close();
+        }
+    }
+
+    @Test
+    void anErrorResponseRepairedByAFilterDeliversItsEvents() throws Exception {
+        Client client = ClientBuilder.newClient();
+        try {
+            var replacement = new ByteArrayInputStream("data: recovered\n\n".getBytes(StandardCharsets.UTF_8));
+            WebTarget target = target(client, "failing-events")
+                .register((ClientResponseFilter) (request, response) -> {
+                    response.setStatus(200);
+                    response.getHeaders().putSingle("Content-Type", "text/event-stream");
+                    response.setEntityStream(replacement);
+                });
+            CompletableFuture<String> received = new CompletableFuture<>();
+            try (SseEventSource source = SseEventSource.target(target).build()) {
+                source.register(event -> received.complete(event.readData()), received::completeExceptionally,
+                    () -> received.complete("completed"));
+                source.open();
+                assertEquals("recovered", received.get(10, TimeUnit.SECONDS));
+            }
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void anErrorResponseChangedToAnotherSuccessIsAnError() throws Exception {
+        Client client = ClientBuilder.newClient();
+        try {
+            WebTarget target = target(client, "failing-events")
+                .register((ClientResponseFilter) (request, response) -> response.setStatus(201));
+            CompletableFuture<Object> failed = new CompletableFuture<>();
+            try (SseEventSource source = SseEventSource.target(target).build()) {
+                source.register(event -> { }, failed::complete, () -> failed.complete("completed"));
+                source.open();
+                Object error = failed.get(10, TimeUnit.SECONDS);
+                assertTrue(error instanceof WebApplicationException, String.valueOf(error));
+                assertEquals(201, ((WebApplicationException) error).getResponse().getStatus());
+            }
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void aTimedCloseDoesNotWaitForABlockedStreamClose() throws Exception {
+        Client client = ClientBuilder.newClient();
+        CountDownLatch release = new CountDownLatch(1);
+        CountDownLatch reading = new CountDownLatch(1);
+        try {
+            // a stream whose read and close block until released
+            var replacement = new java.io.InputStream() {
+                @Override
+                public int read() throws IOException {
+                    reading.countDown();
+                    await();
+                    return -1;
+                }
+
+                @Override
+                public void close() {
+                    await();
+                }
+
+                private void await() {
+                    try {
+                        release.await(10, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+            };
+            WebTarget target = target(client, "endless")
+                .register((ClientResponseFilter) (request, response) -> response.setEntityStream(replacement));
+            SseEventSource source = SseEventSource.target(target).build();
+            source.register(event -> { });
+            source.open();
+            assertTrue(reading.await(10, TimeUnit.SECONDS));
+            long start = System.nanoTime();
+            assertFalse(source.close(10, TimeUnit.MILLISECONDS));
+            assertTrue(System.nanoTime() - start < TimeUnit.SECONDS.toNanos(2));
+        } finally {
+            release.countDown();
             client.close();
         }
     }

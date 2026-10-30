@@ -170,6 +170,11 @@ class ClientTestController {
         return HttpResponse.status(HttpStatus.SERVICE_UNAVAILABLE).header("Retry-After", "+0");
     }
 
+    @Get(value = "/failing-events", produces = MediaType.TEXT_EVENT_STREAM)
+    HttpResponse<?> failingEvents() {
+        return HttpResponse.serverError();
+    }
+
     @Get(value = "/unavailable", produces = MediaType.TEXT_EVENT_STREAM)
     HttpResponse<?> unavailable() {
         return HttpResponse.status(HttpStatus.SERVICE_UNAVAILABLE);

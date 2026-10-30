@@ -96,6 +96,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import jakarta.ws.rs.sse.SseEventSink;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Supplier;
 
 /**
@@ -735,7 +736,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         Converter converter = method.converter();
         Completion completion = method.completion();
         // the value of the stage is negotiated like the result of a method that is not asynchronous
-        // in the context of the request: the response is written on the thread completing the stage
+        // in the context of the request
         Executor inRequest = inRequest(request);
         CompletableFuture<HttpResponse<?>> response = new CompletableFuture<>();
         stage.whenComplete((value, failure) -> inRequest.execute(() -> {
@@ -756,16 +757,29 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     }
 
     /**
-     * Runs a task on the calling thread in the context of a request, e.g. the thread of the
-     * application completing an asynchronous response: the response is converted and written on
-     * it, and the writers may read the request, e.g. its {@code UriInfo} (JAX-RS 10.1).
+     * Runs a task in the context of a request on the blocking executor, e.g. when the application
+     * completes an asynchronous response: the response is converted there, the writers may block,
+     * also when the response is completed on an event loop, and they may read the request, e.g.
+     * its {@code UriInfo} (JAX-RS 10.1). Without that executor, the task runs on the calling thread.
      */
-    private static Executor inRequest(HttpRequest<?> request) {
+    private Executor inRequest(HttpRequest<?> request) {
         PropagatedContext context = PropagatedContext.getOrEmpty();
         return task -> {
-            try (PropagatedContext.Scope ignored = context.propagate()) {
-                ServerRequestContext.with(request, task);
+            Runnable run = () -> {
+                try (PropagatedContext.Scope ignored = context.propagate()) {
+                    ServerRequestContext.with(request, task);
+                }
+            };
+            Executor executor = callbackExecutor.get();
+            if (executor != null) {
+                try {
+                    executor.execute(run);
+                    return;
+                } catch (RejectedExecutionException e) {
+                    // the executor is shut down: run on this thread
+                }
             }
+            run.run();
         };
     }
 

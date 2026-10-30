@@ -137,18 +137,27 @@ final class JaxRsSseEventSink implements SseEventSink, Publisher<Event<String>>,
             unsent = List.copyOf(buffer);
             buffer.clear();
         }
-        IOException disconnected = new IOException("The client disconnected");
-        for (Pending pending : unsent) {
-            pending.sent.completeExceptionally(disconnected);
+        // the client disconnected, reported on the event loop: closed first, then the futures of
+        // the unsent events, whose callbacks can block, e.g. of a broadcaster, and the close
+        // callbacks complete apart
+        boolean wasOpen = markClosed();
+        if (!wasOpen && unsent.isEmpty()) {
+            return;
         }
-        // the client disconnected, reported on the event loop: the callbacks run apart
-        if (markClosed()) {
-            try {
-                callbackExecutor.execute(this::runCallbacks);
-            } catch (RejectedExecutionException e) {
-                // the executor is shut down: run on this thread
+        Runnable disconnected = () -> {
+            IOException failure = new IOException("The client disconnected");
+            for (Pending pending : unsent) {
+                pending.sent.completeExceptionally(failure);
+            }
+            if (wasOpen) {
                 runCallbacks();
             }
+        };
+        try {
+            callbackExecutor.execute(disconnected);
+        } catch (RejectedExecutionException e) {
+            // the executor is shut down: run on this thread
+            disconnected.run();
         }
     }
 

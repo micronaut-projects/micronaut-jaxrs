@@ -48,11 +48,13 @@ final class JaxRsSseBroadcaster implements SseBroadcaster {
 
     @Override
     public void onError(BiConsumer<SseEventSink, Throwable> onError) {
+        checkOpen();
         this.onError.add(onError);
     }
 
     @Override
     public void onClose(Consumer<SseEventSink> onClose) {
+        checkOpen();
         this.onClose.add(onClose);
     }
 
@@ -123,6 +125,10 @@ final class JaxRsSseBroadcaster implements SseBroadcaster {
     public void close(boolean cascading) {
         List<SseEventSink> registered;
         synchronized (this) {
+            if (closed) {
+                // closed again, e.g. by a close callback: ignored (JAX-RS, SseBroadcaster#close)
+                return;
+            }
             closed = true;
             registered = List.copyOf(sinks);
         }
@@ -147,6 +153,15 @@ final class JaxRsSseBroadcaster implements SseBroadcaster {
                 }
             }
             closed(sink);
+        }
+    }
+
+    /**
+     * Once closed, the methods other than close fail (JAX-RS, SseBroadcaster#close).
+     */
+    private void checkOpen() {
+        if (closed) {
+            throw new IllegalStateException("The broadcaster is closed");
         }
     }
 
