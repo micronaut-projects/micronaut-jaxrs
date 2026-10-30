@@ -21,6 +21,7 @@ import io.micronaut.http.HttpMethod;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.context.ServerRequestContext;
 import io.micronaut.jaxrs.common.JaxRsHeaderUtil;
+import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.core.EntityTag;
 import jakarta.ws.rs.core.MediaType;
@@ -35,6 +36,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * The JAX-RS {@link Request} of the current request: its method, content negotiation of variants,
@@ -52,6 +54,24 @@ final class JaxRsContextRequest implements Request {
      * {@link #selectVariant(List)}.
      */
     static final String VARY = JaxRsContextRequest.class.getName() + ".vary";
+
+    // the request: the current one, or the one of the context of a filter, with the method a pre-matching filter replaced
+    private final Supplier<HttpRequest<?>> requests;
+
+    /**
+     * The request of the current request.
+     */
+    @Inject
+    JaxRsContextRequest() {
+        this(JaxRsContextRequest::currentRequest);
+    }
+
+    /**
+     * @param requests Supplies the request
+     */
+    JaxRsContextRequest(Supplier<HttpRequest<?>> requests) {
+        this.requests = requests;
+    }
 
     @Override
     public String getMethod() {
@@ -176,7 +196,11 @@ final class JaxRsContextRequest implements Request {
         return builder;
     }
 
-    private static HttpRequest<?> request() {
+    private HttpRequest<?> request() {
+        return requests.get();
+    }
+
+    private static HttpRequest<?> currentRequest() {
         return ServerRequestContext.currentRequest()
             .orElseThrow(() -> new IllegalStateException("No request in the current context"));
     }

@@ -120,9 +120,11 @@ final class JaxRsContainerFilters {
      * the request.
      */
     private JaxRsContainerRequestContext newContext(MutableHttpRequest<?> request, boolean preMatching) {
-        return new JaxRsContainerRequestContext(request, applicationProvider, preMatching)
-            .withSecurityContext(() -> beanContext.getBean(JaxRsContextSecurityContext.class).resolve(request))
-            .withRequest(() -> beanContext.getBean(JaxRsContextRequest.class));
+        JaxRsContainerRequestContext context = new JaxRsContainerRequestContext(request, applicationProvider, preMatching)
+            .withSecurityContext(() -> beanContext.getBean(JaxRsContextSecurityContext.class).resolve(request));
+        // the request of the context: with the method a pre-matching filter replaced
+        JaxRsContextRequest contextRequest = new JaxRsContextRequest(context::currentRequest);
+        return context.withRequest(() -> contextRequest);
     }
 
     /**
