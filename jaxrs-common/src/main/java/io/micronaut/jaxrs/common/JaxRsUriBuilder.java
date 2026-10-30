@@ -115,13 +115,15 @@ final class JaxRsUriBuilder extends UriBuilder {
             // an opaque URI has no path; its fragment is not part of the scheme-specific part
             this.path = null;
             this.scheme = opaque.group(1);
-            String schemeSpecificPart = opaque.group(2);
-            int hash = schemeSpecificPart.indexOf('#');
+            // a '#' in the regular expression of a template does not start the fragment
+            JaxRsUriTemplate.Protected schemeSpecificPart = JaxRsUriTemplate.protect(opaque.group(2));
+            String text = schemeSpecificPart.text();
+            int hash = text.indexOf('#');
             if (hash > -1) {
-                this.ssp = schemeSpecificPart.substring(0, hash);
-                fragment(schemeSpecificPart.substring(hash + 1));
+                this.ssp = schemeSpecificPart.restore(text.substring(0, hash));
+                fragment(schemeSpecificPart.restore(text.substring(hash + 1)));
             } else {
-                this.ssp = schemeSpecificPart;
+                this.ssp = schemeSpecificPart.restore(text);
             }
             return this;
         } else {
@@ -754,12 +756,15 @@ final class JaxRsUriBuilder extends UriBuilder {
             return values == null || values.length == 0 ? this : queryParam(name, values);
         }
 
-        String[] params = query.split("&");
+        // a '&' or a '=' in the regular expression of a template is not one of the query
+        JaxRsUriTemplate.Protected protectedQuery = JaxRsUriTemplate.protect(query);
+        String[] params = protectedQuery.text().split("&");
         query = null;
 
         String replacedName = Encode.encodeQueryParam(name);
 
-        for (String param : params) {
+        for (String protectedParam : params) {
+            String param = protectedQuery.restore(protectedParam);
             int pos = param.indexOf('=');
             if (pos >= 0) {
                 String paramName = param.substring(0, pos);

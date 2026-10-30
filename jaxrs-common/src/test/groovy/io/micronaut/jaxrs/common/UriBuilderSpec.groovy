@@ -98,4 +98,10 @@ class UriBuilderSpec extends Specification {
         expect:
         UriBuilder.fromPath("p;n={x}").replaceMatrixParam("m", "_jaxrs_uri_parameter0_").build("X").toString() == "p;n=X;m=_jaxrs_uri_parameter0_"
     }
+
+    void "a delimiter in the regular expression of a template is not one of the query or of the fragment"() {
+        expect:
+        UriBuilder.fromUri("http://localhost/?q={x:foo&bar=baz}&bar=v").replaceQueryParam("bar").build("abc").toString() == "http://localhost/?q=abc"
+        UriBuilder.fromUri("urn:{x:[^#]+}").build("abc").toString() == "urn:abc"
+    }
 }
