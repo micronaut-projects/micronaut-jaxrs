@@ -89,7 +89,7 @@ public final class JaxRsResponseMetadata extends AbstractMap<String, List<Object
             // changed through the response
             values = new ArrayList<>(current);
             objects.put(name, values);
-            written.put(name, current);
+            written.put(name, new ArrayList<>(current));
         }
         return new HeaderValues(name, values);
     }
@@ -233,7 +233,7 @@ public final class JaxRsResponseMetadata extends AbstractMap<String, List<Object
                 headers.add(key, value);
             }
         }
-        written.put(key, headers.getAll(key));
+        written.put(key, new ArrayList<>(headers.getAll(key)));
     }
 
     @SuppressWarnings("unchecked")
@@ -286,7 +286,7 @@ public final class JaxRsResponseMetadata extends AbstractMap<String, List<Object
             List<String> current = headers.getAll(name);
             if (!current.equals(written.get(name))) {
                 objects.put(name, new ArrayList<>(current));
-                written.put(name, current);
+                written.put(name, new ArrayList<>(current));
             }
         }
 
@@ -299,7 +299,7 @@ public final class JaxRsResponseMetadata extends AbstractMap<String, List<Object
          */
         public void add(MutableHeaders headers, String name, Object value) {
             objects.computeIfAbsent(name, n -> new ArrayList<>()).add(value);
-            written.put(name, headers.getAll(name));
+            written.put(name, new ArrayList<>(headers.getAll(name)));
         }
 
         /**
@@ -317,7 +317,7 @@ public final class JaxRsResponseMetadata extends AbstractMap<String, List<Object
                 List<Object> values = new ArrayList<>(1);
                 values.add(value);
                 objects.put(name, values);
-                written.put(name, headers.getAll(name));
+                written.put(name, new ArrayList<>(headers.getAll(name)));
             }
         }
     }

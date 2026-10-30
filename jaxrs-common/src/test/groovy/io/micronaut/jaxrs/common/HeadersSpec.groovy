@@ -149,4 +149,33 @@ class HeadersSpec extends Specification {
         expect:
         headers.getAcceptableMediaTypes()*.toString() as Set == ['application/json;profile="a,b"', 'text/plain'] as Set
     }
+
+    void "the object headers see a value added to headers that return live lists after a read"() {
+        given:
+        def headers = new SimpleHttpHeaders() {
+            private final Map<String, List<String>> live = [:]
+
+            @Override
+            List<String> getAll(CharSequence name) {
+                live.computeIfAbsent(name.toString(), { [] })
+            }
+
+            @Override
+            io.micronaut.http.MutableHttpHeaders add(CharSequence name, CharSequence value) {
+                getAll(name).add(value.toString())
+                this
+            }
+        }
+        headers.add("X", "a")
+        def metadata = new JaxRsResponseMetadata(headers, new JaxRsResponseMetadata.State())
+
+        expect:
+        metadata.get("X") == ["a"]
+
+        when:
+        headers.add("X", "b")
+
+        then:
+        metadata.get("X") == ["a", "b"]
+    }
 }
