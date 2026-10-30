@@ -590,10 +590,19 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
             int end = matcher.start(rest) < 0 ? path.length() : matcher.start(rest);
             int rawEnd = indexes[end];
             String matched = rawEnd == 0 ? "/" : rawPath.substring(0, rawEnd);
+            String prefixPath = path.substring(0, end);
             Compiled c = compiled();
-            Matcher variableMatcher = c.pattern.matcher(UriTemplateMatcher.normalizeForMatching(path.substring(0, end)));
+            Matcher variableMatcher = c.pattern.matcher(UriTemplateMatcher.normalizeForMatching(prefixPath));
             if (!variableMatcher.matches()) {
-                return null;
+                if (!prefixPath.endsWith("/")) {
+                    return null;
+                }
+                // the trailing slash can be a part of the template, before an empty capture: {x:.*}
+                c = compiledWithTrailingSlash();
+                variableMatcher = c.pattern.matcher(prefixPath);
+                if (!variableMatcher.matches()) {
+                    return null;
+                }
             }
             return c.captures(matched, variableMatcher, variables);
         }

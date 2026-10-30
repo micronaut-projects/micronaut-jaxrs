@@ -168,6 +168,11 @@ class ServerMatchingTest {
     }
 
     @Test
+    void emptyRegexCaptureOfALocatorMatches() {
+        assertEquals("located", get("/semiloc/loc/"));
+    }
+
+    @Test
     void repeatedLocatorValuesAreKept() {
         assertEquals("same,same", get("/dups/same/sub/same"));
     }
@@ -407,6 +412,23 @@ class ServerMatchingTest {
         @Produces("text/plain")
         public String tilde() {
             return "tilde";
+        }
+    }
+
+    @Requires(property = "spec.name", value = "ServerMatchingTest")
+    @Path("/semiloc")
+    public static class EmptyLocatorCaptureResource {
+        @Path("loc/{x:.*}")
+        public EmptyLocatorCaptureChild locate() {
+            return new EmptyLocatorCaptureChild();
+        }
+    }
+
+    public static class EmptyLocatorCaptureChild {
+        @GET
+        @Produces("text/plain")
+        public String get() {
+            return "located";
         }
     }
 
