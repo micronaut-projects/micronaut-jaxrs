@@ -91,6 +91,7 @@ class NewCookieSpec extends Specification {
         where:
         expires                         | expected
         "Sun, 09-Jun-30 10:18:14 GMT"   | "2030-06-09T10:18:14Z"
+        "Sun, 09 Jun 30 10:18:14 GMT"   | "2030-06-09T10:18:14Z"
         "Sun, 09-Jun-99 10:18:14 GMT"   | "1999-06-09T10:18:14Z"
         "Sun Jun 9 10:18:14 2030"       | "2030-06-09T10:18:14Z"
         "Sun, 31-Feb-2030 10:18:14 GMT" | null

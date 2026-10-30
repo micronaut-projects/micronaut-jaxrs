@@ -170,7 +170,9 @@ class NewCookieHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Object> 
     private static @Nullable Date parseExpires(String value) {
         // RFC 1123 (e.g. Netty's), then the cookie-date algorithm, e.g. of the old Netscape format
         try {
-            return Date.from(ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant());
+            ZonedDateTime date = ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME);
+            // a two-digit year is normalized by the cookie-date algorithm
+            return date.getYear() < 100 ? parseCookieDate(value) : Date.from(date.toInstant());
         } catch (DateTimeParseException e) {
             return parseCookieDate(value);
         }
