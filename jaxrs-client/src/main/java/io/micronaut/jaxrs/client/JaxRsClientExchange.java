@@ -29,6 +29,7 @@ import io.micronaut.http.MutableHttpHeaders;
 import io.micronaut.http.MutableHttpRequest;
 import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.http.client.exceptions.HttpClientResponseException;
+import io.micronaut.http.client.exceptions.ReadTimeoutException;
 import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
 import io.micronaut.jaxrs.common.JaxRsHeaderUtil;
 import io.micronaut.jaxrs.common.JaxRsIOException;
@@ -64,6 +65,7 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 
 /**
  * The exchange of an invocation: the request filters, the writing of the request entity, the
@@ -149,6 +151,11 @@ final class JaxRsClientExchange {
                     // a response that is not successful is filtered like any other
                     future.complete(new Exchanged(new JaxRsMutableResponse(httpClientResponseException.getResponse().toMutableResponse()
                         .attribute(JaxRsResponse.REQUEST_URI, requestUri)), requestContext));
+                } else if (throwable instanceof ReadTimeoutException) {
+                    // the cause of a timeout is a TimeoutException (JAX-RS, ClientBuilder#readTimeout)
+                    var timeout = new TimeoutException(throwable.getMessage());
+                    timeout.initCause(throwable);
+                    future.completeExceptionally(new ProcessingException(timeout));
                 } else if (throwable != null) {
                     future.completeExceptionally(new ProcessingException(throwable));
                 } else if (response == null) {

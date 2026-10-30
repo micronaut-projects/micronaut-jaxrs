@@ -52,6 +52,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -319,6 +320,15 @@ class JaxRsClientLifecycleTest {
         public Thing readFrom(Class<Thing> type, Type genericType, Annotation[] annotations, MediaType mediaType,
                               MultivaluedMap<String, String> httpHeaders, InputStream entityStream) throws IOException {
             throw new IOException("reader failed");
+        }
+    }
+
+    @Test
+    void causeOfAReadTimeoutIsATimeoutException() {
+        try (Client timed = ClientBuilder.newBuilder().readTimeout(50, TimeUnit.MILLISECONDS).build()) {
+            ProcessingException e = assertThrows(ProcessingException.class,
+                () -> timed.target(server.getURI()).path("client/slow").request().get(String.class));
+            assertInstanceOf(TimeoutException.class, e.getCause());
         }
     }
 
