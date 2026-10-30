@@ -188,6 +188,22 @@ final class LinkDelegate implements RuntimeDelegate.HeaderDelegate<Link> {
             return href;
         }
 
+        /**
+         * Whether a parameter name is a token (RFC 9110 5.6.2).
+         */
+        private static boolean isToken(String name) {
+            if (name.isEmpty()) {
+                return false;
+            }
+            for (int i = 0; i < name.length(); i++) {
+                char c = name.charAt(i);
+                if (!(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || "!#$%&'*+-.^_`|~".indexOf(c) > -1)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         @SuppressWarnings("java:S3776")
         void parseAttribute(MultivaluedMap<String, String> attributes) {
             int end = curr;
@@ -197,7 +213,7 @@ final class LinkDelegate implements RuntimeDelegate.HeaderDelegate<Link> {
             if (end >= value.length() || value.charAt(end) != '=') {
                 // RFC 8288 3: a parameter without a value
                 String name = value.substring(curr, end).trim();
-                if (name.isEmpty()) {
+                if (!isToken(name)) {
                     throw new IllegalArgumentException(PARSE_ERROR_MESSAGE + value);
                 }
                 attributes.add(name, "");

@@ -94,5 +94,11 @@ class LinkHeaderSpec extends Specification {
         then:
         link.rel == "next"
         link.params.containsKey("flag")
+
+        when: "a parameter name that is not a token"
+        Link.valueOf('</>>')
+
+        then:
+        thrown(IllegalArgumentException)
     }
 }
