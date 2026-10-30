@@ -80,4 +80,19 @@ class LinkHeaderSpec extends Specification {
         Link.valueOf('<http://example/>\t; rel=next').rel == "next"
         Link.valueOf('<http://example/>;\trel=next').rel == "next"
     }
+
+    void "a relation repeated in another case is ignored"() {
+        expect:
+        Link.valueOf('<http://example/>; rel=next; REL=prev').rel == "next"
+        Link.valueOf('<http://example/>; REL=next; rel=prev').rel == "next"
+    }
+
+    void "a parameter without a value does not consume the next one"() {
+        when:
+        def link = Link.valueOf('<http://example/>; flag; rel=next')
+
+        then:
+        link.rel == "next"
+        link.params.containsKey("flag")
+    }
 }

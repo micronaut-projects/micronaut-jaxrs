@@ -18,17 +18,20 @@ package io.micronaut.jaxrs.common;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.util.ArgumentUtils;
 import jakarta.ws.rs.core.Link;
-import jakarta.ws.rs.core.MultivaluedHashMap;
+import jakarta.ws.rs.core.AbstractMultivaluedMap;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.UriBuilderException;
 import jakarta.ws.rs.ext.RuntimeDelegate;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 
 /**
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
@@ -122,7 +125,8 @@ final class LinkDelegate implements RuntimeDelegate.HeaderDelegate<Link> {
 
         void parse() {
             String href = null;
-            MultivaluedMap<String, String> attributes = new MultivaluedHashMap<>();
+            // in the order of the header, the first occurrence of a parameter wins
+            MultivaluedMap<String, String> attributes = new AbstractMultivaluedMap<>(new LinkedHashMap<>()) { };
             while (curr < value.length()) {
 
                 char c = value.charAt(curr);
@@ -149,14 +153,22 @@ final class LinkDelegate implements RuntimeDelegate.HeaderDelegate<Link> {
 
         void populateLink(@Nullable String href, MultivaluedMap<String, String> attributes) {
             builder.uri(href);
+            Set<String> seen = new HashSet<>();
             for (Entry<String, List<String>> entry : attributes.entrySet()) {
                 List<String> values = entry.getValue();
                 // RFC 8288 3.3 and 3.4.1: the occurrences of rel, title and type after the first are ignored
                 // RFC 8288 2.2: the parameter names are case-insensitive, the other ones keep their case
-                switch (entry.getKey().toLowerCase(Locale.ROOT)) {
-                    case "rel" -> builder.rel(values.get(0));
-                    case "title" -> builder.title(values.get(0));
-                    case "type" -> builder.type(values.get(0));
+                String lowercase = entry.getKey().toLowerCase(Locale.ROOT);
+                switch (lowercase) {
+                    case "rel", "title", "type" -> {
+                        if (seen.add(lowercase)) {
+                            switch (lowercase) {
+                                case "rel" -> builder.rel(values.get(0));
+                                case "title" -> builder.title(values.get(0));
+                                default -> builder.type(values.get(0));
+                            }
+                        }
+                    }
                     default -> {
                         for (String val : values) {
                             builder.param(entry.getKey(), val);
@@ -178,8 +190,21 @@ final class LinkDelegate implements RuntimeDelegate.HeaderDelegate<Link> {
 
         @SuppressWarnings("java:S3776")
         void parseAttribute(MultivaluedMap<String, String> attributes) {
-            int end = value.indexOf('=', curr);
-            if (end == -1 || end + 1 >= value.length()) {
+            int end = curr;
+            while (end < value.length() && "=;,".indexOf(value.charAt(end)) == -1) {
+                end++;
+            }
+            if (end >= value.length() || value.charAt(end) != '=') {
+                // RFC 8288 3: a parameter without a value
+                String name = value.substring(curr, end).trim();
+                if (name.isEmpty()) {
+                    throw new IllegalArgumentException(PARSE_ERROR_MESSAGE + value);
+                }
+                attributes.add(name, "");
+                curr = end;
+                return;
+            }
+            if (end + 1 >= value.length()) {
                 throw new IllegalArgumentException(PARSE_ERROR_MESSAGE + value);
             }
             String name = value.substring(curr, end).trim();
