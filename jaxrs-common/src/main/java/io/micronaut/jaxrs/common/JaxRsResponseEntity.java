@@ -29,6 +29,7 @@ import java.io.ByteArrayInputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.annotation.Annotation;
 import java.io.Reader;
 import java.util.Set;
 
@@ -375,6 +376,13 @@ final class JaxRsResponseEntity {
                 // an entity that is a stream is buffered as its bytes
                 byte[] bytes = readAll(body);
                 mutableResponse.body(bytes);
+                return bytes;
+            }
+            if (mutableResponse.body() instanceof GenericEntity<?> genericEntity && genericEntity.getEntity() instanceof InputStream body) {
+                // a stream given as a generic entity or with annotations, which are kept
+                byte[] bytes = readAll(body);
+                Annotation @Nullable [] annotations = genericEntity instanceof JaxRsGenericEntity<?> entity ? entity.getAnnotations() : null;
+                mutableResponse.body(annotations != null ? new JaxRsGenericEntity<>(bytes, annotations) : bytes);
                 return bytes;
             }
         }

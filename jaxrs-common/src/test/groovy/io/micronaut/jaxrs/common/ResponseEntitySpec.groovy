@@ -190,4 +190,22 @@ class ResponseEntitySpec extends Specification {
         response.readEntity(String) == "abc"
         response.readEntity(String) == "abc"
     }
+
+    void "an input stream entity given with annotations or as a generic entity is buffered"() {
+        given:
+        def stream = new TrackingInputStream("abc".bytes)
+        def response = build(stream)
+
+        expect:
+        response.bufferEntity()
+        stream.closed
+        response.readEntity(String) == "abc"
+        response.readEntity(String) == "abc"
+
+        where:
+        build << [
+            { InputStream s -> Response.ok().entity(s, new java.lang.annotation.Annotation[0]).build() },
+            { InputStream s -> Response.ok(new jakarta.ws.rs.core.GenericEntity<InputStream>(s, InputStream)).build() }
+        ]
+    }
 }
