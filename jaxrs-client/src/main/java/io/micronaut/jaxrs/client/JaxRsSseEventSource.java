@@ -278,12 +278,16 @@ final class JaxRsSseEventSource implements SseEventSource {
         InputStream replacement = filtered.getEntityStream() == unchanged ? null : filtered.getEntityStream();
         int status = filtered.getStatus();
         if (status != HttpStatus.OK.getCode() && status != HttpStatus.NO_CONTENT.getCode()) {
-            // another status is an error, e.g. a 201 (JAX-RS, SseEventSource)
             if (body != null) {
                 body.closeAsync();
             }
             closeReplaced(filtered, unchanged);
-            error(JaxRsClientExchange.exception(Response.status(status).build()));
+            filtered.setEntityStream(InputStream.nullInputStream());
+            // a 503 a filter set is retried like one of the server
+            if (!retried(filtered)) {
+                // another status is an error, e.g. a 201, with the filtered response (JAX-RS, SseEventSource)
+                error(JaxRsClientExchange.exception(filtered));
+            }
             return;
         }
         if (status == HttpStatus.NO_CONTENT.getCode() || body == null && replacement == null) {
@@ -301,7 +305,9 @@ final class JaxRsSseEventSource implements SseEventSource {
                 body.closeAsync();
             }
             closeReplaced(filtered, unchanged);
-            error(new ProcessingException("The response is not an event stream: " + contentType));
+            filtered.setEntityStream(InputStream.nullInputStream());
+            // a processing error, with the filtered response
+            error(new ResponseProcessingException(filtered, "The response is not an event stream: " + contentType));
             return;
         }
         if (replacement != null) {
@@ -482,13 +488,8 @@ final class JaxRsSseEventSource implements SseEventSource {
                 error(new ResponseProcessingException(response, e));
                 return;
             }
-            if (response.getStatus() == HttpStatus.SERVICE_UNAVAILABLE.getCode()) {
-                // the server is not available yet: retry after the time it asked for
-                Long delay = retryAfter(response.getHeaderString(HttpHeaders.RETRY_AFTER));
-                if (delay != null) {
-                    reconnect(delay);
-                    return;
-                }
+            if (retried(response)) {
+                return;
             }
             if (response.getStatusInfo().getFamily() == Response.Status.Family.SUCCESSFUL) {
                 // a filter turned the error into a success, without events
@@ -506,6 +507,24 @@ final class JaxRsSseEventSource implements SseEventSource {
             return;
         }
         error(throwable);
+    }
+
+    /**
+     * Reconnect after a filtered {@code 503 Service Unavailable} response with a valid
+     * {@code Retry-After} header: the server is not available yet (JAX-RS, SseEventSource).
+     *
+     * @return Whether the source reconnects
+     */
+    private boolean retried(Response response) {
+        if (response.getStatus() != HttpStatus.SERVICE_UNAVAILABLE.getCode()) {
+            return false;
+        }
+        Long delay = retryAfter(response.getHeaderString(HttpHeaders.RETRY_AFTER));
+        if (delay == null) {
+            return false;
+        }
+        reconnect(delay);
+        return true;
     }
 
     /**
