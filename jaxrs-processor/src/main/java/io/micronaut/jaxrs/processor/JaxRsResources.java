@@ -134,7 +134,8 @@ final class JaxRsResources {
      * The constructor JAX-RS uses for an instance created per request: of the public constructors
      * JAX-RS can call, the one with the most parameters (JAX-RS 3.1.2), when it has parameters read
      * from the request. A constructor with parameters, none of which is read from the request, is
-     * not one, even when it has more parameters; the others may also have beans as parameters.
+     * not one, even when it has more parameters; the others may also have beans as parameters, but
+     * no parameter that cannot be resolved, see {@link #isResolvable(ParameterElement)}.
      *
      * @param type The class
      * @return The constructor, or {@code null}
@@ -143,12 +144,33 @@ final class JaxRsResources {
         ConstructorElement selected = null;
         for (ConstructorElement constructor : type.getEnclosedElements(ElementQuery.CONSTRUCTORS)) {
             ParameterElement[] parameters = constructor.getParameters();
-            if (constructor.isPublic() && (parameters.length == 0 || Arrays.stream(parameters).anyMatch(JaxRsResources::isRequestAnnotated))
+            if (constructor.isPublic()
+                && (parameters.length == 0 || Arrays.stream(parameters).anyMatch(JaxRsResources::isRequestAnnotated))
+                && Arrays.stream(parameters).allMatch(JaxRsResources::isResolvable)
                 && (selected == null || constructor.getParameters().length > selected.getParameters().length)) {
                 selected = constructor;
             }
         }
         return selected == null || selected.getParameters().length == 0 ? null : selected;
+    }
+
+    /**
+     * Whether a constructor parameter can be resolved: read from the request, or of a type a bean
+     * may have, not a primitive, an array, nor a class of the JDK, e.g. {@code String}.
+     *
+     * @param parameter A constructor parameter
+     * @return Whether it can be resolved
+     */
+    private static boolean isResolvable(ParameterElement parameter) {
+        if (isRequestAnnotated(parameter)) {
+            return true;
+        }
+        ClassElement type = parameter.getType();
+        if (type.isPrimitive() || type.isArray()) {
+            return false;
+        }
+        String name = type.getName();
+        return type.isInterface() || !(name.startsWith("java.") || name.startsWith("javax."));
     }
 
     /**
