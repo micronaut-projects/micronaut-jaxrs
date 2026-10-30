@@ -932,7 +932,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         // stage; a subclass may have none or others, the writer is selected for its value
         boolean jdkStage = returnClass.getName().startsWith("java.util.concurrent.");
         Argument<?> valueType = !async ? returnType
-            : jdkStage ? returnType.getFirstTypeVariable().orElse(Argument.OBJECT_ARGUMENT) : Argument.OBJECT_ARGUMENT;
+            : jdkStage ? returnType.getFirstTypeVariable().orElse(Argument.OBJECT_ARGUMENT) : stageValueType(returnClass);
         if (valueType.getType() == Void.class && async) {
             valueType = Argument.VOID;
         }
@@ -948,6 +948,16 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         return new ResourceMethod<>(method, httpMethod, template, readers, form, formEntity, usesForm, encodedForm, entity, async,
             !produces.isEmpty(), !consumes.isEmpty(), converter(valueType, async), completion(produces, valueType), responseType(valueType), metadata,
             suspended);
+    }
+
+    /**
+     * The type of the value of a stage subclass of the application: the type argument it gives
+     * {@code CompletionStage}, if known, e.g. {@code List<String>} for a
+     * {@code CompletableFuture<List<String>>} subclass.
+     */
+    private static Argument<?> stageValueType(Class<?> stageClass) {
+        Argument<?> stage = JaxRsReflection.get().resolveGeneric(stageClass, CompletionStage.class);
+        return stage == null ? Argument.OBJECT_ARGUMENT : stage.getFirstTypeVariable().orElse(Argument.OBJECT_ARGUMENT);
     }
 
     /**
