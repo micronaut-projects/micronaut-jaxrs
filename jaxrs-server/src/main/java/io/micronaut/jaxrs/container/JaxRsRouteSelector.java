@@ -26,6 +26,7 @@ import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -50,9 +51,16 @@ final class JaxRsRouteSelector {
     private volatile List<Root> roots = List.of();
 
     /**
-     * The templates of the root resource classes mounted by the router, by the template they mount.
+     * The templates of the root resource classes mounted by the router, by the expression of the
+     * template declared for the class.
      */
     private final Map<String, RouteTemplate> mountedRoots = new ConcurrentHashMap<>();
+
+    /**
+     * The expressions declared for the classes of the mounted templates, by the mounted template
+     * itself: a mounted expression can be the declared one of another class.
+     */
+    private final Map<RouteTemplate, String> mountOrigins = new IdentityHashMap<>();
 
     /**
      * Select the resource method of JAX-RS (section 3.7.2): the most specific templates, then the
@@ -180,10 +188,8 @@ final class JaxRsRouteSelector {
      */
     boolean commitsToLocator(HttpRequest<?> request, RouteTemplate root) {
         // the template the router matches, mounted under the context path
-        for (RouteTemplate mounted = mountedRoots.get(root.expression()); mounted != null; mounted = mountedRoots.get(root.expression())) {
-            root = mounted;
-        }
-        return committed(request, root);
+        RouteTemplate mounted = mountedRoots.get(root.expression());
+        return committed(request, mounted == null ? root : mounted);
     }
 
     /**
@@ -219,11 +225,13 @@ final class JaxRsRouteSelector {
     /**
      * Record the template the router mounted the template of a root resource class as.
      *
-     * @param expression The expression of the template of the root resource class
-     * @param mounted    The mounted template
+     * @param root    The template of the root resource class, the declared one or one mounted before
+     * @param mounted   The mounted template
      */
-    void mount(String expression, RouteTemplate mounted) {
-        mountedRoots.put(expression, mounted);
+    synchronized void mount(RouteTemplate root, RouteTemplate mounted) {
+        String declared = mountOrigins.getOrDefault(root, root.expression());
+        mountOrigins.put(mounted, declared);
+        mountedRoots.put(declared, mounted);
     }
 
     /**

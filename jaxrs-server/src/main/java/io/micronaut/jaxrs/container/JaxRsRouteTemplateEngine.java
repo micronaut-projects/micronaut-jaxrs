@@ -650,7 +650,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
                 // the root resource class is matched under the prefix
                 engine.addRoot(mounted.rootPart, rootPart, hasSubResource(mounted.expression));
                 if (rootPart != null && !rootPart.expression.equals(mounted.rootPart.expression)) {
-                    engine.selector.mount(rootPart.expression, mounted.rootPart);
+                    engine.selector.mount(rootPart, mounted.rootPart);
                 }
             }
             return mounted;
