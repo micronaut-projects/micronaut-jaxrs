@@ -842,9 +842,12 @@ public final class JaxRsRouteSupport {
     private String sseData(OutboundSseEvent event) {
         Object data = Objects.requireNonNull(event.getData());
         MediaType mediaType = Objects.requireNonNull(JaxRsUtils.convert(event.getMediaType()));
-        // the generic type of the data, e.g. of a GenericType (JAX-RS, OutboundSseEvent#getGenericType)
+        // the generic type of the data, e.g. of a GenericType (JAX-RS, OutboundSseEvent#getGenericType):
+        // with its type arguments, else the raw type of the data, like for a GenericEntity of a response
         Type genericType = event.getGenericType();
-        Argument<Object> type = (Argument) (genericType == null ? Argument.of(event.getType()) : JaxRsArgumentUtil.from(new GenericType<>(genericType)));
+        Argument<?> generic = genericType == null ? null : JaxRsArgumentUtil.from(new GenericType<>(genericType));
+        Argument<Object> type = (Argument) (generic != null && generic.getTypeParameters().length > 0 && generic.getType().isInstance(data)
+            ? generic : Argument.of(event.getType()));
         List<MediaType> mediaTypes = List.of(mediaType);
         Optional<io.micronaut.http.body.MessageBodyWriter<Object>> writer = beanContext.getBean(JaxRsContainerMessageBodyHandlerRegistry.class)
             .findWriter(type, mediaTypes);
