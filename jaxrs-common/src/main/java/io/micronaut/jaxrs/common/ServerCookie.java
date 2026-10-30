@@ -40,7 +40,8 @@ final class ServerCookie {
         } else if (alreadyQuoted(value)) {
             return '"' + escapeDoubleQuotes(value, 1, value.length() - 1) + '"';
         } else if (!isToken(value)) {
-            return '"' + escapeDoubleQuotes(value, 0, value.length()) + '"';
+            // its quotes and backslashes are quoted-pairs
+            return JaxRsHeaderUtil.appendQuoted(new StringBuilder(), value).toString();
         }
         return value;
     }

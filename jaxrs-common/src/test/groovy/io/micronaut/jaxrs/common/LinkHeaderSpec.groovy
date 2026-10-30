@@ -72,4 +72,12 @@ class LinkHeaderSpec extends Specification {
         link.title == "t"
         new JaxRsResponse(HttpResponse.ok().header("Link", '<http://example.org/>; rel = "next"')).hasLink("next")
     }
+
+    void "parameter names are case-insensitive and tabs are optional whitespace"() {
+        expect:
+        Link.valueOf('<http://example/>; REL=next').rel == "next"
+        new JaxRsResponse(HttpResponse.ok().header("Link", '<http://example/>; REL=next')).hasLink("next")
+        Link.valueOf('<http://example/>\t; rel=next').rel == "next"
+        Link.valueOf('<http://example/>;\trel=next').rel == "next"
+    }
 }

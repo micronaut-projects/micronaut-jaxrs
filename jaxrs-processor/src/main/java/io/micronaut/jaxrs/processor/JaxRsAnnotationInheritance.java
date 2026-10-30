@@ -29,6 +29,7 @@ import jakarta.ws.rs.HttpMethod;
 import jakarta.ws.rs.NameBinding;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.ext.Provider;
+import org.jspecify.annotations.Nullable;
 
 import java.lang.annotation.Annotation;
 import java.util.List;
@@ -107,11 +108,50 @@ final class JaxRsAnnotationInheritance {
      * binding or a custom request method designator would otherwise be lost.
      */
     private static void inheritFromEffectiveMethod(MethodElement element) {
+        MethodElement effective = effectiveMethod(element);
+        if (effective == null) {
+            return;
+        }
+        inherit(element, element.getMethodAnnotationMetadata(), element.getDeclaredMethodAnnotationMetadata(), effective.getDeclaredMethodAnnotationMetadata());
+        ParameterElement[] parameters = element.getParameters();
+        ParameterElement[] effectiveParameters = effective.getParameters();
+        for (int i = 0; i < parameters.length && i < effectiveParameters.length; i++) {
+            inherit(parameters[i], parameters[i], parameters[i].getAnnotationMetadata().getDeclaredMetadata(),
+                effectiveParameters[i].getAnnotationMetadata().getDeclaredMetadata());
+        }
+    }
+
+    /**
+     * The method annotations a method has once normalized, also before it is visited: those it
+     * declares, or those it inherits from the effective overridden method (JAX-RS 3.6). The
+     * resources are analyzed before their methods are visited, and the compiler only merges the
+     * {@code @Inherited} annotations of an overridden method, e.g. not a custom request method
+     * designator.
+     *
+     * @param element The method
+     * @return Its effective method annotations
+     */
+    static AnnotationMetadata effectiveMetadata(MethodElement element) {
+        if (element.getOverriddenMethods().isEmpty()) {
+            return element.getMethodAnnotationMetadata();
+        }
+        if (declaresJaxRsAnnotation(element)) {
+            return element.getDeclaredMethodAnnotationMetadata();
+        }
+        MethodElement effective = effectiveMethod(element);
+        return effective == null ? element.getMethodAnnotationMetadata() : effective.getDeclaredMethodAnnotationMetadata();
+    }
+
+    /**
+     * The overridden method whose annotations a method without JAX-RS annotations inherits: the
+     * nearest one of a superclass that declares any, else one of an interface.
+     */
+    private static @Nullable MethodElement effectiveMethod(MethodElement element) {
         List<MethodElement> declaring = element.getOverriddenMethods().stream()
             .filter(JaxRsAnnotationInheritance::declaresJaxRsAnnotation)
             .toList();
         if (declaring.isEmpty()) {
-            return;
+            return null;
         }
         MethodElement effective = null;
         for (ClassElement type = element.getOwningType().getSuperType().orElse(null); type != null && effective == null;
@@ -122,13 +162,7 @@ final class JaxRsAnnotationInheritance {
         if (effective == null) {
             effective = declaring.stream().filter(method -> method.getDeclaringType().isInterface()).findFirst().orElse(declaring.get(0));
         }
-        inherit(element, element.getMethodAnnotationMetadata(), element.getDeclaredMethodAnnotationMetadata(), effective.getDeclaredMethodAnnotationMetadata());
-        ParameterElement[] parameters = element.getParameters();
-        ParameterElement[] effectiveParameters = effective.getParameters();
-        for (int i = 0; i < parameters.length && i < effectiveParameters.length; i++) {
-            inherit(parameters[i], parameters[i], parameters[i].getAnnotationMetadata().getDeclaredMetadata(),
-                effectiveParameters[i].getAnnotationMetadata().getDeclaredMetadata());
-        }
+        return effective;
     }
 
     /**

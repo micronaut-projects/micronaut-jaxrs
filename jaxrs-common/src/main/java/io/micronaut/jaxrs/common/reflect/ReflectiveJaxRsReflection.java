@@ -136,13 +136,24 @@ public final class ReflectiveJaxRsReflection implements JaxRsReflection {
 
     @Override
     public AnnotationMetadata methodAnnotations(ExecutableMethod<?, ?> method) {
-        return inherited(method.getTargetMethod()).metadata();
+        return inherited(method.getDeclaringType(), method.getTargetMethod()).metadata();
     }
 
     @Override
     public Annotation[] annotations(ExecutableMethod<?, ?> method) {
         // a copy, which the caller may change
-        return inherited(method.getTargetMethod()).annotations().clone();
+        return inherited(method.getDeclaringType(), method.getTargetMethod()).annotations().clone();
+    }
+
+    @Override
+    public AnnotationMetadata methodAnnotations(Class<?> resourceClass, ExecutableMethod<?, ?> method) {
+        return inherited(resourceClass, method.getTargetMethod()).metadata();
+    }
+
+    @Override
+    public Annotation[] annotations(Class<?> resourceClass, ExecutableMethod<?, ?> method) {
+        // a copy, which the caller may change
+        return inherited(resourceClass, method.getTargetMethod()).annotations().clone();
     }
 
     @Override
@@ -152,7 +163,7 @@ public final class ReflectiveJaxRsReflection implements JaxRsReflection {
 
     @Override
     public AnnotationMetadata methodAnnotations(Class<?> type, String name, Class<?>... parameterTypes) {
-        return inherited(targetMethod(type, name, parameterTypes)).metadata();
+        return inherited(type, targetMethod(type, name, parameterTypes)).metadata();
     }
 
     @Override
@@ -219,9 +230,15 @@ public final class ReflectiveJaxRsReflection implements JaxRsReflection {
         return null;
     }
 
-    private InheritedAnnotations inherited(Method method) {
-        return INHERITED_ANNOTATIONS.get(method.getDeclaringClass()).computeIfAbsent(method, m -> {
-            Annotation[] annotations = inheritedAnnotations(m);
+    /**
+     * The annotations of a method of a class, which may implement it with the method of a
+     * superclass, e.g. one without annotations implementing an annotated method of an interface
+     * of the class: they are cached by class.
+     */
+    private InheritedAnnotations inherited(Class<?> type, Method method) {
+        Class<?> owner = method.getDeclaringClass().isAssignableFrom(type) ? type : method.getDeclaringClass();
+        return INHERITED_ANNOTATIONS.get(owner).computeIfAbsent(method, m -> {
+            Annotation[] annotations = inheritedAnnotations(owner, m);
             return new InheritedAnnotations(annotations, annotationMetadata(annotations));
         });
     }
@@ -231,11 +248,11 @@ public final class ReflectiveJaxRsReflection implements JaxRsReflection {
      * method it overrides, of a superclass first, then of an interface, when it declares no JAX-RS
      * annotation, on itself or on its parameters.
      */
-    private static Annotation[] inheritedAnnotations(Method method) {
+    private static Annotation[] inheritedAnnotations(Class<?> owner, Method method) {
         if (declaresJaxRsAnnotation(method)) {
             return method.getAnnotations();
         }
-        Method inherited = inheritedMethod(method);
+        Method inherited = inheritedMethod(owner, method);
         if (inherited == null) {
             return method.getAnnotations();
         }
@@ -244,9 +261,11 @@ public final class ReflectiveJaxRsReflection implements JaxRsReflection {
         return annotations.toArray(Annotation[]::new);
     }
 
-    private static @Nullable Method inheritedMethod(Method method) {
+    private static @Nullable Method inheritedMethod(Class<?> owner, Method method) {
         List<Class<?>> interfaces = new ArrayList<>();
-        for (Class<?> type = method.getDeclaringClass(); type != null; type = type.getSuperclass()) {
+        // from the class the method belongs to: the interfaces of a subclass of the class that
+        // declares it are overridden by it too
+        for (Class<?> type = owner; type != null; type = type.getSuperclass()) {
             if (type != method.getDeclaringClass()) {
                 Method overridden = declaredMethod(type, method);
                 if (overridden != null && declaresJaxRsAnnotation(overridden)) {

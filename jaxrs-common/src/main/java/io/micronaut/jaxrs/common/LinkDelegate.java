@@ -26,6 +26,7 @@ import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -130,7 +131,8 @@ final class LinkDelegate implements RuntimeDelegate.HeaderDelegate<Link> {
                         throw new IllegalArgumentException("Unable to parse Link header. Too many links in declaration: " + value);
                     }
                     href = parseLink();
-                } else if (c == ';' || c == ' ') {
+                } else if (c == ';' || c == ' ' || c == '\t') {
+                    // RFC 8288 3: optional whitespace, spaces or tabs, around the semicolons
                     curr++;
                 } else if (c == ',') {
                     // the end of this link, another one follows
@@ -150,7 +152,8 @@ final class LinkDelegate implements RuntimeDelegate.HeaderDelegate<Link> {
             for (Entry<String, List<String>> entry : attributes.entrySet()) {
                 List<String> values = entry.getValue();
                 // RFC 8288 3.3 and 3.4.1: the occurrences of rel, title and type after the first are ignored
-                switch (entry.getKey()) {
+                // RFC 8288 2.2: the parameter names are case-insensitive, the other ones keep their case
+                switch (entry.getKey().toLowerCase(Locale.ROOT)) {
                     case "rel" -> builder.rel(values.get(0));
                     case "title" -> builder.title(values.get(0));
                     case "type" -> builder.type(values.get(0));
@@ -179,8 +182,7 @@ final class LinkDelegate implements RuntimeDelegate.HeaderDelegate<Link> {
             if (end == -1 || end + 1 >= value.length()) {
                 throw new IllegalArgumentException(PARSE_ERROR_MESSAGE + value);
             }
-            String name = value.substring(curr, end);
-            name = name.trim();
+            String name = value.substring(curr, end).trim();
             curr = end + 1;
             // RFC 8288 3: optional whitespace after the equals sign
             while (curr < value.length() && (value.charAt(curr) == ' ' || value.charAt(curr) == '\t')) {

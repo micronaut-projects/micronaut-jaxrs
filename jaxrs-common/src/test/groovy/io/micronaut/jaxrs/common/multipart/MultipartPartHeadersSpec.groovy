@@ -71,6 +71,36 @@ class MultipartPartHeadersSpec extends Specification {
         second.closed
     }
 
+    void "a failed write closes the streams of the parts of another implementation that are not written"() {
+        given:
+        def external = new TrackingInputStream("b".bytes)
+        def foreign = [
+            getName     : { "b" },
+            getContent  : { external },
+            getFileName : { Optional.empty() },
+            getMediaType: { MediaType.APPLICATION_OCTET_STREAM_TYPE },
+            getHeaders  : { new MultivaluedHashMap<String, String>() }
+        ] as EntityPart
+        def parts = [
+            EntityPart.withName("a").content(new InputStream() {
+                @Override
+                int read() throws IOException {
+                    throw new IOException("broken")
+                }
+            }).mediaType(MediaType.APPLICATION_OCTET_STREAM_TYPE).build(),
+            foreign
+        ]
+
+        when:
+        new JaxRsMultipartMessageBodyWriter().writeTo(parts, List, new GenericType<List<EntityPart>>() {}.type, [] as java.lang.annotation.Annotation[],
+            MediaType.valueOf("multipart/form-data; boundary=b"), new MultivaluedHashMap<String, Object>(), new ByteArrayOutputStream())
+
+        then:
+        def e = thrown(IOException)
+        e.message == "broken"
+        external.closed
+    }
+
     void "the headers of a built part are case-insensitive"() {
         when:
         def part = EntityPart.withName("x").header("X-Custom", "1").content("v").build()
@@ -295,5 +325,31 @@ class MultipartPartHeadersSpec extends Specification {
         then:
         parts[0].mediaType == MediaType.valueOf("text/plain;charset=ISO-8859-1")
         parts[0].headers.getFirst("X-Written") == "1"
+    }
+
+    void "a delimiter within the preamble that does not start a line is not one"() {
+        given:
+        def body = "text--b\r\nContent-Disposition: form-data; name=\"fake\"\r\n\r\nwrong\r\n" +
+            "--b\r\nContent-Disposition: form-data; name=\"real\"\r\n\r\nright\r\n--b--\r\n"
+
+        when:
+        List<EntityPart> parts = new JaxRsMultipartMessageBodyReader().readFrom((Class) List, new GenericType<List<EntityPart>>() {}.type,
+            [] as java.lang.annotation.Annotation[], MediaType.valueOf("multipart/form-data; boundary=b"),
+            new MultivaluedHashMap<String, String>(), new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8)))
+
+        then:
+        parts*.name == ["real"]
+        parts[0].getContent(String) == "right"
+    }
+
+    void "the default media type of a built part is its Content-Type header"() {
+        when:
+        def field = EntityPart.withName("x").content("a").build()
+        def file = EntityPart.withName("f").fileName("f.bin").content("a").build()
+
+        then:
+        field.mediaType == MediaType.TEXT_PLAIN_TYPE
+        field.headers.getFirst("Content-Type") == "text/plain"
+        file.headers.getFirst("Content-Type") == "application/octet-stream"
     }
 }

@@ -84,6 +84,19 @@ class NewCookieSpec extends Specification {
         cookie.expiry == Date.from(java.time.Instant.parse("2015-10-21T07:28:00Z"))
     }
 
+    void "a cookie date is parsed with the algorithm of RFC 6265"() {
+        expect:
+        delegate.fromString("id=x; Expires=" + expires).expiry == (expected == null ? null : Date.from(java.time.Instant.parse(expected)))
+
+        where:
+        expires                         | expected
+        "Sun, 09-Jun-30 10:18:14 GMT"   | "2030-06-09T10:18:14Z"
+        "Sun, 09-Jun-99 10:18:14 GMT"   | "1999-06-09T10:18:14Z"
+        "Sun Jun 9 10:18:14 2030"       | "2030-06-09T10:18:14Z"
+        "Sun, 31-Feb-2030 10:18:14 GMT" | null
+        "Sun, 09-Jun-2030 25:18:14 GMT" | null
+    }
+
     void "the expiry is formatted in GMT whatever the default locale and time zone"() {
         given:
         def locale = Locale.default

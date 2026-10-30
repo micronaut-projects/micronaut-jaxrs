@@ -63,6 +63,9 @@ final class Explainers {
                 if (input.indexOf("rel=") != input.lastIndexOf("rel=")) {
                     return "JERSEY Link.valueOf keeps the last of a repeated rel (RFC 8288 3.3: the first)";
                 }
+                if (input.matches(".*;\\s*(?!rel)(?i:rel)\\s*=.*")) {
+                    return "JERSEY Link.valueOf reads a rel parameter of another case as an extension (RFC 8288 2.2: case-insensitive)";
+                }
                 if (input.contains("\\\"") && throwsIn(jersey)) {
                     return "JERSEY Link.valueOf rejects a quoted-pair in a quoted string (RFC 9110 5.6.4)";
                 }

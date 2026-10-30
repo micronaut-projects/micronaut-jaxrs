@@ -88,11 +88,17 @@ public final class JaxRsMultipartMessageBodyReader implements MessageBodyReader<
         byte[] delimiter = ("--" + boundary).getBytes(StandardCharsets.ISO_8859_1);
         // every delimiter but the first follows a line break
         byte[] nextDelimiter = ("\r\n--" + boundary).getBytes(StandardCharsets.ISO_8859_1);
-        int position = delimiterIndex(entity, delimiter, 0);
-        if (position < 0) {
-            throw new BadRequestException("The multipart entity has no part");
+        // the first delimiter starts the entity, or a line after a preamble (RFC 2046 section 5.1.1)
+        int position;
+        if (startsWith(entity, 0, delimiter) && isDelimiterEnd(entity, delimiter.length)) {
+            position = delimiter.length;
+        } else {
+            position = delimiterIndex(entity, nextDelimiter, 0);
+            if (position < 0) {
+                throw new BadRequestException("The multipart entity has no part");
+            }
+            position += nextDelimiter.length;
         }
-        position += delimiter.length;
         List<EntityPart> parts = new ArrayList<>();
         while (!startsWith(entity, position, CLOSE)) {
             position = indexOf(entity, CRLF, position);

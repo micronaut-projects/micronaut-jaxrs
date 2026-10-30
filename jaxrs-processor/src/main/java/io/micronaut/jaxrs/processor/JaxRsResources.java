@@ -104,8 +104,8 @@ final class JaxRsResources {
      * @return The analysis
      */
     public static Analysis analyze(ClassElement type) {
-        boolean resourceMethods = !type.getEnclosedElements(ElementQuery.ALL_METHODS.onlyInstance()
-            .annotated(metadata -> metadata.hasStereotype(HttpMethod.class))).isEmpty();
+        boolean resourceMethods = type.getEnclosedElements(ElementQuery.ALL_METHODS.onlyInstance()).stream()
+            .anyMatch(method -> JaxRsAnnotationInheritance.effectiveMetadata(method).hasStereotype(HttpMethod.class));
         return new Analysis(type.hasAnnotation(Path.class), resourceMethods, resourceMethods || isRouted(type), isShared(type),
             requestConstructor(type), requestMembers(type));
     }
@@ -115,8 +115,9 @@ final class JaxRsResources {
      * @return Whether it has a resource method or a sub-resource locator
      */
     private static boolean isRouted(ClassElement type) {
-        return !type.getEnclosedElements(ElementQuery.ALL_METHODS.onlyInstance()
-            .annotated(metadata -> metadata.hasStereotype(HttpMethod.class) || metadata.hasDeclaredAnnotation(Path.class))).isEmpty();
+        return type.getEnclosedElements(ElementQuery.ALL_METHODS.onlyInstance()).stream()
+            .map(JaxRsAnnotationInheritance::effectiveMetadata)
+            .anyMatch(metadata -> metadata.hasStereotype(HttpMethod.class) || metadata.hasDeclaredAnnotation(Path.class));
     }
 
     /**
@@ -130,8 +131,10 @@ final class JaxRsResources {
     }
 
     /**
-     * The constructor JAX-RS uses for an instance created per request: the public constructor
-     * with the most parameters, when it has parameters read from the request.
+     * The constructor JAX-RS uses for an instance created per request: of the public constructors
+     * JAX-RS can call, the one with the most parameters (JAX-RS 3.1.2), when it has parameters read
+     * from the request. A constructor with parameters, none of which is read from the request, is
+     * not one, even when it has more parameters; the others may also have beans as parameters.
      *
      * @param type The class
      * @return The constructor, or {@code null}
@@ -139,19 +142,13 @@ final class JaxRsResources {
     public static @Nullable ConstructorElement requestConstructor(ClassElement type) {
         ConstructorElement selected = null;
         for (ConstructorElement constructor : type.getEnclosedElements(ElementQuery.CONSTRUCTORS)) {
-            if (constructor.isPublic() && (selected == null || constructor.getParameters().length > selected.getParameters().length)) {
+            ParameterElement[] parameters = constructor.getParameters();
+            if (constructor.isPublic() && (parameters.length == 0 || Arrays.stream(parameters).anyMatch(JaxRsResources::isRequestAnnotated))
+                && (selected == null || constructor.getParameters().length > selected.getParameters().length)) {
                 selected = constructor;
             }
         }
-        if (selected == null) {
-            return null;
-        }
-        for (ParameterElement parameter : selected.getParameters()) {
-            if (isRequestAnnotated(parameter)) {
-                return selected;
-            }
-        }
-        return null;
+        return selected == null || selected.getParameters().length == 0 ? null : selected;
     }
 
     /**

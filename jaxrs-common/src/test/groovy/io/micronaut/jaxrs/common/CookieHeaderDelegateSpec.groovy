@@ -26,6 +26,18 @@ class CookieHeaderDelegateSpec extends Specification {
         parsed[0].domain == "example.com"
     }
 
+    void "a literal backslash of a quoted value survives serialization"() {
+        given:
+        def delegate = RuntimeDelegate.getInstance().createHeaderDelegate(Cookie)
+
+        when:
+        def header = delegate.toString(new Cookie.Builder("id").value('a\\b c').build())
+
+        then:
+        header == 'id="a\\\\b c"'
+        CookieHeaderDelegate.parseCookies(header)[0].value == 'a\\b c'
+    }
+
     void "the attributes of a cookie are not those of the next one"() {
         when:
         def parsed = CookieHeaderDelegate.parseCookies('$Version=1; a=1; $Path=/one; $Domain=one.example; b=2')

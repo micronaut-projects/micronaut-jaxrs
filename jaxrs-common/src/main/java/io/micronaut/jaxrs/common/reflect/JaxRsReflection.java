@@ -120,6 +120,31 @@ public interface JaxRsReflection {
     Annotation[] annotations(ExecutableMethod<?, ?> method);
 
     /**
+     * The annotations of a resource method of a resource class that inherits its implementation
+     * from a superclass, e.g. one without annotations implementing an annotated method of an
+     * interface of the resource class (JAX-RS 3.6): the executable method only knows the superclass.
+     *
+     * @param resourceClass The resource class
+     * @param method        The method
+     * @return The annotations
+     */
+    default AnnotationMetadata methodAnnotations(Class<?> resourceClass, ExecutableMethod<?, ?> method) {
+        return methodAnnotations(method);
+    }
+
+    /**
+     * The annotations of a resource method of a resource class as objects, see
+     * {@link #methodAnnotations(Class, ExecutableMethod)}.
+     *
+     * @param resourceClass The resource class
+     * @param method        The method
+     * @return The annotations
+     */
+    default Annotation[] annotations(Class<?> resourceClass, ExecutableMethod<?, ?> method) {
+        return annotations(method);
+    }
+
+    /**
      * @param method An executable method
      * @return The method, which the JAX-RS API returns, e.g. from {@code ResourceInfo}
      */
