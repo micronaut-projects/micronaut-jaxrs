@@ -78,7 +78,8 @@ final class JaxRsExceptionHandler implements ExceptionHandler<WebApplicationExce
         ExceptionMapper exceptionMapper = providers == null ? null : providers.getExceptionMapper(exception.getClass());
         Response response = exception.getResponse();
         if (response != null && response.hasEntity()) {
-            return JaxRsRouteSupport.toHttpResponse(response);
+            // processed like a mapped response: an exception of its processing is a server error
+            return JaxRsGlobalExceptionHandler.mapped(request, response);
         }
         if (exceptionMapper != null) {
             return JaxRsGlobalExceptionHandler.map(request, exceptionMapper, exception);
