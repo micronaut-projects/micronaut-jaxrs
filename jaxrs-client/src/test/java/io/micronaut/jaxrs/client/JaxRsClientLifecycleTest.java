@@ -14,8 +14,13 @@ import jakarta.ws.rs.client.ClientResponseFilter;
 import jakarta.ws.rs.client.Entity;
 import jakarta.ws.rs.client.InvocationCallback;
 import jakarta.ws.rs.client.ResponseProcessingException;
+import jakarta.ws.rs.client.RxInvoker;
+import jakarta.ws.rs.client.RxInvokerProvider;
+import jakarta.ws.rs.client.SyncInvoker;
 import jakarta.ws.rs.client.WebTarget;
 import jakarta.ws.rs.core.CacheControl;
+import jakarta.ws.rs.core.Configuration;
+import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
@@ -41,7 +46,9 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -261,6 +268,36 @@ class JaxRsClientLifecycleTest {
             .post(Entity.entity("body", new Variant(MediaType.TEXT_PLAIN_TYPE, Locale.ENGLISH, "identity")), String.class);
         assertEquals("text/plain|body", echoed);
         assertEquals(List.of("[text/plain]", "[en]", "[identity]"), seen.get());
+    }
+
+    @Test
+    void sharedRxInvokerProviderSeesTheConfigurationOfTheInvocation() {
+        var provider = new RecordingRxInvokerProvider();
+        client.register(provider);
+        target("hello").property("x", "A").request().rx(RecordingRxInvoker.class);
+        target("hello").property("x", "B").request().rx(RecordingRxInvoker.class);
+        assertEquals(List.of("A", "B"), provider.seen);
+    }
+
+    public static final class RecordingRxInvokerProvider implements RxInvokerProvider<RecordingRxInvoker> {
+        final List<Object> seen = new CopyOnWriteArrayList<>();
+
+        @Context
+        Configuration configuration;
+
+        @Override
+        public boolean isProviderFor(Class<?> clazz) {
+            return clazz == RecordingRxInvoker.class;
+        }
+
+        @Override
+        public RecordingRxInvoker getRxInvoker(SyncInvoker syncInvoker, ExecutorService executorService) {
+            seen.add(configuration.getProperty("x"));
+            return null;
+        }
+    }
+
+    public interface RecordingRxInvoker extends RxInvoker<Object> {
     }
 
     static final class Thing {
