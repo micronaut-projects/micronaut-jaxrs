@@ -69,6 +69,9 @@ val testWithoutReflection by tasks.registering(Test::class) {
         excludeTestsMatching("io.micronaut.jaxrs.container.DynamicFeatureDeploymentTest")
         excludeTestsMatching("example.extension.FeatureExtensionsTest")
         excludeTestsMatching("example.extension.ApplicationListedProviderTest")
+        // a nested bean parameter annotated only on its constructor parameters is not introspected
+        // until the Java processor of core reports such classes
+        excludeTestsMatching("io.micronaut.jaxrs.container.ConstructorOnlyBeanParamTest")
     }
     systemProperty("micronaut.jaxrs.test.reflection", "false")
 }

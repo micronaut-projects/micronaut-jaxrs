@@ -10,6 +10,7 @@ import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.BeanParam;
 import jakarta.ws.rs.DefaultValue;
+import jakarta.ws.rs.Encoded;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.Path;
@@ -47,6 +48,65 @@ class ConstructorParamTest {
     @Test
     void beanParamIsCreatedWithItsConstructorOfTheMostParameters() {
         assertEquals("value", client.toBlocking().retrieve(HttpRequest.GET("/bean?x=value")));
+    }
+
+    @Test
+    void beanParamConstructorKeepsTheValuesOfAnEncodedConstructorEncoded() {
+        assertEquals("a%2Fb", client.toBlocking().retrieve(HttpRequest.GET("/encoded-bean?x=a%2Fb")));
+    }
+
+    @Test
+    void constructorWithAParameterThatIsNotABeanIsNotSelected() {
+        assertEquals("default", client.toBlocking().retrieve(HttpRequest.GET("/missing?x=value")));
+    }
+
+    /**
+     * Not a bean.
+     */
+    public static class Missing {
+    }
+
+    @Requires(property = "spec.name", value = "ConstructorParamTest")
+    @Path("/constructor-param/missing")
+    public static class MissingDependencyResource {
+        private final String x;
+
+        public MissingDependencyResource() {
+            this.x = "default";
+        }
+
+        public MissingDependencyResource(@QueryParam("x") String x, Missing missing) {
+            this.x = x;
+        }
+
+        @GET
+        @Produces("text/plain")
+        public String get() {
+            return x;
+        }
+    }
+
+    public static class EncodedConstructorBean {
+        private final String x;
+
+        // a member read from the request: the compiler reports a nested class to the processor by its annotated members
+        @QueryParam("y")
+        String y;
+
+        @Encoded
+        public EncodedConstructorBean(@QueryParam("x") String x) {
+            this.x = x;
+        }
+    }
+
+    @Requires(property = "spec.name", value = "ConstructorParamTest")
+    @Path("/constructor-param/encoded-bean")
+    public static class EncodedBeanParamResource {
+        @GET
+        @Produces("text/plain")
+        public String get(@BeanParam EncodedConstructorBean bean) {
+            return bean.x;
+        }
     }
 
     public static class ConstructorBean {
