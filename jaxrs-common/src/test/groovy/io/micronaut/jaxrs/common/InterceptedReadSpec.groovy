@@ -81,4 +81,28 @@ class InterceptedReadSpec extends Specification {
         new String(read) == "abc"
         closed
     }
+
+    void "changing only the generic type keeps the class of the entity"() {
+        given:
+        ReaderInterceptor interceptor = { ReaderInterceptorContext ctx ->
+            ctx.genericType = Argument.listOf(Integer).asType()
+            ctx.proceed()
+        } as ReaderInterceptor
+        Class<?> readType = null
+        List<Argument<?>> readParameters = null
+
+        when:
+        new JaxRsInterceptedRead<Object>([JaxRsRouteInterceptors.registration(interceptor, AnnotationMetadata.EMPTY_METADATA, Priorities.USER)], { true }) {
+            @Override
+            protected Object readFromAfterInterception(Argument<Object> type, MediaType mediaType, Headers httpHeaders, InputStream inputStream) {
+                readType = type.type
+                readParameters = type.typeParameters as List
+                return new ArrayList<Integer>()
+            }
+        }.intercept((Argument) Argument.of(ArrayList, String), MediaType.TEXT_PLAIN_TYPE, new SimpleHttpHeaders(), new ByteArrayInputStream(new byte[0]))
+
+        then:
+        readType == ArrayList
+        readParameters*.type == [Integer]
+    }
 }

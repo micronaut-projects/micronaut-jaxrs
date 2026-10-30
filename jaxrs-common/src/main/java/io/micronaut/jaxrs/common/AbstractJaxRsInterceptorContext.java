@@ -60,22 +60,17 @@ abstract sealed class AbstractJaxRsInterceptorContext implements InterceptorCont
             return argument;
         }
         AnnotationMetadata annotationMetadata = annotations == null ? argument.getAnnotationMetadata() : JaxRsArgumentUtil.createAnnotationMetadata(annotations);
-        if (type != null && genericType != null) {
-            // the class, with the type arguments of the generic type
-            Argument<?> generic = JaxRsReflection.get().argument(genericType);
-            if (generic.getType() == type) {
-                return Argument.of(type, annotationMetadata, generic.getTypeParameters());
+        if (type != null || genericType != null) {
+            // the effective class and generic type: the one an interceptor did not change is kept
+            Class<?> rawType = getType();
+            Argument<?> generic = genericType != null ? JaxRsReflection.get().argument(genericType) : argument;
+            if (generic.getType() == rawType) {
+                return Argument.of(rawType, annotationMetadata, generic.getTypeParameters());
             }
             // the class of the entity, a subclass of its generic type, e.g. an ArrayList of a List<String>
-            return generic.getType().isAssignableFrom(type)
-                ? JaxRsArgumentUtil.of(type, generic, annotationMetadata)
-                : Argument.of(type, annotationMetadata);
-        }
-        if (genericType != null) {
-            return JaxRsReflection.get().argument(genericType).withAnnotationMetadata(annotationMetadata);
-        }
-        if (type != null) {
-            return Argument.of(type, annotationMetadata);
+            return generic.getType().isAssignableFrom(rawType)
+                ? JaxRsArgumentUtil.of(rawType, generic, annotationMetadata)
+                : Argument.of(rawType, annotationMetadata);
         }
         // the raw type and the generic type, which may differ, see JaxRsArgumentUtil#of
         return argument.withAnnotationMetadata(annotationMetadata);

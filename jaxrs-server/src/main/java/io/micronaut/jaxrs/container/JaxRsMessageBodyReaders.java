@@ -28,6 +28,8 @@ import io.micronaut.http.MediaType;
 import io.micronaut.http.body.MessageBodyHandlerRegistry;
 import io.micronaut.http.body.MessageBodyReader;
 import io.micronaut.http.codec.CodecException;
+import io.micronaut.http.ServerHttpRequest;
+import io.micronaut.http.context.ServerRequestContext;
 import io.micronaut.jaxrs.common.JaxRsInterceptedRead;
 import io.micronaut.jaxrs.common.JaxRsContainerMessageBodyHandlerRegistry;
 import io.micronaut.jaxrs.common.JaxRsRequestProperties;
@@ -132,7 +134,7 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
         if (interceptors == null) {
             return reader.read((Argument) type, mediaType, httpHeaders, entity);
         }
-        return new JaxRsInterceptedRead<Object>(interceptors) {
+        return new ServerInterceptedRead<Object>(interceptors) {
 
             @Override
             protected @Nullable Object readFromAfterInterception(Argument<Object> type, @Nullable MediaType mediaType, Headers httpHeaders, InputStream inputStream) {
@@ -171,7 +173,7 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
             }
             throw new CodecException("No reader registered for " + type + " with media type " + mediaType);
         }
-        return new JaxRsInterceptedRead<T>(interceptors) {
+        return new ServerInterceptedRead<T>(interceptors) {
 
             @Override
             protected @Nullable T readFromAfterInterception(Argument<Object> type, @Nullable MediaType mediaType, Headers httpHeaders, InputStream inputStream) {
@@ -196,7 +198,7 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
             }
             throw new CodecException("No reader found for " + mediaType + " and type " + type);
         }
-        return new JaxRsInterceptedRead<T>(interceptors) {
+        return new ServerInterceptedRead<T>(interceptors) {
 
             @Override
             protected @Nullable T readFromAfterInterception(Argument<Object> type, @Nullable MediaType mediaType, Headers httpHeaders, InputStream inputStream) {
@@ -223,5 +225,29 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
          * @return The value
          */
         @Nullable Object read(Argument<Object> type, MediaType mediaType, Headers httpHeaders, InputStream entity);
+    }
+
+    /**
+     * A read of a request entity: the streams the interceptors set for a stream entity are closed
+     * when the response of the request completes.
+     *
+     * @param <T> The type
+     */
+    private abstract static class ServerInterceptedRead<T> extends JaxRsInterceptedRead<T> {
+
+        ServerInterceptedRead(List<ReaderInterceptor> interceptors) {
+            super(interceptors);
+        }
+
+        @Override
+        protected void closeAfterUse(Runnable closer) {
+            ServerHttpRequest<?> serverRequest = ServerRequestContext.currentRequest()
+                .map(JaxRsAsyncResponse::serverRequest)
+                .orElse(null);
+            if (serverRequest != null) {
+                // a server that does not report the completion leaves them to the entity
+                serverRequest.whenResponseCompleted(failure -> closer.run());
+            }
+        }
     }
 }

@@ -204,7 +204,7 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
 
     @Override
     public String getMethod() {
-        return mutableHttpRequest.getMethod().name();
+        return mutableHttpRequest.getMethodName();
     }
 
     @Override

@@ -29,8 +29,6 @@ import jakarta.inject.Singleton;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Providers;
 import io.micronaut.jaxrs.common.JaxRsIOException;
-import jakarta.ws.rs.BadRequestException;
-import jakarta.ws.rs.core.NoContentException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,12 +78,6 @@ final class JaxRsGlobalExceptionHandler implements ExceptionHandler<Throwable, H
             // the IOException a provider threw, wrapped to cross Micronaut's reader and writer API
             exception = exception.getCause();
         }
-        if (exception instanceof NoContentException) {
-            // the one of a reader of an empty entity is a bad request, which the mappers map
-            // (JAX-RS 4.2.4)
-            exception = new BadRequestException(exception);
-            clientError = true;
-        }
         ExceptionMapper exceptionMapper = providers.getExceptionMapper(exception.getClass());
         if (exceptionMapper != null) {
             return map(request, exceptionMapper, exception);
@@ -126,6 +118,22 @@ final class JaxRsGlobalExceptionHandler implements ExceptionHandler<Throwable, H
      * @param exception The exception
      * @return The response
      */
+    /**
+     * Use the response of an exception, e.g. of a {@link jakarta.ws.rs.WebApplicationException},
+     * once per request like a mapped one, see {@link #map}.
+     *
+     * @param request  The request
+     * @param response The response of the exception
+     * @return The response
+     */
+    static HttpResponse<?> mapped(HttpRequest<?> request, jakarta.ws.rs.core.Response response) {
+        if (request.getAttribute(MAPPED).isPresent()) {
+            return HttpResponse.status(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+        request.setAttribute(MAPPED, true);
+        return JaxRsRouteSupport.toHttpResponse(response);
+    }
+
     @SuppressWarnings({"unchecked", "rawtypes"})
     static HttpResponse<?> map(HttpRequest<?> request, ExceptionMapper mapper, Throwable exception) {
         if (request.getAttribute(MAPPED).isPresent()) {

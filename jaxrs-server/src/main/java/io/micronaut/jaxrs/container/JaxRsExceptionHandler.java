@@ -18,6 +18,7 @@ package io.micronaut.jaxrs.container;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
+import io.micronaut.http.HttpStatus;
 import io.micronaut.http.annotation.Produces;
 import io.micronaut.http.server.exceptions.ExceptionHandler;
 import io.micronaut.http.server.exceptions.response.ErrorContext;
@@ -70,6 +71,10 @@ final class JaxRsExceptionHandler implements ExceptionHandler<WebApplicationExce
 
     @Override
     public HttpResponse<?> handle(HttpRequest request, WebApplicationException exception) {
+        if (JaxRsGlobalExceptionHandler.isMapped(request)) {
+            // thrown while the response mapped from an exception was processed (JAX-RS 4.4)
+            return HttpResponse.status(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
         ExceptionMapper exceptionMapper = providers == null ? null : providers.getExceptionMapper(exception.getClass());
         Response response = exception.getResponse();
         if (response != null && response.hasEntity()) {

@@ -129,7 +129,15 @@ public abstract class JaxRsInterceptedRead<T> {
                     context.closeReplacedStreams(null);
                     throw e;
                 }
-                context.closeReplacedStreams(value);
+                if (value instanceof AutoCloseable) {
+                    // a stream entity reads of the streams the interceptors set
+                    Runnable closer = context.replacedStreamsCloser();
+                    if (closer != null) {
+                        closeAfterUse(closer);
+                    }
+                } else {
+                    context.closeReplacedStreams(value);
+                }
                 if (value == null) {
                     // e.g. a reader of an empty entity
                     return null;
@@ -154,6 +162,16 @@ public abstract class JaxRsInterceptedRead<T> {
             }
         }
         return copy;
+    }
+
+    /**
+     * Close the streams the interceptors set once a stream entity read of them, e.g. an
+     * {@link InputStream}, is not used anymore. By default they stay open, their entity closes
+     * them, if it closes its stream.
+     *
+     * @param closer Closes the streams
+     */
+    protected void closeAfterUse(@NonNull Runnable closer) {
     }
 
     /**

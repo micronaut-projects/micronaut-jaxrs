@@ -31,6 +31,8 @@ import io.micronaut.web.router.builder.HttpRouteBuilder;
 import io.micronaut.web.router.builder.HttpRoutes;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.Path;
+import jakarta.ws.rs.WebApplicationException;
+import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Providers;
 
@@ -202,7 +204,17 @@ final class JaxRsServerFilters implements HttpRoutes {
             filterResponse(request, response);
         } catch (RuntimeException | IOException e) {
             Throwable exception = e instanceof JaxRsIOException && e.getCause() != null ? e.getCause() : e;
-            ExceptionMapper mapper = JaxRsGlobalExceptionHandler.isMapped(request) ? null : providers.getExceptionMapper(exception.getClass());
+            if (JaxRsGlobalExceptionHandler.isMapped(request)) {
+                throw e;
+            }
+            Response exceptionResponse = exception instanceof WebApplicationException wae ? wae.getResponse() : null;
+            if (exceptionResponse != null && exceptionResponse.hasEntity()) {
+                // the response of the exception is used as is, not mapped (JAX-RS 3.3.4)
+                replace(response, JaxRsGlobalExceptionHandler.mapped(request, exceptionResponse).toMutableResponse());
+                filterResponse(request, response);
+                return;
+            }
+            ExceptionMapper mapper = providers.getExceptionMapper(exception.getClass());
             if (mapper == null) {
                 throw e;
             }

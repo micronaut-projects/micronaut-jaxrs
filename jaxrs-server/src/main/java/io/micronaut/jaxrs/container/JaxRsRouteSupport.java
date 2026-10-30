@@ -15,6 +15,7 @@
  */
 package io.micronaut.jaxrs.container;
 
+import io.micronaut.jaxrs.common.JaxRsIOException;
 import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.context.BeanContext;
 import io.micronaut.core.annotation.AnnotationMetadata;
@@ -731,6 +732,11 @@ public final class JaxRsRouteSupport {
         try {
             return readEntity(request, body, argument);
         } catch (CodecException e) {
+            if (e instanceof JaxRsIOException && e.getCause() instanceof NoContentException noContent) {
+                // the one of a reader of an empty request entity is a bad request, which the
+                // mappers map (JAX-RS 4.2.4)
+                throw new BadRequestException(noContent);
+            }
             // unmapped, the failure to read the entity is the client's
             JaxRsGlobalExceptionHandler.entityFailed(request, e);
             throw e;

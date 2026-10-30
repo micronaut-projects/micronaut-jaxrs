@@ -90,20 +90,39 @@ public final class JaxRsReaderInterceptorContext extends AbstractJaxRsIntercepto
      *
      * @param entity The entity read, or null if the read failed: a stream entity, e.g. an
      *               {@link InputStream} or a {@link java.io.Reader}, still reads of them, so they
-     *               stay open
+     *               stay open, see {@link #replacedStreamsCloser()}
      */
     void closeReplacedStreams(@Nullable Object entity) {
         if (replacedStreams == null || entity instanceof AutoCloseable) {
             return;
         }
-        for (InputStream stream : replacedStreams) {
+        closeAll(replacedStreams);
+        replacedStreams = null;
+    }
+
+    /**
+     * Closes the streams the interceptors set later, e.g. when the request a stream entity was
+     * read of completes.
+     *
+     * @return Closes the streams, null if none were set
+     */
+    @Nullable Runnable replacedStreamsCloser() {
+        List<InputStream> streams = replacedStreams;
+        if (streams == null) {
+            return null;
+        }
+        replacedStreams = null;
+        return () -> closeAll(streams);
+    }
+
+    private static void closeAll(List<InputStream> streams) {
+        for (InputStream stream : streams) {
             try {
                 stream.close();
             } catch (IOException e) {
                 // the entity is read: nothing reads the stream anymore
             }
         }
-        replacedStreams = null;
     }
 
     @Override
