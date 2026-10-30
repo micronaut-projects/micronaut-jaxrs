@@ -278,7 +278,8 @@ class JaxRsClientConformanceTest {
             source.register(event -> error.complete(null), error::complete);
             source.open();
             Throwable failure = error.get(10, TimeUnit.SECONDS);
-            assertInstanceOf(ProcessingException.class, failure);
+            // a WebApplicationException with the response (JAX-RS, SseEventSource)
+            assertInstanceOf(jakarta.ws.rs.WebApplicationException.class, failure);
             assertTrue(failure.getMessage().contains("text/plain"), failure::getMessage);
         }
     }
