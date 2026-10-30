@@ -34,6 +34,7 @@ import jakarta.ws.rs.ext.Providers;
 import org.jspecify.annotations.Nullable;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
@@ -115,12 +116,18 @@ public final class JaxRsMultipartMessageBodyWriter implements MessageBodyWriter<
 
     private static void closeContents(List<EntityPart> parts, Exception failure) {
         for (EntityPart part : parts) {
-            if (part instanceof JaxRsEntityPart entityPart) {
-                try {
+            try {
+                if (part instanceof JaxRsEntityPart entityPart) {
                     entityPart.closeContent();
-                } catch (IOException | RuntimeException e) {
-                    failure.addSuppressed(e);
+                } else {
+                    // a part of another implementation: the stream it sends
+                    InputStream content = part.getContent();
+                    if (content != null) {
+                        content.close();
+                    }
                 }
+            } catch (IOException | RuntimeException e) {
+                failure.addSuppressed(e);
             }
         }
     }
