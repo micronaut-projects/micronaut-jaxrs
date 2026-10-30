@@ -518,11 +518,14 @@ final class JaxRsSseEventSource implements SseEventSource {
             return null;
         }
         String value = retryAfter.strip();
-        try {
-            long seconds = Long.parseLong(value);
-            return seconds < 0 ? null : TimeUnit.SECONDS.toMillis(seconds);
-        } catch (NumberFormatException e) {
-            // an HTTP date
+        if (!value.isEmpty() && value.chars().allMatch(c -> c >= '0' && c <= '9')) {
+            // delay-seconds: digits only, no sign (RFC 9110, 10.2.3)
+            try {
+                return TimeUnit.SECONDS.toMillis(Long.parseLong(value));
+            } catch (NumberFormatException e) {
+                // too large: no reconnect in time
+                return null;
+            }
         }
         try {
             // any of the formats of RFC 9110, 5.6.7
