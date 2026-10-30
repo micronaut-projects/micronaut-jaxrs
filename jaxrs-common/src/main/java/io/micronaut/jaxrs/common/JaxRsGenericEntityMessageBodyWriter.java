@@ -107,17 +107,24 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
         if (interceptors == null) {
             write(argument, mediaType, entity, outgoingHeaders, outputStream);
         } else {
-            new JaxRsInterceptedWrite<T, JaxRsWriterInterceptorContextState.ClassicState>(interceptors) {
+            var state = new JaxRsWriterInterceptorContextState.ClassicState(outgoingHeaders, entity, outputStream);
+            try {
+                new JaxRsInterceptedWrite<T, JaxRsWriterInterceptorContextState.ClassicState>(interceptors) {
 
-                @Override
-                protected void writeToAfterInterception(Argument<Object> argument,
-                                                        MediaType mediaType,
-                                                        JaxRsWriterInterceptorContextState.ClassicState state) {
-                    write(argument, mediaType, state.getEntity(), outgoingHeaders, state.getOutputStream());
-                }
+                    @Override
+                    protected void writeToAfterInterception(Argument<Object> argument,
+                                                            MediaType mediaType,
+                                                            JaxRsWriterInterceptorContextState.ClassicState state) {
+                        write(argument, mediaType, state.getEntity(), outgoingHeaders, state.getOutputStream());
+                    }
 
-            }.intercept(argument, mediaType, new JaxRsWriterInterceptorContextState.ClassicState(outgoingHeaders, entity, outputStream),
-                JaxRsRequestProperties.current());
+                }.intercept(argument, mediaType, state,
+                    JaxRsRequestProperties.current());
+            } catch (RuntimeException e) {
+                // e.g. an interceptor that installed a stream fails after proceeding
+                state.release(e);
+                throw e;
+            }
         }
 
         try {
