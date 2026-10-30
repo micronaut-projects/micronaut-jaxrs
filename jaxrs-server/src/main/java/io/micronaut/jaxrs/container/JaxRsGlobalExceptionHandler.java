@@ -126,6 +126,22 @@ final class JaxRsGlobalExceptionHandler implements ExceptionHandler<Throwable, H
      * @param exception The exception
      * @return The response
      */
+    /**
+     * Use the response of an exception, e.g. of a {@link jakarta.ws.rs.WebApplicationException},
+     * once per request like a mapped one, see {@link #map}.
+     *
+     * @param request  The request
+     * @param response The response of the exception
+     * @return The response
+     */
+    static HttpResponse<?> mapped(HttpRequest<?> request, jakarta.ws.rs.core.Response response) {
+        if (request.getAttribute(MAPPED).isPresent()) {
+            return HttpResponse.status(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+        request.setAttribute(MAPPED, true);
+        return JaxRsRouteSupport.toHttpResponse(response);
+    }
+
     @SuppressWarnings({"unchecked", "rawtypes"})
     static HttpResponse<?> map(HttpRequest<?> request, ExceptionMapper mapper, Throwable exception) {
         if (request.getAttribute(MAPPED).isPresent()) {
