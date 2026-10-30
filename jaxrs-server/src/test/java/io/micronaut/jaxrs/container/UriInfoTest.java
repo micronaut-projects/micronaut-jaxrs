@@ -43,6 +43,18 @@ class UriInfoTest {
     }
 
     @Test
+    void contextUriInfoOutsideOfARequestThrowsIllegalStateException() {
+        Assertions.assertThrows(IllegalStateException.class, () -> contextUriInfo.getPath());
+    }
+
+    @Test
+    void queryParameterNamesAreDecodedOnceForBinding() {
+        var uri = io.micronaut.jaxrs.runtime.ext.bind.JaxRsRequestUri.of(HttpRequest.GET("http://example.com/api/foo?a%2520b=V"));
+        Assertions.assertEquals(List.of("V"), uri.rawQueryValues("a%20b"));
+        Assertions.assertEquals(List.of(), uri.rawQueryValues("a b"));
+    }
+
+    @Test
     void queryParametersAreDecodedOnce() {
         UriInfo uriInfo = new UriInfoImpl(HttpRequest.GET("http://example.com/api/foo?q=%252F&p=%25&s=a+b"), "/api");
         Assertions.assertEquals("%2F", uriInfo.getQueryParameters().getFirst("q"));
