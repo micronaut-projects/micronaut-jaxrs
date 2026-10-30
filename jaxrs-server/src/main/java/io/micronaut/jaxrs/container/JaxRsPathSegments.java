@@ -243,7 +243,8 @@ final class JaxRsPathSegments {
             int equals = parts[i].indexOf('=');
             String key = equals < 0 ? parts[i] : parts[i].substring(0, equals);
             String parameter = equals < 0 ? "" : parts[i].substring(equals + 1);
-            parameters.add(encoded ? key : decode(key), encoded ? parameter : decode(parameter));
+            // the names are decoded, also for @Encoded
+            parameters.add(decode(key), encoded ? parameter : decode(parameter));
         }
         String path = parts.length == 0 ? "" : parts[0];
         return new Segment(encoded ? path : decode(path), parameters);

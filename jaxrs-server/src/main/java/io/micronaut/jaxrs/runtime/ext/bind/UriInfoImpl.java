@@ -200,7 +200,8 @@ public final class UriInfoImpl implements UriInfo {
                         continue;
                     }
                     String val = keyVal.length > 1 ? keyVal[1] : null;
-                    params.add(decode ? decodePath(key) : key, val == null || !decode ? val : decodePath(val));
+                    // the names are decoded in the encoded view too, only the values are kept encoded
+                    params.add(decodePath(key), val == null || !decode ? val : decodePath(val));
                 }
                 return new UriPathSegment(decode ? decodePath(segmentTokens[0]) : segmentTokens[0], unmodifiable(params));
             })
@@ -287,7 +288,7 @@ public final class UriInfoImpl implements UriInfo {
      * without {@code =} has an empty value, and one with an empty name is ignored.
      *
      * @param uri    The URI
-     * @param decode Whether the names and values are decoded, a plus being a space
+     * @param decode Whether the values are decoded, a plus being a space: the names are
      * @return The values of each parameter, in the order of the query
      */
     public static Map<String, List<String>> queryParameters(URI uri, boolean decode) {
@@ -303,7 +304,8 @@ public final class UriInfoImpl implements UriInfo {
                 continue;
             }
             String value = equals < 0 ? "" : pair.substring(equals + 1);
-            map.computeIfAbsent(decode ? decodeQuery(name) : name, k -> new ArrayList<>(1))
+            // the names are decoded, only the values are kept encoded
+            map.computeIfAbsent(decodeQuery(name), k -> new ArrayList<>(1))
                 .add(decode ? decodeQuery(value) : value);
         }
         return map;
