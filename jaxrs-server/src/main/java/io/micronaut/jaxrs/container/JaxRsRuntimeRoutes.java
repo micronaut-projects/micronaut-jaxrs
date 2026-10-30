@@ -607,6 +607,8 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         // a route that reads the entity and form parameters, or the entity of a method that uses
         // the ResourceContext: the form is parsed from the bytes of the entity, read once
         boolean entityForm = body && !form && (usesForm || usesResourceContext);
+        // with its raw values for an @Encoded form parameter, or the @Encoded form members of the resources of the ResourceContext
+        boolean rawEntityForm = encodedForm || usesResourceContext;
         if (method.events()) {
             boolean readsBody = body;
             routes.handleAsync(declaration, (request, pathVariables, target, requestBody) -> {
@@ -622,7 +624,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 } else if (readsBody) {
                     called = support.entityAsync(request, pathVariables, requestBody,
                         (readRequest, readPathVariables, value) -> callEvents(method, instances, readRequest, readPathVariables, target,
-                            entityForm ? support.entityForm(readRequest, value, encodedForm) : null, value, response));
+                            entityForm ? support.entityForm(readRequest, value, rawEntityForm) : null, value, response));
                 } else {
                     called = CompletableFuture.supplyAsync(() -> callEvents(method, instances, request, pathVariables, target, null, null, response),
                         support.executor(request));
@@ -642,7 +644,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             } else if (body) {
                 routes.handleAsync(declaration, (request, pathVariables, target, requestBody) -> support.entityAsync(request, pathVariables, requestBody,
                     (readRequest, readPathVariables, value) -> callAsync(method, instances, readRequest, readPathVariables, target,
-                        entityForm ? support.entityForm(readRequest, value, encodedForm) : null, value)));
+                        entityForm ? support.entityForm(readRequest, value, rawEntityForm) : null, value)));
             } else {
                 // the body is not read
                 routes.handleAsync(declaration, (request, pathVariables, target, requestBody) ->
@@ -652,12 +654,18 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             // the form of the entity, with its raw values: an url-encoded form, the only one with encoded values
             routes.handleEntity(declaration, (request, pathVariables, target, value) ->
                 call(method, instances, request, pathVariables, target, support.entityForm(request, value, true), null));
+        } else if (form && usesResourceContext) {
+            // the resources of the ResourceContext may have @Encoded form members: the form is read with
+            // its raw values, which the form parameters that are not @Encoded decode
+            routes.handleAsync(declaration, (request, pathVariables, target, requestBody) -> support.formAsync(request, pathVariables, requestBody,
+                true, (readRequest, readPathVariables, value) -> CompletableFuture.completedFuture(
+                    call(method, instances, readRequest, readPathVariables, target, value, null))));
         } else if (form) {
             routes.handleForm(declaration, (request, pathVariables, target, value) ->
                 call(method, instances, request, pathVariables, target, support.filteredForm(request, value), null));
         } else if (body) {
             routes.handleEntity(declaration, (request, pathVariables, target, value) ->
-                call(method, instances, request, pathVariables, target, entityForm ? support.entityForm(request, value, encodedForm) : null, value));
+                call(method, instances, request, pathVariables, target, entityForm ? support.entityForm(request, value, rawEntityForm) : null, value));
         } else {
             routes.handle(declaration, (request, pathVariables, target, value) ->
                 call(method, instances, request, pathVariables, target, null, null));
