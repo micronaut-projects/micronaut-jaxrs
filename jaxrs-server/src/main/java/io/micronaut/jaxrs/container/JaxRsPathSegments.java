@@ -161,7 +161,8 @@ final class JaxRsPathSegments {
         String[] segments = JaxRsRequestUri.of(request).rawPathSegments();
         Location location = locate(request, key, segments.length);
         if (location == null) {
-            return null;
+            // a variable a sub-resource locator captured, which a located route inherits: of the last one that did
+            return matched == null ? null : inherited(matched, key, relative);
         }
         // split as it appears in the path: an encoded slash is not a separator
         List<PathSegment> located = new ArrayList<>(location.count());
@@ -169,6 +170,25 @@ final class JaxRsPathSegments {
             located.add(segment(segments[location.index() + i], encoded));
         }
         return located;
+    }
+
+    /**
+     * The segments of an occurrence of a variable a located route does not capture, by the
+     * provenance of the captures of the last sub-resource locator that captured it.
+     *
+     * @return The segments, {@code null} if no locator captured it
+     */
+    private static @Nullable List<PathSegment> inherited(JaxRsMatched matched, String key, Supplier<List<PathSegment>> relative) {
+        List<JaxRsMatched.Locator> locators = matched.locators();
+        for (int i = locators.size() - 1; i >= 0; i--) {
+            int[] location = locators.get(i).segments(key);
+            if (location != null) {
+                List<PathSegment> segments = relative.get();
+                return location[0] + location[1] > segments.size() ? null
+                    : List.copyOf(segments.subList(location[0], location[0] + location[1]));
+            }
+        }
+        return null;
     }
 
     /**
@@ -223,7 +243,8 @@ final class JaxRsPathSegments {
             int equals = parts[i].indexOf('=');
             String key = equals < 0 ? parts[i] : parts[i].substring(0, equals);
             String parameter = equals < 0 ? "" : parts[i].substring(equals + 1);
-            parameters.add(encoded ? key : decode(key), encoded ? parameter : decode(parameter));
+            // the names are decoded, also for @Encoded
+            parameters.add(decode(key), encoded ? parameter : decode(parameter));
         }
         String path = parts.length == 0 ? "" : parts[0];
         return new Segment(encoded ? path : decode(path), parameters);

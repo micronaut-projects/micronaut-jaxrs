@@ -143,6 +143,13 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
         return methodChanged ? mutableHttpRequest : null;
     }
 
+    /**
+     * @return The request of the context, with the method a pre-matching filter replaced
+     */
+    HttpRequest<?> currentRequest() {
+        return mutableHttpRequest;
+    }
+
     @Override
     public @Nullable Object getProperty(String name) {
         return properties.get(name);

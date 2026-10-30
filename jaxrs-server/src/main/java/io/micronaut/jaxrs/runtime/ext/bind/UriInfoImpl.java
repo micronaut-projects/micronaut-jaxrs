@@ -72,11 +72,10 @@ public final class UriInfoImpl implements UriInfo {
     private static final String LOCATED_PATH = "micronaut_located_path";
 
     private final HttpRequest<?> request;
+    // the base path of the application, unless a pre-matching filter replaces the base URI
     @Nullable
-    private final String basePath;
+    private final String applicationBasePath;
     private final String contextPath;
-    @Nullable
-    private final URI baseUri;
 
     /**
      * Construct from an HTTP request.
@@ -97,16 +96,29 @@ public final class UriInfoImpl implements UriInfo {
      */
     public UriInfoImpl(@NonNull HttpRequest<?> request, @Nullable String basePath, @NonNull String contextPath) {
         this.request = request;
-        URI baseUri = request.getAttribute(BASE_URI, URI.class).orElse(null);
-        this.baseUri = baseUri;
-        String base = basePath;
+        this.applicationBasePath = basePath;
+        this.contextPath = contextPath;
+    }
+
+    /**
+     * @return The base URI a pre-matching filter replaced, also after this was created, {@code null} if none did
+     */
+    private @Nullable URI replacedBaseUri() {
+        return request.getAttribute(BASE_URI, URI.class).orElse(null);
+    }
+
+    /**
+     * @return The path of the base URI, {@code null} for the root
+     */
+    private @Nullable String basePath() {
+        URI baseUri = replacedBaseUri();
+        String base = applicationBasePath;
         if (baseUri != null) {
             // replaced by a pre-matching filter
             String rawPath = baseUri.getRawPath();
             base = rawPath == null || rawPath.isEmpty() ? null : rawPath;
         }
-        this.basePath = base == null || base.equals("/") ? null : base;
-        this.contextPath = contextPath;
+        return base == null || base.equals("/") ? null : base;
     }
 
     /**
@@ -123,6 +135,7 @@ public final class UriInfoImpl implements UriInfo {
      */
     private String relativeRawPath() {
         String path = request.getPath();
+        String basePath = basePath();
         if (basePath != null) {
             String pathToCheck = path;
             if (!path.startsWith("/")) {
@@ -187,7 +200,8 @@ public final class UriInfoImpl implements UriInfo {
                         continue;
                     }
                     String val = keyVal.length > 1 ? keyVal[1] : null;
-                    params.add(decode ? decodePath(key) : key, val == null || !decode ? val : decodePath(val));
+                    // the names are decoded in the encoded view too, only the values are kept encoded
+                    params.add(decodePath(key), val == null || !decode ? val : decodePath(val));
                 }
                 return new UriPathSegment(decode ? decodePath(segmentTokens[0]) : segmentTokens[0], unmodifiable(params));
             })
@@ -222,10 +236,12 @@ public final class UriInfoImpl implements UriInfo {
 
     @Override
     public URI getBaseUri() {
+        URI baseUri = replacedBaseUri();
         if (baseUri != null && baseUri.isAbsolute()) {
             String raw = baseUri.toString();
             return URI.create(raw.endsWith("/") ? raw : raw + '/');
         }
+        String basePath = basePath();
         String path = basePath == null ? "/" : basePath.startsWith("/") ? basePath : '/' + basePath;
         return uriWithRawPath(path.endsWith("/") ? path : path + '/', null);
     }
@@ -242,12 +258,12 @@ public final class UriInfoImpl implements UriInfo {
 
     @Override
     public MultivaluedMap<String, String> getPathParameters(boolean decode) {
-        RouteMatch<?> match = RouteAttributes.getRouteMatch(request)
-            .orElseThrow(() -> new IllegalStateException("Route match not available!"));
+        RouteMatch<?> match = RouteAttributes.getRouteMatch(request).orElse(null);
         MultivaluedMap<String, String> map = new MultivaluedHashMap<>();
-        if (decode) {
+        // not matched yet, e.g. in a pre-matching filter: no path parameters
+        if (match != null && decode) {
             match.getVariableValues().forEach((name, value) -> map.add(variableName(name), value.toString()));
-        } else if (match instanceof UriRouteMatch<?, ?> uriMatch) {
+        } else if (!decode && match instanceof UriRouteMatch<?, ?> uriMatch) {
             // the values as they appear in the path
             uriMatch.getRawVariableValues().forEach((name, value) -> map.add(variableName(name), value.toString()));
         }
@@ -272,7 +288,7 @@ public final class UriInfoImpl implements UriInfo {
      * without {@code =} has an empty value, and one with an empty name is ignored.
      *
      * @param uri    The URI
-     * @param decode Whether the names and values are decoded, a plus being a space
+     * @param decode Whether the values are decoded, a plus being a space: the names are
      * @return The values of each parameter, in the order of the query
      */
     public static Map<String, List<String>> queryParameters(URI uri, boolean decode) {
@@ -288,7 +304,8 @@ public final class UriInfoImpl implements UriInfo {
                 continue;
             }
             String value = equals < 0 ? "" : pair.substring(equals + 1);
-            map.computeIfAbsent(decode ? decodeQuery(name) : name, k -> new ArrayList<>(1))
+            // the names are decoded, only the values are kept encoded
+            map.computeIfAbsent(decodeQuery(name), k -> new ArrayList<>(1))
                 .add(decode ? decodeQuery(value) : value);
         }
         return map;

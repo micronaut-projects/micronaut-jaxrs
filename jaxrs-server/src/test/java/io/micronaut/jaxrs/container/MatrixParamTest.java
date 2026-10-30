@@ -8,6 +8,7 @@ import io.micronaut.http.client.annotation.Client;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.DefaultValue;
+import jakarta.ws.rs.Encoded;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.MatrixParam;
 import jakarta.ws.rs.Path;
@@ -46,6 +47,11 @@ class MatrixParamTest {
     @Test
     void matrixParamsOnAMiddleSegmentDoNotChangeTheRoute() {
         assertEquals("details of 7", client.toBlocking().retrieve(HttpRequest.GET("/cars;color=red/7;trim=gt/details")));
+    }
+
+    @Test
+    void encodedPathSegmentHasDecodedParameterNames() {
+        assertEquals("a%20b={%2F}", client.toBlocking().retrieve(HttpRequest.GET("/segments/encoded/a%20b;x%20y=%2F")));
     }
 
     @Test
@@ -143,6 +149,13 @@ class MatrixParamTest {
         @Produces("text/plain")
         public String many(@PathParam("a") List<PathSegment> a, @PathParam("b") PathSegment b) {
             return a.stream().map(SegmentsResource::describe).toList() + " | " + describe(b);
+        }
+
+        @GET
+        @Path("encoded/{e}")
+        @Produces("text/plain")
+        public String encoded(@Encoded @PathParam("e") PathSegment e) {
+            return e.getPath() + "=" + e.getMatrixParameters().get("x y").stream().collect(java.util.stream.Collectors.joining(",", "{", "}"));
         }
 
         private static String describe(PathSegment segment) {

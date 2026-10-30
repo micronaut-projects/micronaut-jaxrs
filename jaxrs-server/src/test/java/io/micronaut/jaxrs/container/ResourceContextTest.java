@@ -76,9 +76,35 @@ class ResourceContextTest {
             .contentType(io.micronaut.http.MediaType.APPLICATION_FORM_URLENCODED_TYPE)));
     }
 
+    @Test
+    void encodedFormMembersHaveTheRawValues() {
+        assertEquals("a%20b! a%20b! a b!", client.toBlocking().retrieve(HttpRequest.POST("/encoded-form", "x=a%20b!")
+            .contentType(io.micronaut.http.MediaType.APPLICATION_FORM_URLENCODED_TYPE)));
+    }
+
+    @Test
+    void encodedFormMembersOfAMethodWithAnEntityParameterHaveTheRawValues() {
+        assertEquals("a%20b! x=a%20b!", client.toBlocking().retrieve(HttpRequest.POST("/encoded-form-entity", "x=a%20b!")
+            .contentType(io.micronaut.http.MediaType.APPLICATION_FORM_URLENCODED_TYPE)));
+    }
+
     @Requires(property = "spec.name", value = "ResourceContextTest")
     @Path("/resource-context")
     public static class RootResource {
+        @POST
+        @Path("/encoded-form-entity")
+        public String encodedFormEntity(String body) {
+            return resourceContext.getResource(EncodedFormMember.class).x + " " + body;
+        }
+
+        @POST
+        @Path("/encoded-form")
+        @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+        public String encodedForm(@FormParam("x") String x) {
+            return resourceContext.getResource(EncodedFormMember.class).x + " " + resourceContext.initResource(new EncodedFormMember()).x
+                + " " + x;
+        }
+
         @POST
         @Path("/form")
         @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
@@ -124,6 +150,15 @@ class ResourceContextTest {
         public String init() {
             return resourceContext.initResource(new Initialized()).describe();
         }
+    }
+
+    /**
+     * A resource with an encoded form member.
+     */
+    public static class EncodedFormMember {
+        @Encoded
+        @FormParam("x")
+        String x;
     }
 
     /**

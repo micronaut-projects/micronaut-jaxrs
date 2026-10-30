@@ -8,6 +8,7 @@ import io.micronaut.http.client.annotation.Client;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
+import jakarta.ws.rs.BeanParam;
 import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.HeaderParam;
@@ -41,6 +42,37 @@ class ConstructorParamTest {
             client.toBlocking().retrieve(HttpRequest.GET("/7/abc?name=Fred").header("X-Value", "header")));
         assertEquals("2 8 unknown none constructor-param/8/xyz xyz",
             client.toBlocking().retrieve(HttpRequest.GET("/8/xyz")));
+    }
+
+    @Test
+    void beanParamIsCreatedWithItsConstructorOfTheMostParameters() {
+        assertEquals("value", client.toBlocking().retrieve(HttpRequest.GET("/bean?x=value")));
+    }
+
+    public static class ConstructorBean {
+        private final String x;
+
+        // a member read from the request: the compiler reports a nested class to the processor by its annotated members
+        @QueryParam("y")
+        String y;
+
+        public ConstructorBean() {
+            this("none");
+        }
+
+        public ConstructorBean(@QueryParam("x") String x) {
+            this.x = x;
+        }
+    }
+
+    @Requires(property = "spec.name", value = "ConstructorParamTest")
+    @Path("/constructor-param/bean")
+    public static class BeanParamResource {
+        @GET
+        @Produces("text/plain")
+        public String get(@BeanParam ConstructorBean bean) {
+            return bean.x;
+        }
     }
 
     @Singleton

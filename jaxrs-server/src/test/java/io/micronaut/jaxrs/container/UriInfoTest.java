@@ -52,6 +52,13 @@ class UriInfoTest {
     }
 
     @Test
+    void encodedViewsHaveDecodedNames() {
+        UriInfo uriInfo = new UriInfoImpl(HttpRequest.GET("http://example.com/api/foo;a%20b=%2F?q%20r=%2F"), "/api");
+        Assertions.assertEquals(Map.of("a b", List.of("%2F")), uriInfo.getPathSegments(false).get(0).getMatrixParameters());
+        Assertions.assertEquals(Map.of("q r", List.of("%2F")), uriInfo.getQueryParameters(false));
+    }
+
+    @Test
     void semicolonDoesNotSplitQueryParameters() {
         UriInfo uriInfo = new UriInfoImpl(HttpRequest.GET("http://example.com/foo?x=a;b"));
         Assertions.assertEquals(Map.of("x", List.of("a;b")), uriInfo.getQueryParameters());

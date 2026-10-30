@@ -16,7 +16,9 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.container.ContainerRequestContext;
 import jakarta.ws.rs.container.ContainerRequestFilter;
 import jakarta.ws.rs.container.PreMatching;
+import jakarta.ws.rs.core.EntityTag;
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.UriInfo;
 import jakarta.ws.rs.ext.Provider;
 import org.junit.jupiter.api.Test;
 
@@ -85,6 +87,21 @@ class PreMatchingRequestContextTest {
     }
 
     @Test
+    void requestHasTheReplacedMethod() {
+        assertEquals("PUT 412", retrieve(HttpRequest.GET("/resource").header("If-None-Match", "\"x\""), "precondition"));
+    }
+
+    @Test
+    void noPathParametersBeforeTheMatching() {
+        assertEquals("{}", retrieve(HttpRequest.GET("/resource"), "path-parameters"));
+    }
+
+    @Test
+    void retainedUriInfoHasTheReplacedBaseUri() {
+        assertEquals("/api/pre-matching/|uri-info", retrieve(HttpRequest.GET("/resource"), "retained"));
+    }
+
+    @Test
     void nothingIsMatchedBeforeTheMatching() {
         assertEquals("[]", retrieve(HttpRequest.GET("/resource"), "matched"));
     }
@@ -113,6 +130,17 @@ class PreMatchingRequestContextTest {
                 case "replace" -> context.setEntityStream(new ByteArrayInputStream("replaced".getBytes(StandardCharsets.UTF_8)));
                 case "has" -> context.abortWith(Response.ok(String.valueOf(context.hasEntity())).build());
                 case "request" -> context.abortWith(Response.ok(context.getRequest().getMethod()).build());
+                case "precondition" -> {
+                    context.setMethod("PUT");
+                    Response.ResponseBuilder builder = context.getRequest().evaluatePreconditions(new EntityTag("x"));
+                    context.abortWith(Response.ok(context.getRequest().getMethod() + " " + (builder == null ? "none" : builder.build().getStatus())).build());
+                }
+                case "path-parameters" -> context.abortWith(Response.ok(context.getUriInfo().getPathParameters().toString()).build());
+                case "retained" -> {
+                    UriInfo uriInfo = context.getUriInfo();
+                    context.setRequestUri(uriInfo.getBaseUri().resolve("pre-matching/"), java.net.URI.create("uri-info"));
+                    context.abortWith(Response.ok(uriInfo.getBaseUri().getPath() + "|" + uriInfo.getPath()).build());
+                }
                 case "matched" -> context.abortWith(Response.ok(context.getUriInfo().getMatchedURIs().toString()).build());
                 case "security" -> context.abortWith(Response.ok(String.valueOf(context.getSecurityContext().getUserPrincipal())).build());
                 default -> {
