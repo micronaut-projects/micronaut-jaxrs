@@ -168,6 +168,12 @@ class ServerMatchingTest {
     }
 
     @Test
+    void inheritedPathSegmentHasTheSegmentOfTheAncestor() {
+        assertEquals("ancestor:real", get("/ancestor/ancestor;m=real/sub/leaf"));
+        assertEquals("ancestor:real", get("/ancestor/ancestor;m=real/sub/next/leaf"));
+    }
+
+    @Test
     void repeatedLocatorValuesAreKept() {
         assertEquals("same,same", get("/dups/same/sub/same"));
     }
@@ -427,6 +433,29 @@ class ServerMatchingTest {
         @Path("sub")
         public MatchedUrisChild sub(@Context UriInfo uriInfo) {
             return new MatchedUrisChild(uriInfo.getMatchedURIs().toString());
+        }
+    }
+
+    @Requires(property = "spec.name", value = "ServerMatchingTest")
+    @Path("/ancestor/{id}")
+    public static class AncestorResource {
+        @Path("sub")
+        public AncestorChild sub() {
+            return new AncestorChild();
+        }
+    }
+
+    public static class AncestorChild {
+        @Path("next")
+        public AncestorChild next() {
+            return new AncestorChild();
+        }
+
+        @GET
+        @Path("leaf")
+        @Produces("text/plain")
+        public String leaf(@PathParam("id") PathSegment id) {
+            return id.getPath() + ":" + id.getMatrixParameters().getFirst("m");
         }
     }
 
