@@ -403,28 +403,48 @@ final class JaxRsResponseEntity {
 
     /**
      * Release the resources of the entity: the entity of a received response is in memory, the
-     * entity stream of a mutable response, and an entity that holds a resource, are closed.
+     * entity stream of a mutable response, the stream that readEntity returned, and an entity
+     * that holds a resource, are closed. Each one is closed even when closing another one fails.
      */
     private void release() {
-        if (mutableResponse == null) {
-            return;
+        IOException failure = null;
+        if (streamRead && readBody instanceof Closeable stream) {
+            // the stream that readEntity returned, e.g. the wrapper of a reader interceptor
+            failure = close(stream, failure);
         }
-        try {
+        if (mutableResponse != null) {
             InputStream stream = entityStream;
             if (stream != null) {
                 entityStream = null;
-                stream.close();
+                failure = close(stream, failure);
             }
             // an entity that holds a resource, e.g. Response.ok(new FileInputStream(file))
             Object body = mutableResponse.body();
             if (body instanceof GenericEntity<?> genericEntity) {
                 body = genericEntity.getEntity();
             }
-            if (body instanceof Closeable closeable) {
-                closeable.close();
+            if (body instanceof Closeable closeable && closeable != stream) {
+                failure = close(closeable, failure);
             }
+        }
+        if (failure != null) {
+            throw new ProcessingException(failure);
+        }
+    }
+
+    /**
+     * Close a resource, the failure kept with the earlier one suppressed by it.
+     */
+    private static @Nullable IOException close(Closeable closeable, @Nullable IOException failure) {
+        try {
+            closeable.close();
+            return failure;
         } catch (IOException e) {
-            throw new ProcessingException(e);
+            if (failure == null) {
+                return e;
+            }
+            failure.addSuppressed(e);
+            return failure;
         }
     }
 }

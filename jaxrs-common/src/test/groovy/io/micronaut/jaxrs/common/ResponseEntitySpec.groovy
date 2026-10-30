@@ -208,4 +208,45 @@ class ResponseEntitySpec extends Specification {
             { InputStream s -> Response.ok(new jakarta.ws.rs.core.GenericEntity<InputStream>(s, InputStream)).build() }
         ]
     }
+
+    void "close closes the stream readEntity returned, e.g. the wrapper of a reader interceptor"() {
+        given:
+        def wrapper = new TrackingInputStream("abc".bytes)
+        def reader = new HttpMessageEntityReader() {
+            @Override
+            InputStream readEntityStream(io.micronaut.http.HttpMessage<?> message, InputStream entityStream) {
+                wrapper
+            }
+        }
+        def response = new JaxRsMutableResponse(HttpResponse.ok(), reader)
+        response.setEntityStream(new TrackingInputStream("abc".bytes))
+
+        when:
+        def read = response.readEntity(InputStream)
+        response.close()
+
+        then:
+        read.is(wrapper)
+        wrapper.closed
+    }
+
+    void "close closes every resource even when closing one fails"() {
+        given:
+        def body = new TrackingInputStream("abc".bytes)
+        def failing = new ByteArrayInputStream("def".bytes) {
+            @Override
+            void close() throws IOException {
+                throw new IOException("failed")
+            }
+        }
+        def response = new JaxRsMutableResponse(HttpResponse.ok(body))
+        response.setEntityStream(failing)
+
+        when:
+        response.close()
+
+        then:
+        thrown(jakarta.ws.rs.ProcessingException)
+        body.closed
+    }
 }
