@@ -326,4 +326,30 @@ class MultipartPartHeadersSpec extends Specification {
         parts[0].mediaType == MediaType.valueOf("text/plain;charset=ISO-8859-1")
         parts[0].headers.getFirst("X-Written") == "1"
     }
+
+    void "a delimiter within the preamble that does not start a line is not one"() {
+        given:
+        def body = "text--b\r\nContent-Disposition: form-data; name=\"fake\"\r\n\r\nwrong\r\n" +
+            "--b\r\nContent-Disposition: form-data; name=\"real\"\r\n\r\nright\r\n--b--\r\n"
+
+        when:
+        List<EntityPart> parts = new JaxRsMultipartMessageBodyReader().readFrom((Class) List, new GenericType<List<EntityPart>>() {}.type,
+            [] as java.lang.annotation.Annotation[], MediaType.valueOf("multipart/form-data; boundary=b"),
+            new MultivaluedHashMap<String, String>(), new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8)))
+
+        then:
+        parts*.name == ["real"]
+        parts[0].getContent(String) == "right"
+    }
+
+    void "the default media type of a built part is its Content-Type header"() {
+        when:
+        def field = EntityPart.withName("x").content("a").build()
+        def file = EntityPart.withName("f").fileName("f.bin").content("a").build()
+
+        then:
+        field.mediaType == MediaType.TEXT_PLAIN_TYPE
+        field.headers.getFirst("Content-Type") == "text/plain"
+        file.headers.getFirst("Content-Type") == "application/octet-stream"
+    }
 }
