@@ -378,6 +378,11 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
         }
 
         @Override
+        public void abort(Throwable failure) {
+            release();
+        }
+
+        @Override
         public void finish() throws IOException {
             if (outputIntercepted && !finished) {
                 finished = true;

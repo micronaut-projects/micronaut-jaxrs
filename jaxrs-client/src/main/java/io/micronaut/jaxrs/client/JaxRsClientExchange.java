@@ -110,6 +110,7 @@ final class JaxRsClientExchange {
      */
     CompletableFuture<Exchanged> send(@Nullable String method, @Nullable Entity<?> requestEntity) {
         var future = new CompletableFuture<Exchanged>();
+        JaxRsClientRequestContext requestContext = null;
         try {
             MutableHttpRequest<Object> request = createRequest(method, requestEntity);
             Object entityValue = null;
@@ -125,7 +126,7 @@ final class JaxRsClientExchange {
                     requestBodyType = JaxRsArgumentUtil.from(requestEntity);
                 }
             }
-            JaxRsClientRequestContext requestContext = new JaxRsClientRequestContext(client, configuration, request,
+            requestContext = new JaxRsClientRequestContext(client, configuration, request,
                 entityValue, requestBodyType, properties);
             // the injected configuration of a shared filter is the one of this invocation (JAX-RS 10.2.8)
             Response aborted = JaxRsClientFilters.filterRequest(configuration, requestContext);
@@ -137,6 +138,7 @@ final class JaxRsClientExchange {
             request = changed(request, requestContext);
             // the relative links of the response are resolved against the URI of the request
             URI requestUri = request.getUri();
+            JaxRsClientRequestContext sentContext = requestContext;
             CompletableFuture<HttpResponse<ByteBuffer<?>>> exchange = client.getHttpClient().toAsync().exchange(request).toCompletableFuture();
             // the exchange of a cancelled invocation is cancelled: core cancels the transport with
             // its own future, not with a dependent stage
@@ -150,7 +152,7 @@ final class JaxRsClientExchange {
                 if (throwable instanceof HttpClientResponseException httpClientResponseException) {
                     // a response that is not successful is filtered like any other
                     future.complete(new Exchanged(new JaxRsMutableResponse(httpClientResponseException.getResponse().toMutableResponse()
-                        .attribute(JaxRsResponse.REQUEST_URI, requestUri)), requestContext));
+                        .attribute(JaxRsResponse.REQUEST_URI, requestUri)), sentContext));
                 } else if (throwable instanceof ReadTimeoutException) {
                     // the cause of a timeout is a TimeoutException (JAX-RS, ClientBuilder#readTimeout)
                     var timeout = new TimeoutException(throwable.getMessage());
@@ -162,15 +164,27 @@ final class JaxRsClientExchange {
                     future.completeExceptionally(new ProcessingException("Expected a response"));
                 } else {
                     future.complete(new Exchanged(new JaxRsMutableResponse(response.toMutableResponse()
-                        .attribute(JaxRsResponse.REQUEST_URI, requestUri)), requestContext));
+                        .attribute(JaxRsResponse.REQUEST_URI, requestUri)), sentContext));
                 }
             });
         } catch (JaxRsIOException e) {
+            closeReplacedEntityStream(requestContext, e);
             future.completeExceptionally(new ProcessingException(e.getCause()));
         } catch (Exception e) {
+            closeReplacedEntityStream(requestContext, e);
             future.completeExceptionally(new ProcessingException(e));
         }
         return future;
+    }
+
+    /**
+     * Close the entity stream a request filter replaced when the request fails before it is sent,
+     * e.g. because a later filter failed: the exchange owns it (JAX-RS, ClientRequestContext).
+     */
+    private static void closeReplacedEntityStream(@Nullable JaxRsClientRequestContext requestContext, Exception failure) {
+        if (requestContext != null) {
+            requestContext.closeReplacedEntityStream(failure);
+        }
     }
 
     /**
@@ -227,6 +241,9 @@ final class JaxRsClientExchange {
             Object body = request.getBody().orElse(null);
             if (body instanceof byte[] bytes) {
                 request.body(requestContext.writeThroughEntityStream(bytes));
+            } else if (requestContext.isEntityStreamReplaced()) {
+                // no writer wrote the entity to the bytes the replaced stream needs
+                throw new ProcessingException("No writer of the entity type " + requestContext.getEntityArgument().getType().getName());
             }
         } catch (IOException | RuntimeException e) {
             // the entity stream a filter replaced is closed when the entity is not written through it

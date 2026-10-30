@@ -332,6 +332,64 @@ class JaxRsClientLifecycleTest {
         }
     }
 
+    private static OutputStream tracking(OutputStream stream, AtomicBoolean closed) {
+        return new FilterOutputStream(stream) {
+            @Override
+            public void close() throws IOException {
+                closed.set(true);
+                super.close();
+            }
+        };
+    }
+
+    private static InputStream tracking(InputStream stream, AtomicBoolean closed) {
+        return new FilterInputStream(stream) {
+            @Override
+            public void close() throws IOException {
+                closed.set(true);
+                super.close();
+            }
+        };
+    }
+
+    @Test
+    void replacedEntityStreamIsClosedWhenALaterFilterFails() {
+        AtomicBoolean closed = new AtomicBoolean();
+        WebTarget target = target("echo")
+            .register((ClientRequestFilter) context -> context.setEntityStream(tracking(context.getEntityStream(), closed)), 1)
+            .register((ClientRequestFilter) context -> {
+                throw new IOException("filter failed");
+            }, 2);
+
+        ProcessingException e = assertThrows(ProcessingException.class, () -> target.request().post(Entity.text("body"), String.class));
+        assertInstanceOf(IOException.class, e.getCause());
+        assertTrue(closed.get());
+    }
+
+    @Test
+    void replacedEntityStreamIsClosedWhenNoWriterWritesTheEntity() {
+        AtomicBoolean closed = new AtomicBoolean();
+        WebTarget target = target("echo")
+            .register((ClientRequestFilter) context -> context.setEntityStream(tracking(context.getEntityStream(), closed)));
+
+        assertThrows(ProcessingException.class,
+            () -> target.request().post(Entity.entity(new Thing(), "application/x-unknown"), String.class));
+        assertTrue(closed.get());
+    }
+
+    @Test
+    void streamOfAWriterInterceptorIsClosedWhenItFails() {
+        AtomicBoolean closed = new AtomicBoolean();
+        WebTarget target = target("echo")
+            .register((WriterInterceptor) context -> {
+                context.setOutputStream(tracking(context.getOutputStream(), closed));
+                throw new IOException("interceptor failed");
+            });
+
+        assertThrows(ProcessingException.class, () -> target.request().post(Entity.text("body"), String.class));
+        assertTrue(closed.get());
+    }
+
     static final class Thing {
     }
 
