@@ -224,6 +224,8 @@ final class JaxRsContextConfiguration implements Configuration, JaxRsProviderReg
         }
         // and the ones the features registered, the enabled features included
         instances.addAll(features.get().registeredInstances());
+        // and the features of the service loader, enabled or not (JAX-RS 4.1.2)
+        instances.addAll(features.get().serviceLoaded());
         return Collections.unmodifiableSet(instances);
     }
 
