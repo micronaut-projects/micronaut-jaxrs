@@ -17,21 +17,26 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.MessageBodyWriter;
+import jakarta.ws.rs.ext.ReaderInterceptor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.io.ByteArrayInputStream;
 import java.io.FilterInputStream;
 import java.io.FilterOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -146,6 +151,21 @@ class JaxRsClientLifecycleTest {
         }
         assertTrue(closed.get());
         assertFalse(called.get());
+    }
+
+    @Test
+    void streamOfAResponseFilterIsReadThroughTheReaderInterceptors() throws IOException {
+        WebTarget target = target("hello")
+            .register((ReaderInterceptor) context -> {
+                context.proceed();
+                return new ByteArrayInputStream("intercepted".getBytes(StandardCharsets.UTF_8));
+            })
+            .register((ClientResponseFilter) (request, response) ->
+                response.setEntityStream(new FilterInputStream(response.getEntityStream()) { }));
+
+        try (Response response = target.request().get(); InputStream stream = response.readEntity(InputStream.class)) {
+            assertEquals("intercepted", new String(stream.readAllBytes(), StandardCharsets.UTF_8));
+        }
     }
 
     static final class Thing {

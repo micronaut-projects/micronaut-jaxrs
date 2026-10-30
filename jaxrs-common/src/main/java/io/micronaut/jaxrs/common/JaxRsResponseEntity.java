@@ -272,8 +272,9 @@ final class JaxRsResponseEntity {
         InputStream stream = entityStream;
         if (stream != null) {
             if (entityType.getType() == InputStream.class) {
-                // it stays the entity stream, which close() closes
-                return stream;
+                // it stays the entity stream, which close() closes, read through the reader
+                // interceptors (JAX-RS, Response#readEntity)
+                return entityReader.readEntityStream(response, stream);
             }
             entityStream = null;
             mutableResponse().body(readAll(stream));

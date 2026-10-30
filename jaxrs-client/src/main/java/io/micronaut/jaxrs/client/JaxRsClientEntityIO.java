@@ -99,6 +99,34 @@ final class JaxRsClientEntityIO {
                 }
             }
 
+            @Override
+            public InputStream readEntityStream(HttpMessage<?> message, InputStream entityStream) {
+                List<BeanRegistration<ReaderInterceptor>> readerInterceptors = providers.getReaderInterceptors();
+                if (readerInterceptors.isEmpty()) {
+                    return entityStream;
+                }
+                Providers previous = JaxRsCurrentProviders.set(providers);
+                try {
+                    MediaType mediaType = message.getContentType().orElse(MediaType.APPLICATION_OCTET_STREAM_TYPE);
+                    HttpHeaders headers = message.getHeaders();
+                    InputStream read = new JaxRsInterceptedRead<InputStream>(readerInterceptors, metadata -> true) {
+
+                        @Override
+                        protected @Nullable InputStream readFromAfterInterception(Argument<Object> type, @Nullable MediaType mediaType, Headers httpHeaders, InputStream inputStream) {
+                            io.micronaut.http.body.MessageBodyReader<Object> reader = providers.findReader(type, mediaType);
+                            if (reader != null) {
+                                return (InputStream) reader.read(type, mediaType, headers, inputStream);
+                            }
+                            throw new IllegalStateException("No reader found for type " + type.getType() + " and mediaType " + mediaType);
+                        }
+
+                    }.intercept(Argument.of(InputStream.class), mediaType, headers, entityStream, properties);
+                    return read == null ? InputStream.nullInputStream() : read;
+                } finally {
+                    JaxRsCurrentProviders.restore(previous);
+                }
+            }
+
             private <T> @Nullable T readEntityOfConfiguration(HttpMessage<?> message, Argument<T> entityType) {
                 ByteBuffer<?> byteBuffer = message.getBody(ByteBuffer.class)
                     .or(() -> message.getBody(byte[].class).map(ByteArrayByteBuffer::new))

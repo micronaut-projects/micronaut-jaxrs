@@ -23,6 +23,7 @@ import io.micronaut.http.HttpMessage;
 import jakarta.ws.rs.ProcessingException;
 import org.jspecify.annotations.Nullable;
 
+import java.io.InputStream;
 import java.util.Optional;
 
 /**
@@ -56,6 +57,18 @@ public class HttpMessageEntityReader {
                 .orElseThrow(() -> new ProcessingException("Cannot read an entity of type " + entityType));
         }
         return result;
+    }
+
+    /**
+     * Read the entity stream of a message as a stream, e.g. the one a filter set, without
+     * consuming it.
+     *
+     * @param message      The message
+     * @param entityStream The entity stream
+     * @return The entity, the given stream by default
+     */
+    public InputStream readEntityStream(HttpMessage<?> message, InputStream entityStream) {
+        return entityStream;
     }
 
     /**
