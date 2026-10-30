@@ -209,7 +209,8 @@ final class JaxRsSseEventSource implements SseEventSource {
         }
         MutableHttpRequest<Object> request = HttpRequest.GET(target.getUri().toString()).accept(MediaType.TEXT_EVENT_STREAM_TYPE);
         String id = streamState.getLastEventId();
-        if (id != null) {
+        if (id != null && !id.isEmpty()) {
+            // an empty id resets the last one: no header (HTML 9.2.6)
             request.header("Last-Event-ID", id);
         }
         request.setAttribute(EventStreamState.ATTRIBUTE, streamState);
