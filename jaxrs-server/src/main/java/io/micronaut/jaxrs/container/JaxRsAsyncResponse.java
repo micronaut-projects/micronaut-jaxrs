@@ -103,6 +103,8 @@ final class JaxRsAsyncResponse implements AsyncResponse {
     // whether the server tells when the client goes away
     private boolean abandonment;
     private boolean abandoned;
+    // whether the server reported the response written, or not written
+    private boolean processed;
 
     /**
      * @param converter Converts a resumed value to the response
@@ -131,6 +133,9 @@ final class JaxRsAsyncResponse implements AsyncResponse {
         // a callback may run on the registering thread if the response is done already
         // the server reports on its event loop, which the callbacks do not block
         boolean completion = serverRequest.whenResponseCompleted(failure -> {
+            synchronized (this) {
+                processed = true;
+            }
             Throwable throwable = request.getAttribute(UNMAPPED_EXCEPTION, Throwable.class).orElse(failure);
             offload(() -> completed(throwable));
         });
@@ -364,8 +369,12 @@ final class JaxRsAsyncResponse implements AsyncResponse {
 
     @Override
     public synchronized boolean isDone() {
-        // resumed or cancelled, and its response processed: not while resume converts it
-        return state != State.SUSPENDED && response.isDone();
+        if (state == State.DISCONNECTED) {
+            return true;
+        }
+        // resumed or cancelled, and its response processed: once the server reports it written,
+        // not while the response filters run; else once converted, not while resume converts it
+        return state != State.SUSPENDED && (responseCompletion ? processed : response.isDone());
     }
 
     @Override
