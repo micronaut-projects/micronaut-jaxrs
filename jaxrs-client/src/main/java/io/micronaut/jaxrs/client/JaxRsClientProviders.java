@@ -144,7 +144,7 @@ final class JaxRsClientProviders implements Providers {
                     continue;
                 }
                 MessageBodyReader<?> reader = registeredFor(component, MessageBodyReader.class)
-                    ? injected(component.tryGet(MessageBodyReader.class)) : null;
+                    ? injected(component.tryGet(MessageBodyReader.class, this::contextValue)) : null;
                 if (reader != null) {
                     built.add(new JaxRsMessageBodyReaderDefinition(
                         providedType(reader, MessageBodyReader.class),
@@ -154,7 +154,7 @@ final class JaxRsClientProviders implements Providers {
                     ));
                 }
                 io.micronaut.http.body.MessageBodyReader<?> micronautReader = registeredFor(component, io.micronaut.http.body.MessageBodyReader.class)
-                    ? injected(component.tryGet(io.micronaut.http.body.MessageBodyReader.class)) : null;
+                    ? injected(component.tryGet(io.micronaut.http.body.MessageBodyReader.class, this::contextValue)) : null;
                 if (micronautReader != null) {
                     Argument<?> type = micronautReader instanceof TypedMessageBodyReader<?> typedMessageBodyReader
                         ? typedMessageBodyReader.getType()
@@ -219,7 +219,7 @@ final class JaxRsClientProviders implements Providers {
                     continue;
                 }
                 MessageBodyWriter<?> writer = registeredFor(component, MessageBodyWriter.class)
-                    ? injected(component.tryGet(MessageBodyWriter.class)) : null;
+                    ? injected(component.tryGet(MessageBodyWriter.class, this::contextValue)) : null;
                 if (writer != null) {
                     built.add(new JaxRsMessageBodyWriterDefinition(
                         providedType(writer, MessageBodyWriter.class),
@@ -229,7 +229,7 @@ final class JaxRsClientProviders implements Providers {
                     ));
                 }
                 io.micronaut.http.body.MessageBodyWriter<?> micronautWriter = registeredFor(component, io.micronaut.http.body.MessageBodyWriter.class)
-                    ? injected(component.tryGet(io.micronaut.http.body.MessageBodyWriter.class)) : null;
+                    ? injected(component.tryGet(io.micronaut.http.body.MessageBodyWriter.class, this::contextValue)) : null;
                 if (micronautWriter != null) {
                     Argument<?> type = micronautWriter instanceof TypedMessageBodyWriter<?> typedMessageBodyWriter
                         ? typedMessageBodyWriter.getType()
@@ -447,7 +447,7 @@ final class JaxRsClientProviders implements Providers {
                 // registered for other contracts only, or for another runtime (@ConstrainedTo)
                 continue;
             }
-            T instance = injected(component.tryGet(type));
+            T instance = injected(component.tryGet(type, this::contextValue));
             if (instance != null) {
                 registrations.add(JaxRsRouteInterceptors.registration(instance, component.metadata(), priority(component, type)));
             }
@@ -465,10 +465,19 @@ final class JaxRsClientProviders implements Providers {
         if (instance == null) {
             return null;
         }
-        JaxRsReflection.get().injectFields(instance, Context.class, type -> type == Providers.class ? contextProviders
-            : type == Configuration.class ? contextConfiguration
-            : null);
+        JaxRsReflection.get().injectFields(instance, Context.class, this::contextValue);
         return instance;
+    }
+
+    /**
+     * @param type A context type
+     * @return The value of a context type a client provider is injected with, {@code null} for
+     * the context types of a server request
+     */
+    @Nullable Object contextValue(Class<?> type) {
+        return type == Providers.class ? contextProviders
+            : type == Configuration.class ? contextConfiguration
+            : null;
     }
 
     /**

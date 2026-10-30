@@ -10,6 +10,7 @@ import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.ProcessingException;
 import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.client.ClientBuilder;
+import jakarta.ws.rs.client.ClientRequestContext;
 import jakarta.ws.rs.client.ClientRequestFilter;
 import jakarta.ws.rs.client.ClientResponseFilter;
 import jakarta.ws.rs.client.Entity;
@@ -30,6 +31,7 @@ import jakarta.ws.rs.ext.MessageBodyReader;
 import jakarta.ws.rs.ext.MessageBodyWriter;
 import jakarta.ws.rs.ext.ReaderInterceptor;
 import jakarta.ws.rs.ext.WriterInterceptor;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -505,6 +507,42 @@ class JaxRsClientLifecycleTest {
         WebTarget target = target("hello").register(CustomStreamReader.class).register(new RejectingReader());
         assertThrows(UnsupportedOperationException.class, () -> target.getConfiguration().getClasses().clear());
         assertThrows(UnsupportedOperationException.class, () -> target.getConfiguration().getInstances().clear());
+    }
+
+    @Test
+    void providerRegisteredAsAClassIsConstructedWithItsContext() {
+        assertEquals("A", target("hello").property("x", "A").register(ContextConstructedFilter.class).request().get(String.class));
+        assertEquals("B", target("hello").property("x", "B").register(TwoConstructorsFilter.class).request().get(String.class));
+    }
+
+    public static final class ContextConstructedFilter implements ClientRequestFilter {
+        private final Configuration configuration;
+
+        public ContextConstructedFilter(@Context Configuration configuration) {
+            this.configuration = configuration;
+        }
+
+        @Override
+        public void filter(ClientRequestContext requestContext) {
+            requestContext.abortWith(Response.ok(String.valueOf(configuration.getProperty("x"))).build());
+        }
+    }
+
+    public static final class TwoConstructorsFilter implements ClientRequestFilter {
+        private final @Nullable Configuration configuration;
+
+        public TwoConstructorsFilter() {
+            this.configuration = null;
+        }
+
+        public TwoConstructorsFilter(@Context Configuration configuration) {
+            this.configuration = configuration;
+        }
+
+        @Override
+        public void filter(ClientRequestContext requestContext) {
+            requestContext.abortWith(Response.ok(configuration == null ? "none" : String.valueOf(configuration.getProperty("x"))).build());
+        }
     }
 
     static final class Thing {

@@ -220,6 +220,34 @@ public interface JaxRsReflection {
     <T> T instantiate(Class<T> type);
 
     /**
+     * Instantiate a class that is not a bean with the constructor with the most parameters that
+     * all have a value, e.g. the {@code @Context} parameters of a provider (JAX-RS 4.1.3).
+     * Without reflection, the constructor of its introspection when its parameters have values.
+     *
+     * @param type   The class
+     * @param values The value of the type of a parameter, {@code null} for none
+     * @param <T>    The type
+     * @return The instance
+     */
+    default <T> T instantiate(Class<T> type, Function<Class<?>, @Nullable Object> values) {
+        BeanIntrospection<T> introspection = introspection(type);
+        if (introspection != null) {
+            Argument<?>[] arguments = introspection.getConstructorArguments();
+            if (arguments.length > 0) {
+                Object[] resolved = new Object[arguments.length];
+                for (int i = 0; i < arguments.length; i++) {
+                    resolved[i] = values.apply(arguments[i].getType());
+                    if (resolved[i] == null) {
+                        return instantiate(type);
+                    }
+                }
+                return introspection.instantiate(resolved);
+            }
+        }
+        return instantiate(type);
+    }
+
+    /**
      * How JAX-RS converts a string to a class without a converter: its static {@code valueOf} or
      * {@code fromString} method, or its constructor with a string. Without reflection, the
      * constructor with a string of its introspection, or its static factory method annotated with
