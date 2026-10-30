@@ -435,6 +435,37 @@ class JaxRsClientLifecycleTest {
     }
 
     @Test
+    void entityOfAnAbortedResponseIsNotIntercepted() {
+        String read = target("hello")
+            .register((ClientRequestFilter) context -> context.abortWith(Response.ok("cached", MediaType.TEXT_PLAIN_TYPE).build()))
+            .register((WriterInterceptor) context -> {
+                context.getOutputStream().write("outbound:".getBytes(StandardCharsets.UTF_8));
+                context.proceed();
+            })
+            .request()
+            .get(String.class);
+        assertEquals("cached", read);
+    }
+
+    @Test
+    void variantOfTheEntityRemovesTheEncodingAndLanguageItHasNot() {
+        AtomicReference<List<String>> seen = new AtomicReference<>();
+        target("echo")
+            .register((ClientRequestFilter) context -> {
+                seen.set(List.of(
+                    String.valueOf(context.getHeaderString("Content-Language")),
+                    String.valueOf(context.getHeaderString("Content-Encoding"))));
+                context.abortWith(Response.ok().build());
+            })
+            .request()
+            .header("Content-Language", "fr")
+            .header("Content-Encoding", "gzip")
+            .post(Entity.text("hello"))
+            .close();
+        assertEquals(List.of("null", "null"), seen.get());
+    }
+
+    @Test
     void failureOfAReaderOtherThanAnIOExceptionIsAProcessingException() {
         try (Response response = target("hello").register(new RejectingReader()).request().get()) {
             ProcessingException e = assertThrows(ProcessingException.class, () -> response.readEntity(Thing.class));
@@ -453,6 +484,27 @@ class JaxRsClientLifecycleTest {
                               MultivaluedMap<String, String> httpHeaders, InputStream entityStream) {
             throw new IllegalArgumentException("malformed");
         }
+    }
+
+    @Test
+    void methodKeepsItsCase() {
+        AtomicReference<String> seen = new AtomicReference<>();
+        target("echo")
+            .register((ClientRequestFilter) context -> {
+                seen.set(context.getMethod());
+                context.abortWith(Response.ok().build());
+            })
+            .request()
+            .method("pOsT", Entity.text("hello"))
+            .close();
+        assertEquals("pOsT", seen.get());
+    }
+
+    @Test
+    void classesAndInstancesOfAConfigurationCannotBeChanged() {
+        WebTarget target = target("hello").register(CustomStreamReader.class).register(new RejectingReader());
+        assertThrows(UnsupportedOperationException.class, () -> target.getConfiguration().getClasses().clear());
+        assertThrows(UnsupportedOperationException.class, () -> target.getConfiguration().getInstances().clear());
     }
 
     static final class Thing {

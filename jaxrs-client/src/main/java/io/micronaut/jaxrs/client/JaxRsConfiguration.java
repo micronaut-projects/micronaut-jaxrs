@@ -379,14 +379,14 @@ final class JaxRsConfiguration implements Configuration {
     public Set<Class<?>> getClasses() {
         return components.stream()
             .flatMap(c -> c instanceof ClassComponent classComponent ? Stream.of(classComponent.componentClass) : Stream.empty())
-            .collect(Collectors.toSet());
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     @Override
     public Set<Object> getInstances() {
         return components.stream()
             .flatMap(c -> c instanceof InstanceComponent instanceComponent ? Stream.of(instanceComponent.component) : Stream.empty())
-            .collect(Collectors.toSet());
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     /**

@@ -188,8 +188,25 @@ final class JaxRsClientEntityIO {
         };
     }
 
-    <T> void writeBody(MutableHttpMessage<?> mutableHttpMessage, Argument<T> bodyArgument, @Nullable T body) {
-        writeBody(mutableHttpMessage, bodyArgument, body, false, new LinkedHashMap<>());
+    /**
+     * Write the entity of a response a request filter aborted with: it is not sent, the writer
+     * interceptors, which intercept the outbound entities, do not run (JAX-RS 6.2).
+     *
+     * @param mutableHttpMessage The response
+     * @param bodyArgument       The type of the entity
+     * @param body               The entity
+     * @param <T>                The type of the entity
+     */
+    <T> void writeAbortedBody(MutableHttpMessage<?> mutableHttpMessage, Argument<T> bodyArgument, @Nullable T body) {
+        if (body == null) {
+            return;
+        }
+        Providers previous = JaxRsCurrentProviders.set(providers);
+        try {
+            writeBodyOfConfiguration(mutableHttpMessage, bodyArgument, body, false, new LinkedHashMap<>(), List.of());
+        } finally {
+            JaxRsCurrentProviders.restore(previous);
+        }
     }
 
     /**
@@ -213,7 +230,7 @@ final class JaxRsClientEntityIO {
         }
         Providers previous = JaxRsCurrentProviders.set(providers);
         try {
-            writeBodyOfConfiguration(mutableHttpMessage, bodyArgument, body, bytes, properties);
+            writeBodyOfConfiguration(mutableHttpMessage, bodyArgument, body, bytes, properties, providers.getWriterInterceptors());
         } finally {
             JaxRsCurrentProviders.restore(previous);
         }
@@ -221,17 +238,20 @@ final class JaxRsClientEntityIO {
 
     @SuppressWarnings("unchecked")
     private <T> void writeBodyOfConfiguration(MutableHttpMessage<?> mutableHttpMessage, Argument<T> bodyArgument, T body, boolean bytes,
-                                              Map<String, Object> properties) {
+                                              Map<String, Object> properties, List<BeanRegistration<WriterInterceptor>> writerInterceptors) {
         if (body instanceof GenericEntity<?> genericEntity) {
             // the entity, written as its raw type and its generic type (JAX-RS 4.2.2)
-            writeBody(mutableHttpMessage, argument(genericEntity, AnnotationMetadata.EMPTY_METADATA), genericEntity.getEntity(), bytes, properties);
+            Object entity = genericEntity.getEntity();
+            if (entity != null) {
+                writeBodyOfConfiguration(mutableHttpMessage, argument(genericEntity, AnnotationMetadata.EMPTY_METADATA), entity, bytes, properties,
+                    writerInterceptors);
+            }
             return;
         }
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         io.micronaut.http.MediaType mediaType = mutableHttpMessage.getContentType().orElse(MediaType.ALL_TYPE);
 
         final AtomicBoolean written = new AtomicBoolean(false);
-        List<BeanRegistration<WriterInterceptor>> writerInterceptors = providers.getWriterInterceptors();
         if (writerInterceptors.isEmpty()) {
             io.micronaut.http.body.MessageBodyWriter<T> writer = providers.findWriter(bodyArgument, mediaType);
             if (writer == null && bytes) {

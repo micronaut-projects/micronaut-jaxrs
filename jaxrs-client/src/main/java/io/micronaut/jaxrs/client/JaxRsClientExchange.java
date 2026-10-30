@@ -264,7 +264,7 @@ final class JaxRsClientExchange {
     static MutableHttpRequest<Object> withChangedMethod(MutableHttpRequest<Object> request, JaxRsClientRequestContext requestContext) {
         String changedMethod = requestContext.getChangedMethod();
         if (changedMethod != null && !changedMethod.equals(request.getMethodName())) {
-            HttpMethod httpMethod = HttpMethod.parse(changedMethod);
+            HttpMethod httpMethod = methodOf(changedMethod);
             MutableHttpRequest<Object> copy = httpMethod == HttpMethod.CUSTOM
                 ? HttpRequest.create(HttpMethod.CUSTOM, request.getUri().toString(), changedMethod)
                 : HttpRequest.create(httpMethod, request.getUri().toString());
@@ -314,7 +314,7 @@ final class JaxRsClientExchange {
             MutableHttpResponse<?> httpResponse = jaxRsMutableResponse.getResponse();
             Object entity = httpResponse.getBody().orElse(null);
             if (entity != null && !(entity instanceof byte[])) {
-                configuration.entityIO().writeBody(httpResponse, (Argument) Argument.of(entity.getClass()), entity);
+                configuration.entityIO().writeAbortedBody(httpResponse, (Argument) Argument.of(entity.getClass()), entity);
             }
         }
         return response;
@@ -381,7 +381,7 @@ final class JaxRsClientExchange {
     private MutableHttpRequest<Object> createRequest(@Nullable String method, @Nullable Entity<?> entity) {
         Objects.requireNonNull(method, "method");
         // a method that is not a standard one, e.g. PURGE, is a custom one
-        HttpMethod httpMethod = HttpMethod.parse(method);
+        HttpMethod httpMethod = methodOf(method);
         MutableHttpRequest<Object> mutableHttpRequest = httpMethod ==
             HttpMethod.CUSTOM ? HttpRequest.create(HttpMethod.CUSTOM, uri.toString(), method) : HttpRequest.create(httpMethod, uri.toString());
         if (mutableHttpHeaders != null) {
@@ -392,6 +392,9 @@ final class JaxRsClientExchange {
             if (entity.getMediaType() != null) {
                 mutableHttpRequest = mutableHttpRequest.contentType(MediaType.of(entity.getMediaType().toString()));
             }
+            // the variant is complete: a language or an encoding it has not is removed
+            mutableHttpRequest.getHeaders().remove(HttpHeaders.CONTENT_LANGUAGE);
+            mutableHttpRequest.getHeaders().remove(HttpHeaders.CONTENT_ENCODING);
             Locale language = entity.getLanguage();
             if (language != null) {
                 mutableHttpRequest.getHeaders().set(HttpHeaders.CONTENT_LANGUAGE, language.toLanguageTag());
@@ -403,6 +406,15 @@ final class JaxRsClientExchange {
             }
         }
         return mutableHttpRequest;
+    }
+
+    /**
+     * The method of a method name: a custom one unless it is exactly the name of a standard one,
+     * the name of a method being case-sensitive (RFC 9110, 9.1).
+     */
+    private static HttpMethod methodOf(String method) {
+        HttpMethod httpMethod = HttpMethod.parse(method);
+        return httpMethod.name().equals(method) ? httpMethod : HttpMethod.CUSTOM;
     }
 
     /**
