@@ -56,6 +56,17 @@ class ExceptionPhaseTest {
     }
 
     @Test
+    void noContentExceptionOfTheResourceIsAServerError() {
+        // a bad request only when a reader of the request entity throws it
+        assertEquals(500, status(HttpRequest.GET("/no-content")));
+    }
+
+    @Test
+    void emptyEntityOfAPrimitiveIsAClientError() {
+        assertEquals(400, status(HttpRequest.POST("/int", "").contentType(MediaType.TEXT_PLAIN_TYPE)));
+    }
+
+    @Test
     void exceptionOfAMappedResponseIsNotMappedAgain() {
         assertEquals(500, status(HttpRequest.GET("/mapped")));
     }
@@ -199,6 +210,21 @@ class ExceptionPhaseTest {
         @Produces("text/plain")
         public String mapped() {
             throw new FirstException();
+        }
+
+        @GET
+        @Path("no-content")
+        @Produces("text/plain")
+        public String noContent() throws java.io.IOException {
+            throw new jakarta.ws.rs.core.NoContentException("of the resource");
+        }
+
+        @POST
+        @Path("int")
+        @Consumes("text/plain")
+        @Produces("text/plain")
+        public String integer(int value) {
+            return String.valueOf(value);
         }
     }
 }
