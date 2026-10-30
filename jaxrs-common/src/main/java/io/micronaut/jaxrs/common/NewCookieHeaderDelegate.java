@@ -191,17 +191,19 @@ class NewCookieHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Object> 
             if (token.isEmpty()) {
                 continue;
             }
-            Matcher matcher;
-            if (hour < 0 && (matcher = COOKIE_TIME.matcher(token)).matches()) {
-                hour = Integer.parseInt(matcher.group(1));
-                minute = Integer.parseInt(matcher.group(2));
-                second = Integer.parseInt(matcher.group(3));
-            } else if (day < 0 && (matcher = COOKIE_DAY.matcher(token)).matches()) {
-                day = Integer.parseInt(matcher.group(1));
+            Matcher time = COOKIE_TIME.matcher(token);
+            Matcher dayOfMonth = COOKIE_DAY.matcher(token);
+            Matcher yearMatcher = COOKIE_YEAR.matcher(token);
+            if (hour < 0 && time.matches()) {
+                hour = Integer.parseInt(time.group(1));
+                minute = Integer.parseInt(time.group(2));
+                second = Integer.parseInt(time.group(3));
+            } else if (day < 0 && dayOfMonth.matches()) {
+                day = Integer.parseInt(dayOfMonth.group(1));
             } else if (month < 0 && token.length() >= 3 && MONTHS.indexOf(token.substring(0, 3).toLowerCase(Locale.ROOT)) % 3 == 0) {
                 month = MONTHS.indexOf(token.substring(0, 3).toLowerCase(Locale.ROOT)) / 3 + 1;
-            } else if (year < 0 && (matcher = COOKIE_YEAR.matcher(token)).matches()) {
-                year = Integer.parseInt(matcher.group(1));
+            } else if (year < 0 && yearMatcher.matches()) {
+                year = Integer.parseInt(yearMatcher.group(1));
             }
         }
         if (year >= 70 && year <= 99) {
