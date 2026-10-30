@@ -13,6 +13,8 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.ext.MessageBodyWriter;
 import jakarta.ws.rs.ext.Provider;
+import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -47,6 +49,8 @@ class CompletionStageSubclassTest {
 
     @Test
     void valueOfASubclassIsWrittenWithTheTypeArgumentItGivesTheStage() {
+        // the type argument a class gives its supertype is resolved with reflection
+        Assumptions.assumeTrue(JaxRsReflection.get().isReflective());
         assertEquals("strings:a", client.toBlocking().retrieve(HttpRequest.GET("/strings").accept("text/x-strings"), String.class));
     }
 
