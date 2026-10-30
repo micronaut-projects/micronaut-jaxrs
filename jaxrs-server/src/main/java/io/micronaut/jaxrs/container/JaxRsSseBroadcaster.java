@@ -63,11 +63,26 @@ final class JaxRsSseBroadcaster implements SseBroadcaster {
             if (closed) {
                 throw new IllegalStateException("The broadcaster is closed");
             }
+            if (sinks.contains(sink)) {
+                // registered already: it receives each event once
+                return;
+            }
             sinks.add(sink);
         }
         if (sink instanceof JaxRsSseEventSink eventSink) {
             // the client disconnected, or the application closed the sink
-            registrations.put(sink, eventSink.onClose(() -> closed(sink)));
+            Runnable registration = eventSink.onClose(() -> closed(sink));
+            boolean stale;
+            synchronized (this) {
+                // closed while the callback was added, e.g. a sink closed already: not kept
+                stale = closed || !sinks.contains(sink);
+                if (!stale) {
+                    registrations.put(sink, registration);
+                }
+            }
+            if (stale) {
+                registration.run();
+            }
         }
     }
 
@@ -119,7 +134,9 @@ final class JaxRsSseBroadcaster implements SseBroadcaster {
             }
             if (!cascading) {
                 // the sink stays open: it is not closed (JAX-RS, SseBroadcaster#onClose)
-                sinks.remove(sink);
+                synchronized (this) {
+                    sinks.remove(sink);
+                }
                 continue;
             }
             try {
@@ -133,9 +150,20 @@ final class JaxRsSseBroadcaster implements SseBroadcaster {
         }
     }
 
+    /**
+     * @return The number of sinks holding a close callback of this broadcaster
+     */
+    int registrations() {
+        return registrations.size();
+    }
+
     private void closed(SseEventSink sink) {
-        registrations.remove(sink);
-        if (sinks.remove(sink)) {
+        boolean removed;
+        synchronized (this) {
+            registrations.remove(sink);
+            removed = sinks.remove(sink);
+        }
+        if (removed) {
             for (Consumer<SseEventSink> callback : onClose) {
                 callback.accept(sink);
             }

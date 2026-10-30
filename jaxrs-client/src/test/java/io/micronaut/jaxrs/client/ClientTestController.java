@@ -137,7 +137,37 @@ class ClientTestController {
 
     @Get(value = "/created-events", produces = MediaType.TEXT_EVENT_STREAM)
     HttpResponse<Publisher<Event<String>>> createdEvents() {
-        return HttpResponse.<Publisher<Event<String>>>status(HttpStatus.CREATED).body(Flux.just(Event.of("one")));
+        return HttpResponse.<Publisher<Event<String>>>status(HttpStatus.CREATED).header("X-Proof", "kept").body(Flux.just(Event.of("one")));
+    }
+
+    @Get(value = "/json-events", produces = MediaType.TEXT_EVENT_STREAM)
+    HttpResponse<byte[]> jsonEvents() {
+        return HttpResponse.ok("{}".getBytes(StandardCharsets.UTF_8)).contentType(MediaType.APPLICATION_JSON_TYPE).header("X-Proof", "kept");
+    }
+
+    @Get(value = "/spaced-events", produces = MediaType.TEXT_EVENT_STREAM)
+    HttpResponse<byte[]> spacedEvents() {
+        return HttpResponse.ok("id:  a\nevent:  b\ndata:  hello\n\n".getBytes(StandardCharsets.UTF_8))
+            .contentType(MediaType.TEXT_EVENT_STREAM_TYPE);
+    }
+
+    static final java.util.concurrent.BlockingQueue<String> LAST_EVENT_IDS = new java.util.concurrent.LinkedBlockingQueue<>();
+    private final AtomicInteger resetConnections = new AtomicInteger();
+
+    @Get(value = "/reset-id-events", produces = MediaType.TEXT_EVENT_STREAM)
+    HttpResponse<byte[]> resetIdEvents(HttpRequest<?> request) {
+        if (resetConnections.getAndIncrement() > 0) {
+            // the reconnection, after the id was reset
+            LAST_EVENT_IDS.add(request.getHeaders().contains("Last-Event-ID") ? "[" + request.getHeaders().get("Last-Event-ID") + "]" : "none");
+            return HttpResponse.noContent();
+        }
+        return HttpResponse.ok("id: abc\ndata: hello\n\nid:\ndata: reset\n\n".getBytes(StandardCharsets.UTF_8))
+            .contentType(MediaType.TEXT_EVENT_STREAM_TYPE);
+    }
+
+    @Get(value = "/invalid-retry", produces = MediaType.TEXT_EVENT_STREAM)
+    HttpResponse<?> invalidRetry() {
+        return HttpResponse.status(HttpStatus.SERVICE_UNAVAILABLE).header("Retry-After", "+0");
     }
 
     @Get(value = "/unavailable", produces = MediaType.TEXT_EVENT_STREAM)

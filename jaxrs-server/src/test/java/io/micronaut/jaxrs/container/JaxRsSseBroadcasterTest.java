@@ -85,6 +85,50 @@ class JaxRsSseBroadcasterTest {
         assertTrue(sent.toCompletableFuture().isCompletedExceptionally());
     }
 
+    @Test
+    void aClosedSinkIsNotRetained() {
+        var broadcaster = new JaxRsSseBroadcaster();
+        for (int i = 0; i < 100; i++) {
+            var sink = new JaxRsSseEventSink(e -> String.valueOf(e.getData()));
+            sink.close();
+            broadcaster.register(sink);
+        }
+        Assertions.assertEquals(0, broadcaster.registrations());
+    }
+
+    @Test
+    void aSinkRegisteredTwiceReceivesAnEventOnce() {
+        var broadcaster = new JaxRsSseBroadcaster();
+        var sink = new TestSink();
+        broadcaster.register(sink);
+        broadcaster.register(sink);
+        broadcaster.broadcast(new JaxRsSse().newEvent("data"));
+        Assertions.assertEquals(1, sink.sent);
+    }
+
+    @Test
+    void aSinkClosedWhileRegisteredIsNotRetained() throws Exception {
+        for (int i = 0; i < 2000; i++) {
+            var broadcaster = new JaxRsSseBroadcaster();
+            var sink = new JaxRsSseEventSink(e -> String.valueOf(e.getData()));
+            var barrier = new CyclicBarrier(2);
+            Thread closing = new Thread(() -> {
+                try {
+                    barrier.await();
+                    sink.close();
+                } catch (Exception e) {
+                    throw new IllegalStateException(e);
+                }
+            });
+            closing.start();
+            barrier.await();
+            broadcaster.register(sink);
+            closing.join();
+            int iteration = i;
+            Assertions.assertEquals(0, broadcaster.registrations(), () -> "a closed sink retained, iteration " + iteration);
+        }
+    }
+
     private static class TestSink implements SseEventSink {
 
         private volatile boolean closed;

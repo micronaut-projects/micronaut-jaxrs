@@ -32,6 +32,9 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 
@@ -59,6 +62,7 @@ final class JaxRsSseEventSink implements SseEventSink, Publisher<Event<String>>,
     private static final Pattern LINE_BREAK = Pattern.compile("\\r\\n|\\r|\\n");
 
     private final Function<OutboundSseEvent, String> dataWriter;
+    private final Executor callbackExecutor;
     private final List<Runnable> onClose = new CopyOnWriteArrayList<>();
     private final Deque<Pending> buffer = new ArrayDeque<>();
     private volatile boolean closed;
@@ -77,7 +81,18 @@ final class JaxRsSseEventSink implements SseEventSink, Publisher<Event<String>>,
      * @param dataWriter Writes the data of an event as text, with the message body writers
      */
     JaxRsSseEventSink(Function<OutboundSseEvent, String> dataWriter) {
+        this(dataWriter, Runnable::run);
+    }
+
+    /**
+     * @param dataWriter       Writes the data of an event as text, with the message body writers
+     * @param callbackExecutor The executor of the close callbacks when the client disconnects,
+     *                         e.g. the blocking executor: not the event loop reporting it, the
+     *                         callbacks of the application can block
+     */
+    JaxRsSseEventSink(Function<OutboundSseEvent, String> dataWriter, Executor callbackExecutor) {
         this.dataWriter = dataWriter;
+        this.callbackExecutor = callbackExecutor;
     }
 
     /**
@@ -126,8 +141,15 @@ final class JaxRsSseEventSink implements SseEventSink, Publisher<Event<String>>,
         for (Pending pending : unsent) {
             pending.sent.completeExceptionally(disconnected);
         }
-        // the client disconnected
-        closed();
+        // the client disconnected, reported on the event loop: the callbacks run apart
+        if (markClosed()) {
+            try {
+                callbackExecutor.execute(this::runCallbacks);
+            } catch (RejectedExecutionException e) {
+                // the executor is shut down: run on this thread
+                runCallbacks();
+            }
+        }
     }
 
     /**
@@ -185,11 +207,18 @@ final class JaxRsSseEventSink implements SseEventSink, Publisher<Event<String>>,
      * @return Removes the callback, e.g. of a broadcaster closed without closing the sink
      */
     Runnable onClose(Runnable callback) {
-        onClose.add(callback);
+        // called once, also when the sink closes while the callback is added
+        AtomicBoolean called = new AtomicBoolean();
+        Runnable once = () -> {
+            if (called.compareAndSet(false, true)) {
+                callback.run();
+            }
+        };
+        onClose.add(once);
         if (closed) {
-            callback.run();
+            once.run();
         }
-        return () -> onClose.remove(callback);
+        return () -> onClose.remove(once);
     }
 
     /**
@@ -274,11 +303,25 @@ final class JaxRsSseEventSink implements SseEventSink, Publisher<Event<String>>,
     }
 
     private void closed() {
-        if (!closed) {
-            closed = true;
-            for (Runnable callback : onClose) {
-                callback.run();
-            }
+        if (markClosed()) {
+            runCallbacks();
+        }
+    }
+
+    /**
+     * @return Whether the sink was open
+     */
+    private synchronized boolean markClosed() {
+        if (closed) {
+            return false;
+        }
+        closed = true;
+        return true;
+    }
+
+    private void runCallbacks() {
+        for (Runnable callback : onClose) {
+            callback.run();
         }
     }
 

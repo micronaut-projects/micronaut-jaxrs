@@ -209,7 +209,8 @@ final class JaxRsSseEventSource implements SseEventSource {
         }
         MutableHttpRequest<Object> request = HttpRequest.GET(target.getUri().toString()).accept(MediaType.TEXT_EVENT_STREAM_TYPE);
         String id = streamState.getLastEventId();
-        if (id != null) {
+        if (id != null && !id.isEmpty()) {
+            // an empty id resets the last one: no header (HTML 9.2.6)
             request.header("Last-Event-ID", id);
         }
         request.setAttribute(EventStreamState.ATTRIBUTE, streamState);
@@ -277,12 +278,16 @@ final class JaxRsSseEventSource implements SseEventSource {
         InputStream replacement = filtered.getEntityStream() == unchanged ? null : filtered.getEntityStream();
         int status = filtered.getStatus();
         if (status != HttpStatus.OK.getCode() && status != HttpStatus.NO_CONTENT.getCode()) {
-            // another status is an error, e.g. a 201 (JAX-RS, SseEventSource)
             if (body != null) {
                 body.closeAsync();
             }
             closeReplaced(filtered, unchanged);
-            error(JaxRsClientExchange.exception(Response.status(status).build()));
+            filtered.setEntityStream(InputStream.nullInputStream());
+            // a 503 a filter set is retried like one of the server
+            if (!retried(filtered)) {
+                // another status is an error, e.g. a 201, with the filtered response (JAX-RS, SseEventSource)
+                error(JaxRsClientExchange.exception(filtered));
+            }
             return;
         }
         if (status == HttpStatus.NO_CONTENT.getCode() || body == null && replacement == null) {
@@ -300,7 +305,9 @@ final class JaxRsSseEventSource implements SseEventSource {
                 body.closeAsync();
             }
             closeReplaced(filtered, unchanged);
-            error(new ProcessingException("The response is not an event stream: " + contentType));
+            filtered.setEntityStream(InputStream.nullInputStream());
+            // a processing error, with the filtered response
+            error(new ResponseProcessingException(filtered, "The response is not an event stream: " + contentType));
             return;
         }
         if (replacement != null) {
@@ -481,13 +488,8 @@ final class JaxRsSseEventSource implements SseEventSource {
                 error(new ResponseProcessingException(response, e));
                 return;
             }
-            if (response.getStatus() == HttpStatus.SERVICE_UNAVAILABLE.getCode()) {
-                // the server is not available yet: retry after the time it asked for
-                Long delay = retryAfter(response.getHeaderString(HttpHeaders.RETRY_AFTER));
-                if (delay != null) {
-                    reconnect(delay);
-                    return;
-                }
+            if (retried(response)) {
+                return;
             }
             if (response.getStatusInfo().getFamily() == Response.Status.Family.SUCCESSFUL) {
                 // a filter turned the error into a success, without events
@@ -508,6 +510,24 @@ final class JaxRsSseEventSource implements SseEventSource {
     }
 
     /**
+     * Reconnect after a filtered {@code 503 Service Unavailable} response with a valid
+     * {@code Retry-After} header: the server is not available yet (JAX-RS, SseEventSource).
+     *
+     * @return Whether the source reconnects
+     */
+    private boolean retried(Response response) {
+        if (response.getStatus() != HttpStatus.SERVICE_UNAVAILABLE.getCode()) {
+            return false;
+        }
+        Long delay = retryAfter(response.getHeaderString(HttpHeaders.RETRY_AFTER));
+        if (delay == null) {
+            return false;
+        }
+        reconnect(delay);
+        return true;
+    }
+
+    /**
      * The delay of a {@code Retry-After} header, in milliseconds: its seconds or its date.
      *
      * @return The delay, {@code null} if the header is missing or not valid
@@ -517,11 +537,14 @@ final class JaxRsSseEventSource implements SseEventSource {
             return null;
         }
         String value = retryAfter.strip();
-        try {
-            long seconds = Long.parseLong(value);
-            return seconds < 0 ? null : TimeUnit.SECONDS.toMillis(seconds);
-        } catch (NumberFormatException e) {
-            // an HTTP date
+        if (!value.isEmpty() && value.chars().allMatch(c -> c >= '0' && c <= '9')) {
+            // delay-seconds: digits only, no sign (RFC 9110, 10.2.3)
+            try {
+                return TimeUnit.SECONDS.toMillis(Long.parseLong(value));
+            } catch (NumberFormatException e) {
+                // too large: no reconnect in time
+                return null;
+            }
         }
         try {
             // any of the formats of RFC 9110, 5.6.7
@@ -575,7 +598,9 @@ final class JaxRsSseEventSource implements SseEventSource {
 
     /**
      * The events of a connection as the entity stream the response filters see: written back in
-     * the event stream format when a filter reads them, e.g. through a stream wrapping it.
+     * the event stream format when a filter reads them, e.g. through a stream wrapping it. A space
+     * separates each field from its value, which the reader removes: a value starting with a space
+     * keeps it (HTML 9.2.6).
      */
     private static final class EventsInputStream extends InputStream {
         private final BodyElements<Event<String>> events;
@@ -626,21 +651,21 @@ final class JaxRsSseEventSource implements SseEventSource {
             var text = new StringBuilder();
             if (event.getComment() != null) {
                 for (String line : event.getComment().split("\n", -1)) {
-                    text.append(':').append(line).append('\n');
+                    text.append(": ").append(line).append('\n');
                 }
             }
             if (event.getId() != null) {
-                text.append("id:").append(event.getId()).append('\n');
+                text.append("id: ").append(event.getId()).append('\n');
             }
             if (event.getName() != null) {
-                text.append("event:").append(event.getName()).append('\n');
+                text.append("event: ").append(event.getName()).append('\n');
             }
             if (event.getRetry() != null) {
                 text.append("retry:").append(event.getRetry().toMillis()).append('\n');
             }
             if (event.getData() != null) {
                 for (String line : event.getData().split("\n", -1)) {
-                    text.append("data:").append(line).append('\n');
+                    text.append("data: ").append(line).append('\n');
                 }
             }
             return text.append('\n').toString().getBytes(StandardCharsets.UTF_8);

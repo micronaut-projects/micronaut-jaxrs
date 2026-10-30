@@ -375,7 +375,7 @@ class AsyncResponseTest {
         public void cancel(@Suspended AsyncResponse response) {
             boolean suspended = response.isSuspended();
             boolean cancelled = response.cancel(5);
-            STATES.add(List.of(suspended, cancelled, response.isSuspended(), response.isCancelled() && response.isDone()));
+            STATES.add(List.of(suspended, cancelled, response.isSuspended(), response.isCancelled()));
         }
 
         @GET

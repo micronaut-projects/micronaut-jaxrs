@@ -433,4 +433,108 @@ class JaxRsSseEventSourceTest {
             client.close();
         }
     }
+
+    @Test
+    void anotherSuccessfulStatusIsAnErrorWithTheFilteredResponse() throws Exception {
+        Client client = ClientBuilder.newClient();
+        try (SseEventSource source = SseEventSource.target(target(client, "created-events")).build()) {
+            CompletableFuture<Throwable> failed = new CompletableFuture<>();
+            source.register(event -> { }, failed::complete);
+            source.open();
+            Response response = ((WebApplicationException) failed.get(10, TimeUnit.SECONDS)).getResponse();
+            assertEquals(201, response.getStatus());
+            assertEquals("kept", response.getHeaderString("X-Proof"));
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void aResponseThatIsNotAnEventStreamIsAnErrorWithTheResponse() throws Exception {
+        Client client = ClientBuilder.newClient();
+        try (SseEventSource source = SseEventSource.target(target(client, "json-events")).build()) {
+            CompletableFuture<Throwable> failed = new CompletableFuture<>();
+            source.register(event -> { }, failed::complete);
+            source.open();
+            Throwable error = failed.get(10, TimeUnit.SECONDS);
+            assertTrue(error instanceof jakarta.ws.rs.client.ResponseProcessingException, error.toString());
+            Response response = ((jakarta.ws.rs.client.ResponseProcessingException) error).getResponse();
+            assertEquals(200, response.getStatus());
+            assertEquals("kept", response.getHeaderString("X-Proof"));
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void aWrappedEventStreamKeepsTheLeadingSpaceOfAValue() throws Exception {
+        Client client = ClientBuilder.newClient();
+        try {
+            WebTarget target = target(client, "spaced-events")
+                .register((ClientResponseFilter) (request, response) -> response.setEntityStream(
+                    new java.io.BufferedInputStream(response.getEntityStream())));
+            CompletableFuture<String> received = new CompletableFuture<>();
+            try (SseEventSource source = SseEventSource.target(target).build()) {
+                source.register(event -> received.complete("[" + event.getId() + "][" + event.getName() + "][" + event.readData() + "]"));
+                source.open();
+                assertEquals("[ a][ b][ hello]", received.get(10, TimeUnit.SECONDS));
+            }
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void aServiceUnavailableStatusSetByAFilterReconnects() throws Exception {
+        Client client = ClientBuilder.newClient();
+        try {
+            AtomicInteger connections = new AtomicInteger();
+            CountDownLatch reconnected = new CountDownLatch(2);
+            WebTarget target = target(client, "endless")
+                .register((ClientResponseFilter) (request, response) -> {
+                    connections.incrementAndGet();
+                    reconnected.countDown();
+                    response.setStatus(503);
+                    response.getHeaders().putSingle("Retry-After", "0");
+                });
+            List<Throwable> errors = new CopyOnWriteArrayList<>();
+            try (SseEventSource source = SseEventSource.target(target).build()) {
+                source.register(event -> { }, errors::add);
+                source.open();
+                assertTrue(reconnected.await(10, TimeUnit.SECONDS), () -> "connections " + connections.get() + ", errors " + errors);
+            }
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void aResetIdIsNotSentOnReconnect() throws Exception {
+        Client client = ClientBuilder.newClient();
+        ClientTestController.LAST_EVENT_IDS.clear();
+        try (SseEventSource source = SseEventSource.target(target(client, "reset-id-events"))
+            .reconnectingEvery(10, TimeUnit.MILLISECONDS).build()) {
+            source.register(event -> { });
+            source.open();
+            assertEquals("none", ClientTestController.LAST_EVENT_IDS.poll(10, TimeUnit.SECONDS));
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void aSignedRetryAfterIsNotValid() throws Exception {
+        assertNull(JaxRsSseEventSource.retryAfter("+0"));
+        assertNull(JaxRsSseEventSource.retryAfter("-1"));
+        assertEquals(2000L, JaxRsSseEventSource.retryAfter("2"));
+        Client client = ClientBuilder.newClient();
+        try (SseEventSource source = SseEventSource.target(target(client, "invalid-retry")).build()) {
+            CompletableFuture<Throwable> failed = new CompletableFuture<>();
+            source.register(event -> { }, failed::complete);
+            source.open();
+            assertEquals(503, ((WebApplicationException) failed.get(10, TimeUnit.SECONDS)).getResponse().getStatus());
+        } finally {
+            client.close();
+        }
+    }
 }

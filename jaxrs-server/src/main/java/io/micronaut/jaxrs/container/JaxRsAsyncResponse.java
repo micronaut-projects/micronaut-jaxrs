@@ -90,6 +90,7 @@ final class JaxRsAsyncResponse implements AsyncResponse {
     private final Function<@Nullable Object, HttpResponse<?>> converter;
     private final Supplier<@Nullable TaskScheduler> scheduler;
     private final Supplier<@Nullable Executor> callbackExecutor;
+    private final Executor inRequest;
     private final List<CompletionCallback> completionCallbacks = new ArrayList<>();
     private final List<ConnectionCallback> connectionCallbacks = new ArrayList<>();
     private @Nullable TimeoutHandler timeoutHandler;
@@ -103,18 +104,23 @@ final class JaxRsAsyncResponse implements AsyncResponse {
     // whether the server tells when the client goes away
     private boolean abandonment;
     private boolean abandoned;
+    // whether the server reported the response written, or not written
+    private boolean processed;
 
     /**
      * @param converter Converts a resumed value to the response
      * @param scheduler        The scheduler of the timeouts
      * @param callbackExecutor The executor of the callbacks the server reports to, e.g. the
      *                         blocking executor: not its event loop, the callbacks can block
+     * @param inRequest        Runs the resumption on the calling thread in the context of the
+     *                         request: the response is converted and written on it
      */
     JaxRsAsyncResponse(Function<@Nullable Object, HttpResponse<?>> converter, Supplier<@Nullable TaskScheduler> scheduler,
-                       Supplier<@Nullable Executor> callbackExecutor) {
+                       Supplier<@Nullable Executor> callbackExecutor, Executor inRequest) {
         this.converter = converter;
         this.scheduler = scheduler;
         this.callbackExecutor = callbackExecutor;
+        this.inRequest = inRequest;
     }
 
     /**
@@ -131,6 +137,9 @@ final class JaxRsAsyncResponse implements AsyncResponse {
         // a callback may run on the registering thread if the response is done already
         // the server reports on its event loop, which the callbacks do not block
         boolean completion = serverRequest.whenResponseCompleted(failure -> {
+            synchronized (this) {
+                processed = true;
+            }
             Throwable throwable = request.getAttribute(UNMAPPED_EXCEPTION, Throwable.class).orElse(failure);
             offload(() -> completed(throwable));
         });
@@ -238,7 +247,7 @@ final class JaxRsAsyncResponse implements AsyncResponse {
         if (!finish(State.RESUMED)) {
             return false;
         }
-        complete(value);
+        inRequest.execute(() -> complete(value));
         return true;
     }
 
@@ -248,7 +257,7 @@ final class JaxRsAsyncResponse implements AsyncResponse {
         if (!finish(State.RESUMED)) {
             return false;
         }
-        response.completeExceptionally(throwable);
+        inRequest.execute(() -> response.completeExceptionally(throwable));
         return true;
     }
 
@@ -288,7 +297,7 @@ final class JaxRsAsyncResponse implements AsyncResponse {
             // resumed, or cancelled concurrently
             return isCancelled();
         }
-        complete(builder.build());
+        inRequest.execute(() -> complete(builder.build()));
         return true;
     }
 
@@ -364,8 +373,12 @@ final class JaxRsAsyncResponse implements AsyncResponse {
 
     @Override
     public synchronized boolean isDone() {
-        // resumed or cancelled, and its response processed: not while resume converts it
-        return state != State.SUSPENDED && response.isDone();
+        if (state == State.DISCONNECTED) {
+            return true;
+        }
+        // resumed or cancelled, and its response processed: once the server reports it written,
+        // not while the response filters run; else once converted, not while resume converts it
+        return state != State.SUSPENDED && (responseCompletion ? processed : response.isDone());
     }
 
     @Override
