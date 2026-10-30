@@ -42,6 +42,7 @@ import io.micronaut.core.type.Argument;
 import io.micronaut.core.type.Headers;
 import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpRequest;
+import io.micronaut.http.ServerHttpRequest;
 import io.micronaut.inject.ExecutableMethod;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.MutableHttpResponse;
@@ -817,12 +818,19 @@ public final class JaxRsRouteSupport {
         // the writer of the data may read the request, e.g. its UriInfo, also when an event is
         // sent from another thread: it runs in the context of the request (JAX-RS 10.1)
         PropagatedContext context = PropagatedContext.getOrEmpty();
+        Executor blocking = blockingExecutor.get();
         JaxRsSseEventSink sink = new JaxRsSseEventSink(event -> {
             try (PropagatedContext.Scope ignored = context.propagate()) {
                 return ServerRequestContext.with(request, (Supplier<String>) () -> sseData(event));
             }
-        });
+        }, blocking == null ? Runnable::run : blocking);
         request.setAttribute(SSE_EVENT_SINK, sink);
+        ServerHttpRequest<?> serverRequest = JaxRsAsyncResponse.serverRequest(request);
+        if (serverRequest != null) {
+            // the client may disconnect before the first event subscribes to the events: the sink
+            // is closed then too (JAX-RS, SseEventSink#isClosed)
+            serverRequest.whenAbandoned(sink::cancel);
+        }
         return sink;
     }
 

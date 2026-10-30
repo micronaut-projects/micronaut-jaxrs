@@ -183,4 +183,20 @@ class JaxRsSseEventSinkTest {
         public void onComplete() {
         }
     }
+
+    @Test
+    void theCloseCallbacksOfADisconnectRunOnTheCallbackExecutor() throws Exception {
+        java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newSingleThreadExecutor(r -> new Thread(r, "callbacks"));
+        try {
+            var sink = new JaxRsSseEventSink(e -> String.valueOf(e.getData()), executor);
+            CompletableFuture<String> thread = new CompletableFuture<>();
+            sink.onClose(() -> thread.complete(Thread.currentThread().getName()));
+            // the subscription of the connection is cancelled on the event loop
+            sink.cancel();
+            assertTrue(sink.isClosed());
+            assertEquals("callbacks", thread.get(5, java.util.concurrent.TimeUnit.SECONDS));
+        } finally {
+            executor.shutdown();
+        }
+    }
 }
