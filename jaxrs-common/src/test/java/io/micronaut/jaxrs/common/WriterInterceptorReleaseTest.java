@@ -61,6 +61,26 @@ class WriterInterceptorReleaseTest {
         }
     }
 
+    @Test
+    void theStreamInstalledByAnInterceptorIsClosedWhenItFails() {
+        try (ApplicationContext context = ApplicationContext.run(Map.of("spec.name", "WriterInterceptorReleaseTest.installed"))) {
+            TrackingWriter writer = new TrackingWriter();
+            List<BeanRegistration<WriterInterceptor>> interceptors = new ArrayList<>(context.getBeanRegistrations(WriterInterceptor.class));
+            var genericWriter = new JaxRsGenericEntityMessageBodyWriter<Payload>(
+                context.getBean(JaxRsContainerMessageBodyHandlerRegistry.class),
+                new SingleWriterRegistry(writer),
+                interceptors,
+                metadata -> true,
+                routeInterceptors(context));
+            ByteBodyFactory bodyFactory = ByteBodyFactory.createDefault(NettyByteBufferFactory.DEFAULT);
+            MutableHttpResponse<GenericEntity<Payload>> response = HttpResponse.ok();
+            InstallingInterceptor interceptor = context.getBean(InstallingInterceptor.class);
+            assertThrows(IllegalStateException.class, () -> genericWriter.write(bodyFactory, HttpRequest.GET("/"), response,
+                genericEntityArgument(), MediaType.TEXT_PLAIN_TYPE, new GenericEntity<>(new Payload("x"), Payload.class)));
+            assertTrue(interceptor.closed);
+        }
+    }
+
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static BeanProvider<JaxRsRouteInterceptors> routeInterceptors(ApplicationContext context) {
         return (BeanProvider<JaxRsRouteInterceptors>) context.getBean(Argument.of(BeanProvider.class, JaxRsRouteInterceptors.class));
@@ -76,6 +96,26 @@ class WriterInterceptorReleaseTest {
     static class FailingInterceptor implements WriterInterceptor {
         @Override
         public void aroundWriteTo(WriterInterceptorContext context) throws IOException {
+            context.proceed();
+            throw new IllegalStateException("failed after proceed");
+        }
+    }
+
+    @Requires(property = "spec.name", value = "WriterInterceptorReleaseTest.installed")
+    @Singleton
+    static class InstallingInterceptor implements WriterInterceptor {
+        // whether the installed stream was closed
+        volatile boolean closed;
+
+        @Override
+        public void aroundWriteTo(WriterInterceptorContext context) throws IOException {
+            context.setOutputStream(new java.io.FilterOutputStream(context.getOutputStream()) {
+                @Override
+                public void close() throws IOException {
+                    closed = true;
+                    super.close();
+                }
+            });
             context.proceed();
             throw new IllegalStateException("failed after proceed");
         }

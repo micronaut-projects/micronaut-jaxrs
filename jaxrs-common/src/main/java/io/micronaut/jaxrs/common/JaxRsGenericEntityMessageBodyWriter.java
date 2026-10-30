@@ -359,6 +359,16 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
          * buffer created here and the body of the writer.
          */
         void release() {
+            OutputStream installed = outputStream;
+            if (outputIntercepted && !finished && installed != null) {
+                // a stream installed by an interceptor, closing it is up to the runtime
+                finished = true;
+                try {
+                    installed.close();
+                } catch (IOException | RuntimeException e) {
+                    // discarding the content, the buffer is released below
+                }
+            }
             closeBuffer();
             CloseableByteBody written = body;
             if (written != null) {
