@@ -19,7 +19,6 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.uri.RouteTemplate;
-import io.micronaut.http.uri.UriTemplateMatcher;
 import io.micronaut.web.router.UriRouteMatch;
 import io.micronaut.web.router.spi.RouteMatchSelector.Selection;
 import jakarta.ws.rs.Produces;
@@ -103,6 +102,10 @@ final class JaxRsRouteSelector {
             // a resource method of the class matches: the rest of the path is empty or "/", only the
             // resource methods of the class are candidates, not its sub-resource methods (step 2(a))
             candidates.removeIf(c -> JaxRsRouteTemplateEngine.isSubResource(c.getRouteInfo().getRouteTemplate()));
+        } else if (root != null && hasResourceMethods(request, root)) {
+            // the same, before the request method selects (step 2(a), then 3(a)): the resource methods
+            // of the class are of other request methods, the router answers 405
+            return List.of();
         }
         candidates.sort((a, b) -> JaxRsRouteTemplateEngine.ORDER.compare(a.getRouteInfo().getRouteTemplate(), b.getRouteInfo().getRouteTemplate()));
         if (candidates.size() > 1 && candidates.stream().anyMatch(c -> !c.getRouteInfo().isImplicitHead())) {
@@ -175,15 +178,48 @@ final class JaxRsRouteSelector {
                 return true;
             }
             if (path == null) {
-                path = UriTemplateMatcher.normalizeForMatching(JaxRsRouteTemplateEngine.withoutMatrixParameters(request.getUri().getRawPath()));
+                path = path(request);
             }
             Matcher matcher = candidate.pattern.matcher(path);
-            if (matcher.matches() && (candidate.subResources || matcher.group(matcher.groupCount()) == null)) {
+            if (matcher.matches() && (candidate.subResources || emptyRest(matcher))) {
                 // a class with no sub-resource methods or locators matches its path only (step 1(c))
                 return false;
             }
         }
         return true;
+    }
+
+    /**
+     * Whether the root resource class of a route has resource methods, of any request method,
+     * and the rest of the path after its {@code @Path} is empty or {@code /}: only its resource
+     * methods are then candidates (JAX-RS 3.7.2, step 2(a)).
+     */
+    private boolean hasResourceMethods(HttpRequest<?> request, RouteTemplate root) {
+        for (Root candidate : roots) {
+            // also one of the classes with the same regular expression (step 1(f))
+            if (candidate.resourceMethods && JaxRsRouteTemplateEngine.sameRegex(candidate.template, root)) {
+                Matcher matcher = candidate.pattern.matcher(path(request));
+                return matcher.matches() && emptyRest(matcher);
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The path the root resource classes match, with its trailing slash: it can be a part of
+     * a regular expression of the {@code @Path} of a class, e.g. an empty capture of {@code {x:.*}}.
+     */
+    private static String path(HttpRequest<?> request) {
+        return JaxRsRouteTemplateEngine.withoutMatrixParameters(request.getUri().getRawPath());
+    }
+
+    /**
+     * @param matcher A match of the pattern of a root resource class
+     * @return Whether the rest of the path is empty or {@code /} (JAX-RS 3.7.2, step 2(a))
+     */
+    private static boolean emptyRest(Matcher matcher) {
+        String rest = matcher.group(matcher.groupCount());
+        return rest == null || rest.equals("/");
     }
 
     /**
@@ -208,24 +244,28 @@ final class JaxRsRouteSelector {
      * @param pattern      The pattern of the paths it matches, compiled when it is not recorded yet
      * @param replaced     The expression of the template it replaces, the unmounted one of a mounted template, or {@code null}
      * @param subResources Whether the route is one of a sub-resource method or locator of the class
+     * @param resourceMethod Whether the route is one of a resource method of the class
      */
-    synchronized void addRoot(RouteTemplate root, Supplier<Pattern> pattern, @Nullable String replaced, boolean subResources) {
+    synchronized void addRoot(RouteTemplate root, Supplier<Pattern> pattern, @Nullable String replaced, boolean subResources,
+                              boolean resourceMethod) {
         List<Root> added = new ArrayList<>(roots.size() + 1);
         boolean present = false;
         for (Root existing : roots) {
             if (replaced != null && existing.template.expression().equals(replaced)) {
                 subResources |= existing.subResources;
+                resourceMethod |= existing.resourceMethods;
                 continue;
             }
             if (existing.template.expression().equals(root.expression())) {
                 present = true;
-                added.add(new Root(existing.template, existing.pattern, existing.subResources || subResources));
+                added.add(new Root(existing.template, existing.pattern, existing.subResources || subResources,
+                    existing.resourceMethods || resourceMethod));
                 continue;
             }
             added.add(existing);
         }
         if (!present) {
-            added.add(new Root(root, pattern.get(), subResources));
+            added.add(new Root(root, pattern.get(), subResources, resourceMethod));
         }
         added.sort(Comparator.comparing(Root::template, JaxRsRouteTemplateEngine.SPECIFICITY));
         roots = List.copyOf(added);
@@ -248,8 +288,9 @@ final class JaxRsRouteSelector {
      *
      * @param template     The template
      * @param pattern      The pattern of the paths it matches
-     * @param subResources Whether the class has sub-resource methods or locators
+     * @param subResources    Whether the class has sub-resource methods or locators
+     * @param resourceMethods Whether the class has resource methods, of any request method
      */
-    private record Root(RouteTemplate template, Pattern pattern, boolean subResources) {
+    private record Root(RouteTemplate template, Pattern pattern, boolean subResources, boolean resourceMethods) {
     }
 }

@@ -101,6 +101,15 @@ public final class UriInfoImpl implements UriInfo {
     }
 
     /**
+     * Construct from an HTTP request.
+     *
+     * @param request The HTTP request to this URI
+     */
+    public UriInfoImpl(@NonNull HttpRequest<?> request) {
+        this(request, null);
+    }
+
+    /**
      * @return The base URI a pre-matching filter replaced, also after this was created, {@code null} if none did
      */
     private @Nullable URI replacedBaseUri() {
@@ -119,15 +128,6 @@ public final class UriInfoImpl implements UriInfo {
             base = rawPath == null || rawPath.isEmpty() ? null : rawPath;
         }
         return base == null || base.equals("/") ? null : base;
-    }
-
-    /**
-     * Construct from an HTTP request.
-     *
-     * @param request The HTTP request to this URI
-     */
-    public UriInfoImpl(@NonNull HttpRequest<?> request) {
-        this(request, null);
     }
 
     /**

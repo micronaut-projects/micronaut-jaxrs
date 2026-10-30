@@ -28,6 +28,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -48,6 +50,15 @@ class SseGenericEntityTest {
             HttpResponse<String> response = client.send(HttpRequest.newBuilder(URI.create(server.getURL() + "/api/sse-generic"))
                 .timeout(Duration.ofSeconds(10)).build(), HttpResponse.BodyHandlers.ofString());
             assertTrue(response.body().contains("data: CUSTOM"), response.body());
+        }
+    }
+
+    @Test
+    void theWriterOfTheClassOfParameterizedDataWritesIt() throws Exception {
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            HttpResponse<String> response = client.send(HttpRequest.newBuilder(URI.create(server.getURL() + "/api/sse-generic/list"))
+                .timeout(Duration.ofSeconds(10)).build(), HttpResponse.BodyHandlers.ofString());
+            assertTrue(response.body().contains("data: LIST"), response.body());
         }
     }
 
@@ -84,6 +95,22 @@ class SseGenericEntityTest {
     }
 
     @Requires(property = "spec.name", value = "SseGenericEntityTest")
+    @Provider
+    @Produces("text/plain")
+    public static class ArrayListWriter implements MessageBodyWriter<ArrayList<?>> {
+        @Override
+        public boolean isWriteable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+            return type == ArrayList.class;
+        }
+
+        @Override
+        public void writeTo(ArrayList<?> list, Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType,
+                            MultivaluedMap<String, Object> httpHeaders, OutputStream entityStream) throws IOException {
+            entityStream.write("LIST".getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    @Requires(property = "spec.name", value = "SseGenericEntityTest")
     @Path("/sse-generic")
     public static class Resource {
         @GET
@@ -91,6 +118,17 @@ class SseGenericEntityTest {
         public void events(@Context SseEventSink sink, @Context Sse sse) throws IOException {
             try (sink) {
                 sink.send(sse.newEventBuilder().data(new GenericEntity<Base>(new Sub()) {
+                }).build()).toCompletableFuture().join();
+            }
+        }
+
+
+        @GET
+        @Path("list")
+        @Produces(MediaType.SERVER_SENT_EVENTS)
+        public void list(@Context SseEventSink sink, @Context Sse sse) throws IOException {
+            try (sink) {
+                sink.send(sse.newEventBuilder().data(new GenericEntity<List<String>>(new ArrayList<>(List.of("hello"))) {
                 }).build()).toCompletableFuture().join();
             }
         }

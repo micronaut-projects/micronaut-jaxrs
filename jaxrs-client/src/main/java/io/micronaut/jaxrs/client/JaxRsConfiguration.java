@@ -46,6 +46,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -298,7 +299,7 @@ final class JaxRsConfiguration implements Configuration {
         if (JaxRsClientProviders.registeredFor(component, Feature.class)) {
             // a feature shared by configurations is injected with the one it configures
             try (JaxRsClientProviders.CurrentScope ignored = providers.current()) {
-                Feature feature = providers.injected(component.tryGet(Feature.class));
+                Feature feature = providers.injected(component.tryGet(Feature.class, providers::contextValue));
                 if (feature != null && feature.configure(new ClientFeatureContext())) {
                     enabledFeatures.add(feature);
                 }
@@ -379,14 +380,14 @@ final class JaxRsConfiguration implements Configuration {
     public Set<Class<?>> getClasses() {
         return components.stream()
             .flatMap(c -> c instanceof ClassComponent classComponent ? Stream.of(classComponent.componentClass) : Stream.empty())
-            .collect(Collectors.toSet());
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     @Override
     public Set<Object> getInstances() {
         return components.stream()
             .flatMap(c -> c instanceof InstanceComponent instanceComponent ? Stream.of(instanceComponent.component) : Stream.empty())
-            .collect(Collectors.toSet());
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     /**
@@ -449,7 +450,14 @@ final class JaxRsConfiguration implements Configuration {
 
         Class<?> componentClass();
 
-        <T> @Nullable T tryGet(Class<T> type);
+        /**
+         * @param type          The contract the component is used as
+         * @param contextValues The values of the {@code @Context} parameters of the constructor of
+         *                      a component registered as a class, by type, {@code null} for none
+         * @param <T>           The type
+         * @return The component, {@code null} when it is not of the type
+         */
+        <T> @Nullable T tryGet(Class<T> type, Function<Class<?>, @Nullable Object> contextValues);
 
         int priority();
 
@@ -471,7 +479,7 @@ final class JaxRsConfiguration implements Configuration {
         }
 
         @Override
-        public <T> @Nullable T tryGet(Class<T> type) {
+        public <T> @Nullable T tryGet(Class<T> type, Function<Class<?>, @Nullable Object> contextValues) {
             if (type.isInstance(component)) {
                 return (T) component;
             }
@@ -515,20 +523,21 @@ final class JaxRsConfiguration implements Configuration {
 
         @Override
         @SuppressWarnings("unchecked")
-        public <T> @Nullable T tryGet(Class<T> type) {
+        public <T> @Nullable T tryGet(Class<T> type, Function<Class<?>, @Nullable Object> contextValues) {
             if (type.isAssignableFrom(componentClass)) {
-                return (T) instance();
+                return (T) instance(contextValues);
             }
             return null;
         }
 
-        private Object instance() {
+        private Object instance(Function<Class<?>, @Nullable Object> contextValues) {
             Object current = instance;
             if (current == null) {
                 synchronized (this) {
                     current = instance;
                     if (current == null) {
-                        current = JaxRsReflection.get().instantiate(componentClass);
+                        // with the longest constructor of its context values (JAX-RS 4.1.3)
+                        current = JaxRsReflection.get().instantiate(componentClass, contextValues);
                         instance = current;
                     }
                 }

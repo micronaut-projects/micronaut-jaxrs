@@ -6,7 +6,9 @@ import io.micronaut.http.HttpRequest;
 import io.micronaut.http.client.HttpClient;
 import io.micronaut.http.client.annotation.Client;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
+import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
+import jakarta.ws.rs.BeanParam;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.Encoded;
 import jakarta.ws.rs.FormParam;
@@ -16,7 +18,9 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.container.AsyncResponse;
 import jakarta.ws.rs.container.ResourceContext;
+import jakarta.ws.rs.container.Suspended;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.UriInfo;
@@ -88,9 +92,95 @@ class ResourceContextTest {
             .contentType(io.micronaut.http.MediaType.APPLICATION_FORM_URLENCODED_TYPE)));
     }
 
+    @Test
+    void getResourceInALocatorReadsThePathParametersOfTheLocator() {
+        assertEquals("abc abc", client.toBlocking().retrieve(HttpRequest.GET("/lc/abc/get/leaf")));
+    }
+
+    @Test
+    void initResourceInALocatorReadsThePathParametersOfTheLocator() {
+        assertEquals("abc abc", client.toBlocking().retrieve(HttpRequest.GET("/lc/abc/init/leaf")));
+    }
+
+    @Test
+    void initResourceSetsTheMembersBeforePostConstruct() {
+        assertEquals("value|value", client.toBlocking().retrieve(HttpRequest.GET("/post-construct?x=value")));
+    }
+
+    @Test
+    void encodedFormMembersOfAnAsynchronousMethodHaveTheRawValues() {
+        assertEquals("a%20b! a b!", client.toBlocking().retrieve(HttpRequest.POST("/encoded-form-async", "x=a%20b!")
+            .contentType(io.micronaut.http.MediaType.APPLICATION_FORM_URLENCODED_TYPE)));
+    }
+
+    @Test
+    void formMembersAreReadFromTheEntityForAResourceContextOfABeanParameter() {
+        assertEquals("body", client.toBlocking().retrieve(HttpRequest.POST("/bean-context-form", "x=body")
+            .contentType(io.micronaut.http.MediaType.APPLICATION_FORM_URLENCODED_TYPE)));
+    }
+
+    @Test
+    void formMembersAreReadFromTheEntityForAResourceContextOfABeanParameterOfAMethodWithAnEntity() {
+        assertEquals("body x=body", client.toBlocking().retrieve(HttpRequest.POST("/bean-context-form-entity", "x=body")
+            .contentType(io.micronaut.http.MediaType.APPLICATION_FORM_URLENCODED_TYPE)));
+    }
+
+    @Test
+    void formMembersAreReadFromTheEntityForAResourceContextOfABeanParameterField() {
+        assertEquals("body", client.toBlocking().retrieve(HttpRequest.POST("/bean-field/form", "x=body")
+            .contentType(io.micronaut.http.MediaType.APPLICATION_FORM_URLENCODED_TYPE)));
+    }
+
+    @Requires(property = "spec.name", value = "ResourceContextTest")
+    @Path("/resource-context/bean-field")
+    public static class BeanFieldResource {
+        @BeanParam
+        ContextBean bean;
+
+        @POST
+        @Path("/form")
+        public String form() {
+            return bean.resourceContext.getResource(FormMember.class).x;
+        }
+    }
+
     @Requires(property = "spec.name", value = "ResourceContextTest")
     @Path("/resource-context")
     public static class RootResource {
+        @POST
+        @Path("/bean-context-form-entity")
+        public String beanContextFormEntity(@BeanParam ContextBean bean, String body) {
+            return bean.resourceContext.getResource(FormMember.class).x + " " + body;
+        }
+
+        @Path("/lc/{id}/get")
+        public LocatedChild locateGet(@PathParam("id") String id) {
+            return resourceContext.getResource(LocatedChild.class).located(id);
+        }
+
+        @Path("/lc/{id}/init")
+        public LocatedChild locateInit(@PathParam("id") String id) {
+            return resourceContext.initResource(new LocatedChild()).located(id);
+        }
+
+        @GET
+        @Path("/post-construct")
+        public String postConstruct() {
+            return resourceContext.initResource(new PostConstructed()).describe();
+        }
+
+        @POST
+        @Path("/encoded-form-async")
+        @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+        public void encodedFormAsync(@FormParam("x") String x, @Suspended AsyncResponse response) {
+            response.resume(resourceContext.getResource(EncodedFormMember.class).x + " " + x);
+        }
+
+        @POST
+        @Path("/bean-context-form")
+        public String beanContextForm(@BeanParam ContextBean bean) {
+            return bean.resourceContext.getResource(FormMember.class).x;
+        }
         @POST
         @Path("/encoded-form-entity")
         public String encodedFormEntity(String body) {
@@ -149,6 +239,58 @@ class ResourceContextTest {
         @Path("/init/{id}")
         public String init() {
             return resourceContext.initResource(new Initialized()).describe();
+        }
+    }
+
+    /**
+     * A bean parameter with the resource context.
+     */
+    public static class ContextBean {
+        @Context
+        ResourceContext resourceContext;
+    }
+
+    /**
+     * A sub-resource with a path parameter of its locator.
+     */
+    public static class LocatedChild {
+        @PathParam("id")
+        String id;
+
+        private String locatedId;
+
+        LocatedChild located(String locatedId) {
+            this.locatedId = locatedId;
+            return this;
+        }
+
+        @GET
+        @Path("/leaf")
+        public String leaf() {
+            return id + " " + locatedId;
+        }
+    }
+
+    @Requires(property = "spec.name", value = "ResourceContextTest")
+    @Path("/post-constructed")
+    public static class PostConstructed {
+        @QueryParam("x")
+        String x;
+
+        private String copy;
+
+        @PostConstruct
+        void init() {
+            copy = x;
+        }
+
+        @GET
+        public String get() {
+            return describe();
+        }
+
+        String describe() {
+            return x + "|" + copy;
         }
     }
 

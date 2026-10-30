@@ -15,6 +15,8 @@
  */
 package io.micronaut.jaxrs.processor;
 
+import io.micronaut.context.annotation.Bean;
+import io.micronaut.core.annotation.AnnotationUtil;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.inject.ast.ClassElement;
 import io.micronaut.inject.ast.ConstructorElement;
@@ -135,7 +137,7 @@ final class JaxRsResources {
      * JAX-RS can call, the one with the most parameters (JAX-RS 3.1.2), when it has parameters read
      * from the request. A constructor with parameters, none of which is read from the request, is
      * not one, even when it has more parameters; the others may also have beans as parameters, but
-     * no parameter that cannot be resolved, see {@link #isResolvable(ParameterElement)}.
+     * not a type that cannot be a bean, see {@link #isResolvable(ParameterElement)}.
      *
      * @param type The class
      * @return The constructor, or {@code null}
@@ -155,22 +157,34 @@ final class JaxRsResources {
     }
 
     /**
-     * Whether a constructor parameter can be resolved: read from the request, or of a type a bean
-     * may have, not a primitive, an array, nor a class of the JDK, e.g. {@code String}.
+     * Whether a constructor parameter can be resolved: read from the request, or of a type the
+     * bean context may supply, see {@link #canBeBean(ClassElement)}.
      *
      * @param parameter A constructor parameter
      * @return Whether it can be resolved
      */
     private static boolean isResolvable(ParameterElement parameter) {
-        if (isRequestAnnotated(parameter)) {
-            return true;
-        }
-        ClassElement type = parameter.getType();
+        return isRequestAnnotated(parameter) || canBeBean(parameter.getGenericType());
+    }
+
+    /**
+     * @param type The type of a constructor parameter that is not read from the request
+     * @return Whether the bean context may supply it: an interface, an abstract class, or a
+     * container of beans, e.g. an {@code Optional}, or a class declared with a bean annotation;
+     * not a primitive, an array, nor another class of the JDK, e.g. {@code String}. A concrete
+     * class produced only by a factory is not known at compile time
+     */
+    private static boolean canBeBean(ClassElement type) {
         if (type.isPrimitive() || type.isArray()) {
             return false;
         }
-        String name = type.getName();
-        return type.isInterface() || !(name.startsWith("java.") || name.startsWith("javax."));
+        if (type.isInterface() || type.isAbstract() || type.isOptional() || type.isContainerType()) {
+            return true;
+        }
+        if (type.getName().startsWith("java.") || type.getName().startsWith("javax.")) {
+            return false;
+        }
+        return type.hasStereotype(AnnotationUtil.SCOPE) || type.hasStereotype(Bean.class) || type.hasStereotype(AnnotationUtil.QUALIFIER);
     }
 
     /**

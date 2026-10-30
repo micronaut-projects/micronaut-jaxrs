@@ -16,6 +16,7 @@
 package io.micronaut.jaxrs.container;
 
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.http.HttpRequest;
 import io.micronaut.http.context.ServerRequestContext;
 import io.micronaut.jaxrs.runtime.ext.bind.UriInfoImpl;
 import jakarta.inject.Singleton;
@@ -44,7 +45,9 @@ final class JaxRsContextUriInfo implements UriInfo {
     }
 
     private UriInfoImpl getUriInfo() {
-        return new UriInfoImpl(ServerRequestContext.currentRequest().get(), applicationProvider.getPath(), applicationProvider.getContextPath());
+        HttpRequest<?> request = ServerRequestContext.currentRequest()
+            .orElseThrow(() -> new IllegalStateException("UriInfo is used outside of the scope of a request"));
+        return new UriInfoImpl(request, applicationProvider.getPath(), applicationProvider.getContextPath());
     }
 
     @Override

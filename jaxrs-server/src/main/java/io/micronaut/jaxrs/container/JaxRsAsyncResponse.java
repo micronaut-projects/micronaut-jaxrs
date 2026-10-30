@@ -112,8 +112,8 @@ final class JaxRsAsyncResponse implements AsyncResponse {
      * @param scheduler        The scheduler of the timeouts
      * @param callbackExecutor The executor of the callbacks the server reports to, e.g. the
      *                         blocking executor: not its event loop, the callbacks can block
-     * @param inRequest        Runs the resumption on the calling thread in the context of the
-     *                         request: the response is converted and written on it
+     * @param inRequest        Runs the resumption in the context of the request, e.g. on the
+     *                         blocking executor: the response is converted there, not on an event loop
      */
     JaxRsAsyncResponse(Function<@Nullable Object, HttpResponse<?>> converter, Supplier<@Nullable TaskScheduler> scheduler,
                        Supplier<@Nullable Executor> callbackExecutor, Executor inRequest) {

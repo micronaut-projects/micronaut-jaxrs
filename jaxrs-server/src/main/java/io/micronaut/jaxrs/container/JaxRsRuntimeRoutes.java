@@ -96,6 +96,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import jakarta.ws.rs.sse.SseEventSink;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Supplier;
 
 /**
@@ -451,7 +452,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 ResourceMethod<B> resourceMethod = resourceMethod(type, classMetadata, method, httpMethod, template);
                 if (resourceMethod != null) {
                     boolean usesResourceContext = typeUsesResourceContext
-                        || Arrays.stream(method.arguments()).anyMatch(argument -> argument.getType() == ResourceContext.class);
+                        || Arrays.stream(method.arguments()).anyMatch(argument -> usesResourceContext(argument, 0));
                     route(routes, resourceMethod, instances, rootUsesForm, rootEncodedForm, usesResourceContext);
                 }
             } else if (methodPath != null) {
@@ -609,7 +610,8 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         // a route that reads the entity and form parameters, or the entity of a method that uses
         // the ResourceContext: the form is parsed from the bytes of the entity, read once
         boolean entityForm = body && !form && (usesForm || usesResourceContext);
-        // with its raw values for an @Encoded form parameter, or the @Encoded form members of the resources of the ResourceContext
+        // with its raw values for an @Encoded form parameter, or the @Encoded form members of the resources of the ResourceContext,
+        // also for a form read apart from the entity
         boolean rawEntityForm = encodedForm || usesResourceContext;
         if (method.events()) {
             boolean readsBody = body;
@@ -621,7 +623,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 sink.onFirstSend(() -> response.complete(HttpResponse.ok()));
                 CompletionStage<?> called;
                 if (form) {
-                    called = support.formAsync(request, pathVariables, requestBody, encodedForm,
+                    called = support.formAsync(request, pathVariables, requestBody, rawEntityForm,
                         (readRequest, readPathVariables, value) -> callEvents(method, instances, readRequest, readPathVariables, target, value, null, response));
                 } else if (readsBody) {
                     called = support.entityAsync(request, pathVariables, requestBody,
@@ -642,7 +644,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         } else if (method.async()) {
             if (form) {
                 routes.handleAsync(declaration, (request, pathVariables, target, requestBody) -> support.formAsync(request, pathVariables, requestBody,
-                    encodedForm, (readRequest, readPathVariables, value) -> callAsync(method, instances, readRequest, readPathVariables, target, value, null)));
+                    rawEntityForm, (readRequest, readPathVariables, value) -> callAsync(method, instances, readRequest, readPathVariables, target, value, null)));
             } else if (body) {
                 routes.handleAsync(declaration, (request, pathVariables, target, requestBody) -> support.entityAsync(request, pathVariables, requestBody,
                     (readRequest, readPathVariables, value) -> callAsync(method, instances, readRequest, readPathVariables, target,
@@ -734,7 +736,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         Converter converter = method.converter();
         Completion completion = method.completion();
         // the value of the stage is negotiated like the result of a method that is not asynchronous
-        // in the context of the request: the response is written on the thread completing the stage
+        // in the context of the request
         Executor inRequest = inRequest(request);
         CompletableFuture<HttpResponse<?>> response = new CompletableFuture<>();
         stage.whenComplete((value, failure) -> inRequest.execute(() -> {
@@ -755,16 +757,29 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     }
 
     /**
-     * Runs a task on the calling thread in the context of a request, e.g. the thread of the
-     * application completing an asynchronous response: the response is converted and written on
-     * it, and the writers may read the request, e.g. its {@code UriInfo} (JAX-RS 10.1).
+     * Runs a task in the context of a request on the blocking executor, e.g. when the application
+     * completes an asynchronous response: the response is converted there, the writers may block,
+     * also when the response is completed on an event loop, and they may read the request, e.g.
+     * its {@code UriInfo} (JAX-RS 10.1). Without that executor, the task runs on the calling thread.
      */
-    private static Executor inRequest(HttpRequest<?> request) {
+    private Executor inRequest(HttpRequest<?> request) {
         PropagatedContext context = PropagatedContext.getOrEmpty();
         return task -> {
-            try (PropagatedContext.Scope ignored = context.propagate()) {
-                ServerRequestContext.with(request, task);
+            Runnable run = () -> {
+                try (PropagatedContext.Scope ignored = context.propagate()) {
+                    ServerRequestContext.with(request, task);
+                }
+            };
+            Executor executor = callbackExecutor.get();
+            if (executor != null) {
+                try {
+                    executor.execute(run);
+                    return;
+                } catch (RejectedExecutionException e) {
+                    // the executor is shut down: run on this thread
+                }
             }
+            run.run();
         };
     }
 
@@ -1024,7 +1039,8 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     private static List<String> mediaTypes(AnnotationMetadata methodMetadata, AnnotationMetadata classMetadata,
                                            Class<? extends Annotation> annotation) {
         String[] values = methodMetadata.stringValues(annotation);
-        if (values.length == 0) {
+        if (values.length == 0 && !methodMetadata(methodMetadata).hasAnnotation(annotation)) {
+            // an explicitly empty annotation of the method is the default, not the one of its class
             values = classMetadata.stringValues(annotation);
         }
         List<String> mediaTypes = new ArrayList<>();
@@ -1052,10 +1068,27 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             || Arrays.stream(definition.getConstructor().getArguments()).anyMatch(argument -> argument.getType() == ResourceContext.class))) {
             return true;
         }
-        BeanIntrospection<?> introspection = introspection(type);
+        return usesResourceContext(type, 0);
+    }
+
+    /**
+     * @param argument A parameter, constructor argument or property
+     * @param depth    The depth of the bean parameters it is in
+     * @return Whether it is a {@link ResourceContext}, or a {@code @BeanParam} that has one injected
+     */
+    private boolean usesResourceContext(Argument<?> argument, int depth) {
+        return argument.getType() == ResourceContext.class
+            || argument.getAnnotationMetadata().hasAnnotation(BeanParam.class) && usesResourceContext(argument.getType(), depth + 1);
+    }
+
+    /**
+     * @return Whether an introspected class, or a {@code @BeanParam} nested in it, has a {@link ResourceContext} injected
+     */
+    private boolean usesResourceContext(Class<?> type, int depth) {
+        BeanIntrospection<?> introspection = depth > 8 ? null : introspection(type);
         return introspection != null
-            && (introspection.getBeanProperties().stream().anyMatch(property -> ResourceContext.class.equals(property.getType()))
-            || Arrays.stream(introspection.getConstructorArguments()).anyMatch(argument -> argument.getType() == ResourceContext.class));
+            && (introspection.getBeanProperties().stream().anyMatch(property -> usesResourceContext(property.asArgument(), depth))
+            || Arrays.stream(introspection.getConstructorArguments()).anyMatch(argument -> usesResourceContext(argument, depth)));
     }
 
     /**

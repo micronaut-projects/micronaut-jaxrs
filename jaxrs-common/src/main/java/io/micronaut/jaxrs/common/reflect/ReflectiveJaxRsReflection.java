@@ -42,6 +42,8 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -210,6 +212,32 @@ public final class ReflectiveJaxRsReflection implements JaxRsReflection {
         // a reflective introspection reaches a class or constructor that is not public
         BeanIntrospection<T> reflective = reflective(INSTANTIATING_INTROSPECTIONS, type);
         return reflective != null ? reflective.instantiate() : InstantiationUtils.instantiate(type);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> T instantiate(Class<T> type, Function<Class<?>, @Nullable Object> values) {
+        Constructor<?>[] constructors = type.getConstructors();
+        Arrays.sort(constructors, Comparator.comparingInt((Constructor<?> c) -> c.getParameterCount()).reversed());
+        for (Constructor<?> constructor : constructors) {
+            if (constructor.getParameterCount() == 0) {
+                // the one of the introspection, which reaches a class that is not public
+                break;
+            }
+            Class<?>[] parameterTypes = constructor.getParameterTypes();
+            Object[] arguments = new Object[parameterTypes.length];
+            boolean usable = true;
+            for (int i = 0; i < parameterTypes.length && usable; i++) {
+                arguments[i] = values.apply(parameterTypes[i]);
+                usable = arguments[i] != null;
+            }
+            if (usable) {
+                // e.g. the public constructor of a nested class that is not public
+                constructor.trySetAccessible();
+                return (T) invoke(() -> constructor.newInstance(arguments));
+            }
+        }
+        return instantiate(type);
     }
 
     @Override

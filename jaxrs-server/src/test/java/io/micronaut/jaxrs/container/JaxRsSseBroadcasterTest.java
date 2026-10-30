@@ -50,6 +50,27 @@ class JaxRsSseBroadcasterTest {
     }
 
     @Test
+    void closingAgainFromACloseCallbackIsIgnored() {
+        var broadcaster = new JaxRsSseBroadcaster();
+        var first = new JaxRsSseEventSink(e -> String.valueOf(e.getData()));
+        var second = new JaxRsSseEventSink(e -> String.valueOf(e.getData()));
+        var notified = new java.util.concurrent.atomic.AtomicInteger();
+        broadcaster.onClose(s -> {
+            notified.incrementAndGet();
+            broadcaster.close(false);
+        });
+        broadcaster.register(first);
+        broadcaster.register(second);
+        broadcaster.close();
+        assertTrue(first.isClosed());
+        assertTrue(second.isClosed());
+        Assertions.assertEquals(2, notified.get());
+        // once closed, the other methods fail (JAX-RS, SseBroadcaster#close)
+        Assertions.assertThrows(IllegalStateException.class, () -> broadcaster.onClose(s -> { }));
+        Assertions.assertThrows(IllegalStateException.class, () -> broadcaster.onError((s, t) -> { }));
+    }
+
+    @Test
     void aBroadcasterClosedWithoutCascadingReleasesItsSinks() {
         var sink = new JaxRsSseEventSink(e -> String.valueOf(e.getData()));
         var broadcaster = new JaxRsSseBroadcaster();

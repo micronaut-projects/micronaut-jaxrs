@@ -62,6 +62,7 @@ class BeanResource {
     }
 }
 
+@jakarta.inject.Singleton
 class Service {
 }
 ''') { ClassElement type -> JaxRsResources.requestConstructor(type) }

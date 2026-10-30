@@ -72,6 +72,14 @@ public sealed interface JaxRsWriterInterceptorContextState permits JaxRsGenericE
     void finish() throws IOException;
 
     /**
+     * Called when the interceptor chain fails: closes the stream the interceptors installed,
+     * without closing the underlying response stream, discarding what was written.
+     *
+     * @param failure The failure of the chain, which a failure to close is added to
+     */
+    void abort(Throwable failure);
+
+    /**
      * A stream that only flushes the given stream when it is closed.
      *
      * @param outputStream The stream
@@ -109,6 +117,17 @@ public sealed interface JaxRsWriterInterceptorContextState permits JaxRsGenericE
         @Override
         public void finish() throws IOException {
             outputStream.close();
+        }
+
+        @Override
+        public void abort(Throwable failure) {
+            try {
+                outputStream.close();
+            } catch (IOException | RuntimeException e) {
+                if (e != failure) {
+                    failure.addSuppressed(e);
+                }
+            }
         }
 
         @Override
