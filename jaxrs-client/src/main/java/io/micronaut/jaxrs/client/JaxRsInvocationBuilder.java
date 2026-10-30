@@ -152,8 +152,13 @@ final class JaxRsInvocationBuilder implements Invocation.Builder {
     }
 
     @Override
-    public Invocation.Builder cacheControl(CacheControl cacheControl) {
-        mutableHttpHeaders.add(HttpHeaders.CACHE_CONTROL, toRuntimeString(cacheControl));
+    public Invocation.Builder cacheControl(@Nullable CacheControl cacheControl) {
+        // it replaces the cache control set before, a null one removes it (JAX-RS, Invocation.Builder#cacheControl)
+        if (cacheControl == null) {
+            mutableHttpHeaders.remove(HttpHeaders.CACHE_CONTROL);
+        } else {
+            mutableHttpHeaders.set(HttpHeaders.CACHE_CONTROL, toRuntimeString(cacheControl));
+        }
         return this;
     }
 
