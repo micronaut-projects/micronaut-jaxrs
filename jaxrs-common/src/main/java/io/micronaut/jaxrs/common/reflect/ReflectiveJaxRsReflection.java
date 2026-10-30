@@ -99,7 +99,8 @@ public final class ReflectiveJaxRsReflection implements JaxRsReflection {
 
     @Override
     public AnnotationMetadata annotationMetadata(Method method) {
-        return ReflectionAnnotations.metadataOf(method);
+        // with the JAX-RS annotations it inherits (JAX-RS 3.6), as the metadata recorded at compile time
+        return inherited(method.getDeclaringClass(), method).metadata();
     }
 
     @Override

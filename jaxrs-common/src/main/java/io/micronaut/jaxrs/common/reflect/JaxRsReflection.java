@@ -75,7 +75,8 @@ public interface JaxRsReflection {
     AnnotationMetadata annotationMetadata(Class<?> type);
 
     /**
-     * The annotations of a method the JAX-RS API hands over, e.g. to {@code UriBuilder.path(Method)}.
+     * The annotations of a method the JAX-RS API hands over, e.g. to {@code UriBuilder.path(Method)},
+     * with the JAX-RS annotations it inherits (JAX-RS 3.6).
      *
      * @param method The method
      * @return Its annotations

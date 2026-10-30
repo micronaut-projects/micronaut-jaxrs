@@ -49,6 +49,24 @@ class ReflectiveJaxRsReflectionSpec extends Specification {
         metadata.stringValue(Produces).get() == "text/plain"
     }
 
+    void "the annotations of a method handed over include the ones it inherits"() {
+        expect:
+        new ReflectiveJaxRsReflection().annotationMetadata(PathImpl.getMethod("get")).stringValue(Path).get() == "sub"
+    }
+
+    static interface PathApi {
+        @GET
+        @Path("sub")
+        String get()
+    }
+
+    static class PathImpl implements PathApi {
+        @Override
+        String get() {
+            "x"
+        }
+    }
+
     @Retention(RetentionPolicy.RUNTIME)
     @NameBinding
     static @interface Secured {
