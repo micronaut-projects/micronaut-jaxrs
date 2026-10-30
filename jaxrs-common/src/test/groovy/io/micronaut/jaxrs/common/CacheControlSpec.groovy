@@ -49,4 +49,16 @@ class CacheControlSpec extends Specification {
         cacheControl.cacheExtension == [ext: 'a, b']
         cacheControl.noStore
     }
+
+    void "directive names are parsed whatever the default locale"() {
+        given:
+        def locale = Locale.default
+        Locale.default = Locale.forLanguageTag("tr")
+
+        expect:
+        CacheControlDelegate.INSTANCE.fromString("PRIVATE").private
+
+        cleanup:
+        Locale.default = locale
+    }
 }

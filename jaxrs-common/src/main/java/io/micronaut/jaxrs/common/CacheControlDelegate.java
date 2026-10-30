@@ -23,6 +23,7 @@ import jakarta.ws.rs.ext.RuntimeDelegate;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Forked from RESTEasy.
@@ -58,7 +59,7 @@ class CacheControlDelegate implements RuntimeDelegate.HeaderDelegate<CacheContro
             String name = (eq < 0 ? directive : directive.substring(0, eq)).trim();
             String val = eq < 0 ? null : JaxRsHeaderUtil.unquote(directive.substring(eq + 1).trim());
 
-            String lowercase = name.toLowerCase();
+            String lowercase = name.toLowerCase(Locale.ROOT);
             switch (lowercase) {
                 case NO_CACHE -> {
                     result.setNoCache(true);
