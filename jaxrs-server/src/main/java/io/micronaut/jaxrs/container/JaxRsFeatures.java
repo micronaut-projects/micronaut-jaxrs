@@ -155,17 +155,28 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
         dynamicFeatures.forEach(feature -> known.add(feature.getClass()));
         List<DynamicFeature> registered = new ArrayList<>();
         for (Object instance : registeredInstances) {
-            if (instance instanceof DynamicFeature feature && isServerComponent(feature) && known.add(feature.getClass())) {
+            if (instance instanceof DynamicFeature feature && isRegisteredFor(feature.getClass(), DynamicFeature.class)
+                && isServerComponent(feature) && known.add(feature.getClass())) {
                 registered.add(feature);
             }
         }
         for (Class<?> componentClass : registeredClasses) {
-            if (DynamicFeature.class.isAssignableFrom(componentClass) && known.add(componentClass)
+            if (DynamicFeature.class.isAssignableFrom(componentClass) && isRegisteredFor(componentClass, DynamicFeature.class)
+                && known.add(componentClass)
                 && JaxRsUtils.isServerProvider(annotationMetadata(componentClass))) {
                 registered.add((DynamicFeature) instance(componentClass));
             }
         }
         dynamicFeatures.addAll(registered);
+    }
+
+    /**
+     * Whether a feature registered a component for a contract: for all of the ones it implements,
+     * or for the contracts it listed (Configurable#register(Class, Class[])).
+     */
+    private boolean isRegisteredFor(Class<?> componentClass, Class<?> contract) {
+        Registration registration = registrations.get(componentClass);
+        return registration == null || registration.isFor(contract);
     }
 
     /**
