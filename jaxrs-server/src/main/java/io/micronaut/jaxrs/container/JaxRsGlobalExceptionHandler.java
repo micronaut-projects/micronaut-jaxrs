@@ -78,7 +78,7 @@ final class JaxRsGlobalExceptionHandler implements ExceptionHandler<Throwable, H
             // the IOException a provider threw, wrapped to cross Micronaut's reader and writer API
             exception = exception.getCause();
         }
-        ExceptionMapper exceptionMapper = providers.getExceptionMapper(exception.getClass());
+        ExceptionMapper exceptionMapper = JaxRsProviders.registeredExceptionMapper(providers, exception.getClass());
         if (exceptionMapper != null) {
             return map(request, exceptionMapper, exception);
         }
@@ -109,16 +109,6 @@ final class JaxRsGlobalExceptionHandler implements ExceptionHandler<Throwable, H
     }
 
     /**
-     * Map an exception with an exception mapper, once per request: an exception thrown while the
-     * response mapped from an exception is processed is not mapped again, whichever mapper would
-     * map it, the response is a server error (JAX-RS 4.4).
-     *
-     * @param request   The request
-     * @param mapper    The exception mapper
-     * @param exception The exception
-     * @return The response
-     */
-    /**
      * Use the response of an exception, e.g. of a {@link jakarta.ws.rs.WebApplicationException},
      * once per request like a mapped one, see {@link #map}.
      *
@@ -134,6 +124,16 @@ final class JaxRsGlobalExceptionHandler implements ExceptionHandler<Throwable, H
         return JaxRsRouteSupport.toHttpResponse(response);
     }
 
+    /**
+     * Map an exception with an exception mapper, once per request: an exception thrown while the
+     * response mapped from an exception is processed is not mapped again, whichever mapper would
+     * map it, the response is a server error (JAX-RS 4.4).
+     *
+     * @param request   The request
+     * @param mapper    The exception mapper
+     * @param exception The exception
+     * @return The response
+     */
     @SuppressWarnings({"unchecked", "rawtypes"})
     static HttpResponse<?> map(HttpRequest<?> request, ExceptionMapper mapper, Throwable exception) {
         if (request.getAttribute(MAPPED).isPresent()) {

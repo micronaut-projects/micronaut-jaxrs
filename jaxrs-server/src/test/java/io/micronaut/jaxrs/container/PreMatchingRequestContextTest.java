@@ -60,6 +60,27 @@ class PreMatchingRequestContextTest {
     }
 
     @Test
+    void setRequestUriResolvesARelativeUriAgainstTheBaseUri() {
+        assertEquals("target", retrieve(HttpRequest.GET("/resource"), "relative"));
+    }
+
+    @Test
+    void aPropertySetToNullIsRemoved() {
+        assertEquals("false []", retrieve(HttpRequest.GET("/resource"), "null-property"));
+    }
+
+    @Test
+    void thePropertyNamesAreImmutable() {
+        assertEquals("immutable [x]", retrieve(HttpRequest.GET("/resource"), "property-names"));
+    }
+
+    @Test
+    void thePropertyNamesOfAnInterceptorAreImmutable() {
+        assertEquals("immutable", client.toBlocking().exchange(HttpRequest.GET("/resource").header("X-Operation", "interceptor-names"), String.class)
+            .getHeaders().get("X-Names"));
+    }
+
+    @Test
     void setRequestUriReplacesTheBaseUriOfUriInfo() {
         assertEquals("/api/pre-matching/|uri-info", retrieve(HttpRequest.GET("/resource"), "base"));
     }
@@ -124,6 +145,24 @@ class PreMatchingRequestContextTest {
             switch (operation) {
                 case "method" -> context.setMethod("PUT");
                 case "uri" -> context.setRequestUri(context.getUriInfo().getBaseUri().resolve("pre-matching/target"));
+                case "relative" -> context.setRequestUri(java.net.URI.create("pre-matching/target"));
+                case "null-property" -> {
+                    context.setProperty("x", "value");
+                    context.setProperty("x", null);
+                    context.abortWith(Response.ok(context.hasProperty("x") + " " + context.getPropertyNames()).build());
+                }
+                case "property-names" -> {
+                    context.setProperty("x", "value");
+                    String result;
+                    try {
+                        context.getPropertyNames().clear();
+                        result = "mutable";
+                    } catch (UnsupportedOperationException e) {
+                        result = "immutable";
+                    }
+                    context.abortWith(Response.ok(result + " " + context.getPropertyNames()).build());
+                }
+                case "interceptor-names" -> context.setProperty("interceptor-names", true);
                 case "uri2" -> context.setRequestUri(context.getUriInfo().getBaseUri(), java.net.URI.create("pre-matching/target"));
                 case "base" -> context.setRequestUri(context.getUriInfo().getBaseUri().resolve("pre-matching/"), java.net.URI.create("uri-info"));
                 case "entity" -> context.abortWith(Response.ok(new String(context.getEntityStream().readAllBytes(), StandardCharsets.UTF_8)).build());
@@ -147,6 +186,25 @@ class PreMatchingRequestContextTest {
                     // the resource method
                 }
             }
+        }
+    }
+
+    @Requires(property = "spec.name", value = "PreMatchingRequestContextTest")
+    @Provider
+    public static class PropertyNamesInterceptor implements jakarta.ws.rs.ext.WriterInterceptor {
+        @Override
+        public void aroundWriteTo(jakarta.ws.rs.ext.WriterInterceptorContext context) throws IOException {
+            if (context.hasProperty("interceptor-names")) {
+                String result;
+                try {
+                    context.getPropertyNames().clear();
+                    result = context.hasProperty("interceptor-names") ? "cleared-view" : "mutable";
+                } catch (UnsupportedOperationException e) {
+                    result = "immutable";
+                }
+                context.getHeaders().putSingle("X-Names", result);
+            }
+            context.proceed();
         }
     }
 

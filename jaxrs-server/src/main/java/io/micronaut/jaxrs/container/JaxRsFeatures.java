@@ -50,6 +50,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -102,6 +103,8 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
     final Set<Feature> enabledFeatures = ConcurrentHashMap.newKeySet();
     // the contracts and priorities of the components the features registered globally, by class
     final Map<Class<?>, Registration> registrations = new ConcurrentHashMap<>();
+    // the features and dynamic features of the service loader, registered whether they are enabled or not
+    final Set<Object> serviceLoaded = ConcurrentHashMap.newKeySet();
     // the properties the features set, see Configuration#getProperty
     final Map<String, Object> properties = new ConcurrentHashMap<>();
     // the properties of the application the features removed
@@ -130,6 +133,8 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
         this.dynamicFeatures = new CopyOnWriteArrayList<>(collect(DynamicFeature.class, dynamicFeatures, application).stream()
             .filter(this::isServerComponent)
             .toList());
+        // not the ones constrained to the client
+        serviceLoaded.removeIf(loaded -> !this.features.contains(loaded) && !this.dynamicFeatures.contains(loaded));
     }
 
     /**
@@ -222,6 +227,14 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
     }
 
     /**
+     * @return The features and dynamic features of the service loader, which are registered
+     * whether they are enabled or not (JAX-RS 4.1.2)
+     */
+    Set<Object> serviceLoaded() {
+        return Collections.unmodifiableSet(serviceLoaded);
+    }
+
+    /**
      * @param componentClass A class
      * @return Whether a feature registered it
      */
@@ -234,15 +247,21 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
                 return true;
             }
         }
+        for (Object instance : serviceLoaded) {
+            if (instance.getClass() == componentClass) {
+                return true;
+            }
+        }
         return false;
     }
 
     /**
      * @param instance An instance
-     * @return Whether a feature registered it, or it is a feature that is enabled
+     * @return Whether a feature registered it, or it is a feature that is enabled or one of the
+     * service loader
      */
     public boolean isRegistered(Object instance) {
-        return registeredInstances.contains(instance);
+        return registeredInstances.contains(instance) || serviceLoaded.contains(instance);
     }
 
     /**
@@ -407,11 +426,25 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
             // the application disabled the ones of the service loader (JAX-RS 4.1.2)
             return new ArrayList<>(instances.values());
         }
-        ClassLoader classLoader = application == null ? context.getClassLoader() : application.getClass().getClassLoader();
-        for (T loaded : ServiceLoader.load(type, classLoader)) {
-            if (!instances.containsKey(loaded.getClass())) {
-                // injected before it is configured, like an instance of the application
-                instances.put(loaded.getClass(), type.cast(injected(loaded)));
+        // the context class loader and the class loader of the service interface (JAX-RS 4.1.2),
+        // and the one of the application
+        Set<ClassLoader> classLoaders = new LinkedHashSet<>();
+        ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
+        if (contextClassLoader != null) {
+            classLoaders.add(contextClassLoader);
+        }
+        classLoaders.add(application == null ? context.getClassLoader() : application.getClass().getClassLoader());
+        if (type.getClassLoader() != null) {
+            classLoaders.add(type.getClassLoader());
+        }
+        for (ClassLoader classLoader : classLoaders) {
+            for (T loaded : ServiceLoader.load(type, classLoader)) {
+                if (!instances.containsKey(loaded.getClass())) {
+                    // injected before it is configured, like an instance of the application
+                    T injected = type.cast(injected(loaded));
+                    instances.put(loaded.getClass(), injected);
+                    serviceLoaded.add(injected);
+                }
             }
         }
         return new ArrayList<>(instances.values());

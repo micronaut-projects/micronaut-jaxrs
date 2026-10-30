@@ -116,6 +116,31 @@ final class JaxRsProviders implements Providers {
     @SuppressWarnings({"unchecked"})
     @Override
     public <T extends Throwable> @Nullable ExceptionMapper<T> getExceptionMapper(Class<T> type) {
+        ExceptionMapper<T> registered = registeredExceptionMapper(type);
+        // else the default mapper of every exception (JAX-RS 4.4)
+        return registered != null ? registered : (ExceptionMapper<T>) DefaultExceptionMapper.INSTANCE;
+    }
+
+    /**
+     * The mapper of an exception the application registered, not the default one, which the
+     * runtime does not use to map: an unmapped exception is processed as such, e.g. its
+     * callbacks receive it (JAX-RS 4.4).
+     *
+     * @param providers The providers
+     * @param type      The type of the exception
+     * @param <T>       The type of the exception
+     * @return The mapper, {@code null} if the application registered none
+     */
+    static <T extends Throwable> @Nullable ExceptionMapper<T> registeredExceptionMapper(Providers providers, Class<T> type) {
+        if (providers instanceof JaxRsProviders jaxRsProviders) {
+            return jaxRsProviders.registeredExceptionMapper(type);
+        }
+        ExceptionMapper<T> mapper = providers.getExceptionMapper(type);
+        return mapper instanceof DefaultExceptionMapper ? null : mapper;
+    }
+
+    @SuppressWarnings({"unchecked"})
+    private <T extends Throwable> @Nullable ExceptionMapper<T> registeredExceptionMapper(Class<T> type) {
         // the mapper of the nearest superclass of the exception, among the registered ones (JAX-RS 4.4)
         JaxRsContainerMessageBodyHandlerRegistry registry = registry();
         ExceptionMapper<T> nearest = null;
@@ -258,6 +283,22 @@ final class JaxRsProviders implements Providers {
             }
             return new ResolverMetadata(arguments.isEmpty() ? null : arguments.get(0).getType(), List.copyOf(produces),
                 JaxRsUtils.isServerProvider(definition.getAnnotationMetadata()));
+        }
+    }
+
+    /**
+     * The default mapper of every exception (JAX-RS 4.4): the response of a
+     * {@link WebApplicationException}, else a server error.
+     */
+    private static final class DefaultExceptionMapper implements ExceptionMapper<Throwable> {
+        static final DefaultExceptionMapper INSTANCE = new DefaultExceptionMapper();
+
+        @Override
+        public jakarta.ws.rs.core.Response toResponse(Throwable exception) {
+            if (exception instanceof WebApplicationException webApplicationException && webApplicationException.getResponse() != null) {
+                return webApplicationException.getResponse();
+            }
+            return jakarta.ws.rs.core.Response.serverError().build();
         }
     }
 }

@@ -85,7 +85,8 @@ final class JaxRsContainerResponseContext implements ContainerResponseContext {
 
     @Override
     public int getStatus() {
-        return mutableHttpResponse.getStatus().getCode();
+        // the code, a custom one has no HttpStatus
+        return mutableHttpResponse.code();
     }
 
     @Override
@@ -100,7 +101,12 @@ final class JaxRsContainerResponseContext implements ContainerResponseContext {
 
     @Override
     public void setStatusInfo(Response.StatusType statusInfo) {
-        mutableHttpResponse.status(statusInfo.getStatusCode());
+        String reason = statusInfo.getReasonPhrase();
+        if (reason == null) {
+            mutableHttpResponse.status(statusInfo.getStatusCode());
+        } else {
+            mutableHttpResponse.status(statusInfo.getStatusCode(), reason);
+        }
     }
 
     @Override

@@ -81,6 +81,24 @@ class WriterInterceptorReleaseTest {
         }
     }
 
+    @Test
+    void theStreamInstalledByAnInterceptorIsClosedWhenItFailsInTheClassicWrite() {
+        try (ApplicationContext context = ApplicationContext.run(Map.of("spec.name", "WriterInterceptorReleaseTest.installed"))) {
+            List<BeanRegistration<WriterInterceptor>> interceptors = new ArrayList<>(context.getBeanRegistrations(WriterInterceptor.class));
+            var genericWriter = new JaxRsGenericEntityMessageBodyWriter<Payload>(
+                context.getBean(JaxRsContainerMessageBodyHandlerRegistry.class),
+                new SingleWriterRegistry(new TrackingWriter()),
+                interceptors,
+                metadata -> true,
+                routeInterceptors(context));
+            InstallingInterceptor interceptor = context.getBean(InstallingInterceptor.class);
+            var out = new java.io.ByteArrayOutputStream();
+            assertThrows(IllegalStateException.class, () -> genericWriter.writeTo(genericEntityArgument(), MediaType.TEXT_PLAIN_TYPE,
+                new GenericEntity<>(new Payload("x"), Payload.class), HttpResponse.ok().getHeaders(), out));
+            assertTrue(interceptor.closed);
+        }
+    }
+
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static BeanProvider<JaxRsRouteInterceptors> routeInterceptors(ApplicationContext context) {
         return (BeanProvider<JaxRsRouteInterceptors>) context.getBean(Argument.of(BeanProvider.class, JaxRsRouteInterceptors.class));
@@ -164,7 +182,11 @@ class WriterInterceptorReleaseTest {
         @Override
         public void writeTo(Argument<Object> type, MediaType mediaType, Object object, MutableHeaders outgoingHeaders,
                             OutputStream outputStream) {
-            throw new UnsupportedOperationException();
+            try {
+                outputStream.write(String.valueOf(object).getBytes(StandardCharsets.UTF_8));
+            } catch (IOException e) {
+                throw new java.io.UncheckedIOException(e);
+            }
         }
 
         private final class TrackedResponse extends HttpResponseWrapper<Object> implements ByteBodyHttpResponse<Object> {
