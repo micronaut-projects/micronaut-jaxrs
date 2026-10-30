@@ -91,6 +91,15 @@ class RequestPreconditionsTest {
     }
 
     @Test
+    void repeatedDateFieldsAreIgnored() {
+        // RFC 9110, 13.1.3 and 13.1.4: a field with several dates is invalid
+        assertEquals(200, status(HttpRequest.GET("/preconditions/date").headers(headers -> headers
+            .add("If-Modified-Since", "Mon, 01 Jan 2024 00:00:00 GMT").add("If-Modified-Since", "Sun, 01 Jan 2023 00:00:00 GMT"))));
+        assertEquals(200, status(HttpRequest.GET("/preconditions/date").headers(headers -> headers
+            .add("If-Unmodified-Since", "Sat, 31 Dec 2022 00:00:00 GMT").add("If-Unmodified-Since", "Mon, 01 Jan 2024 00:00:00 GMT"))));
+    }
+
+    @Test
     void obsoleteDateFormatsAreAccepted() {
         // RFC 9110, 5.6.7: RFC 850 and asctime too
         assertEquals(304, status(HttpRequest.GET("/preconditions/date").header("If-Modified-Since", "Sunday, 01-Jan-23 00:00:00 GMT")));

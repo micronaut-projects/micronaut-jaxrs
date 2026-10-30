@@ -228,10 +228,12 @@ final class JaxRsContextRequest implements Request {
      * @return The seconds, {@code null} if the header is missing or not a valid date
      */
     private static @Nullable Long date(HttpRequest<?> request, String name) {
-        String value = request.getHeaders().get(name);
-        if (value == null) {
+        List<String> values = request.getHeaders().getAll(name);
+        if (values.size() != 1) {
+            // a field that is repeated is ignored, like an invalid one (RFC 9110, 13.1.3 and 13.1.4)
             return null;
         }
+        String value = values.get(0);
         try {
             return RuntimeDelegate.getInstance().createHeaderDelegate(Date.class).fromString(value).getTime() / 1000;
         } catch (IllegalArgumentException e) {
