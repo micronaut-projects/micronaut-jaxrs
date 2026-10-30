@@ -8,7 +8,9 @@ import jakarta.ws.rs.ProcessingException;
 import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.client.ClientBuilder;
 import jakarta.ws.rs.client.ClientRequestFilter;
+import jakarta.ws.rs.client.ClientResponseFilter;
 import jakarta.ws.rs.client.Entity;
+import jakarta.ws.rs.client.ResponseProcessingException;
 import jakarta.ws.rs.client.WebTarget;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
@@ -17,6 +19,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.io.FilterInputStream;
 import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -71,6 +74,26 @@ class JaxRsClientLifecycleTest {
         ProcessingException e = assertThrows(ProcessingException.class,
             () -> target.request().post(Entity.entity(new Thing(), MediaType.TEXT_PLAIN_TYPE), String.class));
         assertInstanceOf(IOException.class, e.getCause());
+        assertTrue(closed.get());
+    }
+
+    @Test
+    void failureOfAResponseFilterCarriesTheFilteredResponse() {
+        AtomicBoolean closed = new AtomicBoolean();
+        WebTarget target = target("hello")
+            .register((ClientResponseFilter) (request, response) -> {
+                response.setEntityStream(new FilterInputStream(response.getEntityStream()) {
+                    @Override
+                    public void close() throws IOException {
+                        closed.set(true);
+                        super.close();
+                    }
+                });
+                throw new IOException("filter failed");
+            });
+
+        ResponseProcessingException e = assertThrows(ResponseProcessingException.class, () -> target.request().get(String.class));
+        e.getResponse().close();
         assertTrue(closed.get());
     }
 

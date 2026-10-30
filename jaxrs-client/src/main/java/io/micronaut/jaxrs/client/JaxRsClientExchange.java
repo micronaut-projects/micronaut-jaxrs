@@ -172,14 +172,17 @@ final class JaxRsClientExchange {
      */
     @SuppressWarnings({"unchecked", "NullAway"}) // a response may have no entity
     <T> T result(Exchanged exchanged, Argument<T> type) {
-        Response response;
+        // the response the filters see, which a failure of their processing carries
+        Response response = filterable(exchanged.response(), exchanged.requestContext());
         try {
-            response = filterResponse(exchanged.response(), exchanged.requestContext());
+            if (response instanceof JaxRsMutableResponse jaxRsMutableResponse) {
+                filterResponse(jaxRsMutableResponse, exchanged.requestContext());
+            }
         } catch (ResponseProcessingException e) {
             throw e;
         } catch (Exception e) {
             // the response was received: its processing failed (JAX-RS, SyncInvoker)
-            throw new ResponseProcessingException(exchanged.response(), e instanceof UncheckedIOException u ? u.getCause() : e);
+            throw new ResponseProcessingException(response, e instanceof UncheckedIOException u ? u.getCause() : e);
         }
         if (type.getType().equals(Response.class)) {
             return (T) response;
@@ -319,17 +322,16 @@ final class JaxRsClientExchange {
         return new JaxRsMutableResponse(httpResponse);
     }
 
-    private Response filterResponse(Response response, JaxRsClientRequestContext requestContext) {
+    /**
+     * The response the response filters see, with the readers of the client.
+     */
+    private Response filterable(Response response, JaxRsClientRequestContext requestContext) {
         if (response instanceof JaxRsMutableResponse jaxRsMutableResponse) {
-            jaxRsMutableResponse = jaxRsMutableResponse.withEntityReader(configuration.entityIO().createHttpMessageEntityReader(properties(requestContext)));
-            filterResponse(jaxRsMutableResponse, requestContext);
-            return jaxRsMutableResponse;
+            return jaxRsMutableResponse.withEntityReader(configuration.entityIO().createHttpMessageEntityReader(properties(requestContext)));
         }
         if (response instanceof JaxRsResponse jaxRsResponse) {
             MutableHttpResponse<?> mutableResponse = jaxRsResponse.getResponse().toMutableResponse();
-            JaxRsMutableResponse jaxRsMutableResponse = new JaxRsMutableResponse(mutableResponse, configuration.entityIO().createHttpMessageEntityReader(properties(requestContext)));
-            filterResponse(jaxRsMutableResponse, requestContext);
-            return jaxRsMutableResponse;
+            return new JaxRsMutableResponse(mutableResponse, configuration.entityIO().createHttpMessageEntityReader(properties(requestContext)));
         }
         return response;
     }
