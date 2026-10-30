@@ -53,6 +53,13 @@ class UriNormalizationTest {
     }
 
     @Test
+    void hexDigitsOfPercentEncodingsAreUpperCased() throws Exception {
+        String response = get("/api/norm/c%3a");
+        assertTrue(response.startsWith("HTTP/1.1 200"), response);
+        assertTrue(response.endsWith("any /api/norm/c%3A"), response);
+    }
+
+    @Test
     void normalizedPathStartingWithTwoSlashesStaysAPath() throws Exception {
         // the normalized path //evil/api/norm/b is not the authority evil and the path /api/norm/b
         String response = get("/x/..//evil/api/norm/b");
@@ -112,6 +119,13 @@ class UriNormalizationTest {
         @Produces("text/plain")
         public String b(@Context UriInfo uriInfo) {
             return "b " + uriInfo.getRequestUri().getRawPath();
+        }
+
+        @GET
+        @Path("{p}")
+        @Produces("text/plain")
+        public String any(@Context UriInfo uriInfo) {
+            return "any " + uriInfo.getRequestUri().getRawPath();
         }
     }
 }

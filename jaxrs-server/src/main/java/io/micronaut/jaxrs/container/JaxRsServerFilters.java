@@ -66,11 +66,13 @@ final class JaxRsServerFilters implements HttpRoutes {
     public void routes(HttpRouteBuilder routes) {
         routes.serverFilter("/**").preMatching()
             .beforeReplacingAsync(request -> {
-                normalize(request);
+                boolean normalized = normalize(request);
                 return filters.filterPreMatchingRequestAsync(request).thenApply(message -> {
                     // the request URI a pre-matching filter set is normalized too
                     if (message == null) {
-                        normalize(request);
+                        // a request whose URI only changed in the case of its percent-encodings is
+                        // equal to the one before, so it is returned for the normalized URI to be kept
+                        return normalize(request) || normalized ? request : null;
                     } else if (message instanceof MutableHttpRequest<?> changed) {
                         normalize(changed);
                     }
@@ -93,16 +95,18 @@ final class JaxRsServerFilters implements HttpRoutes {
     /**
      * Normalize the request URI before it is matched, the one {@code UriInfo} reflects (JAX-RS
      * 3.7.1): the syntax-based normalization of RFC 3986, 6.2.2.
+     *
+     * @return Whether the URI of the request was changed
      */
-    private static void normalize(MutableHttpRequest<?> request) {
+    private static boolean normalize(MutableHttpRequest<?> request) {
         URI uri = request.getUri();
         String rawPath = uri.getRawPath();
         if (rawPath == null || rawPath.indexOf('%') < 0 && rawPath.indexOf('.') < 0) {
-            return;
+            return false;
         }
         String normalized = normalizePath(rawPath);
         if (normalized.equals(rawPath)) {
-            return;
+            return false;
         }
         StringBuilder target = new StringBuilder();
         if (uri.getRawAuthority() != null) {
@@ -117,8 +121,10 @@ final class JaxRsServerFilters implements HttpRoutes {
         }
         try {
             request.uri(new URI(target.toString()));
+            return true;
         } catch (URISyntaxException e) {
             // left as it is
+            return false;
         }
     }
 

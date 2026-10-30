@@ -173,6 +173,17 @@ class ServerMatchingTest {
     }
 
     @Test
+    void encodedLiteralMatchesInAnyHexCase() {
+        assertEquals("slash", get("/lit/a%2Fb"));
+        assertEquals("slash", get("/lit/a%2fb"));
+    }
+
+    @Test
+    void bareLiteralPercentIsMatchedEncoded() {
+        assertEquals("percent", get("/lit/100%25"));
+    }
+
+    @Test
     void repeatedLocatorValuesAreKept() {
         assertEquals("same,same", get("/dups/same/sub/same"));
     }
@@ -412,6 +423,20 @@ class ServerMatchingTest {
         @Produces("text/plain")
         public String tilde() {
             return "tilde";
+        }
+
+        @GET
+        @Path("a%2fb")
+        @Produces("text/plain")
+        public String slash() {
+            return "slash";
+        }
+
+        @GET
+        @Path("100%")
+        @Produces("text/plain")
+        public String percent() {
+            return "percent";
         }
     }
 

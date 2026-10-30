@@ -399,20 +399,27 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
         byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
         for (int i = 0; i < bytes.length; i++) {
             int c = bytes[i] & 0xff;
-            if (c == '%' && i + 2 < bytes.length) {
-                // an encoded unreserved character is decoded, as it is in the path of a request (RFC 3986, 6.2.2.2)
-                int high = Character.digit(bytes[i + 1], 16);
-                int low = Character.digit(bytes[i + 2], 16);
-                int decoded = high < 0 || low < 0 ? -1 : high << 4 | low;
-                if (decoded >= 'a' && decoded <= 'z' || decoded >= 'A' && decoded <= 'Z' || decoded >= '0' && decoded <= '9'
-                    || decoded >= 0 && "-._~".indexOf(decoded) >= 0) {
-                    encoded.append((char) decoded);
+            if (c == '%') {
+                int high = i + 2 < bytes.length ? Character.digit(bytes[i + 1], 16) : -1;
+                int low = i + 2 < bytes.length ? Character.digit(bytes[i + 2], 16) : -1;
+                if (high >= 0 && low >= 0) {
+                    int decoded = high << 4 | low;
+                    if (decoded >= 'a' && decoded <= 'z' || decoded >= 'A' && decoded <= 'Z' || decoded >= '0' && decoded <= '9'
+                        || "-._~".indexOf(decoded) >= 0) {
+                        // an encoded unreserved character is decoded, as it is in the path of a request (RFC 3986, 6.2.2.2)
+                        encoded.append((char) decoded);
+                    } else {
+                        // the hexadecimal digits in upper case, as in the path of a request (RFC 3986, 6.2.2.1)
+                        encoded.append('%').append(Character.toUpperCase((char) bytes[i + 1]))
+                            .append(Character.toUpperCase((char) bytes[i + 2]));
+                    }
                     i += 2;
                     continue;
                 }
+                // a percent character that is not an escape is encoded (Path#value)
             }
             if (c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9'
-                || "-._~!$&'()*+,;=:@/%".indexOf(c) >= 0) {
+                || "-._~!$&'()*+,;=:@/".indexOf(c) >= 0) {
                 encoded.append((char) c);
             } else {
                 encoded.append('%').append(Character.toUpperCase(Character.forDigit(c >> 4, 16)))
