@@ -292,6 +292,37 @@ final class JaxRsClientEntityIO {
     }
 
     /**
+     * The argument of the entity of a generic entity: its raw type, the class of the entity, and
+     * its generic type, as the writers are given them (JAX-RS 4.2.2, {@code GenericEntity#getRawType}).
+     *
+     * @param genericEntity The generic entity
+     * @param annotations   The annotations of the entity
+     * @return The argument
+     */
+    @SuppressWarnings("unchecked")
+    static Argument<Object> argument(GenericEntity<?> genericEntity, AnnotationMetadata annotations) {
+        return JaxRsArgumentUtil.of((Class<Object>) genericEntity.getRawType(), JaxRsArgumentUtil.from(genericEntity), annotations);
+    }
+
+    /**
+     * The writer of the HTTP client of an entity no JAX-RS writer writes.
+     */
+    private <T> io.micronaut.http.body.@Nullable MessageBodyWriter<T> findClientWriter(Argument<T> argument, MediaType mediaType) {
+        MessageBodyHandlerRegistry registry = handlerRegistry;
+        if (registry == null) {
+            return null;
+        }
+        return registry.findWriter(argument, List.of(clientMediaType(mediaType))).orElse(null);
+    }
+
+    /**
+     * The media type the HTTP client writes an entity with: JSON when the request has none.
+     */
+    private static MediaType clientMediaType(MediaType mediaType) {
+        return mediaType.equals(MediaType.ALL_TYPE) ? MediaType.APPLICATION_JSON_TYPE : mediaType;
+    }
+
+    /**
      * A read through the reader interceptors of the client: the streams they set, which a stream
      * entity reads of, are closed with that entity, e.g. when the response is closed.
      *
@@ -344,36 +375,5 @@ final class JaxRsClientEntityIO {
             }
             return value;
         }
-    }
-
-    /**
-     * The argument of the entity of a generic entity: its raw type, the class of the entity, and
-     * its generic type, as the writers are given them (JAX-RS 4.2.2, {@code GenericEntity#getRawType}).
-     *
-     * @param genericEntity The generic entity
-     * @param annotations   The annotations of the entity
-     * @return The argument
-     */
-    @SuppressWarnings("unchecked")
-    static Argument<Object> argument(GenericEntity<?> genericEntity, AnnotationMetadata annotations) {
-        return JaxRsArgumentUtil.of((Class<Object>) genericEntity.getRawType(), JaxRsArgumentUtil.from(genericEntity), annotations);
-    }
-
-    /**
-     * The writer of the HTTP client of an entity no JAX-RS writer writes.
-     */
-    private <T> io.micronaut.http.body.@Nullable MessageBodyWriter<T> findClientWriter(Argument<T> argument, MediaType mediaType) {
-        MessageBodyHandlerRegistry registry = handlerRegistry;
-        if (registry == null) {
-            return null;
-        }
-        return registry.findWriter(argument, List.of(clientMediaType(mediaType))).orElse(null);
-    }
-
-    /**
-     * The media type the HTTP client writes an entity with: JSON when the request has none.
-     */
-    private static MediaType clientMediaType(MediaType mediaType) {
-        return mediaType.equals(MediaType.ALL_TYPE) ? MediaType.APPLICATION_JSON_TYPE : mediaType;
     }
 }
