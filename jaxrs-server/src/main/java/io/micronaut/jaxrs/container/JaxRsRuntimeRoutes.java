@@ -960,8 +960,14 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             || classMetadata.hasAnnotation(Encoded.class);
     }
 
+    /**
+     * The request method of a resource method: a standard one by its name in upper case, like
+     * the router matches it, a custom one as it is spelled, method names are case-sensitive
+     * (RFC 9110, 9.1).
+     */
     private static @Nullable String httpMethod(AnnotationMetadata metadata) {
-        return metadata.stringValue(HttpMethod.class).map(name -> name.toUpperCase(Locale.ENGLISH)).orElse(null);
+        return metadata.stringValue(HttpMethod.class).map(name -> io.micronaut.http.HttpMethod.parse(name) == io.micronaut.http.HttpMethod.CUSTOM
+            ? name : name.toUpperCase(Locale.ENGLISH)).orElse(null);
     }
 
     private static List<String> mediaTypes(AnnotationMetadata methodMetadata, AnnotationMetadata classMetadata,

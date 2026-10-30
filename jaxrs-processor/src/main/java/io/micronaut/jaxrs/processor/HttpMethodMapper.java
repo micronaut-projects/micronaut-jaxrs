@@ -36,7 +36,6 @@ import io.micronaut.inject.visitor.VisitorContext;
 import java.lang.annotation.Annotation;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 
 /**
  * Maps the JAX-RS {@code HttpMethod} annotation.
@@ -59,7 +58,8 @@ public class HttpMethodMapper implements NamedAnnotationMapper {
     public List<AnnotationValue<?>> map(AnnotationValue<Annotation> annotation, VisitorContext visitorContext) {
         String name = annotation.stringValue().orElse(null);
         if (name != null) {
-            name = name.toUpperCase(Locale.ENGLISH);
+            // the router matches the standard methods in any case, a custom one as it is spelled:
+            // method names are case-sensitive (RFC 9110, 9.1)
             HttpMethod httpMethod = HttpMethod.parse(name);
             AnnotationValueBuilder<?> builder = switch (httpMethod) {
                 case GET -> AnnotationValue.builder(Get.class);
@@ -72,7 +72,7 @@ public class HttpMethodMapper implements NamedAnnotationMapper {
                 case HEAD -> AnnotationValue.builder(Head.class);
                 // QUERY (RFC 10008) has its own annotation since Micronaut 5.2; the router does not match a QUERY
                 // request against a custom method route, so use it by name when it is available
-                default -> QUERY_METHOD.equals(name) && visitorContext.getClassElement(QUERY_ANNOTATION).isPresent()
+                default -> QUERY_METHOD.equalsIgnoreCase(name) && visitorContext.getClassElement(QUERY_ANNOTATION).isPresent()
                     ? AnnotationValue.builder(QUERY_ANNOTATION)
                     : AnnotationValue.builder(CustomHttpMethod.class).member("method", name);
             };
