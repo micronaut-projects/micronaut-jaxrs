@@ -35,6 +35,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.IntFunction;
 import java.util.function.UnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -124,24 +125,34 @@ final class JaxRsUriBuilder extends UriBuilder {
             }
             return this;
         } else {
-            Matcher match = HIERARCHICAL_URI.matcher(uriTemplate);
+            // a delimiter in the regular expression of a template, e.g. a '?', is not one of the URI
+            JaxRsUriTemplate.Protected template = JaxRsUriTemplate.protect(uriTemplate.toString());
+            Matcher match = HIERARCHICAL_URI.matcher(template.text());
+            if (!template.hasTemplates()
+                || match.matches() && match.group(2) != null && !template.restore(match.group(2)).equals(match.group(2))) {
+                // without templates, or with one where a scheme would be, which cannot be one
+                template = JaxRsUriTemplate.protect("");
+                match = HIERARCHICAL_URI.matcher(uriTemplate);
+            }
             if (match.matches()) {
                 ssp = null;
-                return parseHierarchicalUri(uriTemplate, match);
+                return parseHierarchicalUri(uriTemplate, match, template);
             }
         }
         throw new IllegalArgumentException("Illegal URI template" + uriTemplate);
     }
 
-    private UriBuilder parseHierarchicalUri(CharSequence uriTemplate, Matcher match) {
-        boolean scheme = match.group(2) != null;
+    private UriBuilder parseHierarchicalUri(CharSequence uriTemplate, Matcher matcher, JaxRsUriTemplate.Protected template) {
+        // the groups with their templates
+        IntFunction<@Nullable String> match = i -> matcher.group(i) == null ? null : template.restore(matcher.group(i));
+        boolean scheme = match.apply(2) != null;
         if (scheme) {
-            this.scheme = match.group(2);
+            this.scheme = match.apply(2);
         }
-        String authority = match.group(4);
+        String authority = match.apply(4);
         if (authority != null) {
             this.authority = null;
-            String host = match.group(4);
+            String host = match.apply(4);
             int at = host.indexOf('@');
             if (at > -1) {
                 String user = host.substring(0, at);
@@ -174,8 +185,8 @@ final class JaxRsUriBuilder extends UriBuilder {
                 this.host = host;
             }
         }
-        if (match.group(5) != null) {
-            String group = match.group(5);
+        if (match.apply(5) != null) {
+            String group = match.apply(5);
             // a colon of a template parameter, e.g. of {x:[0-9]+}, is not one of the path
             String text = group.indexOf('{') > -1 ? JaxRsUriTemplate.protect(group).text() : group;
             if (!scheme && !"".equals(text) && !text.startsWith("/") && text.indexOf(':') > -1 &&
@@ -186,11 +197,11 @@ final class JaxRsUriBuilder extends UriBuilder {
                 replacePath(group);
             }
         }
-        if (match.group(7) != null) {
-            replaceQuery(match.group(7));
+        if (match.apply(7) != null) {
+            replaceQuery(match.apply(7));
         }
-        if (match.group(9) != null) {
-            fragment(match.group(9));
+        if (match.apply(9) != null) {
+            fragment(match.apply(9));
         }
         return this;
     }
@@ -447,17 +458,16 @@ final class JaxRsUriBuilder extends UriBuilder {
         if (path == null) {
             path = matrix.isEmpty() ? null : matrix;
         } else {
-            int start = path.lastIndexOf('/');
+            // a semicolon or a slash of the regular expression of a template is not one of the path
+            JaxRsUriTemplate.Protected protectedPath = JaxRsUriTemplate.protect(path);
+            String text = protectedPath.text();
+            int start = text.lastIndexOf('/');
             if (start < 0) {
                 start = 0;
             }
-            int matrixIndex = path.indexOf(';', start);
-            if (matrixIndex > -1) {
-                path = path.substring(0, matrixIndex) + matrix;
-            } else {
-                path += matrix;
-            }
-
+            int matrixIndex = text.indexOf(';', start);
+            // the templates restored before the matrix parameters are appended: they are not ones
+            path = protectedPath.restore(matrixIndex > -1 ? text.substring(0, matrixIndex) : text) + matrix;
         }
         return this;
     }
@@ -690,12 +700,11 @@ final class JaxRsUriBuilder extends UriBuilder {
                 }
             }
         }
+        // put back all path param expressions, before the new values, which are not ones
+        path = protectedPath.restore(path);
         if (values != null && values.length > 0) {
             matrixParam(name, values);
         }
-
-        // put back all path param expressions
-        path = protectedPath.restore(path);
         return this;
     }
 

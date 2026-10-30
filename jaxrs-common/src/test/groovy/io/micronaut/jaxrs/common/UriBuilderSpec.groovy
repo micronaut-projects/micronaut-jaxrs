@@ -86,4 +86,16 @@ class UriBuilderSpec extends Specification {
         expect:
         UriBuilder.fromUri("http://example/a?q=1").uri(URI.create("http://example/b?")).build().toString() == "http://example/b?"
     }
+
+    void "the delimiters in the regular expression of a template are not ones of the URI"() {
+        expect:
+        UriBuilder.fromPath("a/{id:[^;]+};old=1").replaceMatrix("new=2").build("X").toString() == "a/X;new=2"
+        UriBuilder.fromPath("a/{x:[a-z?]+}/{y}").resolveTemplate("y", "Y").build("X").toString() == "a/X/Y"
+        UriBuilder.fromPath("a/{x:[a-z#]+}/{y}").resolveTemplate("y", "Y").build("X").toString() == "a/X/Y"
+    }
+
+    void "a replaced matrix parameter value like a template marker is kept"() {
+        expect:
+        UriBuilder.fromPath("p;n={x}").replaceMatrixParam("m", "_jaxrs_uri_parameter0_").build("X").toString() == "p;n=X;m=_jaxrs_uri_parameter0_"
+    }
 }
