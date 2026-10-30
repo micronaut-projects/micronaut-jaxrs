@@ -214,7 +214,7 @@ final class JaxRsServerFilters implements HttpRoutes {
                 filterResponse(request, response);
                 return;
             }
-            ExceptionMapper mapper = providers.getExceptionMapper(exception.getClass());
+            ExceptionMapper mapper = JaxRsProviders.registeredExceptionMapper(providers, exception.getClass());
             if (mapper == null) {
                 throw e;
             }

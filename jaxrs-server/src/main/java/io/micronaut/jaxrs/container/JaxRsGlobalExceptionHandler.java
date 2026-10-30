@@ -78,7 +78,7 @@ final class JaxRsGlobalExceptionHandler implements ExceptionHandler<Throwable, H
             // the IOException a provider threw, wrapped to cross Micronaut's reader and writer API
             exception = exception.getCause();
         }
-        ExceptionMapper exceptionMapper = providers.getExceptionMapper(exception.getClass());
+        ExceptionMapper exceptionMapper = JaxRsProviders.registeredExceptionMapper(providers, exception.getClass());
         if (exceptionMapper != null) {
             return map(request, exceptionMapper, exception);
         }
