@@ -1024,7 +1024,8 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     private static List<String> mediaTypes(AnnotationMetadata methodMetadata, AnnotationMetadata classMetadata,
                                            Class<? extends Annotation> annotation) {
         String[] values = methodMetadata.stringValues(annotation);
-        if (values.length == 0) {
+        if (values.length == 0 && !methodMetadata(methodMetadata).hasAnnotation(annotation)) {
+            // an explicitly empty annotation of the method is the default, not the one of its class
             values = classMetadata.stringValues(annotation);
         }
         List<String> mediaTypes = new ArrayList<>();
