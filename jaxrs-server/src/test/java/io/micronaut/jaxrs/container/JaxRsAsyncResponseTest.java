@@ -32,7 +32,7 @@ class JaxRsAsyncResponseTest {
 
     private static JaxRsAsyncResponse asyncResponse() {
         return new JaxRsAsyncResponse(value -> value instanceof Response response
-            ? HttpResponse.status(response.getStatus(), null) : HttpResponse.ok(value), () -> null, () -> null);
+            ? HttpResponse.status(response.getStatus(), null) : HttpResponse.ok(value), () -> null, () -> null, Runnable::run);
     }
 
     @Test
@@ -47,7 +47,7 @@ class JaxRsAsyncResponseTest {
                 Thread.currentThread().interrupt();
             }
             return HttpResponse.ok(value);
-        }, () -> null, () -> null);
+        }, () -> null, () -> null, Runnable::run);
         ExecutorService executor = Executors.newSingleThreadExecutor();
         try {
             Future<Boolean> resumed = executor.submit(() -> asyncResponse.resume("ok"));

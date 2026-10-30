@@ -23,11 +23,13 @@ import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.beans.BeanIntrospection;
 import io.micronaut.core.beans.BeanMethod;
+import io.micronaut.core.propagation.PropagatedContext;
 import io.micronaut.core.type.Argument;
 import io.micronaut.core.type.Executable;
 import io.micronaut.core.util.SupplierUtil;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.body.AsyncRequestBody;
+import io.micronaut.http.context.ServerRequestContext;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.Controller;
@@ -724,7 +726,38 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         Converter converter = method.converter();
         Completion completion = method.completion();
         // the value of the stage is negotiated like the result of a method that is not asynchronous
-        return stage.thenApply(value -> completion.complete(request, pathVariables, converter.convert(request, value)));
+        // in the context of the request: the response is written on the thread completing the stage
+        Executor inRequest = inRequest(request);
+        CompletableFuture<HttpResponse<?>> response = new CompletableFuture<>();
+        stage.whenComplete((value, failure) -> inRequest.execute(() -> {
+            if (failure != null) {
+                response.completeExceptionally(failure);
+                return;
+            }
+            HttpResponse<?> converted;
+            try {
+                converted = completion.complete(request, pathVariables, converter.convert(request, value));
+            } catch (Throwable e) {
+                response.completeExceptionally(e);
+                return;
+            }
+            response.complete(converted);
+        }));
+        return response;
+    }
+
+    /**
+     * Runs a task on the calling thread in the context of a request, e.g. the thread of the
+     * application completing an asynchronous response: the response is converted and written on
+     * it, and the writers may read the request, e.g. its {@code UriInfo} (JAX-RS 10.1).
+     */
+    private static Executor inRequest(HttpRequest<?> request) {
+        PropagatedContext context = PropagatedContext.getOrEmpty();
+        return task -> {
+            try (PropagatedContext.Scope ignored = context.propagate()) {
+                ServerRequestContext.with(request, task);
+            }
+        };
     }
 
     /**
@@ -738,7 +771,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         Completion completion = method.completion();
         // the resumed value is negotiated like the result of a method that is not asynchronous
         JaxRsAsyncResponse asyncResponse = new JaxRsAsyncResponse(
-            value -> completion.complete(request, pathVariables, converter.convert(request, value)), scheduler, callbackExecutor);
+            value -> completion.complete(request, pathVariables, converter.convert(request, value)), scheduler, callbackExecutor, inRequest(request));
         request.setAttribute(ASYNC_RESPONSE, asyncResponse);
         // the completion and connection callbacks, if the server reports the response and the client
         asyncResponse.bind(request);
