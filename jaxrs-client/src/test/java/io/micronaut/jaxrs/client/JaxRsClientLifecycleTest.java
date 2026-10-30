@@ -6,9 +6,11 @@ import io.micronaut.http.client.netty.DefaultHttpClient;
 import io.micronaut.runtime.server.EmbeddedServer;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
+import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.ProcessingException;
 import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.client.ClientBuilder;
+import jakarta.ws.rs.client.ClientRequestContext;
 import jakarta.ws.rs.client.ClientRequestFilter;
 import jakarta.ws.rs.client.ClientResponseFilter;
 import jakarta.ws.rs.client.Entity;
@@ -29,6 +31,7 @@ import jakarta.ws.rs.ext.MessageBodyReader;
 import jakarta.ws.rs.ext.MessageBodyWriter;
 import jakarta.ws.rs.ext.ReaderInterceptor;
 import jakarta.ws.rs.ext.WriterInterceptor;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -329,6 +332,216 @@ class JaxRsClientLifecycleTest {
             ProcessingException e = assertThrows(ProcessingException.class,
                 () -> timed.target(server.getURI()).path("client/slow").request().get(String.class));
             assertInstanceOf(TimeoutException.class, e.getCause());
+        }
+    }
+
+    private static OutputStream tracking(OutputStream stream, AtomicBoolean closed) {
+        return new FilterOutputStream(stream) {
+            @Override
+            public void close() throws IOException {
+                closed.set(true);
+                super.close();
+            }
+        };
+    }
+
+    private static InputStream tracking(InputStream stream, AtomicBoolean closed) {
+        return new FilterInputStream(stream) {
+            @Override
+            public void close() throws IOException {
+                closed.set(true);
+                super.close();
+            }
+        };
+    }
+
+    @Test
+    void replacedEntityStreamIsClosedWhenALaterFilterFails() {
+        AtomicBoolean closed = new AtomicBoolean();
+        WebTarget target = target("echo")
+            .register((ClientRequestFilter) context -> context.setEntityStream(tracking(context.getEntityStream(), closed)), 1)
+            .register((ClientRequestFilter) context -> {
+                throw new IOException("filter failed");
+            }, 2);
+
+        ProcessingException e = assertThrows(ProcessingException.class, () -> target.request().post(Entity.text("body"), String.class));
+        assertInstanceOf(IOException.class, e.getCause());
+        assertTrue(closed.get());
+    }
+
+    @Test
+    void replacedEntityStreamIsClosedWhenNoWriterWritesTheEntity() {
+        AtomicBoolean closed = new AtomicBoolean();
+        WebTarget target = target("echo")
+            .register((ClientRequestFilter) context -> context.setEntityStream(tracking(context.getEntityStream(), closed)));
+
+        assertThrows(ProcessingException.class,
+            () -> target.request().post(Entity.entity(new Thing(), "application/x-unknown"), String.class));
+        assertTrue(closed.get());
+    }
+
+    @Test
+    void streamOfAWriterInterceptorIsClosedWhenItFails() {
+        AtomicBoolean closed = new AtomicBoolean();
+        WebTarget target = target("echo")
+            .register((WriterInterceptor) context -> {
+                context.setOutputStream(tracking(context.getOutputStream(), closed));
+                throw new IOException("interceptor failed");
+            });
+
+        assertThrows(ProcessingException.class, () -> target.request().post(Entity.text("body"), String.class));
+        assertTrue(closed.get());
+    }
+
+    @Test
+    void streamOfAReaderInterceptorIsClosedWithTheResponse() throws IOException {
+        AtomicBoolean closed = new AtomicBoolean();
+        WebTarget target = target("hello")
+            .register((ReaderInterceptor) context -> {
+                context.setInputStream(tracking(context.getInputStream(), closed));
+                return context.proceed();
+            });
+
+        Response response = target.request().get();
+        InputStream stream = response.readEntity(InputStream.class);
+        assertEquals('h', stream.read());
+        response.close();
+        assertTrue(closed.get());
+    }
+
+    @Test
+    void streamOfAResponseFilterIsReadByTheReaderOfStreams() throws IOException {
+        WebTarget target = target("hello")
+            .register(new CustomStreamReader())
+            .register((ClientResponseFilter) (request, response) ->
+                response.setEntityStream(new FilterInputStream(response.getEntityStream()) { }));
+
+        try (Response response = target.request().get(); InputStream stream = response.readEntity(InputStream.class)) {
+            assertEquals("CUSTOM", new String(stream.readAllBytes(), StandardCharsets.UTF_8));
+        }
+    }
+
+    // more specific than the standard reader of streams, the tests being in a package of Micronaut
+    @Consumes(MediaType.TEXT_PLAIN)
+    public static final class CustomStreamReader implements MessageBodyReader<InputStream> {
+        @Override
+        public boolean isReadable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+            return type == InputStream.class;
+        }
+
+        @Override
+        public InputStream readFrom(Class<InputStream> type, Type genericType, Annotation[] annotations, MediaType mediaType,
+                                    MultivaluedMap<String, String> httpHeaders, InputStream entityStream) {
+            return new ByteArrayInputStream("CUSTOM".getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    @Test
+    void entityOfAnAbortedResponseIsNotIntercepted() {
+        String read = target("hello")
+            .register((ClientRequestFilter) context -> context.abortWith(Response.ok("cached", MediaType.TEXT_PLAIN_TYPE).build()))
+            .register((WriterInterceptor) context -> {
+                context.getOutputStream().write("outbound:".getBytes(StandardCharsets.UTF_8));
+                context.proceed();
+            })
+            .request()
+            .get(String.class);
+        assertEquals("cached", read);
+    }
+
+    @Test
+    void variantOfTheEntityRemovesTheEncodingAndLanguageItHasNot() {
+        AtomicReference<List<String>> seen = new AtomicReference<>();
+        target("echo")
+            .register((ClientRequestFilter) context -> {
+                seen.set(List.of(
+                    String.valueOf(context.getHeaderString("Content-Language")),
+                    String.valueOf(context.getHeaderString("Content-Encoding"))));
+                context.abortWith(Response.ok().build());
+            })
+            .request()
+            .header("Content-Language", "fr")
+            .header("Content-Encoding", "gzip")
+            .post(Entity.text("hello"))
+            .close();
+        assertEquals(List.of("null", "null"), seen.get());
+    }
+
+    @Test
+    void failureOfAReaderOtherThanAnIOExceptionIsAProcessingException() {
+        try (Response response = target("hello").register(new RejectingReader()).request().get()) {
+            ProcessingException e = assertThrows(ProcessingException.class, () -> response.readEntity(Thing.class));
+            assertInstanceOf(IllegalArgumentException.class, e.getCause());
+        }
+    }
+
+    static final class RejectingReader implements MessageBodyReader<Thing> {
+        @Override
+        public boolean isReadable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+            return type == Thing.class;
+        }
+
+        @Override
+        public Thing readFrom(Class<Thing> type, Type genericType, Annotation[] annotations, MediaType mediaType,
+                              MultivaluedMap<String, String> httpHeaders, InputStream entityStream) {
+            throw new IllegalArgumentException("malformed");
+        }
+    }
+
+    @Test
+    void methodKeepsItsCase() {
+        AtomicReference<String> seen = new AtomicReference<>();
+        target("echo")
+            .register((ClientRequestFilter) context -> {
+                seen.set(context.getMethod());
+                context.abortWith(Response.ok().build());
+            })
+            .request()
+            .method("pOsT", Entity.text("hello"))
+            .close();
+        assertEquals("pOsT", seen.get());
+    }
+
+    @Test
+    void classesAndInstancesOfAConfigurationCannotBeChanged() {
+        WebTarget target = target("hello").register(CustomStreamReader.class).register(new RejectingReader());
+        assertThrows(UnsupportedOperationException.class, () -> target.getConfiguration().getClasses().clear());
+        assertThrows(UnsupportedOperationException.class, () -> target.getConfiguration().getInstances().clear());
+    }
+
+    @Test
+    void providerRegisteredAsAClassIsConstructedWithItsContext() {
+        assertEquals("A", target("hello").property("x", "A").register(ContextConstructedFilter.class).request().get(String.class));
+        assertEquals("B", target("hello").property("x", "B").register(TwoConstructorsFilter.class).request().get(String.class));
+    }
+
+    public static final class ContextConstructedFilter implements ClientRequestFilter {
+        private final Configuration configuration;
+
+        public ContextConstructedFilter(@Context Configuration configuration) {
+            this.configuration = configuration;
+        }
+
+        @Override
+        public void filter(ClientRequestContext requestContext) {
+            requestContext.abortWith(Response.ok(String.valueOf(configuration.getProperty("x"))).build());
+        }
+    }
+
+    public static final class TwoConstructorsFilter implements ClientRequestFilter {
+        private final @Nullable Configuration configuration;
+
+        public TwoConstructorsFilter() {
+            this.configuration = null;
+        }
+
+        public TwoConstructorsFilter(@Context Configuration configuration) {
+            this.configuration = configuration;
+        }
+
+        @Override
+        public void filter(ClientRequestContext requestContext) {
+            requestContext.abortWith(Response.ok(configuration == null ? "none" : String.valueOf(configuration.getProperty("x"))).build());
         }
     }
 

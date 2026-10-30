@@ -117,7 +117,13 @@ public abstract class JaxRsInterceptedWrite<T, S extends JaxRsWriterInterceptorC
                     state,
                     properties
                 );
-                iterator.next().aroundWriteTo(context);
+                try {
+                    iterator.next().aroundWriteTo(context);
+                } catch (IOException | RuntimeException e) {
+                    // the streams the interceptors installed are owned by the runtime
+                    state.abort(e);
+                    throw e;
+                }
                 state.finish();
             } else {
                 writeToAfterInterception(
