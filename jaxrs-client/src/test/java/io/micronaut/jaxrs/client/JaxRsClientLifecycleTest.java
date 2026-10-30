@@ -10,10 +10,12 @@ import jakarta.ws.rs.client.ClientBuilder;
 import jakarta.ws.rs.client.ClientRequestFilter;
 import jakarta.ws.rs.client.ClientResponseFilter;
 import jakarta.ws.rs.client.Entity;
+import jakarta.ws.rs.client.InvocationCallback;
 import jakarta.ws.rs.client.ResponseProcessingException;
 import jakarta.ws.rs.client.WebTarget;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
+import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.MessageBodyWriter;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,8 +27,12 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -95,6 +101,51 @@ class JaxRsClientLifecycleTest {
         ResponseProcessingException e = assertThrows(ResponseProcessingException.class, () -> target.request().get(String.class));
         e.getResponse().close();
         assertTrue(closed.get());
+    }
+
+    @Test
+    void responseOfAnInvocationCancelledWhileItIsProcessedIsClosed() throws Exception {
+        AtomicBoolean closed = new AtomicBoolean();
+        AtomicBoolean called = new AtomicBoolean();
+        var entered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        WebTarget target = target("hello")
+            .register((ClientResponseFilter) (request, response) -> {
+                response.setEntityStream(new FilterInputStream(response.getEntityStream()) {
+                    @Override
+                    public void close() throws IOException {
+                        closed.set(true);
+                        super.close();
+                    }
+                });
+                entered.countDown();
+                try {
+                    release.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+
+        Future<Response> future = target.request().async().get(new InvocationCallback<Response>() {
+            @Override
+            public void completed(Response response) {
+                called.set(true);
+            }
+
+            @Override
+            public void failed(Throwable throwable) {
+                called.set(true);
+            }
+        });
+        assertTrue(entered.await(10, TimeUnit.SECONDS));
+        assertTrue(future.cancel(true));
+        release.countDown();
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (!closed.get() && System.nanoTime() < deadline) {
+            Thread.onSpinWait();
+        }
+        assertTrue(closed.get());
+        assertFalse(called.get());
     }
 
     static final class Thing {
