@@ -22,6 +22,7 @@ import io.micronaut.http.uri.RouteTemplate;
 import io.micronaut.http.uri.UriTemplateMatcher;
 import io.micronaut.web.router.UriRouteMatch;
 import io.micronaut.web.router.spi.RouteMatchSelector.Selection;
+import jakarta.ws.rs.Produces;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -87,15 +88,21 @@ final class JaxRsRouteSelector {
         if (root != null && !committed(request, root)) {
             return List.of();
         }
-        // every method of the root resource class of the most specific template whose template
-        // matches the path is a candidate, its media types select among them (JAX-RS 3.7.2, steps
-        // 2(h) and 3); the most specific template is preferred among equally negotiated ones
+        // every method of the root resource classes with the regular expression of the most specific
+        // template, up to the names of the variables (JAX-RS 3.7.2, step 1(f)), whose template matches
+        // the path is a candidate, its media types select among them (steps 2(h) and 3); the most
+        // specific template is preferred among equally negotiated ones
         List<UriRouteMatch<?, ?>> candidates = new ArrayList<>(matches.size());
         for (UriRouteMatch<?, ?> match : matches) {
             RouteTemplate matchRoot = JaxRsRouteTemplateEngine.rootOf(match.getRouteInfo().getRouteTemplate());
-            if (root == null ? matchRoot == null : matchRoot != null && matchRoot.expression().equals(root.expression())) {
+            if (root == null ? matchRoot == null : matchRoot != null && JaxRsRouteTemplateEngine.sameRegex(matchRoot, root)) {
                 candidates.add(match);
             }
+        }
+        if (candidates.stream().anyMatch(c -> !JaxRsRouteTemplateEngine.isSubResource(c.getRouteInfo().getRouteTemplate()))) {
+            // a resource method of the class matches: the rest of the path is empty or "/", only the
+            // resource methods of the class are candidates, not its sub-resource methods (step 2(a))
+            candidates.removeIf(c -> JaxRsRouteTemplateEngine.isSubResource(c.getRouteInfo().getRouteTemplate()));
         }
         candidates.sort((a, b) -> JaxRsRouteTemplateEngine.ORDER.compare(a.getRouteInfo().getRouteTemplate(), b.getRouteInfo().getRouteTemplate()));
         if (candidates.size() > 1 && candidates.stream().anyMatch(c -> !c.getRouteInfo().isImplicitHead())) {
@@ -145,8 +152,10 @@ final class JaxRsRouteSelector {
             return unsupported == null ? List.of() : List.of(Selection.unsupportedMediaType(unsupported));
         }
         List<MediaType> produces = selected.getRouteInfo().getProduces();
-        boolean declared = !(produces.size() == 1 && produces.get(0).equals(MediaType.ALL_TYPE));
         MediaType type = selectedType.type();
+        boolean declared = !(produces.size() == 1 && produces.get(0).equals(MediaType.ALL_TYPE))
+            // a method that declares it produces any type has the concrete type it negotiated (JAX-RS 3.8)
+            || JaxRsMediaNegotiation.specificity(type) == 2 && selected.getRouteInfo().getAnnotationMetadata().hasAnnotation(Produces.class);
         if (declared && JaxRsMediaNegotiation.specificity(type) < 2 && JaxRsMediaNegotiation.octetStreamFallback(accepted, produces)) {
             // not concrete: JAX-RS answers with application/octet-stream
             type = MediaType.APPLICATION_OCTET_STREAM_TYPE;

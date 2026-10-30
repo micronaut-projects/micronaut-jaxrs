@@ -6,6 +6,7 @@ import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.client.HttpClient;
 import io.micronaut.http.client.annotation.Client;
+import io.micronaut.http.client.exceptions.HttpClientResponseException;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.CookieParam;
@@ -37,6 +38,7 @@ import java.util.SortedSet;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -181,6 +183,34 @@ class ServerMatchingTest {
     @Test
     void bareLiteralPercentIsMatchedEncoded() {
         assertEquals("percent", get("/lit/100%25"));
+    }
+
+    @Test
+    void rootClassesWithEquivalentTemplatesAreCandidates() {
+        assertEquals("text:1", client.toBlocking().retrieve(HttpRequest.GET("/eq/1/same").accept("text/plain"), String.class));
+        assertEquals("xml:1", client.toBlocking().retrieve(HttpRequest.GET("/eq/1/same").accept("application/xml"), String.class));
+    }
+
+    @Test
+    void declaredWildcardProductionTakesTheNegotiatedType() {
+        HttpResponse<String> response = client.toBlocking().exchange(HttpRequest.GET("/wildprod").accept("text/plain"), String.class);
+        assertTrue(response.getHeaders().get("Content-Type").startsWith("text/plain"), response.getHeaders().get("Content-Type"));
+    }
+
+    @Test
+    void resourceMethodsAloneAreCandidatesForAnEmptyRest() {
+        HttpClientResponseException e = assertThrows(HttpClientResponseException.class,
+            () -> client.toBlocking().retrieve(HttpRequest.GET("/emptyrest/").accept("application/xml"), String.class));
+        assertEquals(406, e.getStatus().getCode());
+        assertEquals("sub:a", client.toBlocking().retrieve(HttpRequest.GET("/emptyrest/a").accept("application/xml"), String.class));
+    }
+
+    @Test
+    void zeroQualityParameterNamesAreCaseInsensitive() {
+        HttpClientResponseException e = assertThrows(HttpClientResponseException.class,
+            () -> client.toBlocking().retrieve(HttpRequest.GET("/charset")
+                .header("Accept", "text/plain;Charset=UTF-8;q=0, text/plain;q=1"), String.class));
+        assertEquals(406, e.getStatus().getCode());
     }
 
     @Test
@@ -437,6 +467,65 @@ class ServerMatchingTest {
         @Produces("text/plain")
         public String percent() {
             return "percent";
+        }
+    }
+
+    @Requires(property = "spec.name", value = "ServerMatchingTest")
+    @Path("/eq/{a}")
+    public static class EquivalentTextResource {
+        @GET
+        @Path("same")
+        @Produces("text/plain")
+        public String same(@PathParam("a") String a) {
+            return "text:" + a;
+        }
+    }
+
+    @Requires(property = "spec.name", value = "ServerMatchingTest")
+    @Path("/eq/{b}")
+    public static class EquivalentXmlResource {
+        @GET
+        @Path("same")
+        @Produces("application/xml")
+        public String same(@PathParam("b") String b) {
+            return "xml:" + b;
+        }
+    }
+
+    @Requires(property = "spec.name", value = "ServerMatchingTest")
+    @Path("/wildprod")
+    public static class DeclaredWildcardResource {
+        @GET
+        @Produces("*/*")
+        public String get() {
+            return "x";
+        }
+    }
+
+    @Requires(property = "spec.name", value = "ServerMatchingTest")
+    @Path("/emptyrest")
+    public static class EmptyRestResource {
+        @GET
+        @Produces("text/plain")
+        public String get() {
+            return "root";
+        }
+
+        @GET
+        @Path("{x:.*}")
+        @Produces("application/xml")
+        public String sub(@PathParam("x") String x) {
+            return "sub:" + x;
+        }
+    }
+
+    @Requires(property = "spec.name", value = "ServerMatchingTest")
+    @Path("/charset")
+    public static class CharsetResource {
+        @GET
+        @Produces("text/plain;charset=UTF-8")
+        public String get() {
+            return "charset";
         }
     }
 

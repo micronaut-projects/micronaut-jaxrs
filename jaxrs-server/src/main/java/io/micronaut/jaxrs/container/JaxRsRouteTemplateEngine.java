@@ -170,6 +170,33 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
     }
 
     /**
+     * @param template A template of a route
+     * @return Whether it is the template of a sub-resource method or locator of a root resource
+     * class of this engine: it has a path after the {@code @Path} of its class
+     */
+    static boolean isSubResource(RouteTemplate template) {
+        return template instanceof Parsed parsed && parsed.rootPart != null && hasSubResource(parsed.expression);
+    }
+
+    /**
+     * Whether two templates of root resource classes have the same regular expression, up to the
+     * names of their variables (JAX-RS 3.7.2, step 1(f)).
+     *
+     * @param a A template of a root resource class
+     * @param b Another template of a root resource class
+     * @return Whether they match the same paths with the same captures
+     */
+    static boolean sameRegex(RouteTemplate a, RouteTemplate b) {
+        if (a == b) {
+            return true;
+        }
+        if (a instanceof Parsed pa && b instanceof Parsed pb) {
+            return pa.regexKey().equals(pb.regexKey());
+        }
+        return a.expression().equals(b.expression());
+    }
+
+    /**
      * Whether JAX-RS commits to the root resource class of a sub-resource locator route, see
      * {@link JaxRsRouteSelector#commitsToLocator}.
      *
@@ -500,6 +527,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
         private volatile @Nullable Compiled compiledWithSlash;
         private volatile @Nullable Pattern prefixPattern;
         private volatile @Nullable JaxRsTemplateDescription description;
+        private volatile @Nullable String regexKey;
 
         /**
          * @param engine     The engine that parsed it, or {@code null} for the template of a root resource class
@@ -554,6 +582,27 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
         @Override
         public List<RouteTemplateVariable> variables() {
             return variables;
+        }
+
+        /**
+         * @return Its regular expression without the names of the variables, see {@link #sameRegex}
+         */
+        String regexKey() {
+            String key = regexKey;
+            if (key == null) {
+                StringBuilder builder = new StringBuilder();
+                for (Part part : withoutTrailingSlash(parts)) {
+                    if (part.text != null) {
+                        builder.append(encode(part.text));
+                    } else {
+                        // not a character of an encoded literal
+                        builder.append('{').append(part.regex == null ? DEFAULT_REGEX : part.regex).append('\u0000');
+                    }
+                }
+                key = builder.toString();
+                regexKey = key;
+            }
+            return key;
         }
 
         @Override
