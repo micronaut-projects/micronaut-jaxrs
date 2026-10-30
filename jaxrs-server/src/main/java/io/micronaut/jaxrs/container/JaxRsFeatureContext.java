@@ -71,6 +71,8 @@ final class JaxRsFeatureContext implements FeatureContext {
     private final Map<Object, Integer> defaultPriorities = new HashMap<>();
     private final Map<Object, Set<Class<?>>> contracts = new HashMap<>();
     private final Set<Class<?>> classes = new HashSet<>();
+    // the features a dynamic feature registered whose configure returned true
+    private final Set<Feature> enabledFeatures = new HashSet<>();
 
     /**
      * @param features The features, whose global registrations a global context changes
@@ -191,7 +193,9 @@ final class JaxRsFeatureContext implements FeatureContext {
             if (instance instanceof Feature feature && isFeature(componentClass, contracts) && features.isServerComponent(feature)) {
                 // a feature registered by a dynamic feature configures the same resource
                 // method (DynamicFeature.configure), unless constrained to the client
-                feature.configure(this);
+                if (feature.configure(this)) {
+                    enabledFeatures.add(feature);
+                }
             }
         }
         return this;
@@ -397,11 +401,16 @@ final class JaxRsFeatureContext implements FeatureContext {
 
         @Override
         public boolean isEnabled(Feature feature) {
-            return global.isEnabled(feature);
+            return local.enabledFeatures.contains(feature) || global.isEnabled(feature);
         }
 
         @Override
         public boolean isEnabled(Class<? extends Feature> featureClass) {
+            for (Feature feature : local.enabledFeatures) {
+                if (feature.getClass() == featureClass) {
+                    return true;
+                }
+            }
             return global.isEnabled(featureClass);
         }
 
