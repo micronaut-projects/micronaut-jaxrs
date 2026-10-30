@@ -323,7 +323,7 @@ final class JaxRsConfiguration implements Configuration {
 
     @Override
     public Collection<String> getPropertyNames() {
-        return properties.keySet();
+        return Collections.unmodifiableSet(properties.keySet());
     }
 
     @Override

@@ -26,14 +26,18 @@ import io.micronaut.http.simple.SimpleHttpHeaders;
 import io.micronaut.jaxrs.client.JaxRsClientExchange.Exchanged;
 import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
 import jakarta.ws.rs.ProcessingException;
+import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.client.AsyncInvoker;
 import jakarta.ws.rs.client.CompletionStageRxInvoker;
 import jakarta.ws.rs.client.Entity;
 import jakarta.ws.rs.client.Invocation;
 import jakarta.ws.rs.client.InvocationCallback;
+import jakarta.ws.rs.client.ResponseProcessingException;
 import jakarta.ws.rs.core.GenericType;
 import jakarta.ws.rs.core.Response;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -192,7 +196,10 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
             }
             var _ = sent.whenComplete((exchanged, throwable) -> execute(executor, () -> {
                 if (result.isDone()) {
-                    // cancelled
+                    // cancelled: the received response is not delivered
+                    if (exchanged != null) {
+                        discard(exchanged.response(), null);
+                    }
                     return;
                 }
                 T value = null;
@@ -203,6 +210,12 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
                     } catch (RuntimeException e) {
                         failure = e;
                     }
+                }
+                if (result.isDone()) {
+                    // cancelled while the response was processed: neither the callback nor the
+                    // future receives it
+                    discard(value, failure);
+                    return;
                 }
                 complete(result, value, failure, callback);
             }, failure -> complete(result, null, failure, callback)));
@@ -234,11 +247,38 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
                 }
             }
         } finally {
-            if (cause == null) {
-                result.complete(value);
-            } else {
-                result.completeExceptionally(cause);
+            boolean delivered = cause == null ? result.complete(value) : result.completeExceptionally(cause);
+            if (!delivered) {
+                // cancelled meanwhile
+                discard(value, cause);
             }
+        }
+    }
+
+    /**
+     * Release the result of an invocation that is not delivered, because it was cancelled: the
+     * response it holds, as the result or as the response of its failure, is closed.
+     *
+     * @param value   The result, {@code null} if none
+     * @param failure The failure, {@code null} if none
+     */
+    private static void discard(@Nullable Object value, @Nullable Throwable failure) {
+        Response response = null;
+        if (value instanceof Response r) {
+            response = r;
+        } else if (failure instanceof ResponseProcessingException e) {
+            response = e.getResponse();
+        } else if (failure instanceof WebApplicationException e) {
+            response = e.getResponse();
+        }
+        try {
+            if (response != null) {
+                response.close();
+            } else if (value instanceof Closeable closeable) {
+                closeable.close();
+            }
+        } catch (IOException | RuntimeException e) {
+            // nobody receives the result
         }
     }
 

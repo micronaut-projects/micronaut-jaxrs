@@ -152,8 +152,13 @@ final class JaxRsInvocationBuilder implements Invocation.Builder {
     }
 
     @Override
-    public Invocation.Builder cacheControl(CacheControl cacheControl) {
-        mutableHttpHeaders.add(HttpHeaders.CACHE_CONTROL, toRuntimeString(cacheControl));
+    public Invocation.Builder cacheControl(@Nullable CacheControl cacheControl) {
+        // it replaces the cache control set before, a null one removes it (JAX-RS, Invocation.Builder#cacheControl)
+        if (cacheControl == null) {
+            mutableHttpHeaders.remove(HttpHeaders.CACHE_CONTROL);
+        } else {
+            mutableHttpHeaders.set(HttpHeaders.CACHE_CONTROL, toRuntimeString(cacheControl));
+        }
         return this;
     }
 
@@ -208,10 +213,13 @@ final class JaxRsInvocationBuilder implements Invocation.Builder {
     @Override
     @SuppressWarnings({"unchecked", "rawtypes"})
     public <T extends RxInvoker> T rx(Class<T> clazz) {
-        // the invoker of a registered provider for the type
-        for (RxInvokerProvider provider : configuration.getProviders(RxInvokerProvider.class)) {
-            if (provider.isProviderFor(clazz)) {
-                return (T) provider.getRxInvoker(this, client.getExecutorService());
+        // the invoker of a registered provider for the type, whose injected configuration, when it
+        // is shared, is the one of this invocation (JAX-RS 10.2.8)
+        try (var ignored = configuration.current()) {
+            for (RxInvokerProvider provider : configuration.getProviders(RxInvokerProvider.class)) {
+                if (provider.isProviderFor(clazz)) {
+                    return (T) provider.getRxInvoker(this, client.getExecutorService());
+                }
             }
         }
         throw new IllegalStateException("No RxInvokerProvider registered for " + clazz.getName());

@@ -215,6 +215,7 @@ public final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
 
     @Override
     public SSLContext getSslContext() {
+        checkOpen();
         if (sslContext != null) {
             return sslContext;
         }
@@ -228,6 +229,7 @@ public final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
     @Override
     @SuppressWarnings("NullAway") // no host name verifier means the default verification
     public HostnameVerifier getHostnameVerifier() {
+        checkOpen();
         return hostnameVerifier;
     }
 }

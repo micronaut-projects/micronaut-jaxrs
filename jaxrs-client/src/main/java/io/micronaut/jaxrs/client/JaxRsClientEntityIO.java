@@ -29,10 +29,12 @@ import io.micronaut.http.body.MessageBodyHandlerRegistry;
 import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
 import io.micronaut.jaxrs.common.ByteArrayByteBuffer;
 import io.micronaut.jaxrs.common.HttpMessageEntityReader;
+import io.micronaut.jaxrs.common.JaxRsIOException;
 import io.micronaut.jaxrs.common.JaxRsInterceptedRead;
 import io.micronaut.jaxrs.common.JaxRsInterceptedWrite;
 import io.micronaut.jaxrs.common.JaxRsCurrentProviders;
 import io.micronaut.jaxrs.common.JaxRsWriterInterceptorContextState;
+import jakarta.ws.rs.ProcessingException;
 import jakarta.ws.rs.ext.Providers;
 import jakarta.ws.rs.core.GenericEntity;
 import jakarta.ws.rs.ext.MessageBodyWriter;
@@ -94,6 +96,39 @@ final class JaxRsClientEntityIO {
                 Providers previous = JaxRsCurrentProviders.set(providers);
                 try {
                     return readEntityOfConfiguration(message, entityType);
+                } catch (JaxRsIOException e) {
+                    // the failure of a reader is a processing failure (JAX-RS, Response#readEntity)
+                    throw new ProcessingException(e.getCause());
+                } finally {
+                    JaxRsCurrentProviders.restore(previous);
+                }
+            }
+
+            @Override
+            public InputStream readEntityStream(HttpMessage<?> message, InputStream entityStream) {
+                List<BeanRegistration<ReaderInterceptor>> readerInterceptors = providers.getReaderInterceptors();
+                if (readerInterceptors.isEmpty()) {
+                    return entityStream;
+                }
+                Providers previous = JaxRsCurrentProviders.set(providers);
+                try {
+                    MediaType mediaType = message.getContentType().orElse(MediaType.APPLICATION_OCTET_STREAM_TYPE);
+                    HttpHeaders headers = message.getHeaders();
+                    InputStream read = new JaxRsInterceptedRead<InputStream>(readerInterceptors, metadata -> true) {
+
+                        @Override
+                        protected @Nullable InputStream readFromAfterInterception(Argument<Object> type, @Nullable MediaType mediaType, Headers httpHeaders, InputStream inputStream) {
+                            io.micronaut.http.body.MessageBodyReader<Object> reader = providers.findReader(type, mediaType);
+                            if (reader != null) {
+                                return (InputStream) reader.read(type, mediaType, headers, inputStream);
+                            }
+                            throw new IllegalStateException("No reader found for type " + type.getType() + " and mediaType " + mediaType);
+                        }
+
+                    }.intercept(Argument.of(InputStream.class), mediaType, headers, entityStream, properties);
+                    return read == null ? InputStream.nullInputStream() : read;
+                } catch (JaxRsIOException e) {
+                    throw new ProcessingException(e.getCause());
                 } finally {
                     JaxRsCurrentProviders.restore(previous);
                 }

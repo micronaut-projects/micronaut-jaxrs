@@ -45,6 +45,7 @@ import javax.net.ssl.SSLContext;
 import java.security.KeyStore;
 import java.time.Duration;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.concurrent.ExecutorService;
@@ -157,7 +158,7 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
     @Override
     public ClientBuilder sslContext(SSLContext sslContext) {
         // it resets the stores set before (JAX-RS, ClientBuilder#sslContext)
-        this.sslContext = sslContext;
+        this.sslContext = Objects.requireNonNull(sslContext, "sslContext");
         this.keyStore = null;
         this.keyStorePassword = null;
         this.trustStore = null;
@@ -166,6 +167,8 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
 
     @Override
     public ClientBuilder keyStore(KeyStore keyStore, char[] password) {
+        Objects.requireNonNull(keyStore, "keyStore");
+        Objects.requireNonNull(password, "password");
         this.keyStore = keyStore;
         this.keyStorePassword = password;
         // it resets the SSL context set before (JAX-RS, ClientBuilder#keyStore)
@@ -175,7 +178,7 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
 
     @Override
     public ClientBuilder trustStore(KeyStore trustStore) {
-        this.trustStore = trustStore;
+        this.trustStore = Objects.requireNonNull(trustStore, "trustStore");
         // it resets the SSL context set before (JAX-RS, ClientBuilder#trustStore)
         this.sslContext = null;
         return this;
@@ -201,7 +204,8 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
 
     @Override
     public ClientBuilder connectTimeout(long timeout, TimeUnit unit) {
-        this.connectTimeout = timeout(timeout, unit);
+        // zero is infinite, not the default connect timeout of the HTTP client, which no timeout means
+        this.connectTimeout = timeout == 0 ? Duration.ZERO : timeout(timeout, unit);
         return this;
     }
 

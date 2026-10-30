@@ -29,6 +29,7 @@ import io.micronaut.http.MutableHttpHeaders;
 import io.micronaut.http.MutableHttpRequest;
 import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.http.client.exceptions.HttpClientResponseException;
+import io.micronaut.http.client.exceptions.ReadTimeoutException;
 import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
 import io.micronaut.jaxrs.common.JaxRsHeaderUtil;
 import io.micronaut.jaxrs.common.JaxRsIOException;
@@ -64,6 +65,7 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 
 /**
  * The exchange of an invocation: the request filters, the writing of the request entity, the
@@ -128,6 +130,7 @@ final class JaxRsClientExchange {
             // the injected configuration of a shared filter is the one of this invocation (JAX-RS 10.2.8)
             Response aborted = JaxRsClientFilters.filterRequest(configuration, requestContext);
             if (aborted != null) {
+                requestContext.closeReplacedEntityStream(null);
                 future.complete(new Exchanged(written(aborted), requestContext));
                 return future;
             }
@@ -148,6 +151,11 @@ final class JaxRsClientExchange {
                     // a response that is not successful is filtered like any other
                     future.complete(new Exchanged(new JaxRsMutableResponse(httpClientResponseException.getResponse().toMutableResponse()
                         .attribute(JaxRsResponse.REQUEST_URI, requestUri)), requestContext));
+                } else if (throwable instanceof ReadTimeoutException) {
+                    // the cause of a timeout is a TimeoutException (JAX-RS, ClientBuilder#readTimeout)
+                    var timeout = new TimeoutException(throwable.getMessage());
+                    timeout.initCause(throwable);
+                    future.completeExceptionally(new ProcessingException(timeout));
                 } else if (throwable != null) {
                     future.completeExceptionally(new ProcessingException(throwable));
                 } else if (response == null) {
@@ -171,14 +179,17 @@ final class JaxRsClientExchange {
      */
     @SuppressWarnings({"unchecked", "NullAway"}) // a response may have no entity
     <T> T result(Exchanged exchanged, Argument<T> type) {
-        Response response;
+        // the response the filters see, which a failure of their processing carries
+        Response response = filterable(exchanged.response(), exchanged.requestContext());
         try {
-            response = filterResponse(exchanged.response(), exchanged.requestContext());
+            if (response instanceof JaxRsMutableResponse jaxRsMutableResponse) {
+                filterResponse(jaxRsMutableResponse, exchanged.requestContext());
+            }
         } catch (ResponseProcessingException e) {
             throw e;
         } catch (Exception e) {
             // the response was received: its processing failed (JAX-RS, SyncInvoker)
-            throw new ResponseProcessingException(exchanged.response(), e instanceof UncheckedIOException u ? u.getCause() : e);
+            throw new ResponseProcessingException(response, e instanceof UncheckedIOException u ? u.getCause() : e);
         }
         if (type.getType().equals(Response.class)) {
             return (T) response;
@@ -203,7 +214,12 @@ final class JaxRsClientExchange {
     private MutableHttpRequest<Object> changed(MutableHttpRequest<Object> request, JaxRsClientRequestContext requestContext) throws IOException {
         request = withChangedMethod(request, requestContext);
         Object entity = requestContext.getEntity();
-        if (entity != null) {
+        if (entity == null) {
+            // the entity stream a filter replaced writes nothing
+            requestContext.closeReplacedEntityStream(null);
+            return request;
+        }
+        try {
             // the entity as the filters left it, with the media type they left
             // written to bytes when a filter replaced the entity stream, which writes them
             configuration.entityIO().writeBody(request, requestContext.getEntityArgument(), entity, requestContext.isEntityStreamReplaced(),
@@ -212,6 +228,10 @@ final class JaxRsClientExchange {
             if (body instanceof byte[] bytes) {
                 request.body(requestContext.writeThroughEntityStream(bytes));
             }
+        } catch (IOException | RuntimeException e) {
+            // the entity stream a filter replaced is closed when the entity is not written through it
+            requestContext.closeReplacedEntityStream(e);
+            throw e;
         }
         return request;
     }
@@ -309,17 +329,16 @@ final class JaxRsClientExchange {
         return new JaxRsMutableResponse(httpResponse);
     }
 
-    private Response filterResponse(Response response, JaxRsClientRequestContext requestContext) {
+    /**
+     * The response the response filters see, with the readers of the client.
+     */
+    private Response filterable(Response response, JaxRsClientRequestContext requestContext) {
         if (response instanceof JaxRsMutableResponse jaxRsMutableResponse) {
-            jaxRsMutableResponse = jaxRsMutableResponse.withEntityReader(configuration.entityIO().createHttpMessageEntityReader(properties(requestContext)));
-            filterResponse(jaxRsMutableResponse, requestContext);
-            return jaxRsMutableResponse;
+            return jaxRsMutableResponse.withEntityReader(configuration.entityIO().createHttpMessageEntityReader(properties(requestContext)));
         }
         if (response instanceof JaxRsResponse jaxRsResponse) {
             MutableHttpResponse<?> mutableResponse = jaxRsResponse.getResponse().toMutableResponse();
-            JaxRsMutableResponse jaxRsMutableResponse = new JaxRsMutableResponse(mutableResponse, configuration.entityIO().createHttpMessageEntityReader(properties(requestContext)));
-            filterResponse(jaxRsMutableResponse, requestContext);
-            return jaxRsMutableResponse;
+            return new JaxRsMutableResponse(mutableResponse, configuration.entityIO().createHttpMessageEntityReader(properties(requestContext)));
         }
         return response;
     }
@@ -348,7 +367,11 @@ final class JaxRsClientExchange {
         HttpMethod httpMethod = HttpMethod.parse(method);
         MutableHttpRequest<Object> mutableHttpRequest = httpMethod ==
             HttpMethod.CUSTOM ? HttpRequest.create(HttpMethod.CUSTOM, uri.toString(), method) : HttpRequest.create(httpMethod, uri.toString());
+        if (mutableHttpHeaders != null) {
+            mutableHttpHeaders.forEachValue(mutableHttpRequest::header);
+        }
         if (entity != null) {
+            // the variant of the entity replaces the one of the headers of the builder (JAX-RS, Invocation.Builder)
             if (entity.getMediaType() != null) {
                 mutableHttpRequest = mutableHttpRequest.contentType(MediaType.of(entity.getMediaType().toString()));
             }
@@ -361,9 +384,6 @@ final class JaxRsClientExchange {
                 // the encoding of the variant of the entity (RFC 9110, 8.4)
                 mutableHttpRequest.getHeaders().set(HttpHeaders.CONTENT_ENCODING, encoding);
             }
-        }
-        if (mutableHttpHeaders != null) {
-            mutableHttpHeaders.forEachValue(mutableHttpRequest::header);
         }
         return mutableHttpRequest;
     }
