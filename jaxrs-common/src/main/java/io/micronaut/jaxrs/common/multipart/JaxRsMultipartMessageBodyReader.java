@@ -127,12 +127,17 @@ public final class JaxRsMultipartMessageBodyReader implements MessageBodyReader<
         }
         String contentType = headers.getFirst(HttpHeaders.CONTENT_TYPE);
         MediaType mediaType = contentType == null ? MediaType.TEXT_PLAIN_TYPE : MediaType.valueOf(contentType);
+        if (contentType == null) {
+            // the default type (RFC 7578 section 4.4) is the one of the headers too
+            headers.putSingle(HttpHeaders.CONTENT_TYPE, mediaType.toString());
+        }
         return JaxRsEntityPart.read(name, Multipart.parameter(disposition, "filename"), mediaType, headers, content, providers);
     }
 
     private static MultivaluedMap<String, String> headers(String block) {
         MultivaluedMap<String, String> headers = JaxRsEntityPart.headers();
-        for (String line : block.split("\r\n")) {
+        // the folded lines are unfolded (RFC 822 section 3.1.1)
+        for (String line : block.replaceAll("\r\n[ \t]+", " ").split("\r\n")) {
             int colon = line.indexOf(':');
             if (colon > 0) {
                 headers.add(line.substring(0, colon).trim(), line.substring(colon + 1).trim());

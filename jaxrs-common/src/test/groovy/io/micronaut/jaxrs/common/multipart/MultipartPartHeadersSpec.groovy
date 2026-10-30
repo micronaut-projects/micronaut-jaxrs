@@ -38,6 +38,27 @@ class MultipartPartHeadersSpec extends Specification {
         parts[0].getContent(String) == "value"
     }
 
+    void "folded part headers are unfolded and the default type is the one of the headers"() {
+        given:
+        def body = "--b\r\n" +
+            "Content-Disposition: form-data;\r\n name=\"x\"\r\n" +
+            "\r\n" +
+            "value\r\n" +
+            "--b--\r\n"
+        def type = new GenericType<List<EntityPart>>() {}
+
+        when:
+        List<EntityPart> parts = new JaxRsMultipartMessageBodyReader().readFrom((Class) List, type.type, [] as java.lang.annotation.Annotation[],
+            MediaType.valueOf("multipart/form-data; boundary=b"), new MultivaluedHashMap<String, String>(),
+            new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8)))
+
+        then:
+        parts[0].name == "x"
+        parts[0].mediaType == MediaType.TEXT_PLAIN_TYPE
+        parts[0].headers.getFirst("Content-Type") == "text/plain"
+        parts[0].getContent(String) == "value"
+    }
+
     void "a failed write closes the streams of the parts that are not written"() {
         given:
         def failing = new InputStream() {
