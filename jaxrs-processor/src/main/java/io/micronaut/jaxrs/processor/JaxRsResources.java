@@ -38,6 +38,7 @@ import jakarta.ws.rs.core.Context;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -151,6 +152,25 @@ final class JaxRsResources {
             }
         }
         return null;
+    }
+
+    /**
+     * The constructor JAX-RS creates a {@code @BeanParam} type with: the public constructor with
+     * the most parameters, when they are all read from the request (JAX-RS 3.1.2).
+     *
+     * @param type The class
+     * @return The constructor, or {@code null} if it has none with parameters
+     */
+    public static @Nullable ConstructorElement beanParamConstructor(ClassElement type) {
+        ConstructorElement selected = null;
+        for (ConstructorElement constructor : type.getEnclosedElements(ElementQuery.CONSTRUCTORS)) {
+            if (constructor.isPublic() && constructor.getParameters().length > 0
+                && Arrays.stream(constructor.getParameters()).allMatch(JaxRsResources::isRequestAnnotated)
+                && (selected == null || constructor.getParameters().length > selected.getParameters().length)) {
+                selected = constructor;
+            }
+        }
+        return selected;
     }
 
     /**

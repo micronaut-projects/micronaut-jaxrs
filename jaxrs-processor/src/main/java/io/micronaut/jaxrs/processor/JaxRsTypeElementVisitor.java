@@ -18,6 +18,7 @@ package io.micronaut.jaxrs.processor;
 import io.micronaut.core.annotation.AnnotationUtil;
 import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.AnnotationValueBuilder;
+import io.micronaut.core.annotation.Creator;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.Introspected;
 import io.micronaut.core.annotation.NextMajorVersion;
@@ -170,8 +171,16 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             // constructor and request members
             introspect(element);
         }
-        if (!resource && !element.isAbstract() && !element.isInterface() && !analysis.requestMembers().isEmpty()) {
-            // a @BeanParam type: initialized at runtime from its introspection, with the values of the request
+        ConstructorElement beanParamConstructor = resource || element.isAssignable(Application.class) ? null
+            : JaxRsResources.beanParamConstructor(element);
+        if (!resource && !element.isAbstract() && !element.isInterface()
+            && (!analysis.requestMembers().isEmpty() || beanParamConstructor != null)) {
+            // a @BeanParam type: initialized at runtime from its introspection, with the values of the request,
+            // created with its public constructor of the most parameters read from the request
+            if (beanParamConstructor != null
+                && element.getEnclosedElements(ElementQuery.CONSTRUCTORS).stream().noneMatch(c -> c.hasAnnotation(Creator.class))) {
+                beanParamConstructor.annotate(Creator.class);
+            }
             introspect(element);
             return;
         }
