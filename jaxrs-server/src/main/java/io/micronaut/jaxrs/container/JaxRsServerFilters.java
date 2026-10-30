@@ -240,7 +240,7 @@ final class JaxRsServerFilters implements HttpRoutes {
             replace(response, filtered);
         }
         request.getAttribute(JaxRsRouteSupport.SSE_EVENT_SINK, JaxRsSseEventSink.class).ifPresent(sink -> {
-            if (response.getStatus().getCode() >= 300) {
+            if (response.code() >= 300) {
                 // the resource method failed, e.g. with a 503: the error is the response
                 sink.close();
                 return;
@@ -274,7 +274,8 @@ final class JaxRsServerFilters implements HttpRoutes {
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static void replace(MutableHttpResponse<?> response, MutableHttpResponse<?> replacement) {
-        response.status(replacement.getStatus(), replacement.reason());
+        // the code, a custom one has no HttpStatus
+        response.status(replacement.code(), replacement.reason());
         for (String name : response.getHeaders().names()) {
             response.getHeaders().remove(name);
         }
