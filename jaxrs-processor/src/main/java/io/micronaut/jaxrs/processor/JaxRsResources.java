@@ -38,6 +38,7 @@ import jakarta.ws.rs.core.Context;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -130,8 +131,10 @@ final class JaxRsResources {
     }
 
     /**
-     * The constructor JAX-RS uses for an instance created per request: the public constructor
-     * with the most parameters, when it has parameters read from the request.
+     * The constructor JAX-RS uses for an instance created per request: of the public constructors
+     * JAX-RS can call, the one with the most parameters (JAX-RS 3.1.2), when it has parameters read
+     * from the request. A constructor with parameters, none of which is read from the request, is
+     * not one, even when it has more parameters; the others may also have beans as parameters.
      *
      * @param type The class
      * @return The constructor, or {@code null}
@@ -139,19 +142,13 @@ final class JaxRsResources {
     public static @Nullable ConstructorElement requestConstructor(ClassElement type) {
         ConstructorElement selected = null;
         for (ConstructorElement constructor : type.getEnclosedElements(ElementQuery.CONSTRUCTORS)) {
-            if (constructor.isPublic() && (selected == null || constructor.getParameters().length > selected.getParameters().length)) {
+            ParameterElement[] parameters = constructor.getParameters();
+            if (constructor.isPublic() && (parameters.length == 0 || Arrays.stream(parameters).anyMatch(JaxRsResources::isRequestAnnotated))
+                && (selected == null || constructor.getParameters().length > selected.getParameters().length)) {
                 selected = constructor;
             }
         }
-        if (selected == null) {
-            return null;
-        }
-        for (ParameterElement parameter : selected.getParameters()) {
-            if (isRequestAnnotated(parameter)) {
-                return selected;
-            }
-        }
-        return null;
+        return selected == null || selected.getParameters().length == 0 ? null : selected;
     }
 
     /**
