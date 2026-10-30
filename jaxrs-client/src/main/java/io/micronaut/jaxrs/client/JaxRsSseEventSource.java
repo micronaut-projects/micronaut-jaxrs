@@ -575,7 +575,9 @@ final class JaxRsSseEventSource implements SseEventSource {
 
     /**
      * The events of a connection as the entity stream the response filters see: written back in
-     * the event stream format when a filter reads them, e.g. through a stream wrapping it.
+     * the event stream format when a filter reads them, e.g. through a stream wrapping it. A space
+     * separates each field from its value, which the reader removes: a value starting with a space
+     * keeps it (HTML 9.2.6).
      */
     private static final class EventsInputStream extends InputStream {
         private final BodyElements<Event<String>> events;
@@ -626,21 +628,21 @@ final class JaxRsSseEventSource implements SseEventSource {
             var text = new StringBuilder();
             if (event.getComment() != null) {
                 for (String line : event.getComment().split("\n", -1)) {
-                    text.append(':').append(line).append('\n');
+                    text.append(": ").append(line).append('\n');
                 }
             }
             if (event.getId() != null) {
-                text.append("id:").append(event.getId()).append('\n');
+                text.append("id: ").append(event.getId()).append('\n');
             }
             if (event.getName() != null) {
-                text.append("event:").append(event.getName()).append('\n');
+                text.append("event: ").append(event.getName()).append('\n');
             }
             if (event.getRetry() != null) {
                 text.append("retry:").append(event.getRetry().toMillis()).append('\n');
             }
             if (event.getData() != null) {
                 for (String line : event.getData().split("\n", -1)) {
-                    text.append("data:").append(line).append('\n');
+                    text.append("data: ").append(line).append('\n');
                 }
             }
             return text.append('\n').toString().getBytes(StandardCharsets.UTF_8);
