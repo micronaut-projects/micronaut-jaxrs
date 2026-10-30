@@ -68,7 +68,7 @@ final class JaxRsMediaNegotiation {
      */
     static boolean octetStreamFallback(List<MediaType> accepted, List<MediaType> produces) {
         for (MediaType accept : accepted) {
-            if (accept.getQualityAsNumber().doubleValue() <= 0) {
+            if (quality(accept) <= 0) {
                 continue;
             }
             for (MediaType produce : produces) {
@@ -114,7 +114,7 @@ final class JaxRsMediaNegotiation {
     static @Nullable Negotiated negotiate(List<MediaType> accepted, List<MediaType> produces) {
         Negotiated best = null;
         for (MediaType accept : accepted) {
-            double quality = accept.getQualityAsNumber().doubleValue();
+            double quality = quality(accept);
             if (quality <= 0) {
                 // q=0: not acceptable (RFC 9110, 12.4.2)
                 continue;
@@ -170,11 +170,11 @@ final class JaxRsMediaNegotiation {
     private static boolean parametersMatch(MediaType range, MediaType type) {
         for (CharSequence parameter : range.getParameters()) {
             String name = parameter.toString();
-            if (MediaType.Q_PARAMETER.equals(name) || QS.equals(name)) {
+            if (isQuality(name)) {
                 continue;
             }
-            String value = type.getParameters().get(name).orElse(null);
-            if (value == null || !value.equalsIgnoreCase(range.getParameters().get(name).orElse(null))) {
+            String value = parameter(type, name);
+            if (value == null || !value.equalsIgnoreCase(parameter(range, name))) {
                 return false;
             }
         }
@@ -185,18 +185,53 @@ final class JaxRsMediaNegotiation {
         int count = 0;
         for (CharSequence parameter : type.getParameters()) {
             String name = parameter.toString();
-            if (!MediaType.Q_PARAMETER.equals(name) && !QS.equals(name)) {
+            if (!isQuality(name)) {
                 count++;
             }
         }
         return count;
     }
 
+    /**
+     * Whether a parameter is {@code q} or {@code qs}: the names of parameters are case-insensitive
+     * (RFC 9110, 5.6.6).
+     */
+    private static boolean isQuality(String name) {
+        return MediaType.Q_PARAMETER.equalsIgnoreCase(name) || QS.equalsIgnoreCase(name);
+    }
+
+    /**
+     * The value of a parameter of a type, by its case-insensitive name (RFC 9110, 5.6.6).
+     */
+    private static @Nullable String parameter(MediaType type, String name) {
+        for (CharSequence parameter : type.getParameters()) {
+            if (parameter.toString().equalsIgnoreCase(name)) {
+                return type.getParameters().get(parameter).orElse(null);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The quality of an accepted type, its {@code q} parameter in any case (RFC 9110, 12.4.2).
+     */
+    private static double quality(MediaType type) {
+        String q = parameter(type, MediaType.Q_PARAMETER);
+        if (q == null) {
+            return 1;
+        }
+        try {
+            return Double.parseDouble(q);
+        } catch (NumberFormatException e) {
+            return type.getQualityAsNumber().doubleValue();
+        }
+    }
+
     private static MediaType withoutQuality(MediaType type) {
         Map<String, String> parameters = new LinkedHashMap<>();
         type.getParameters().forEach((name, value) -> {
             String key = name.toString();
-            if (!MediaType.Q_PARAMETER.equals(key) && !QS.equals(key)) {
+            if (!isQuality(key)) {
                 parameters.put(key, value);
             }
         });
@@ -215,7 +250,7 @@ final class JaxRsMediaNegotiation {
     }
 
     private static double qs(MediaType type) {
-        String qs = type.getParameters().get(QS).orElse(null);
+        String qs = parameter(type, QS);
         return qs == null ? 1 : Double.parseDouble(qs);
     }
 
