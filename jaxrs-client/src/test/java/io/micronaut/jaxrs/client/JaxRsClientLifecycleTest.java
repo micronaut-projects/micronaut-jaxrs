@@ -6,6 +6,7 @@ import io.micronaut.http.client.netty.DefaultHttpClient;
 import io.micronaut.runtime.server.EmbeddedServer;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
+import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.ProcessingException;
 import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.client.ClientBuilder;
@@ -388,6 +389,70 @@ class JaxRsClientLifecycleTest {
 
         assertThrows(ProcessingException.class, () -> target.request().post(Entity.text("body"), String.class));
         assertTrue(closed.get());
+    }
+
+    @Test
+    void streamOfAReaderInterceptorIsClosedWithTheResponse() throws IOException {
+        AtomicBoolean closed = new AtomicBoolean();
+        WebTarget target = target("hello")
+            .register((ReaderInterceptor) context -> {
+                context.setInputStream(tracking(context.getInputStream(), closed));
+                return context.proceed();
+            });
+
+        Response response = target.request().get();
+        InputStream stream = response.readEntity(InputStream.class);
+        assertEquals('h', stream.read());
+        response.close();
+        assertTrue(closed.get());
+    }
+
+    @Test
+    void streamOfAResponseFilterIsReadByTheReaderOfStreams() throws IOException {
+        WebTarget target = target("hello")
+            .register(new CustomStreamReader())
+            .register((ClientResponseFilter) (request, response) ->
+                response.setEntityStream(new FilterInputStream(response.getEntityStream()) { }));
+
+        try (Response response = target.request().get(); InputStream stream = response.readEntity(InputStream.class)) {
+            assertEquals("CUSTOM", new String(stream.readAllBytes(), StandardCharsets.UTF_8));
+        }
+    }
+
+    // more specific than the standard reader of streams, the tests being in a package of Micronaut
+    @Consumes(MediaType.TEXT_PLAIN)
+    public static final class CustomStreamReader implements MessageBodyReader<InputStream> {
+        @Override
+        public boolean isReadable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+            return type == InputStream.class;
+        }
+
+        @Override
+        public InputStream readFrom(Class<InputStream> type, Type genericType, Annotation[] annotations, MediaType mediaType,
+                                    MultivaluedMap<String, String> httpHeaders, InputStream entityStream) {
+            return new ByteArrayInputStream("CUSTOM".getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    @Test
+    void failureOfAReaderOtherThanAnIOExceptionIsAProcessingException() {
+        try (Response response = target("hello").register(new RejectingReader()).request().get()) {
+            ProcessingException e = assertThrows(ProcessingException.class, () -> response.readEntity(Thing.class));
+            assertInstanceOf(IllegalArgumentException.class, e.getCause());
+        }
+    }
+
+    static final class RejectingReader implements MessageBodyReader<Thing> {
+        @Override
+        public boolean isReadable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+            return type == Thing.class;
+        }
+
+        @Override
+        public Thing readFrom(Class<Thing> type, Type genericType, Annotation[] annotations, MediaType mediaType,
+                              MultivaluedMap<String, String> httpHeaders, InputStream entityStream) {
+            throw new IllegalArgumentException("malformed");
+        }
     }
 
     static final class Thing {

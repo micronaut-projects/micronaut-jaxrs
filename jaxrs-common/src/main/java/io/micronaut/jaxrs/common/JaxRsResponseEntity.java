@@ -80,6 +80,9 @@ final class JaxRsResponseEntity {
     // the entity stream of a mutable response, e.g. the one a filter set, not read yet
     @Nullable
     private InputStream entityStream;
+    // the stream readEntity returned of the entity stream, e.g. one of the reader interceptors
+    @Nullable
+    private InputStream readStream;
 
     /**
      * @param response        The response
@@ -275,12 +278,21 @@ final class JaxRsResponseEntity {
             if (entityType.getType() == InputStream.class) {
                 // it stays the entity stream, which close() closes, read through the reader
                 // interceptors (JAX-RS, Response#readEntity)
-                return entityReader.readEntityStream(response, stream);
+                InputStream read = entityReader.readEntityStream(response, stream);
+                if (read != stream) {
+                    readStream = read;
+                }
+                return read;
             }
             entityStream = null;
             mutableResponse().body(readAll(stream));
         }
-        return entityReader.readEntity(response, entityType);
+        Object read = entityReader.readEntity(response, entityType);
+        if (read instanceof InputStream readEntityStream) {
+            // e.g. a stream of the reader interceptors, which close() closes
+            readStream = readEntityStream;
+        }
+        return read;
     }
 
     /**
@@ -410,6 +422,11 @@ final class JaxRsResponseEntity {
             return;
         }
         try {
+            InputStream read = readStream;
+            if (read != null) {
+                readStream = null;
+                read.close();
+            }
             InputStream stream = entityStream;
             if (stream != null) {
                 entityStream = null;

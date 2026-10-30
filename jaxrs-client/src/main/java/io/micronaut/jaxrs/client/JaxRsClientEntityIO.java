@@ -35,6 +35,7 @@ import io.micronaut.jaxrs.common.JaxRsInterceptedWrite;
 import io.micronaut.jaxrs.common.JaxRsCurrentProviders;
 import io.micronaut.jaxrs.common.JaxRsWriterInterceptorContextState;
 import jakarta.ws.rs.ProcessingException;
+import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.ext.Providers;
 import jakarta.ws.rs.core.GenericEntity;
 import jakarta.ws.rs.ext.MessageBodyWriter;
@@ -42,6 +43,8 @@ import jakarta.ws.rs.ext.ReaderInterceptor;
 import jakarta.ws.rs.ext.WriterInterceptor;
 
 import java.io.ByteArrayOutputStream;
+import java.io.FilterInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -99,6 +102,11 @@ final class JaxRsClientEntityIO {
                 } catch (JaxRsIOException e) {
                     // the failure of a reader is a processing failure (JAX-RS, Response#readEntity)
                     throw new ProcessingException(e.getCause());
+                } catch (ProcessingException | WebApplicationException e) {
+                    throw e;
+                } catch (RuntimeException e) {
+                    // e.g. a reader rejecting malformed content
+                    throw new ProcessingException(e);
                 } finally {
                     JaxRsCurrentProviders.restore(previous);
                 }
@@ -106,32 +114,44 @@ final class JaxRsClientEntityIO {
 
             @Override
             public InputStream readEntityStream(HttpMessage<?> message, InputStream entityStream) {
-                List<BeanRegistration<ReaderInterceptor>> readerInterceptors = providers.getReaderInterceptors();
-                if (readerInterceptors.isEmpty()) {
-                    return entityStream;
-                }
                 Providers previous = JaxRsCurrentProviders.set(providers);
                 try {
                     MediaType mediaType = message.getContentType().orElse(MediaType.APPLICATION_OCTET_STREAM_TYPE);
                     HttpHeaders headers = message.getHeaders();
-                    InputStream read = new JaxRsInterceptedRead<InputStream>(readerInterceptors, metadata -> true) {
+                    List<BeanRegistration<ReaderInterceptor>> readerInterceptors = providers.getReaderInterceptors();
+                    if (readerInterceptors.isEmpty()) {
+                        // the stream is read by the reader of streams, e.g. one of the application
+                        InputStream read = (InputStream) readStream(Argument.of(InputStream.class), mediaType, headers, entityStream);
+                        return read == null ? InputStream.nullInputStream() : read;
+                    }
+                    InputStream read = new ClientInterceptedRead<InputStream>(readerInterceptors) {
 
                         @Override
                         protected @Nullable InputStream readFromAfterInterception(Argument<Object> type, @Nullable MediaType mediaType, Headers httpHeaders, InputStream inputStream) {
-                            io.micronaut.http.body.MessageBodyReader<Object> reader = providers.findReader(type, mediaType);
-                            if (reader != null) {
-                                return (InputStream) reader.read(type, mediaType, headers, inputStream);
-                            }
-                            throw new IllegalStateException("No reader found for type " + type.getType() + " and mediaType " + mediaType);
+                            return (InputStream) readStream(type, mediaType, headers, inputStream);
                         }
 
-                    }.intercept(Argument.of(InputStream.class), mediaType, headers, entityStream, properties);
+                    }.read(Argument.of(InputStream.class), mediaType, headers, entityStream, properties);
                     return read == null ? InputStream.nullInputStream() : read;
                 } catch (JaxRsIOException e) {
                     throw new ProcessingException(e.getCause());
+                } catch (ProcessingException | WebApplicationException e) {
+                    throw e;
+                } catch (RuntimeException e) {
+                    throw new ProcessingException(e);
                 } finally {
                     JaxRsCurrentProviders.restore(previous);
                 }
+            }
+
+            @SuppressWarnings("unchecked")
+            private @Nullable Object readStream(Argument<?> type, @Nullable MediaType mediaType, HttpHeaders headers, InputStream inputStream) {
+                Argument<Object> argument = (Argument<Object>) type;
+                io.micronaut.http.body.MessageBodyReader<Object> reader = providers.findReader(argument, mediaType);
+                if (reader != null) {
+                    return reader.read(argument, mediaType, headers, inputStream);
+                }
+                throw new IllegalStateException("No reader found for type " + type.getType() + " and mediaType " + mediaType);
             }
 
             private <T> @Nullable T readEntityOfConfiguration(HttpMessage<?> message, Argument<T> entityType) {
@@ -149,7 +169,7 @@ final class JaxRsClientEntityIO {
                             return reader.read(entityType, mediaType, headers, byteBuffer);
                         }
                     } else {
-                        return new JaxRsInterceptedRead<T>(readerInterceptors, metadata -> true) {
+                        return new ClientInterceptedRead<T>(readerInterceptors) {
 
                             @Override
                             protected @Nullable T readFromAfterInterception(Argument<Object> type, @Nullable MediaType mediaType, Headers httpHeaders, InputStream inputStream) {
@@ -160,7 +180,7 @@ final class JaxRsClientEntityIO {
                                 throw new IllegalStateException("No reader found for type " + type.getType() + " and mediaType " + mediaType);
                             }
 
-                        }.intercept(entityType, mediaType, headers, byteBuffer.toInputStream(), properties);
+                        }.read(entityType, mediaType, headers, byteBuffer.toInputStream(), properties);
                     }
                 }
                 return super.readEntity(message, entityType);
@@ -248,6 +268,61 @@ final class JaxRsClientEntityIO {
             mutableHttpMessage.body(outputStream.toByteArray());
         } else {
             mutableHttpMessage.body(body);
+        }
+    }
+
+    /**
+     * A read through the reader interceptors of the client: the streams they set, which a stream
+     * entity reads of, are closed with that entity, e.g. when the response is closed.
+     *
+     * @param <T> The type of the entity
+     */
+    private abstract static class ClientInterceptedRead<T> extends JaxRsInterceptedRead<T> {
+
+        private @Nullable Runnable closer;
+
+        ClientInterceptedRead(List<BeanRegistration<ReaderInterceptor>> readerInterceptors) {
+            super(readerInterceptors, metadata -> true);
+        }
+
+        @Override
+        protected void closeAfterUse(Runnable closer) {
+            this.closer = closer;
+        }
+
+        /**
+         * Read through the interceptors.
+         *
+         * @param type        The type
+         * @param mediaType   The media type
+         * @param headers     The headers
+         * @param inputStream The entity
+         * @param properties  The properties the interceptor contexts share
+         * @return The entity, a stream that also closes the streams of the interceptors
+         */
+        @SuppressWarnings("unchecked")
+        final @Nullable T read(Argument<T> type, MediaType mediaType, Headers headers, InputStream inputStream, Map<String, Object> properties) {
+            T value = intercept(type, mediaType, headers, inputStream, properties);
+            Runnable close = closer;
+            if (close != null && value instanceof InputStream stream) {
+                return (T) new FilterInputStream(stream) {
+                    private boolean closed;
+
+                    @Override
+                    public void close() throws IOException {
+                        if (closed) {
+                            return;
+                        }
+                        closed = true;
+                        try {
+                            super.close();
+                        } finally {
+                            close.run();
+                        }
+                    }
+                };
+            }
+            return value;
         }
     }
 
