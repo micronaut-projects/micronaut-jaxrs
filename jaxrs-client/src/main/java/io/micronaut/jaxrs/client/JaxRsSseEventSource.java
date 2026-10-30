@@ -32,6 +32,7 @@ import io.micronaut.http.client.sse.EventStreamState;
 import io.micronaut.http.sse.Event;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import jakarta.ws.rs.ProcessingException;
+import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.client.ResponseProcessingException;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.RuntimeDelegate;
@@ -275,14 +276,28 @@ final class JaxRsSseEventSource implements SseEventSource {
             error(new ResponseProcessingException(filtered, e));
             return;
         }
+        process(filtered, unchanged, body);
+    }
+
+    /**
+     * Process a filtered response, also an error response a filter repaired: a status other than
+     * {@code 200 OK} is an error, else its events are received from its entity stream, the one a
+     * filter set or the events of the connection.
+     *
+     * @param filtered  The filtered response
+     * @param unchanged The entity stream before the filters
+     * @param body      The events of the connection, {@code null} for an error response
+     */
+    private void process(JaxRsMutableResponse filtered, InputStream unchanged, @Nullable BodyElements<Event<String>> body) {
         InputStream replacement = filtered.getEntityStream() == unchanged ? null : filtered.getEntityStream();
         int status = filtered.getStatus();
         if (status != HttpStatus.OK.getCode() && status != HttpStatus.NO_CONTENT.getCode()) {
             if (body != null) {
+                // the events are not an entity of the error
                 body.closeAsync();
+                closeReplaced(filtered, unchanged);
+                filtered.setEntityStream(InputStream.nullInputStream());
             }
-            closeReplaced(filtered, unchanged);
-            filtered.setEntityStream(InputStream.nullInputStream());
             // a 503 a filter set is retried like one of the server
             if (!retried(filtered)) {
                 // another status is an error, e.g. a 201, with the filtered response (JAX-RS, SseEventSource)
@@ -299,15 +314,15 @@ final class JaxRsSseEventSource implements SseEventSource {
             complete();
             return;
         }
-        MediaType contentType = head.getContentType().orElse(null);
+        MediaType contentType = contentType(filtered);
         if (contentType == null || !MediaType.TEXT_EVENT_STREAM_TYPE.matches(contentType)) {
             if (body != null) {
                 body.closeAsync();
             }
             closeReplaced(filtered, unchanged);
             filtered.setEntityStream(InputStream.nullInputStream());
-            // a processing error, with the filtered response
-            error(new ResponseProcessingException(filtered, "The response is not an event stream: " + contentType));
+            // an error with the filtered response (JAX-RS, SseEventSource)
+            error(new WebApplicationException("The response is not an event stream: " + contentType, filtered));
             return;
         }
         if (replacement != null) {
@@ -400,6 +415,18 @@ final class JaxRsSseEventSource implements SseEventSource {
         reconnect(reconnectDelay());
     }
 
+    private static @Nullable MediaType contentType(Response response) {
+        String value = response.getHeaderString(HttpHeaders.CONTENT_TYPE);
+        if (value == null) {
+            return null;
+        }
+        try {
+            return MediaType.of(value);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
     private static void closeReplaced(JaxRsMutableResponse response, InputStream unchanged) {
         InputStream stream = response.getEntityStream();
         if (stream != unchanged) {
@@ -482,22 +509,16 @@ final class JaxRsSseEventSource implements SseEventSource {
         if (throwable instanceof HttpClientResponseException responseException) {
             // the response filters see an error response like any other (JAX-RS 6.1)
             JaxRsMutableResponse response = new JaxRsMutableResponse(responseException.getResponse().toMutableResponse());
+            InputStream unchanged = response.getEntityStream();
             try {
                 filterResponse(response, requestContext);
             } catch (IOException | RuntimeException e) {
+                closeReplaced(response, unchanged);
                 error(new ResponseProcessingException(response, e));
                 return;
             }
-            if (retried(response)) {
-                return;
-            }
-            if (response.getStatusInfo().getFamily() == Response.Status.Family.SUCCESSFUL) {
-                // a filter turned the error into a success, without events
-                open = false;
-                complete();
-                return;
-            }
-            error(JaxRsClientExchange.exception(response));
+            // processed like any other response: a filter may turn the error into an event stream
+            process(response, unchanged, null);
             return;
         }
         if (connected) {
