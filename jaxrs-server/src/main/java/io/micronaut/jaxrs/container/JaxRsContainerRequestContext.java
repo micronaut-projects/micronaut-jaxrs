@@ -42,6 +42,7 @@ import java.io.InputStream;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -162,12 +163,18 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
 
     @Override
     public Collection<String> getPropertyNames() {
-        return properties.keySet();
+        // an immutable view (JAX-RS, ContainerRequestContext#getPropertyNames)
+        return Collections.unmodifiableSet(properties.keySet());
     }
 
     @Override
-    public void setProperty(String name, Object object) {
-        properties.put(name, object);
+    public void setProperty(String name, @Nullable Object object) {
+        // a null value removes the property (JAX-RS, ContainerRequestContext#setProperty)
+        if (object == null) {
+            properties.remove(name);
+        } else {
+            properties.put(name, object);
+        }
     }
 
     @Override
@@ -183,7 +190,8 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
     @Override
     public void setRequestUri(URI requestUri) {
         checkIsRequestPreMatchingInProgress();
-        mutableHttpRequest.uri(requestUri);
+        // a relative URI is resolved against the current base URI of the application
+        mutableHttpRequest.uri(getUriInfo().getBaseUri().resolve(requestUri));
     }
 
     @Override

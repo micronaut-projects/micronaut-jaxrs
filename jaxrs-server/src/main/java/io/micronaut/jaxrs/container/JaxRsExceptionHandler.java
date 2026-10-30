@@ -75,10 +75,11 @@ final class JaxRsExceptionHandler implements ExceptionHandler<WebApplicationExce
             // thrown while the response mapped from an exception was processed (JAX-RS 4.4)
             return HttpResponse.status(HttpStatus.INTERNAL_SERVER_ERROR);
         }
-        ExceptionMapper exceptionMapper = providers == null ? null : providers.getExceptionMapper(exception.getClass());
+        ExceptionMapper exceptionMapper = providers == null ? null : JaxRsProviders.registeredExceptionMapper(providers, exception.getClass());
         Response response = exception.getResponse();
         if (response != null && response.hasEntity()) {
-            return JaxRsRouteSupport.toHttpResponse(response);
+            // processed like a mapped response: an exception of its processing is a server error
+            return JaxRsGlobalExceptionHandler.mapped(request, response);
         }
         if (exceptionMapper != null) {
             return JaxRsGlobalExceptionHandler.map(request, exceptionMapper, exception);

@@ -51,6 +51,13 @@ class ResponseFilterExceptionTest {
         assertEquals(500, e.getStatus().getCode());
     }
 
+    @Test
+    void anExceptionOfTheResponseOfAnExceptionIsAServerError() {
+        HttpClientResponseException e = assertThrows(HttpClientResponseException.class,
+            () -> client.toBlocking().retrieve(HttpRequest.GET("/wae"), String.class));
+        assertEquals(500, e.getStatus().getCode());
+    }
+
     /**
      * An exception of the resource.
      */
@@ -89,6 +96,26 @@ class ResponseFilterExceptionTest {
     }
 
     @Requires(property = "spec.name", value = "ResponseFilterExceptionTest")
+    @Provider
+    public static class IllegalStateMapper implements ExceptionMapper<IllegalStateException> {
+        @Override
+        public Response toResponse(IllegalStateException exception) {
+            return Response.status(424).entity("mapped-filter-failure").type(MediaType.TEXT_PLAIN_TYPE).build();
+        }
+    }
+
+    @Requires(property = "spec.name", value = "ResponseFilterExceptionTest")
+    @Provider
+    public static class FailingFilter implements ContainerResponseFilter {
+        @Override
+        public void filter(ContainerRequestContext requestContext, ContainerResponseContext responseContext) {
+            if (requestContext.getUriInfo().getPath().endsWith("/wae") && responseContext.getStatus() == 409) {
+                throw new IllegalStateException("filter failure");
+            }
+        }
+    }
+
+    @Requires(property = "spec.name", value = "ResponseFilterExceptionTest")
     @Path("/response-filter-exception")
     @Produces(MediaType.TEXT_PLAIN)
     public static class FilteredResource {
@@ -102,6 +129,12 @@ class ResponseFilterExceptionTest {
         @Path("/fail")
         public String fail() {
             throw new ResourceException();
+        }
+
+        @GET
+        @Path("/wae")
+        public String wae() {
+            throw new WebApplicationException(Response.status(409).entity("original").type(MediaType.TEXT_PLAIN_TYPE).build());
         }
     }
 }

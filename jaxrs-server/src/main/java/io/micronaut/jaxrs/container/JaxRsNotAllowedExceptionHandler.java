@@ -70,7 +70,7 @@ final class JaxRsNotAllowedExceptionHandler implements ExceptionHandler<NotAllow
             allowedMethods.get(0),
             allowedMethods.subList(1, allowedMethods.size()).toArray(String[]::new)
         );
-        ExceptionMapper exceptionMapper = providers.getExceptionMapper(notAllowedException.getClass());
+        ExceptionMapper exceptionMapper = JaxRsProviders.registeredExceptionMapper(providers, notAllowedException.getClass());
         if (exceptionMapper != null) {
             return JaxRsGlobalExceptionHandler.map(request, exceptionMapper, notAllowedException);
         }

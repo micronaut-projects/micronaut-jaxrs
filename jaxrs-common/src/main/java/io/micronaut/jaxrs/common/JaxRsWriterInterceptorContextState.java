@@ -106,12 +106,30 @@ public sealed interface JaxRsWriterInterceptorContextState permits JaxRsGenericE
         final MultivaluedMap<String, Object> headers;
         Object entity;
         OutputStream outputStream;
+        private final OutputStream initialOutputStream;
 
         public ClassicState(MutableHeaders headers, Object entity, OutputStream outputStream) {
             this.headers = new JaxRsMutableObjectHeadersMultivaluedMap(headers);
             this.entity = entity;
             // the interceptors' streams are closed after the chain, the underlying one is not
             this.outputStream = nonClosing(outputStream);
+            this.initialOutputStream = this.outputStream;
+        }
+
+        /**
+         * Called when the interceptor chain fails: closes a stream an interceptor installed, the
+         * failure is kept and a failure to close is added to it as suppressed.
+         *
+         * @param failure The failure of the chain
+         */
+        public void release(Throwable failure) {
+            if (outputStream != initialOutputStream) {
+                try {
+                    outputStream.close();
+                } catch (IOException | RuntimeException e) {
+                    failure.addSuppressed(e);
+                }
+            }
         }
 
         @Override

@@ -70,7 +70,7 @@ final class JaxRsHttpStatusExceptionHandler implements ExceptionHandler<HttpStat
     public HttpResponse<?> handle(HttpRequest request, HttpStatusException exception) {
         WebApplicationException webApplicationException = remap(exception);
         if (webApplicationException != null && isInApplication(request)) {
-            ExceptionMapper exceptionMapper = providers.getExceptionMapper(webApplicationException.getClass());
+            ExceptionMapper exceptionMapper = JaxRsProviders.registeredExceptionMapper(providers, webApplicationException.getClass());
             if (exceptionMapper != null) {
                 return JaxRsGlobalExceptionHandler.map(request, exceptionMapper, webApplicationException);
             }

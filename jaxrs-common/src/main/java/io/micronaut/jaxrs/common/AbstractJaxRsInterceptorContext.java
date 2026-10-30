@@ -26,6 +26,7 @@ import org.jspecify.annotations.Nullable;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
@@ -88,7 +89,8 @@ abstract sealed class AbstractJaxRsInterceptorContext implements InterceptorCont
 
     @Override
     public Collection<String> getPropertyNames() {
-        return properties.keySet();
+        // an immutable view (JAX-RS, InterceptorContext#getPropertyNames)
+        return Collections.unmodifiableSet(properties.keySet());
     }
 
     @Override
