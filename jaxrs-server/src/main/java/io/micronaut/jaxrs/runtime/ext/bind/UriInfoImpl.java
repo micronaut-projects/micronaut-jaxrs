@@ -72,11 +72,10 @@ public final class UriInfoImpl implements UriInfo {
     private static final String LOCATED_PATH = "micronaut_located_path";
 
     private final HttpRequest<?> request;
+    // the base path of the application, unless a pre-matching filter replaces the base URI
     @Nullable
-    private final String basePath;
+    private final String applicationBasePath;
     private final String contextPath;
-    @Nullable
-    private final URI baseUri;
 
     /**
      * Construct from an HTTP request.
@@ -97,16 +96,29 @@ public final class UriInfoImpl implements UriInfo {
      */
     public UriInfoImpl(@NonNull HttpRequest<?> request, @Nullable String basePath, @NonNull String contextPath) {
         this.request = request;
-        URI baseUri = request.getAttribute(BASE_URI, URI.class).orElse(null);
-        this.baseUri = baseUri;
-        String base = basePath;
+        this.applicationBasePath = basePath;
+        this.contextPath = contextPath;
+    }
+
+    /**
+     * @return The base URI a pre-matching filter replaced, also after this was created, {@code null} if none did
+     */
+    private @Nullable URI replacedBaseUri() {
+        return request.getAttribute(BASE_URI, URI.class).orElse(null);
+    }
+
+    /**
+     * @return The path of the base URI, {@code null} for the root
+     */
+    private @Nullable String basePath() {
+        URI baseUri = replacedBaseUri();
+        String base = applicationBasePath;
         if (baseUri != null) {
             // replaced by a pre-matching filter
             String rawPath = baseUri.getRawPath();
             base = rawPath == null || rawPath.isEmpty() ? null : rawPath;
         }
-        this.basePath = base == null || base.equals("/") ? null : base;
-        this.contextPath = contextPath;
+        return base == null || base.equals("/") ? null : base;
     }
 
     /**
@@ -123,6 +135,7 @@ public final class UriInfoImpl implements UriInfo {
      */
     private String relativeRawPath() {
         String path = request.getPath();
+        String basePath = basePath();
         if (basePath != null) {
             String pathToCheck = path;
             if (!path.startsWith("/")) {
@@ -222,10 +235,12 @@ public final class UriInfoImpl implements UriInfo {
 
     @Override
     public URI getBaseUri() {
+        URI baseUri = replacedBaseUri();
         if (baseUri != null && baseUri.isAbsolute()) {
             String raw = baseUri.toString();
             return URI.create(raw.endsWith("/") ? raw : raw + '/');
         }
+        String basePath = basePath();
         String path = basePath == null ? "/" : basePath.startsWith("/") ? basePath : '/' + basePath;
         return uriWithRawPath(path.endsWith("/") ? path : path + '/', null);
     }
@@ -242,12 +257,12 @@ public final class UriInfoImpl implements UriInfo {
 
     @Override
     public MultivaluedMap<String, String> getPathParameters(boolean decode) {
-        RouteMatch<?> match = RouteAttributes.getRouteMatch(request)
-            .orElseThrow(() -> new IllegalStateException("Route match not available!"));
+        RouteMatch<?> match = RouteAttributes.getRouteMatch(request).orElse(null);
         MultivaluedMap<String, String> map = new MultivaluedHashMap<>();
-        if (decode) {
+        // not matched yet, e.g. in a pre-matching filter: no path parameters
+        if (match != null && decode) {
             match.getVariableValues().forEach((name, value) -> map.add(variableName(name), value.toString()));
-        } else if (match instanceof UriRouteMatch<?, ?> uriMatch) {
+        } else if (!decode && match instanceof UriRouteMatch<?, ?> uriMatch) {
             // the values as they appear in the path
             uriMatch.getRawVariableValues().forEach((name, value) -> map.add(variableName(name), value.toString()));
         }
