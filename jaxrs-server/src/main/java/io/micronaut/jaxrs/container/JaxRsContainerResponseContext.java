@@ -234,7 +234,11 @@ final class JaxRsContainerResponseContext implements ContainerResponseContext {
         if (entity instanceof GenericEntity<?> genericEntity) {
             Argument<?> argument = JaxRsArgumentUtil.from(genericEntity);
             mutableHttpResponse.body(genericEntity.getEntity());
-            bodyArgument = Argument.of(argument.getType(), annotationMetadata, argument.getTypeParameters());
+            Class<?> rawType = genericEntity.getRawType();
+            // the class of the entity, with its generic type, e.g. an ArrayList of a List<String>
+            bodyArgument = rawType != argument.getType() && argument.getType().isAssignableFrom(rawType)
+                ? JaxRsArgumentUtil.of(rawType, argument, annotationMetadata)
+                : Argument.of(argument.getType(), annotationMetadata, argument.getTypeParameters());
         } else {
             mutableHttpResponse.body(entity);
             bodyArgument = Argument.of(entity == null ? (Class) Object.class : entity.getClass(), annotationMetadata);
