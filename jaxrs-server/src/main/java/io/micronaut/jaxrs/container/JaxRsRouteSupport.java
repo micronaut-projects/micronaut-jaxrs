@@ -855,8 +855,7 @@ public final class JaxRsRouteSupport {
         // with its type arguments, else the raw type of the data, like for a GenericEntity of a response
         Type genericType = event.getGenericType();
         Argument<?> generic = genericType == null ? null : JaxRsArgumentUtil.from(new GenericType<>(genericType));
-        Argument<Object> type = (Argument) (generic != null && generic.getTypeParameters().length > 0 && generic.getType().isInstance(data)
-            ? generic : Argument.of(event.getType()));
+        Argument<Object> type = (Argument) sseDataType(event.getType(), generic, data);
         List<MediaType> mediaTypes = List.of(mediaType);
         Optional<io.micronaut.http.body.MessageBodyWriter<Object>> writer = beanContext.getBean(JaxRsContainerMessageBodyHandlerRegistry.class)
             .findWriter(type, mediaTypes);
@@ -869,6 +868,22 @@ public final class JaxRsRouteSupport {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         writer.get().writeTo(type, mediaType, data, new SimpleHttpHeaders(), out);
         return out.toString(mediaType.getCharset().orElse(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * The type of the data of an event: its raw type, e.g. the class of a {@code GenericEntity},
+     * with the type arguments of its generic type, when they apply to the raw type.
+     */
+    private static Argument<?> sseDataType(Class<?> rawType, @Nullable Argument<?> generic, Object data) {
+        if (generic == null || generic.getTypeParameters().length == 0 || !generic.getType().isInstance(data)) {
+            return Argument.of(rawType);
+        }
+        if (generic.getType() == rawType || !generic.getType().isAssignableFrom(rawType)) {
+            return generic;
+        }
+        // e.g. an ArrayList sent as a List<String>: an ArrayList<String>, the type arguments are
+        // assumed to be passed on to the subtype in order
+        return Argument.of(rawType, generic.getTypeParameters());
     }
 
     /**
