@@ -1,6 +1,8 @@
 package io.micronaut.jaxrs.client;
 
 import io.micronaut.context.annotation.Property;
+import io.micronaut.http.client.HttpClient;
+import io.micronaut.http.client.netty.DefaultHttpClient;
 import io.micronaut.runtime.server.EmbeddedServer;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
@@ -13,11 +15,13 @@ import jakarta.ws.rs.client.Entity;
 import jakarta.ws.rs.client.InvocationCallback;
 import jakarta.ws.rs.client.ResponseProcessingException;
 import jakarta.ws.rs.client.WebTarget;
+import jakarta.ws.rs.core.CacheControl;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.MessageBodyWriter;
 import jakarta.ws.rs.ext.ReaderInterceptor;
+import jakarta.ws.rs.ext.WriterInterceptor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,6 +35,9 @@ import java.io.OutputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyStore;
+import java.time.Duration;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -166,6 +173,73 @@ class JaxRsClientLifecycleTest {
         try (Response response = target.request().get(); InputStream stream = response.readEntity(InputStream.class)) {
             assertEquals("intercepted", new String(stream.readAllBytes(), StandardCharsets.UTF_8));
         }
+    }
+
+    @Test
+    void zeroConnectTimeoutIsInfinite() {
+        try (Client built = ClientBuilder.newBuilder().connectTimeout(0, TimeUnit.SECONDS).build()) {
+            HttpClient httpClient = ((JaxRsClient) built).getHttpClient();
+            assertEquals(Optional.of(Duration.ZERO), ((DefaultHttpClient) httpClient).getConfiguration().getConnectTimeout());
+        }
+    }
+
+    @Test
+    void propertyNamesOfAConfigurationCannotBeChanged() {
+        WebTarget target = target("hello").property("x", "y");
+        assertThrows(UnsupportedOperationException.class, () -> target.getConfiguration().getPropertyNames().clear());
+        assertEquals("y", target.getConfiguration().getProperty("x"));
+    }
+
+    @Test
+    void nullCacheControlRemovesIt() {
+        CacheControl cacheControl = new CacheControl();
+        cacheControl.setNoStore(true);
+        assertEquals("none", target("header/Cache-Control").request().cacheControl(cacheControl).cacheControl(null).get(String.class));
+        CacheControl other = new CacheControl();
+        other.setMaxAge(5);
+        assertEquals("no-transform,max-age=5", target("header/Cache-Control").request().cacheControl(cacheControl).cacheControl(other)
+            .get(String.class).replace(" ", ""));
+    }
+
+    @Test
+    void nullPropertyValueRemovesTheProperty() {
+        AtomicBoolean requestHas = new AtomicBoolean(true);
+        AtomicBoolean interceptorHas = new AtomicBoolean(true);
+        String echoed = target("echo")
+            .register((ClientRequestFilter) context -> {
+                context.setProperty("x", "y");
+                context.setProperty("x", null);
+                requestHas.set(context.hasProperty("x") || context.getPropertyNames().contains("x"));
+            })
+            .register((WriterInterceptor) context -> {
+                context.setProperty("z", "y");
+                context.setProperty("z", null);
+                interceptorHas.set(context.getPropertyNames().contains("z"));
+                context.proceed();
+            })
+            .request()
+            .post(Entity.text("body"), String.class);
+        assertEquals("text/plain|body", echoed);
+        assertFalse(requestHas.get());
+        assertFalse(interceptorHas.get());
+    }
+
+    @Test
+    void sslSettersRejectNull() throws Exception {
+        ClientBuilder builder = ClientBuilder.newBuilder();
+        KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+        assertThrows(NullPointerException.class, () -> builder.sslContext(null));
+        assertThrows(NullPointerException.class, () -> builder.trustStore(null));
+        assertThrows(NullPointerException.class, () -> builder.keyStore(null, new char[0]));
+        assertThrows(NullPointerException.class, () -> builder.keyStore(keyStore, (char[]) null));
+    }
+
+    @Test
+    void sslAccessorsOfAClosedClientThrow() {
+        Client closed = ClientBuilder.newClient();
+        closed.close();
+        assertThrows(IllegalStateException.class, closed::getSslContext);
+        assertThrows(IllegalStateException.class, closed::getHostnameVerifier);
     }
 
     static final class Thing {

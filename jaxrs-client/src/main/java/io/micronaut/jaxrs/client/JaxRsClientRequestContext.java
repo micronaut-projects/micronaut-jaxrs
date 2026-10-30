@@ -122,8 +122,13 @@ final class JaxRsClientRequestContext implements ClientRequestContext {
     }
 
     @Override
-    public void setProperty(String name, Object object) {
-        properties.put(name, object);
+    public void setProperty(String name, @Nullable Object object) {
+        // a null value removes the property (JAX-RS, ClientRequestContext#setProperty)
+        if (object == null) {
+            properties.remove(name);
+        } else {
+            properties.put(name, object);
+        }
     }
 
     @Override
