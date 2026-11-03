@@ -50,6 +50,8 @@ dependencies {
 test {
     scanForTestClasses false
     systemProperty("junit.jupiter.extensions.autodetection.enabled", "true")
+    // the tests the TCK disables pass as well
+    systemProperty("junit.jupiter.conditions.deactivate", "org.junit.*DisabledCondition")
     systemProperty("java.util.logging.config.class", "x.LoggingConfig")
     systemProperty("webServerHost", "localhost")
     systemProperty("webServerPort", "8123")

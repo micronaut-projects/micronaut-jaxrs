@@ -480,6 +480,19 @@ final class JaxRsUriBuilder extends UriBuilder {
             this.query = null;
             return this;
         }
+        // a query whose template braces are not balanced cannot be parsed
+        int depth = 0;
+        for (int i = 0; i < query.length(); i++) {
+            char c = query.charAt(i);
+            if (c == '{') {
+                depth++;
+            } else if (c == '}' && --depth < 0) {
+                break;
+            }
+        }
+        if (depth != 0) {
+            throw new IllegalArgumentException("Illegal query " + query);
+        }
         this.query = Encode.encodeQueryString(query);
         return this;
     }

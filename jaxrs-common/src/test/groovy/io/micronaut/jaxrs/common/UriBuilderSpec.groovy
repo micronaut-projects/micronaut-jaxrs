@@ -104,4 +104,20 @@ class UriBuilderSpec extends Specification {
         UriBuilder.fromUri("http://localhost/?q={x:foo&bar=baz}&bar=v").replaceQueryParam("bar").build("abc").toString() == "http://localhost/?q=abc"
         UriBuilder.fromUri("urn:{x:[^#]+}").build("abc").toString() == "urn:abc"
     }
+
+    void "a query with unbalanced template braces cannot be parsed"() {
+        when:
+        UriBuilder.fromUri("http://localhost/").replaceQuery(query)
+
+        then:
+        thrown(IllegalArgumentException)
+
+        where:
+        query << ["a={x", "a=x}", "a=]}[{"]
+    }
+
+    void "a query with balanced template braces is a template"() {
+        expect:
+        UriBuilder.fromUri("http://localhost/").replaceQuery("a={x:\\d{2}}").build("12").toString() == "http://localhost/?a=12"
+    }
 }
