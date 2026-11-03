@@ -47,7 +47,9 @@ dependencies {
     testRuntimeOnly mnTest.junit.jupiter.engine
 }
 
-test {
+// the TCK with the micronaut-reflection module (test) and without it (testWithoutReflection)
+def jaxrsApi = configurations.testRuntimeClasspath.incoming.artifactView { lenient(true) }.files.filter { it.name.startsWith("jakarta.ws.rs-api") }
+tasks.withType(Test).configureEach {
     scanForTestClasses false
     systemProperty("junit.jupiter.extensions.autodetection.enabled", "true")
     // the tests the TCK disables pass as well
@@ -61,13 +63,20 @@ test {
     systemProperty("authuser", "j2ee")
     systemProperty("authpassword", "j2ee")
     // the signature test: the API under test, and the classes of the JDK it extracts
-    def jaxrsApi = configurations.testRuntimeClasspath.incoming.artifactView { lenient(true) }.files.filter { it.name.startsWith("jakarta.ws.rs-api") }
     systemProperty("jimage.dir", layout.buildDirectory.dir("jimage").get().asFile.absolutePath)
     doFirst {
         systemProperty("signature.sigTestClasspath", jaxrsApi.asPath + File.pathSeparator + layout.buildDirectory.dir("jimage/java.base").get().asFile.absolutePath)
     }
     useJUnitPlatform()
     maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
-    filter {
-    }
+}
+
+// only the generated metadata is used
+def testWithoutReflection = tasks.register("testWithoutReflection", Test) {
+    description = "Runs the TCK without the micronaut-reflection module on the classpath."
+    group = "verification"
+    def test = tasks.named("test", Test).get()
+    testClassesDirs = test.testClassesDirs
+    classpath = test.classpath.filter { !it.name.startsWith("micronaut-reflection") }
+    systemProperty("micronaut.jaxrs.test.reflection", "false")
 }
