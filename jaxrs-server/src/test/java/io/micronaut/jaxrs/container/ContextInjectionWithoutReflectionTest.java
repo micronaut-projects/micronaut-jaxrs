@@ -58,6 +58,15 @@ class ContextInjectionWithoutReflectionTest {
     }
 
     @Test
+    void shadowedSuperClassFieldIsInjected() {
+        Providers providers = new JaxRsProviders(null);
+        ShadowingProvider provider = new ShadowingProvider();
+        JaxRsReflection.get().injectFields(provider, Context.class, type -> type == Providers.class ? providers : null);
+        assertSame(providers, provider.providers);
+        assertSame(providers, ((ShadowedProvider) provider).providers);
+    }
+
+    @Test
     void introspectionKeepsTheContextMembers() {
         BeanIntrospection<ContextProvider> introspection = BeanIntrospection.getIntrospection(ContextProvider.class);
         assertTrue(introspection.getProperty("providers").orElseThrow().hasAnnotation(Context.class));
@@ -93,6 +102,23 @@ class ContextInjectionWithoutReflectionTest {
         Providers field() {
             return providers;
         }
+
+        @Override
+        public String getContext(Class<?> type) {
+            return null;
+        }
+    }
+
+    public static class ShadowedProvider {
+        @Context
+        Providers providers;
+    }
+
+    @Requires(property = "spec.name", value = "ContextInjectionWithoutReflectionTest")
+    @Provider
+    public static class ShadowingProvider extends ShadowedProvider implements ContextResolver<String> {
+        @Context
+        Providers providers;
 
         @Override
         public String getContext(Class<?> type) {

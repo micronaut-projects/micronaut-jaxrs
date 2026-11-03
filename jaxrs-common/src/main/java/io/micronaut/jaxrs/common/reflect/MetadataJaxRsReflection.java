@@ -24,7 +24,6 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.beans.BeanIntrospection;
 import io.micronaut.core.beans.BeanIntrospector;
 import io.micronaut.core.beans.BeanMethod;
-import io.micronaut.core.beans.BeanProperty;
 import io.micronaut.core.type.Argument;
 import io.micronaut.core.type.TypeHierarchies;
 import io.micronaut.inject.ExecutableMethod;
@@ -234,16 +233,17 @@ final class MetadataJaxRsReflection implements JaxRsReflection {
         if (introspection == null) {
             return;
         }
-        List<BeanProperty<Object, Object>> properties = new ArrayList<>();
-        for (BeanProperty<Object, Object> property : introspection.getBeanProperties()) {
-            if (property.hasAnnotation(annotation) && !property.isReadOnly()) {
-                properties.add(property);
+        // the properties and the fields of super classes they hide
+        List<WritableMember<Object>> members = new ArrayList<>();
+        for (WritableMember<Object> member : WritableMember.of(introspection)) {
+            if (member.getAnnotationMetadata().hasAnnotation(annotation)) {
+                members.add(member);
             }
         }
-        for (BeanProperty<Object, Object> property : properties) {
-            Object value = values.apply(property.getType());
-            if (value != null && (property.isWriteOnly() || property.get(instance) == null)) {
-                property.set(instance, value);
+        for (WritableMember<Object> member : members) {
+            Object value = values.apply(member.getType());
+            if (value != null && member.read(instance) == null) {
+                member.write(instance, value);
             }
         }
     }

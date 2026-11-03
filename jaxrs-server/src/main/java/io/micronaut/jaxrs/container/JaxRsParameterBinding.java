@@ -19,13 +19,13 @@ import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.beans.BeanConstructor;
 import io.micronaut.core.beans.BeanIntrospection;
-import io.micronaut.core.beans.BeanProperty;
 import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.PathVariables;
 import io.micronaut.http.form.FormData;
 import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
+import io.micronaut.jaxrs.common.reflect.WritableMember;
 import io.micronaut.jaxrs.runtime.ext.bind.JaxRsRequestUri;
 import io.micronaut.jaxrs.runtime.ext.bind.UriInfoImpl;
 import jakarta.ws.rs.BadRequestException;
@@ -302,11 +302,8 @@ final class JaxRsParameterBinding {
             ValueReader reader = reader(constructorArguments[i].getAnnotationMetadata(), constructorArguments[i], encodedConstructor);
             constructorReaders[i] = reader == null ? (r, p, f) -> null : reader;
         }
-        List<Map.Entry<BeanProperty<Object, Object>, ValueReader>> properties = new ArrayList<>();
-        for (BeanProperty<Object, Object> property : introspection.getBeanProperties()) {
-            if (property.isReadOnly()) {
-                continue;
-            }
+        List<Map.Entry<WritableMember<Object>, ValueReader>> properties = new ArrayList<>();
+        for (WritableMember<Object> property : WritableMember.of(introspection)) {
             ValueReader reader = reader(property.getAnnotationMetadata(), property.asArgument(), encoded);
             if (reader != null) {
                 properties.add(Map.entry(property, reader));
@@ -319,8 +316,8 @@ final class JaxRsParameterBinding {
             }
             Object instance = constructor == introspection.getConstructor() && arguments.length == 0 ? introspection.instantiate()
                 : constructor.instantiate(arguments);
-            for (Map.Entry<BeanProperty<Object, Object>, ValueReader> property : properties) {
-                property.getKey().set(instance, property.getValue().read(request, pathVariables, form));
+            for (Map.Entry<WritableMember<Object>, ValueReader> property : properties) {
+                property.getKey().write(instance, property.getValue().read(request, pathVariables, form));
             }
             return instance;
         };

@@ -319,12 +319,15 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
      */
     private static void introspect(ClassElement element) {
         if (element.hasAnnotation(Introspected.class)) {
-            element.annotate(Introspected.class, builder -> builder.member(BeanProperties.MEMBER_INCLUDE_INJECTED, true));
+            element.annotate(Introspected.class, builder -> builder
+                .member(BeanProperties.MEMBER_INCLUDE_INJECTED, true)
+                .member("members", true));
         } else {
             element.annotate(Introspected.class, builder -> builder
                 .member("accessKind", new Introspected.AccessKind[]{Introspected.AccessKind.FIELD, Introspected.AccessKind.METHOD})
                 .member("visibility", new Introspected.Visibility[]{Introspected.Visibility.ANY})
-                .member(BeanProperties.MEMBER_INCLUDE_INJECTED, true));
+                .member(BeanProperties.MEMBER_INCLUDE_INJECTED, true)
+                .member("members", true));
         }
     }
 

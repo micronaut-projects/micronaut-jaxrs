@@ -20,7 +20,6 @@ import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.beans.BeanConstructor;
 import io.micronaut.core.beans.BeanIntrospection;
-import io.micronaut.core.beans.BeanProperty;
 import io.micronaut.core.type.Argument;
 import io.micronaut.core.util.SupplierUtil;
 import io.micronaut.http.HttpRequest;
@@ -28,6 +27,7 @@ import io.micronaut.http.PathVariables;
 import io.micronaut.http.form.FormData;
 import io.micronaut.inject.BeanDefinition;
 import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
+import io.micronaut.jaxrs.common.reflect.WritableMember;
 import jakarta.ws.rs.BeanParam;
 import jakarta.ws.rs.CookieParam;
 import jakarta.ws.rs.Encoded;
@@ -229,9 +229,9 @@ final class JaxRsResourceFactory {
         }
         List<Member<T>> members = new ArrayList<>();
         if (introspection != null) {
-            for (BeanProperty<T, Object> property : introspection.getBeanProperties()) {
+            for (WritableMember<T> property : WritableMember.of(introspection)) {
                 AnnotationMetadata metadata = property.getAnnotationMetadata();
-                if (!property.isReadOnly() && isRequestAnnotated(metadata)) {
+                if (isRequestAnnotated(metadata)) {
                     boolean encoded = encodedType || metadata.hasAnnotation(Encoded.class);
                     members.add(new Member<>(property, support.reader(metadata, property.asArgument(), encoded)));
                     usesForm |= usesForm(property.asArgument());
@@ -353,7 +353,7 @@ final class JaxRsResourceFactory {
                 return true;
             }
         }
-        for (BeanProperty<?, ?> property : introspection.getBeanProperties()) {
+        for (WritableMember<?> property : WritableMember.of(introspection)) {
             AnnotationMetadata metadata = property.getAnnotationMetadata();
             if (metadata.hasAnnotation(FormParam.class) && (encodedType || metadata.hasAnnotation(Encoded.class))
                 || metadata.hasAnnotation(BeanParam.class) && usesEncodedForm(property.getType(), depth + 1)) {
@@ -381,7 +381,7 @@ final class JaxRsResourceFactory {
                 return true;
             }
         }
-        for (BeanProperty<?, ?> property : introspection.getBeanProperties()) {
+        for (WritableMember<?> property : WritableMember.of(introspection)) {
             AnnotationMetadata metadata = property.getAnnotationMetadata();
             if (metadata.hasAnnotation(FormParam.class)
                 || metadata.hasAnnotation(BeanParam.class) && usesForm(property.getType(), depth + 1)) {
@@ -455,7 +455,7 @@ final class JaxRsResourceFactory {
             done = true;
             for (Member<T> member : requestType.members()) {
                 JaxRsParameterBinding.ValueReader reader = member.reader();
-                member.property().set(instance, reader == null ? null : reader.read(request, pathVariables, form));
+                member.property().write(instance, reader == null ? null : reader.read(request, pathVariables, form));
             }
         }
     }
@@ -467,7 +467,7 @@ final class JaxRsResourceFactory {
      * @param reader   How to read its value
      * @param <T>      The type that has it
      */
-    record Member<T>(BeanProperty<T, Object> property, JaxRsParameterBinding.@Nullable ValueReader reader) {
+    record Member<T>(WritableMember<T> property, JaxRsParameterBinding.@Nullable ValueReader reader) {
     }
 
     /**
