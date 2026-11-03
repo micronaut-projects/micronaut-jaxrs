@@ -87,7 +87,9 @@ final class MetadataJaxRsReflection implements JaxRsReflection {
             Class<?>[] parameterTypes = method.getParameterTypes();
             for (BeanMethod<?, Object> beanMethod : introspection.getBeanMethods()) {
                 if (beanMethod.getName().equals(method.getName()) && Arrays.equals(Argument.toClassArray(beanMethod.getArguments()), parameterTypes)) {
-                    return beanMethod.getAnnotationMetadata();
+                    // the annotations of the method, like the ones of reflection: not the ones of its class
+                    AnnotationMetadata metadata = beanMethod.getAnnotationMetadata();
+                    return metadata instanceof AnnotationMetadataHierarchy hierarchy ? hierarchy.getDeclaredMetadata() : metadata;
                 }
             }
         }

@@ -150,6 +150,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         element.removeStereotype(HttpMethodMappingMapper.RESOURCE_METHOD);
         element.removeAnnotation(HttpMethodMappingMapper.RESOURCE_METHOD);
         currentClassElement = element;
+        introspectResourcePath(element);
         runtimeRoutes = context.getLanguage() == VisitorContext.Language.JAVA && JaxRsResources.isSupported(context);
         if (!runtimeRoutes) {
             // the runtime routes need the JAX-RS server, and are enabled for Java: other languages,
@@ -328,6 +329,18 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
                 .member("visibility", new Introspected.Visibility[]{Introspected.Visibility.ANY})
                 .member(BeanProperties.MEMBER_INCLUDE_INJECTED, true)
                 .member("members", true));
+        }
+    }
+
+    /**
+     * Introspect a class annotated with {@code @Path}, also one without resource methods or
+     * compiled without the server: {@code UriBuilder.path(Class)}, {@code Link.fromResource} and
+     * {@code UriBuilder.path(Class, String)} read its path and the ones of its methods without
+     * reflection.
+     */
+    private static void introspectResourcePath(ClassElement element) {
+        if (element.hasAnnotation(Path.class) && !element.isInterface()) {
+            introspect(element);
         }
     }
 
