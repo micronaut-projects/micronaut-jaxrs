@@ -33,9 +33,11 @@ noReflection {
     // the JAX-RS providers are handed the annotations as Annotation[], synthesized from the metadata
     allowIn("io.micronaut.jaxrs.common.JaxRsArgumentUtil", "ANNOTATION_SYNTHESIS")
     allowIn("io.micronaut.jaxrs.common.AbstractJaxRsInterceptorContext", "ANNOTATION_SYNTHESIS")
-    allowIn("io.micronaut.jaxrs.common.reflect.MetadataJaxRsReflection", "ANNOTATION_SYNTHESIS")
     // SeBootstrap starts the server of the server module, which it provides as a service
     allowIn("io.micronaut.jaxrs.common.MicronautRuntimeDelegate", "SERVICE_LOADING")
     // whether the micronaut-reflection module is on the classpath, and its implementation
     allowIn("io.micronaut.jaxrs.common.reflect.JaxRsReflection", "CLASS_LOADING", "SERVICE_LOADING")
+    // the synthesized annotations of the metadata, and the String conversions of the parameter types,
+    // which the processor generates as services
+    allowIn("io.micronaut.jaxrs.common.reflect.MetadataJaxRsReflection", "ANNOTATION_SYNTHESIS", "SERVICE_LOADING")
 }
