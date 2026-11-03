@@ -192,7 +192,8 @@ final class MetadataJaxRsReflection implements JaxRsReflection {
             .flatMap(hierarchy -> hierarchy.getTypeClosure(hierarchy.getDeclaration()).stream()
                 .filter(superType -> superType.getType() == genericType)
                 .findFirst())
-            .orElse(null);
+            // else the generic signature of the class, e.g. of an anonymous InvocationCallback
+            .orElseGet(() -> GenericSignatures.resolve(type, genericType));
     }
 
     @Override
