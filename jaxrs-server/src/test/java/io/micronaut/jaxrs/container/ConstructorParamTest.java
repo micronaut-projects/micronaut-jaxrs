@@ -89,10 +89,6 @@ class ConstructorParamTest {
     public static class EncodedConstructorBean {
         private final String x;
 
-        // a member read from the request: the compiler reports a nested class to the processor by its annotated members
-        @QueryParam("y")
-        String y;
-
         @Encoded
         public EncodedConstructorBean(@QueryParam("x") String x) {
             this.x = x;
@@ -111,10 +107,6 @@ class ConstructorParamTest {
 
     public static class ConstructorBean {
         private final String x;
-
-        // a member read from the request: the compiler reports a nested class to the processor by its annotated members
-        @QueryParam("y")
-        String y;
 
         public ConstructorBean() {
             this("none");

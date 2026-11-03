@@ -18,8 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * A bean parameter whose only annotations are on the parameters of a constructor is created with
- * that constructor. The Java compiler does not report such a nested class to the processor, which
- * does not introspect it: it is introspected with reflection.
+ * that constructor.
  */
 @MicronautTest
 @Property(name = "spec.name", value = "ConstructorOnlyBeanParamTest")
