@@ -31,8 +31,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * A provider class an {@link Application} lists that is neither a bean nor annotated with
- * {@code @Provider} is a provider of the application (JAX-RS 2.3, 4.1.1): with reflection, see
- * {@link ApplicationListedProviderWithoutReflectionTest}.
+ * {@code @Provider} is a provider of the application (JAX-RS 2.3, 4.1.1), created from the introspection of its
+ * class, also without reflection.
  */
 @MicronautTest
 @Property(name = "spec.name", value = "ApplicationListedProviderTest")

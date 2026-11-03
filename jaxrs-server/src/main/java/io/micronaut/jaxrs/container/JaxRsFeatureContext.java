@@ -236,11 +236,16 @@ final class JaxRsFeatureContext implements FeatureContext {
         if (!isOtherProvider(componentClass, contracts)) {
             return;
         }
-        RuntimeBeanDefinition<?> definition = features.context.containsBean(componentClass) ? null
-            : JaxRsReflection.get().beanDefinition(componentClass);
+        if (features.context.containsBean(componentClass)) {
+            return;
+        }
+        RuntimeBeanDefinition<?> definition = JaxRsReflection.get().beanDefinition(componentClass);
         if (definition != null) {
             // a class the annotation processors never saw becomes a bean
             features.context.registerBeanDefinition(definition);
+        } else {
+            // an introspected class that is not a bean, e.g. not annotated with @Provider
+            JaxRsApplicationSingletons.registerIntrospected(features.context, componentClass);
         }
     }
 

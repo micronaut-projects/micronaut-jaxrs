@@ -17,7 +17,6 @@ package io.micronaut.jaxrs.common.reflect;
 
 import io.micronaut.context.RuntimeBeanDefinition;
 import io.micronaut.core.annotation.AnnotationMetadata;
-import io.micronaut.core.annotation.AnnotationMetadataProvider;
 import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.AnnotationValueProvider;
 import io.micronaut.core.annotation.Internal;
@@ -77,9 +76,8 @@ final class MetadataJaxRsReflection implements JaxRsReflection {
      */
     @Override
     public AnnotationMetadata annotationMetadata(Class<?> type) {
-        return BeanIntrospector.SHARED.findIntrospection(type)
-            .<AnnotationMetadata>map(AnnotationMetadataProvider::getAnnotationMetadata)
-            .orElse(AnnotationMetadata.EMPTY_METADATA);
+        BeanIntrospection<?> introspection = introspection(type);
+        return introspection == null ? AnnotationMetadata.EMPTY_METADATA : introspection.getAnnotationMetadata();
     }
 
     @Override
@@ -207,7 +205,16 @@ final class MetadataJaxRsReflection implements JaxRsReflection {
 
     @Override
     public <T> @Nullable BeanIntrospection<T> introspection(Class<T> type) {
-        return BeanIntrospector.SHARED.findIntrospection(type).orElse(null);
+        BeanIntrospection<T> introspection = BeanIntrospector.SHARED.findIntrospection(type).orElse(null);
+        ClassLoader classLoader = type.getClassLoader();
+        if (introspection != null && introspection.getBeanType() != type && classLoader != null) {
+            // the introspection of a class of the same name of another class loader, e.g. the one
+            // of an application deployed in its own class loader: the one of the class loader of the class
+            introspection = BeanIntrospector.forClassLoader(classLoader).findIntrospection(type)
+                .filter(found -> found.getBeanType() == type)
+                .orElse(null);
+        }
+        return introspection;
     }
 
     @Override
