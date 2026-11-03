@@ -20,7 +20,9 @@ import io.micronaut.context.RuntimeBeanDefinition;
 import io.micronaut.context.event.BeanCreatedEvent;
 import io.micronaut.context.event.BeanCreatedEventListener;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.beans.BeanIntrospection;
 import io.micronaut.core.type.Argument;
+import io.micronaut.core.util.SupplierUtil;
 import io.micronaut.inject.BeanDefinition;
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.jaxrs.common.JaxRsRouteInterceptors;
@@ -38,6 +40,7 @@ import jakarta.ws.rs.ext.ReaderInterceptor;
 import jakarta.ws.rs.ext.WriterInterceptor;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * The provider instances of the {@link Application}, its {@code getSingletons()} (JAX-RS 2.3.2):
@@ -69,15 +72,15 @@ final class JaxRsApplicationSingletons implements BeanCreatedEventListener<Appli
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Application onCreated(BeanCreatedEvent<Application> event) {
         Application application = event.getBean();
         for (Object singleton : application.getSingletons()) {
             if (isProvider(singleton) && !isRegistered(singleton.getClass())) {
                 // the @Context fields of the instance, like the ones of a bean of its class, also of
                 // a class the annotation processors never saw, with reflection
-                Object injected = context.inject(singleton);
-                JaxRsReflection.get().injectFields(injected, jakarta.ws.rs.core.Context.class, t -> context.findBean(t).orElse(null));
-                register(injected);
+                Object injected = inject(context, singleton);
+                register(context, (Class<Object>) injected.getClass(), () -> injected);
             }
         }
         for (Class<?> type : application.getClasses()) {
@@ -90,10 +93,14 @@ final class JaxRsApplicationSingletons implements BeanCreatedEventListener<Appli
 
     /**
      * Register a provider class the application lists that is not a bean (JAX-RS 2.3, 4.1.1): a
-     * class the annotation processors never saw, which needs reflection.
+     * class the annotation processors never saw, which needs reflection, or an introspected class
+     * that is not annotated with {@code @Provider}: a singleton created from its introspection.
      */
     private void registerClass(Class<?> type) {
         RuntimeBeanDefinition<?> definition = JaxRsReflection.get().beanDefinition(type);
+        if (definition == null && registerIntrospected(context, type)) {
+            return;
+        }
         if (definition == null) {
             throw new IllegalStateException("The provider class " + type.getName() + " the application lists is not a bean: "
                 + (JaxRsReflection.get().isReflective() ? "it cannot be instantiated"
@@ -116,18 +123,16 @@ final class JaxRsApplicationSingletons implements BeanCreatedEventListener<Appli
      * generated, with the annotations and the type arguments of the provider contracts of the
      * class, which select it, e.g. the exception type of an {@code ExceptionMapper}.
      */
-    @SuppressWarnings("unchecked")
-    private <T> void register(T instance) {
-        Class<T> type = (Class<T>) instance.getClass();
+    private static <T> void register(ApplicationContext context, Class<T> type, Supplier<T> instance) {
         BeanDefinition<T> generated = context.findBeanDefinition(type).orElse(null);
-        RuntimeBeanDefinition.Builder<T> definition = RuntimeBeanDefinition.builder(type, () -> instance)
+        RuntimeBeanDefinition.Builder<T> definition = RuntimeBeanDefinition.builder(type, instance)
             .singleton(true)
             .replaces(type)
             // the annotations of the replaced bean, else of the class, which is not a bean
             .annotationMetadata(MutableAnnotationMetadata.of(generated == null
                 ? JaxRsRouteInterceptors.metadata(type) : generated.getAnnotationMetadata()));
         for (Class<?> contract : PROVIDER_CONTRACTS) {
-            if (!contract.isInstance(instance)) {
+            if (!contract.isAssignableFrom(type)) {
                 continue;
             }
             List<Argument<?>> arguments = generated == null ? List.of() : generated.getTypeArguments(contract);
@@ -140,6 +145,36 @@ final class JaxRsApplicationSingletons implements BeanCreatedEventListener<Appli
             }
         }
         context.registerBeanDefinition(definition.build());
+    }
+
+    /**
+     * The {@code @Context} fields of an instance, like the ones of a bean of its class, also of a
+     * class the annotation processors never saw, with reflection.
+     */
+    private static <T> T inject(ApplicationContext context, T instance) {
+        T injected = context.inject(instance);
+        JaxRsReflection.get().injectFields(injected, jakarta.ws.rs.core.Context.class, t -> context.findBean(t).orElse(null));
+        return injected;
+    }
+
+    /**
+     * Register a provider class that is not a bean, e.g. one not annotated with {@code @Provider},
+     * from its introspection, without reflection: a singleton created with its constructor and
+     * injected with its {@code @Context} members, with the annotations of the class and the type
+     * arguments of the provider contracts it implements.
+     *
+     * @param context The context
+     * @param type The provider class
+     * @param <T> The type
+     * @return Whether the class is introspected, and registered
+     */
+    static <T> boolean registerIntrospected(ApplicationContext context, Class<T> type) {
+        BeanIntrospection<T> introspection = JaxRsReflection.get().introspection(type);
+        if (introspection == null) {
+            return false;
+        }
+        register(context, type, SupplierUtil.memoized(() -> inject(context, introspection.instantiate())));
+        return true;
     }
 
     private static boolean isProvider(Object singleton) {
