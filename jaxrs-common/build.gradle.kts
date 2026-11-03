@@ -34,6 +34,9 @@ noReflection {
     allowIn("io.micronaut.jaxrs.common.JaxRsArgumentUtil", "ANNOTATION_SYNTHESIS")
     allowIn("io.micronaut.jaxrs.common.AbstractJaxRsInterceptorContext", "ANNOTATION_SYNTHESIS")
     allowIn("io.micronaut.jaxrs.common.reflect.MetadataJaxRsReflection", "ANNOTATION_SYNTHESIS")
+    // the generic signature of a class (class metadata of the JDK, kept in a native image), e.g. the type
+    // argument of an anonymous InvocationCallback, which the processors record no type hierarchy of
+    allowIn("io.micronaut.jaxrs.common.reflect.GenericSignatures", "GENERIC_SIGNATURES")
     // SeBootstrap starts the server of the server module, which it provides as a service
     allowIn("io.micronaut.jaxrs.common.MicronautRuntimeDelegate", "SERVICE_LOADING")
     // whether the micronaut-reflection module is on the classpath, and its implementation
