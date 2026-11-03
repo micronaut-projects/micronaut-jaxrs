@@ -36,6 +36,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -61,6 +62,19 @@ class SseTest {
             assertTrue(body.contains("id: 1\n"), body);
             assertTrue(body.contains("data: hello\n"), body);
             assertTrue(body.contains("data: 42\n"), body);
+        }
+    }
+
+    @Test
+    void everyLineOfTheDataAndTheCommentIsAField() throws Exception {
+        // a CR, an LF and a CRLF each end a line (HTML 9.2.5): no line starts another field or event
+        HttpRequest request = HttpRequest.newBuilder(URI.create(server.getURL() + "/api/sse/lines")).GET().build();
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            String body = client.send(request, HttpResponse.BodyHandlers.ofString()).body();
+            assertTrue(body.contains(": note\n: event: forged\n"), body);
+            assertTrue(body.contains("data: safe\ndata:\ndata: data: forged\ndata: x\n"), body);
+            assertFalse(body.contains(": : "), body);
+            assertFalse(body.contains("\r"), body);
         }
     }
 
@@ -156,6 +170,15 @@ class SseTest {
             try (sink) {
                 sink.send(sse.newEventBuilder().name("greeting").id("1").data("hello").build());
                 sink.send(sse.newEventBuilder().data(Integer.class, 42).build());
+            }
+        }
+
+        @GET
+        @Path("lines")
+        @Produces(MediaType.SERVER_SENT_EVENTS)
+        public void lines(@Context SseEventSink sink, @Context Sse sse) throws IOException {
+            try (sink) {
+                sink.send(sse.newEventBuilder().data("safe\r\rdata: forged\r\nx").comment("note\revent: forged").build());
             }
         }
 

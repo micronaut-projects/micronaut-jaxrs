@@ -36,7 +36,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
-import java.util.regex.Pattern;
 
 /**
  * The sink of the events a resource method sends (JAX-RS 9.3): the stream of the
@@ -59,7 +58,6 @@ final class JaxRsSseEventSink implements SseEventSink, Publisher<Event<String>>,
     // the events waiting for the demand of the connection: a producer ignoring the stages of its
     // sends fails then, rather than growing the buffer without bound
     static final int PENDING_LIMIT = 65_536;
-    private static final Pattern LINE_BREAK = Pattern.compile("\\r\\n|\\r|\\n");
 
     private final Function<OutboundSseEvent, String> dataWriter;
     private final Executor callbackExecutor;
@@ -252,12 +250,10 @@ final class JaxRsSseEventSink implements SseEventSink, Publisher<Event<String>>,
         }
         try {
             String data = event.getData() == null ? "" : dataWriter.apply(event);
-            // the stream writer starts a data line on each LF only: a CR or a CRLF would end the
-            // line, and could start another field or event (HTML 9.2.5)
-            Event<String> sent = Event.of(LINE_BREAK.matcher(data).replaceAll("\n"))
+            Event<String> sent = Event.of(data)
                 .id(singleLine(event.getId(), "id"))
                 .name(singleLine(event.getName(), "name"))
-                .comment(event.getComment() == null ? null : LINE_BREAK.matcher(event.getComment()).replaceAll("\n: "));
+                .comment(event.getComment());
             if (event.isReconnectDelaySet()) {
                 sent = sent.retry(Duration.ofMillis(event.getReconnectDelay()));
             }

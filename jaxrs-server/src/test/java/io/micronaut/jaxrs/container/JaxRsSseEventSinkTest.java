@@ -131,8 +131,6 @@ class JaxRsSseEventSinkTest {
 
     @Test
     void lineBreaksDoNotStartAnotherEvent() {
-        // a CR, an LF and a CRLF each end a line of the event stream (HTML 9.2.5): the data lines
-        // are written by the stream writer on LF, so every line break of the data becomes an LF
         var sink = new JaxRsSseEventSink(e -> String.valueOf(e.getData()));
         var subscription = new AtomicReference<Subscription>();
         List<Event<String>> received = new CopyOnWriteArrayList<>();
@@ -159,8 +157,9 @@ class JaxRsSseEventSinkTest {
 
         sink.send(new JaxRsOutboundSseEvent.Builder().data("safe\r\rdata: forged\r\nx")
             .comment("note\revent: forged").build());
-        assertEquals("safe\n\ndata: forged\nx", received.get(0).getData());
-        assertEquals("note\n: event: forged", received.get(0).getComment());
+        // the stream writer writes every line of the data and the comment as a field
+        assertEquals("safe\r\rdata: forged\r\nx", received.get(0).getData());
+        assertEquals("note\revent: forged", received.get(0).getComment());
 
         // the name and the id are one line
         CompletableFuture<?> name = sink.send(new JaxRsOutboundSseEvent.Builder().data("d")
