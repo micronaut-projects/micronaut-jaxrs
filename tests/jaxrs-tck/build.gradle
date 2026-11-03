@@ -67,6 +67,5 @@ test {
     useJUnitPlatform()
     maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
     filter {
-        excludeTestsMatching "*BuilderClientIT.expiresTest"
     }
 }
