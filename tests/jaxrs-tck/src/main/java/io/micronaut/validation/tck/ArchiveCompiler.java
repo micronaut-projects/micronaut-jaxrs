@@ -39,9 +39,14 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.jar.JarEntry;
+import java.util.jar.JarInputStream;
+import java.util.jar.JarOutputStream;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -74,32 +79,11 @@ final class ArchiveCompiler {
     }
 
     private void compileWar() throws ArchiveCompilationException, IOException {
-        List<File> sourceFiles = new ArrayList<>();
+        Set<File> sourceFiles = new LinkedHashSet<>();
         for (Map.Entry<ArchivePath, Node> entry : deploymentArchive.getContent().entrySet()) {
             String path = entry.getKey().get();
             if (path.startsWith("/WEB-INF/classes") && path.endsWith(".class")) {
-                String sourceFile = path.replace("/WEB-INF/classes", "")
-                    .replace(".class", ".java");
-
-                if (sourceFile.contains("$")) {
-                    // skip nested classes
-                    //
-                    // this is crude, maybe there's a better way?
-                    continue;
-                }
-
-                Path sourceFilePath = deploymentDir.source.resolve(sourceFile.substring(1)); // sourceFile begins with `/`
-
-                Files.createDirectories(sourceFilePath.getParent()); // make sure the directory exists
-                try (InputStream in = ArchiveCompiler.class.getResourceAsStream(sourceFile)) {
-                    if (in == null) {
-                        // This might be a non-inner class defined in another class
-                        continue;
-                    }
-                    Files.copy(in, sourceFilePath);
-                }
-
-                sourceFiles.add(sourceFilePath.toFile());
+                addSource(path.substring("/WEB-INF/classes".length()), sourceFiles);
             } else if (path.startsWith("/WEB-INF/classes/") && entry.getValue().getAsset() != null) {
                 // a resource of the deployment, e.g. a META-INF/services file of a JAX-RS feature
                 Path resourcePath = deploymentDir.target.resolve(path.substring("/WEB-INF/classes/".length()));
@@ -112,13 +96,59 @@ final class ArchiveCompiler {
                 Path jarFilePath = deploymentDir.lib.resolve(jarFile.substring(1)); // jarFile begins with `/`
 
                 Files.createDirectories(jarFilePath.getParent()); // make sure the directory exists
-                try (InputStream in = entry.getValue().getAsset().openStream()) {
-                    Files.copy(in, jarFilePath);
-                }
+                copyLibrary(entry.getValue(), jarFilePath);
             }
         }
 
         doCompile(sourceFiles, deploymentDir.target.toFile());
+    }
+
+    /**
+     * Copies a library of the deployment without the classes of the TCK, which are loaded from
+     * the TCK on the classpath, with the metadata of the annotation processors when it is the
+     * processed one: the unprocessed classes of the jar would hide them. The jar keeps its other
+     * classes and its resources. The classes of a library are not beans of the deployment.
+     */
+    private static void copyLibrary(Node library, Path jarFilePath) throws IOException {
+        ClassLoader classLoader = ArchiveCompiler.class.getClassLoader();
+        try (JarInputStream in = new JarInputStream(library.getAsset().openStream());
+             JarOutputStream out = in.getManifest() == null ? new JarOutputStream(Files.newOutputStream(jarFilePath))
+                 : new JarOutputStream(Files.newOutputStream(jarFilePath), in.getManifest())) {
+            for (JarEntry jarEntry = in.getNextJarEntry(); jarEntry != null; jarEntry = in.getNextJarEntry()) {
+                String name = jarEntry.getName();
+                if (name.endsWith(".class") && name.startsWith("ee/jakarta/tck/") && classLoader.getResource(name) != null) {
+                    continue;
+                }
+                out.putNextEntry(new JarEntry(name));
+                in.transferTo(out);
+                out.closeEntry();
+            }
+        }
+    }
+
+    /**
+     * Adds the source of a class to the compilation, the source of the top level class for a nested class.
+     *
+     * @param classFile The path of the class file, beginning with {@code /}
+     * @param sourceFiles The source files
+     */
+    private void addSource(String classFile, Set<File> sourceFiles) throws IOException {
+        String className = classFile.substring(0, classFile.length() - ".class".length());
+        int nested = className.indexOf('$', className.lastIndexOf('/'));
+        String sourceFile = (nested == -1 ? className : className.substring(0, nested)) + ".java";
+        Path sourceFilePath = deploymentDir.source.resolve(sourceFile.substring(1));
+        if (sourceFiles.contains(sourceFilePath.toFile())) {
+            return;
+        }
+        try (InputStream in = ArchiveCompiler.class.getResourceAsStream(sourceFile)) {
+            if (in == null) {
+                // a non-public top level class declared in the source of another class
+                return;
+            }
+            Files.createDirectories(sourceFilePath.getParent());
+            Files.copy(in, sourceFilePath);
+        }
+        sourceFiles.add(sourceFilePath.toFile());
     }
 
     private void doCompile(Collection<File> testSources, File outputDir) throws ArchiveCompilationException, IOException {

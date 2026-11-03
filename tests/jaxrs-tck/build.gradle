@@ -71,12 +71,62 @@ tasks.withType(Test).configureEach {
     maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
 }
 
+// the TCK compiled from its sources with the annotation processors, so that the classes the
+// deployments do not contain (the clients, their providers and the common library) get their metadata
+configurations {
+    tckSources {
+        canBeConsumed = false
+        transitive = false
+    }
+}
+dependencies {
+    tckSources(libs.jakarta.jaxrs.tck.tests) {
+        artifact {
+            classifier = "sources"
+        }
+    }
+}
+def extractTckSources = tasks.register("extractTckSources", Sync) {
+    from({ zipTree(configurations.tckSources.singleFile) }) {
+        include "**/*.java"
+    }
+    into(layout.buildDirectory.dir("tck-sources"))
+}
+sourceSets {
+    tck {
+        java.srcDir(extractTckSources)
+        compileClasspath += sourceSets.main.compileClasspath
+    }
+}
+dependencies {
+    tckAnnotationProcessor mn.micronaut.inject.java
+    tckAnnotationProcessor projects.micronautJaxrsProcessor
+    tckAnnotationProcessor files(sourceSets.main.output)
+}
+def isTckJar = { File f -> f.name ==~ /jakarta-restful-ws-tck-[0-9.]+\.jar/ }
+tasks.named("compileTckJava", JavaCompile) {
+    options.compilerArgs.add("-parameters")
+    // a deployment gets its beans from its own compilation only
+    doLast {
+        delete(fileTree(destinationDirectory) { include "META-INF/micronaut/io.micronaut.inject.BeanDefinitionReference/**" })
+    }
+}
+// the TCK jar with its classes replaced by the processed ones, keeping its other resources
+def processedTckJar = tasks.register("processedTckJar", Jar) {
+    archiveFileName = "jakarta-restful-ws-tck-processed.jar"
+    destinationDirectory = layout.buildDirectory.dir("tck-processed")
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from(sourceSets.tck.output)
+    from({ zipTree(configurations.testRuntimeClasspath.find(isTckJar)) })
+}
+
 // only the generated metadata is used
 def testWithoutReflection = tasks.register("testWithoutReflection", Test) {
     description = "Runs the TCK without the micronaut-reflection module on the classpath."
     group = "verification"
     def test = tasks.named("test", Test).get()
     testClassesDirs = test.testClassesDirs
-    classpath = test.classpath.filter { !it.name.startsWith("micronaut-reflection") }
+    dependsOn(processedTckJar)
+    classpath = files(processedTckJar) + test.classpath.filter { !it.name.startsWith("micronaut-reflection") && !isTckJar(it) }
     systemProperty("micronaut.jaxrs.test.reflection", "false")
 }
