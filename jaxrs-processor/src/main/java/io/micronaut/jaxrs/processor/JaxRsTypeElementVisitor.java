@@ -87,6 +87,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     @Nullable
     private ClassElement currentClassElement;
     private boolean runtimeRoutes;
+    private final StringConversions stringConversions = new StringConversions();
 
     // Backwards compatibility
     @NextMajorVersion("Allow only inject values annotated with @Context")
@@ -141,6 +142,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             return;
         }
         JaxRsAnnotationInheritance.normalizeClass(element);
+        stringConversions.generate(element, context);
         if (element.isAssignable(Application.class) && !element.isAbstract()) {
             // its @ApplicationPath, constructor and @Context members, without reflection
             introspect(element);
@@ -385,6 +387,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
 
     @Override
     public void start(VisitorContext visitorContext) {
+        stringConversions.reset();
         for (Class<?> type : BINDABLE_TYPES) {
             visitorContext.getClassElement(type).ifPresent(bindable -> bindable.annotate(Bindable.class));
         }

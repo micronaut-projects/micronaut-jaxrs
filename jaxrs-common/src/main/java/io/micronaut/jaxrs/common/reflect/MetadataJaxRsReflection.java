@@ -24,6 +24,7 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.beans.BeanIntrospection;
 import io.micronaut.core.beans.BeanIntrospector;
 import io.micronaut.core.beans.BeanMethod;
+import io.micronaut.core.io.service.SoftServiceLoader;
 import io.micronaut.core.type.Argument;
 import io.micronaut.core.type.TypeHierarchies;
 import io.micronaut.inject.ExecutableMethod;
@@ -37,7 +38,10 @@ import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
+import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
@@ -218,6 +222,10 @@ final class MetadataJaxRsReflection implements JaxRsReflection {
 
     @Override
     public @Nullable Function<String, Object> stringConversion(Class<?> type) {
+        StringConversion conversion = StringConversions.BY_TYPE.get(type).orElse(null);
+        if (conversion != null) {
+            return value -> convert(conversion, value);
+        }
         BeanIntrospection<?> introspection = introspection(type);
         if (introspection == null) {
             return null;
@@ -256,6 +264,16 @@ final class MetadataJaxRsReflection implements JaxRsReflection {
         return null;
     }
 
+    private static Object convert(StringConversion conversion, String value) {
+        try {
+            return conversion.convert(value);
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalArgumentException(e.getMessage(), e);
+        }
+    }
+
     private static String unsupported(String what) {
         return what + " needs reflection: add io.micronaut:micronaut-reflection to the runtime classpath";
     }
@@ -291,6 +309,38 @@ final class MetadataJaxRsReflection implements JaxRsReflection {
                 annotations = synthesized;
             }
             return synthesized;
+        }
+    }
+
+    /**
+     * The String conversions the processor generated, by type: the services of the class loader of
+     * the type, which may not be the one of this class, loaded once by class loader.
+     */
+    private static final class StringConversions {
+
+        static final ClassValue<Optional<StringConversion>> BY_TYPE = new ClassValue<>() {
+            @Override
+            protected Optional<StringConversion> computeValue(Class<?> type) {
+                ClassLoader classLoader = type.getClassLoader();
+                if (classLoader == null) {
+                    return Optional.empty();
+                }
+                Map<Class<?>, StringConversion> conversions;
+                synchronized (BY_CLASS_LOADER) {
+                    conversions = BY_CLASS_LOADER.computeIfAbsent(classLoader, StringConversions::load);
+                }
+                return Optional.ofNullable(conversions.get(type));
+            }
+        };
+
+        private static final Map<ClassLoader, Map<Class<?>, StringConversion>> BY_CLASS_LOADER = new WeakHashMap<>();
+
+        private static Map<Class<?>, StringConversion> load(ClassLoader classLoader) {
+            Map<Class<?>, StringConversion> conversions = new HashMap<>();
+            for (StringConversion conversion : SoftServiceLoader.load(StringConversion.class, classLoader).collectAll()) {
+                conversions.putIfAbsent(conversion.type(), conversion);
+            }
+            return conversions;
         }
     }
 }
