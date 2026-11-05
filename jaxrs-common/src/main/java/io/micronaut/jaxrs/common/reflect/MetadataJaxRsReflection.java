@@ -156,8 +156,8 @@ final class MetadataJaxRsReflection implements JaxRsReflection {
 
     @Override
     public Method targetMethod(Class<?> type, String name, Class<?>... parameterTypes) {
-        throw new UnsupportedOperationException(unsupported("The java.lang.reflect.Method of the resource method "
-            + type.getName() + "#" + name));
+        // the one method the metadata names: no members are scanned
+        return ResourceMethods.find(type, name, parameterTypes);
     }
 
     /**
@@ -183,8 +183,8 @@ final class MetadataJaxRsReflection implements JaxRsReflection {
 
     @Override
     public Method targetMethod(ExecutableMethod<?, ?> method) {
-        throw new UnsupportedOperationException(unsupported("The java.lang.reflect.Method of the resource method "
-            + method.getDeclaringType().getName() + "#" + method.getMethodName()));
+        // the one method the metadata names: no members are scanned
+        return ResourceMethods.find(method.getDeclaringType(), method.getMethodName(), method.getArgumentTypes());
     }
 
     @Override

@@ -43,4 +43,7 @@ noReflection {
     // the synthesized annotations of the metadata, and the String conversions of the parameter types,
     // which the processor generates as services
     allowIn("io.micronaut.jaxrs.common.reflect.MetadataJaxRsReflection", "ANNOTATION_SYNTHESIS", "SERVICE_LOADING")
+    // ResourceInfo.getResourceMethod returns a java.lang.reflect.Method by API contract: the one method the
+    // metadata names is looked up, no members are scanned; needs a reflection config entry in a native image
+    allowIn("io.micronaut.jaxrs.common.reflect.ResourceMethods", "CLASS_MEMBERS")
 }

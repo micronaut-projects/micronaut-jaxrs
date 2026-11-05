@@ -36,8 +36,9 @@ class WithoutReflectionTest {
     HttpClient client;
 
     @Test
-    void resourceMethodNeedsTheReflectionModule() {
-        assertEquals("io.micronaut:micronaut-reflection",
+    void resourceMethodIsKnownWithoutReflection() {
+        // the one method the metadata names is looked up
+        assertEquals("method",
             client.toBlocking().retrieve(HttpRequest.GET("/method"), String.class));
     }
 
@@ -74,11 +75,7 @@ class WithoutReflectionTest {
         @GET
         @Path("method")
         public String method() {
-            try {
-                return resourceInfo.getResourceMethod().getName();
-            } catch (UnsupportedOperationException e) {
-                return e.getMessage().contains("io.micronaut:micronaut-reflection") ? "io.micronaut:micronaut-reflection" : e.getMessage();
-            }
+            return resourceInfo.getResourceMethod().getName();
         }
 
         @GET
