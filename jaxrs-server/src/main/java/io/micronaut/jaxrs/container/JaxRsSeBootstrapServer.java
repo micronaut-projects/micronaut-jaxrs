@@ -57,6 +57,8 @@ public final class JaxRsSeBootstrapServer implements JaxRsSeBootstrap {
     // the SSL context of a configuration is applied to the Netty server
     private static final String NETTY_SERVER = "io.micronaut.http.server.netty.NettyHttpServer";
     private static final String SSL_CONTEXT_NAME = "jaxrs-se-bootstrap";
+    // the prefix of the properties SeBootstrap.Configuration defines
+    private static final String JAXRS_PROPERTIES = "jakarta.ws.rs.";
 
     @Override
     public CompletionStage<SeBootstrap.Instance> bootstrap(Application application, SeBootstrap.Configuration configuration) {
@@ -89,6 +91,14 @@ public final class JaxRsSeBootstrapServer implements JaxRsSeBootstrap {
             throw new IllegalArgumentException("The protocol " + protocol + " is not supported, only HTTP and HTTPS are");
         }
         Map<String, Object> properties = new HashMap<>();
+        Map<String, Object> requested = configuration instanceof JaxRsSeConfiguration se ? se.properties() : Map.of();
+        requested.forEach((name, value) -> {
+            // the other properties of the configuration, e.g. the ones of the Micronaut server,
+            // are properties of the application context
+            if (!name.startsWith(JAXRS_PROPERTIES)) {
+                properties.put(name, value);
+            }
+        });
         properties.put("micronaut.server.host", configuration.host());
         String portProperty = https ? "micronaut.server.ssl.port" : "micronaut.server.port";
         int port = configuration.port();
@@ -142,7 +152,8 @@ public final class JaxRsSeBootstrapServer implements JaxRsSeBootstrap {
             if (!server.isRunning()) {
                 server.start();
             }
-            Map<String, Object> actual = new HashMap<>();
+            // the properties that were set, with the actual values of the standard ones
+            Map<String, Object> actual = new HashMap<>(requested);
             actual.put(SeBootstrap.Configuration.PROTOCOL, protocol);
             actual.put(SeBootstrap.Configuration.HOST, configuration.host());
             actual.put(SeBootstrap.Configuration.PORT, server.getPort());

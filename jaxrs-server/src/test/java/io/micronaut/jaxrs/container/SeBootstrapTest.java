@@ -59,6 +59,29 @@ class SeBootstrapTest {
     }
 
     @Test
+    void otherPropertiesOfTheConfigurationAreHonoured() throws Exception {
+        SeBootstrap.Configuration requested = SeBootstrap.Configuration.builder()
+            .port(SeBootstrap.Configuration.FREE_PORT)
+            .property("custom.value", "set")
+            .build();
+        System.setProperty("spec.name", "SeBootstrapTest");
+        SeBootstrap.Instance instance;
+        try {
+            instance = SeBootstrap.start(new SeApplication("the instance"), requested).toCompletableFuture().get();
+        } finally {
+            System.clearProperty("spec.name");
+        }
+        try {
+            // a property of the application context, and of the configuration of the instance
+            assertEquals("set", instance.unwrap(ApplicationContext.class).getProperty("custom.value", String.class).orElse(null));
+            assertEquals("set", instance.configuration().property("custom.value"));
+            assertTrue(instance.configuration().port() > 0);
+        } finally {
+            instance.stop().toCompletableFuture().get();
+        }
+    }
+
+    @Test
     void requestedApplicationClassIsServedOverAnotherApplicationBean() throws Exception {
         SeBootstrap.Configuration requested = SeBootstrap.Configuration.builder()
             .port(SeBootstrap.Configuration.FREE_PORT)
