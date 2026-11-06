@@ -394,6 +394,33 @@ class JaxRsClientLifecycleTest {
     }
 
     @Test
+    void aLargeEntityIsSentAsItIsWritten() {
+        ClientTestController.uploadStarted = new java.util.concurrent.CompletableFuture<>();
+        int half = 2 * 1024 * 1024;
+        jakarta.ws.rs.core.StreamingOutput entity = output -> {
+            output.write(new byte[half]);
+            try {
+                // the server receives the request before the entity is written: it is not buffered
+                ClientTestController.uploadStarted.get(10, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (Exception e) {
+                throw new IOException("The upload did not start", e);
+            }
+            output.write(new byte[half]);
+        };
+
+        String received = target("upload").request().post(Entity.entity(entity, MediaType.APPLICATION_OCTET_STREAM), String.class);
+        assertEquals(String.valueOf(2 * half), received);
+    }
+
+    @Test
+    void anEntityStreamIsReceivedAsItArrivesWithoutBeingBuffered() throws IOException {
+        // larger than the max-content-length of the HTTP client, which a buffered body is limited by
+        try (Response response = target("large").request().get(); InputStream stream = response.readEntity(InputStream.class)) {
+            assertEquals(20 * 1024 * 1024, stream.transferTo(OutputStream.nullOutputStream()));
+        }
+    }
+
+    @Test
     void streamOfAReaderInterceptorIsClosedWithTheResponse() throws IOException {
         AtomicBoolean closed = new AtomicBoolean();
         WebTarget target = target("hello")
@@ -407,6 +434,27 @@ class JaxRsClientLifecycleTest {
         assertEquals('h', stream.read());
         response.close();
         assertTrue(closed.get());
+    }
+
+    @Test
+    void streamsOfAReaderInterceptorAreClosedWithTheReaderRead() throws IOException {
+        AtomicBoolean firstClosed = new AtomicBoolean();
+        AtomicBoolean secondClosed = new AtomicBoolean();
+        WebTarget target = target("hello")
+            .register((ReaderInterceptor) context -> {
+                context.setInputStream(tracking(context.getInputStream(), firstClosed));
+                // a second stream, independent of the first one
+                context.setInputStream(tracking(new ByteArrayInputStream("other".getBytes(StandardCharsets.UTF_8)), secondClosed));
+                return context.proceed();
+            });
+
+        Response response = target.request().get();
+        java.io.Reader reader = response.readEntity(java.io.Reader.class);
+        assertEquals('o', reader.read());
+        reader.close();
+        response.close();
+        assertTrue(secondClosed.get());
+        assertTrue(firstClosed.get());
     }
 
     @Test

@@ -189,4 +189,29 @@ class ClientTestController {
     Publisher<Event<String>> gotEvents(HttpRequest<?> request) {
         return Flux.just(Event.of(request.getMethodName()));
     }
+
+    @Post(value = "/body-events", consumes = MediaType.ALL, produces = MediaType.TEXT_EVENT_STREAM)
+    Publisher<Event<String>> bodyEvents(@Body String body) {
+        return Flux.just(Event.of(body));
+    }
+
+    @Get(value = "/raw-events", produces = MediaType.TEXT_EVENT_STREAM)
+    HttpResponse<String> rawEvents() {
+        return HttpResponse.ok("data:raw\r\n\r\n").contentType(MediaType.TEXT_EVENT_STREAM_TYPE);
+    }
+
+    @Get(value = "/large", produces = MediaType.APPLICATION_OCTET_STREAM)
+    byte[] large() {
+        // larger than the default max-content-length of the HTTP client
+        return new byte[20 * 1024 * 1024];
+    }
+
+    // completed once the upload of an entity reached the server, its body not received yet
+    static volatile java.util.concurrent.CompletableFuture<Void> uploadStarted = new java.util.concurrent.CompletableFuture<>();
+
+    @Post(value = "/upload", consumes = MediaType.ALL, produces = MediaType.TEXT_PLAIN)
+    Mono<String> upload(@Body Publisher<byte[]> body) {
+        uploadStarted.complete(null);
+        return Flux.from(body).map(bytes -> (long) bytes.length).reduce(0L, Long::sum).map(String::valueOf);
+    }
 }

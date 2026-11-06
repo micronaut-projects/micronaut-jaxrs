@@ -662,4 +662,145 @@ class JaxRsSseEventSourceTest {
             client.close();
         }
     }
+
+    @Test
+    void aRequestFilterSetsTheEntity() throws Exception {
+        Client client = ClientBuilder.newClient();
+        try {
+            WebTarget target = target(client, "body-events")
+                .register((ClientRequestFilter) context -> {
+                    context.setMethod("POST");
+                    context.setEntity("subscription", null, jakarta.ws.rs.core.MediaType.TEXT_PLAIN_TYPE);
+                });
+            CompletableFuture<String> received = new CompletableFuture<>();
+            try (SseEventSource source = SseEventSource.target(target).build()) {
+                source.register(event -> received.complete(event.readData()));
+                source.open();
+                assertEquals("subscription", received.get(10, TimeUnit.SECONDS));
+            }
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void anEntityStreamReplacedBeforeAnAbortIsClosed() throws Exception {
+        Client client = ClientBuilder.newClient();
+        try {
+            var replaced = new java.io.ByteArrayOutputStream() {
+                volatile boolean closed;
+
+                @Override
+                public void close() {
+                    closed = true;
+                }
+            };
+            WebTarget target = target(client, "events")
+                .register((ClientRequestFilter) context -> context.setEntityStream(replaced), 1)
+                .register((ClientRequestFilter) context -> context.abortWith(Response.noContent().build()), 2);
+            try (SseEventSource source = SseEventSource.target(target).build()) {
+                CompletableFuture<Throwable> ended = new CompletableFuture<>();
+                source.register(event -> { }, ended::complete, () -> ended.complete(null));
+                source.open();
+                assertNull(ended.get(10, TimeUnit.SECONDS));
+            }
+            assertTrue(replaced.closed);
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void theEntityOfASuccessfulAbortIsClosed() throws Exception {
+        Client client = ClientBuilder.newClient();
+        try {
+            var entity = new ClosingStream("unused");
+            WebTarget target = target(client, "events")
+                .register((ClientRequestFilter) context -> context.abortWith(Response.ok(entity).build()));
+            try (SseEventSource source = SseEventSource.target(target).build()) {
+                CompletableFuture<Throwable> ended = new CompletableFuture<>();
+                source.register(event -> { }, ended::complete, () -> ended.complete(null));
+                source.open();
+                assertNull(ended.get(10, TimeUnit.SECONDS));
+            }
+            assertTrue(entity.closed);
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void theEntityStreamOfARetriedErrorResponseIsClosed() throws Exception {
+        Client client = ClientBuilder.newClient();
+        try {
+            var entity = new ClosingStream("retried");
+            AtomicInteger connections = new AtomicInteger();
+            WebTarget target = target(client, "unavailable")
+                .register((ClientResponseFilter) (request, response) -> {
+                    if (connections.incrementAndGet() == 1) {
+                        response.getHeaders().putSingle("Retry-After", "0");
+                        response.setEntityStream(entity);
+                    }
+                });
+            try (SseEventSource source = SseEventSource.target(target).build()) {
+                CompletableFuture<Throwable> ended = new CompletableFuture<>();
+                source.register(event -> { }, ended::complete, () -> ended.complete(null));
+                source.open();
+                assertTrue(ended.get(10, TimeUnit.SECONDS) instanceof WebApplicationException);
+            }
+            assertEquals(2, connections.get());
+            assertTrue(entity.closed);
+        } finally {
+            client.close();
+        }
+    }
+
+    private static final class ClosingStream extends ByteArrayInputStream {
+        volatile boolean closed;
+
+        ClosingStream(String content) {
+            super(content.getBytes(StandardCharsets.UTF_8));
+        }
+
+        @Override
+        public void close() throws IOException {
+            closed = true;
+            super.close();
+        }
+    }
+
+    @Test
+    void aResponseFilterReadsTheBytesOfTheConnection() throws Exception {
+        Client client = ClientBuilder.newClient();
+        try {
+            var seen = new java.io.ByteArrayOutputStream();
+            WebTarget target = target(client, "raw-events")
+                .register((ClientResponseFilter) (request, response) -> {
+                    java.io.InputStream received = response.getEntityStream();
+                    response.setEntityStream(new java.io.FilterInputStream(received) {
+                        @Override
+                        public int read(byte[] b, int off, int len) throws IOException {
+                            int n = super.read(b, off, len);
+                            if (n > 0) {
+                                synchronized (seen) {
+                                    seen.write(b, off, n);
+                                }
+                            }
+                            return n;
+                        }
+                    });
+                });
+            CompletableFuture<String> received = new CompletableFuture<>();
+            try (SseEventSource source = SseEventSource.target(target).build()) {
+                source.register(event -> received.complete(event.readData()));
+                source.open();
+                assertEquals("raw", received.get(10, TimeUnit.SECONDS));
+            }
+            synchronized (seen) {
+                assertTrue(seen.toString(StandardCharsets.UTF_8).startsWith("data:raw\r\n\r\n"), seen::toString);
+            }
+        } finally {
+            client.close();
+        }
+    }
 }

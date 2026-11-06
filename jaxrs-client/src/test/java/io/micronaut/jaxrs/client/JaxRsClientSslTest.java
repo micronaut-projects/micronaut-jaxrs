@@ -42,6 +42,19 @@ class JaxRsClientSslTest {
     }
 
     @Test
+    void theDefaultClientConnectsWithTheDefaultSslContextItReports() throws Exception {
+        SSLContext previous = SSLContext.getDefault();
+        SSLContext sslContext = trustAll();
+        SSLContext.setDefault(sslContext);
+        try (Client client = ClientBuilder.newBuilder().build()) {
+            assertSame(sslContext, client.getSslContext());
+            assertEquals("hello", client.target(server.getURI()).path("client/hello").request().get(String.class));
+        } finally {
+            SSLContext.setDefault(previous);
+        }
+    }
+
+    @Test
     void sslContext() throws Exception {
         SSLContext sslContext = trustAll();
         ClientBuilder builder = ClientBuilder.newBuilder().sslContext(sslContext);

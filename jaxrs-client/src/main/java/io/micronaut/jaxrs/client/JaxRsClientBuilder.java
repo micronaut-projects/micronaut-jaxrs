@@ -39,15 +39,18 @@ import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.client.ClientBuilder;
 import jakarta.ws.rs.client.Entity;
 import jakarta.ws.rs.core.Configuration;
+import jakarta.ws.rs.core.Feature;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 import java.security.KeyStore;
 import java.time.Duration;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.ServiceLoader;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -61,6 +64,12 @@ import java.util.function.Supplier;
  */
 @Internal
 public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConfigurable<ClientBuilder> {
+
+    /**
+     * The property that disables the features of the Java service loader when it is {@code false}
+     * (JAX-RS 4.1.2).
+     */
+    static final String LOAD_SERVICES = "jakarta.ws.rs.loadServices";
 
     private final JaxRsConfiguration config = new JaxRsConfiguration();
     @Nullable
@@ -86,11 +95,10 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
         DefaultHttpClientConfiguration configuration = new DefaultHttpClientConfiguration();
         configuration.setConnectTimeout(connectTimeout);
         configuration.setReadTimeout(readTimeout);
-        // the SSL of this builder, else the one of the HTTP client
+        // the SSL of this builder, else the default one of the JVM, captured now: the client
+        // connects with the context it reports
         SSLContext clientSslContext = JaxRsClientSsl.sslContext(sslContext, keyStore, keyStorePassword, trustStore, hostnameVerifier);
-        if (clientSslContext != null) {
-            JaxRsClientSsl.configure(configuration.getSslConfiguration(), clientSslContext, hostnameVerifier);
-        }
+        JaxRsClientSsl.configure(configuration.getSslConfiguration(), clientSslContext, hostnameVerifier);
         // the main HTTP client owns the event loop: the other HTTP clients of the client, e.g. of
         // its event sources, run on it, and it shuts it down when it closes
         DefaultHttpClient httpClient = DefaultHttpClient.builder().configuration(configuration).build();
@@ -134,9 +142,37 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
         for (JaxRsStandardProviders standardProviders : ServiceLoader.load(JaxRsStandardProviders.class, JaxRsClientBuilder.class.getClassLoader())) {
             standardProviders.providers().forEach(jaxRsConfiguration::registerStandard);
         }
+        registerServiceFeatures(jaxRsConfiguration);
 
         return new JaxRsClient(httpClient, httpClients, jaxRsConfiguration, executorService, scheduledExecutorService,
             clientSslContext, hostnameVerifier);
+    }
+
+    /**
+     * Register the features of the Java service loader, of the context class loader and of the
+     * class loader of {@link Feature}, unless the property {@value #LOAD_SERVICES} is
+     * {@code false} (JAX-RS 4.1.2). A feature of a class registered already is not registered again.
+     *
+     * @param configuration The configuration of the client
+     */
+    private static void registerServiceFeatures(JaxRsConfiguration configuration) {
+        if ("false".equalsIgnoreCase(String.valueOf(configuration.getProperty(LOAD_SERVICES)))) {
+            return;
+        }
+        Set<ClassLoader> classLoaders = new LinkedHashSet<>();
+        ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
+        if (contextClassLoader != null) {
+            classLoaders.add(contextClassLoader);
+        }
+        ClassLoader featureClassLoader = Feature.class.getClassLoader();
+        classLoaders.add(featureClassLoader == null ? JaxRsClientBuilder.class.getClassLoader() : featureClassLoader);
+        for (ClassLoader classLoader : classLoaders) {
+            for (Feature feature : ServiceLoader.load(Feature.class, classLoader)) {
+                if (!configuration.isRegistered(feature.getClass())) {
+                    configuration.register(feature, Feature.class);
+                }
+            }
+        }
     }
 
     @Override

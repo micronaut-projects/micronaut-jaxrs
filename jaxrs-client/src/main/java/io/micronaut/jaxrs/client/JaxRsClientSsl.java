@@ -70,10 +70,10 @@ final class JaxRsClientSsl {
      * @param keyStorePassword The password of the key store
      * @param trustStore       The trust store
      * @param hostnameVerifier The host name verifier
-     * @return The SSL context, or {@code null} when the builder configured none: the one of the
-     * HTTP client is used
+     * @return The SSL context, the default one of the JVM when the builder configured none: the
+     * client reports the context it connects with (JAX-RS, {@code Client#getSslContext})
      */
-    static @Nullable SSLContext sslContext(@Nullable SSLContext sslContext,
+    static SSLContext sslContext(@Nullable SSLContext sslContext,
                                            @Nullable KeyStore keyStore,
                                            char @Nullable [] keyStorePassword,
                                            @Nullable KeyStore trustStore,
@@ -82,10 +82,10 @@ final class JaxRsClientSsl {
             // the SSL context wins over the stores (JAX-RS, ClientBuilder#sslContext)
             return sslContext;
         }
-        if (keyStore == null && trustStore == null && hostnameVerifier == null) {
-            return null;
-        }
         try {
+            if (keyStore == null && trustStore == null && hostnameVerifier == null) {
+                return SSLContext.getDefault();
+            }
             KeyManager[] keyManagers = null;
             if (keyStore != null) {
                 KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
