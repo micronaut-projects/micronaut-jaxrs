@@ -34,7 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Property(name = "spec.name", value = "SseFirstSendTest")
 class SseFirstSendTest {
 
-    static final int EVENTS = JaxRsSseEventSink.UNSUBSCRIBED_LIMIT + 10;
+    static final int EVENTS = 266;
 
     @Inject
     EmbeddedServer server;

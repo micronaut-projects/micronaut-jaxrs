@@ -90,21 +90,24 @@ class JaxRsSseEventSinkTest {
     }
 
     @Test
-    void eventsBufferedBeforeTheResponseComplete() {
-        // the resource method can wait for its stages before the response is written
+    void eventsBufferedBeforeTheResponseCompleteWhenDelivered() {
         var sink = new JaxRsSseEventSink(e -> String.valueOf(e.getData()));
-        assertTrue(sink.send(event("one")).toCompletableFuture().isDone());
-        for (int i = 1; i < JaxRsSseEventSink.UNSUBSCRIBED_LIMIT; i++) {
-            sink.send(event("more"));
-        }
-        // the buffer before the response is bounded: then the stages follow the demand
-        CompletableFuture<?> over = sink.send(event("over")).toCompletableFuture();
-        assertFalse(over.isDone());
+        CompletableFuture<?> first = sink.send(event("one")).toCompletableFuture();
+        assertFalse(first.isDone());
 
         var subscription = new AtomicReference<Subscription>();
         sink.publisher().subscribe(new TestSubscriber(subscription, new CopyOnWriteArrayList<>()));
         subscription.get().request(Long.MAX_VALUE);
-        assertTrue(over.isDone());
+        assertTrue(first.isDone());
+        assertFalse(first.isCompletedExceptionally());
+    }
+
+    @Test
+    void eventsBufferedBeforeACancelledResponseFail() {
+        var sink = new JaxRsSseEventSink(e -> String.valueOf(e.getData()));
+        CompletableFuture<?> sent = sink.send(event("one")).toCompletableFuture();
+        sink.cancel();
+        assertTrue(sent.isCompletedExceptionally());
     }
 
     @Test
