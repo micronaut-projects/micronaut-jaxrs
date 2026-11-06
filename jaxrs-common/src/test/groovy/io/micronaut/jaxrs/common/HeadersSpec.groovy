@@ -178,4 +178,35 @@ class HeadersSpec extends Specification {
         then:
         metadata.get("X") == ["a", "b"]
     }
+
+    void "a change of the values of the object headers writes through to the headers"() {
+        given:
+        def headers = new SimpleHttpHeaders()
+        headers.add("Authorization", "Bearer x")
+        headers.add("X-Values", "a")
+        headers.add("X-Values", "b")
+        def map = new JaxRsMutableObjectHeadersMultivaluedMap(headers)
+
+        when:
+        map.get("Authorization").clear()
+        map.get("X-Values").set(1, "c")
+        map.get("X-Values").add("d")
+
+        then:
+        !headers.contains("Authorization")
+        headers.getAll("X-Values") == ["a", "c", "d"]
+    }
+
+    void "addFirst adds an absent object header"() {
+        given:
+        def headers = new SimpleHttpHeaders()
+        def map = new JaxRsMutableObjectHeadersMultivaluedMap(headers)
+
+        when:
+        map.addFirst("X-Test", "a")
+        map.addFirst("X-Test", "b")
+
+        then:
+        headers.getAll("X-Test") == ["b", "a"]
+    }
 }

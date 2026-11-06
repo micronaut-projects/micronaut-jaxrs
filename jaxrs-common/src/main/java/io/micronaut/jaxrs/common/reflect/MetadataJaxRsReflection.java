@@ -32,6 +32,7 @@ import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import org.jspecify.annotations.Nullable;
 
 import java.lang.annotation.Annotation;
+import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
@@ -321,7 +322,9 @@ final class MetadataJaxRsReflection implements JaxRsReflection {
 
     /**
      * The String conversions the processor generated, by type: the services of the class loader of
-     * the type, which may not be the one of this class, loaded once by class loader.
+     * the type, which may not be the one of this class, loaded once by class loader. The conversions
+     * of a class loader reference its classes, they are kept weakly: they would keep the class
+     * loader, the weak key, e.g. of an application that is undeployed. Each type keeps its own.
      */
     private static final class StringConversions {
 
@@ -334,13 +337,18 @@ final class MetadataJaxRsReflection implements JaxRsReflection {
                 }
                 Map<Class<?>, StringConversion> conversions;
                 synchronized (BY_CLASS_LOADER) {
-                    conversions = BY_CLASS_LOADER.computeIfAbsent(classLoader, StringConversions::load);
+                    WeakReference<Map<Class<?>, StringConversion>> cached = BY_CLASS_LOADER.get(classLoader);
+                    conversions = cached == null ? null : cached.get();
+                    if (conversions == null) {
+                        conversions = load(classLoader);
+                        BY_CLASS_LOADER.put(classLoader, new WeakReference<>(conversions));
+                    }
                 }
                 return Optional.ofNullable(conversions.get(type));
             }
         };
 
-        private static final Map<ClassLoader, Map<Class<?>, StringConversion>> BY_CLASS_LOADER = new WeakHashMap<>();
+        private static final Map<ClassLoader, WeakReference<Map<Class<?>, StringConversion>>> BY_CLASS_LOADER = new WeakHashMap<>();
 
         private static Map<Class<?>, StringConversion> load(ClassLoader classLoader) {
             Map<Class<?>, StringConversion> conversions = new HashMap<>();

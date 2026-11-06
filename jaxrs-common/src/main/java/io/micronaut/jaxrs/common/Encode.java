@@ -45,6 +45,8 @@ final class Encode {
     private static final String[] QUERY_STRING_ENCODING = new String[128];
     private static final String[] USER_INFO_ENCODING = new String[128];
     private static final String[] HOST_ENCODING = new String[128];
+    // a registered name: a ':' would start the port
+    private static final String[] REG_NAME_ENCODING = new String[128];
 
     static {
         /*
@@ -104,6 +106,8 @@ final class Encode {
         System.arraycopy(USER_INFO_ENCODING, 0, HOST_ENCODING, 0, USER_INFO_ENCODING.length);
         HOST_ENCODING['['] = null;
         HOST_ENCODING[']'] = null;
+        System.arraycopy(USER_INFO_ENCODING, 0, REG_NAME_ENCODING, 0, USER_INFO_ENCODING.length);
+        REG_NAME_ENCODING[':'] = "%3A";
         /*
          * Encode via <a href="https://www.ietf.org/rfc/rfc3986.txt">RFC 3986</a>.
          *
@@ -274,7 +278,8 @@ final class Encode {
     public static String encodeComponentValue(String value, Component component, boolean saveEncodings) {
         String[] encoding = switch (component) {
             case USER_INFO -> USER_INFO_ENCODING;
-            case HOST -> HOST_ENCODING;
+            // the ':' of an IP literal, e.g. [::1], else of a registered name, which cannot add a port
+            case HOST -> value.startsWith("[") && value.endsWith("]") ? HOST_ENCODING : REG_NAME_ENCODING;
             case FRAGMENT -> QUERY_STRING_ENCODING;
         };
         if (saveEncodings) {

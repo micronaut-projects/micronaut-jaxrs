@@ -169,7 +169,8 @@ public final class JaxRsResponseMetadata extends AbstractMap<String, List<Object
 
     @Override
     public void clear() {
-        for (String name : headers.names()) {
+        // a snapshot of the names, which a removal changes
+        for (String name : new ArrayList<>(headers.names())) {
             headers.remove(name);
         }
         objects.clear();

@@ -18,10 +18,12 @@ package io.micronaut.jaxrs.common;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.type.Argument;
 import jakarta.ws.rs.WebApplicationException;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.ext.WriterInterceptor;
 import jakarta.ws.rs.ext.WriterInterceptorContext;
+import org.jspecify.annotations.Nullable;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -85,6 +87,18 @@ final class JaxRsWriterInterceptorContext extends AbstractJaxRsInterceptorContex
     @Override
     public MultivaluedMap<String, Object> getHeaders() {
         return state.getHeaders();
+    }
+
+    @Override
+    public void setMediaType(@Nullable MediaType mediaType) {
+        super.setMediaType(mediaType);
+        // the Content-Type header is the media type the entity is written as
+        MultivaluedMap<String, Object> headers = state.getHeaders();
+        if (mediaType == null) {
+            headers.remove(HttpHeaders.CONTENT_TYPE);
+        } else {
+            headers.putSingle(HttpHeaders.CONTENT_TYPE, mediaType);
+        }
     }
 
     /**

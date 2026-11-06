@@ -12,6 +12,22 @@ import spock.lang.Specification
 
 class ResponseBuilderSpec extends Specification {
 
+    void "clear removes every header of the metadata"() {
+        given:
+        def headers = new io.micronaut.http.simple.SimpleHttpHeaders()
+        headers.add("A", "1")
+        headers.add("B", "2")
+        headers.add("C", "3")
+        def metadata = new JaxRsResponseMetadata(headers, new JaxRsResponseMetadata.State())
+
+        when:
+        metadata.clear()
+
+        then:
+        metadata.isEmpty()
+        headers.names().isEmpty()
+    }
+
     void "encoding, contentLocation and cacheControl replace the header, header adds a value"() {
         given:
         def first = new jakarta.ws.rs.core.CacheControl()

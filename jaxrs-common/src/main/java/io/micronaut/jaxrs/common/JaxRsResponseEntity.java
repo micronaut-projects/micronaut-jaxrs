@@ -206,7 +206,19 @@ final class JaxRsResponseEntity {
     void close() {
         if (!closed) {
             closed = true;
-            release();
+            try {
+                release();
+            } finally {
+                // the buffered entity and the entities read are released (JAX-RS, Response#close)
+                buffer = null;
+                readBodyArgument = null;
+                readBody = null;
+                entityRead = false;
+                readEntity = null;
+                if (mutableResponse != null) {
+                    mutableResponse.body(null);
+                }
+            }
         }
     }
 

@@ -433,7 +433,7 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
             registered = classes;
             registeredClasses = registered;
         }
-        boolean listed = registered.isEmpty() || registered.contains(providerClass) || providerClass.getName().startsWith("io.micronaut.");
+        boolean listed = registered.isEmpty() || registered.contains(providerClass) || JaxRsProviderSelection.isStandard(providerClass);
         if (listed && contract == null) {
             return true;
         }

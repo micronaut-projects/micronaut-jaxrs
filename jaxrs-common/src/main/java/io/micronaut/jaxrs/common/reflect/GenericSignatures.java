@@ -84,7 +84,7 @@ final class GenericSignatures {
                 rawType = raw;
                 typeArguments = parameterized.getActualTypeArguments().clone();
                 for (int i = 0; i < typeArguments.length; i++) {
-                    typeArguments[i] = bindings.getOrDefault(typeArguments[i], typeArguments[i]);
+                    typeArguments[i] = bind(typeArguments[i], bindings);
                 }
             } else if (superType instanceof Class<?> raw) {
                 rawType = raw;
@@ -111,23 +111,64 @@ final class GenericSignatures {
         return null;
     }
 
+    // a type with its type variables bound, also the ones of its type arguments, e.g. the T of List<T>
+    private static Type bind(Type type, Map<TypeVariable<?>, Type> bindings) {
+        if (type instanceof TypeVariable<?> variable) {
+            return bindings.getOrDefault(variable, variable);
+        }
+        Class<?> raw;
+        Type[] typeArguments;
+        if (type instanceof ParameterizedType parameterized && parameterized.getRawType() instanceof Class<?> c) {
+            raw = c;
+            typeArguments = parameterized.getActualTypeArguments();
+        } else if (type instanceof Bound bound) {
+            raw = bound.raw();
+            typeArguments = bound.typeArguments();
+        } else {
+            return type;
+        }
+        if (bindings.isEmpty()) {
+            return type;
+        }
+        Type[] bound = new Type[typeArguments.length];
+        for (int i = 0; i < typeArguments.length; i++) {
+            bound[i] = bind(typeArguments[i], bindings);
+        }
+        return new Bound(raw, bound);
+    }
+
     // a class or a parameterized type of classes, else null: a wildcard or a type variable left unbound
     private static @Nullable Argument<?> argument(Type type) {
         if (type instanceof Class<?> c) {
             return Argument.of(c);
         }
+        if (type instanceof Bound bound) {
+            return argument(bound.raw(), bound.typeArguments());
+        }
         if (type instanceof ParameterizedType parameterized && parameterized.getRawType() instanceof Class<?> raw) {
-            Type[] typeArguments = parameterized.getActualTypeArguments();
-            Argument<?>[] arguments = new Argument<?>[typeArguments.length];
-            for (int i = 0; i < typeArguments.length; i++) {
-                Argument<?> argument = argument(typeArguments[i]);
-                if (argument == null) {
-                    return null;
-                }
-                arguments[i] = argument;
-            }
-            return Argument.of(raw, arguments);
+            return argument(raw, parameterized.getActualTypeArguments());
         }
         return null;
+    }
+
+    private static @Nullable Argument<?> argument(Class<?> raw, Type[] typeArguments) {
+        Argument<?>[] arguments = new Argument<?>[typeArguments.length];
+        for (int i = 0; i < typeArguments.length; i++) {
+            Argument<?> argument = argument(typeArguments[i]);
+            if (argument == null) {
+                return null;
+            }
+            arguments[i] = argument;
+        }
+        return Argument.of(raw, arguments);
+    }
+
+    /**
+     * A parameterized type whose type variables are bound to the type arguments a subclass gives.
+     *
+     * @param raw           The raw type
+     * @param typeArguments The type arguments
+     */
+    private record Bound(Class<?> raw, Type[] typeArguments) implements Type {
     }
 }

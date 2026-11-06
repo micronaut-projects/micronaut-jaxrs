@@ -21,6 +21,7 @@ import jakarta.inject.Singleton;
 import jakarta.ws.rs.core.MultivaluedMap;
 import org.jspecify.annotations.Nullable;
 
+import java.util.AbstractList;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -86,7 +87,8 @@ public class JaxRsObjectHeadersMultivaluedMap extends AbstractMap<String, List<O
         if (key == null || !headers.contains(key.toString())) {
             return null;
         }
-        return new ArrayList<>(headers.getAll(key.toString()));
+        // a view of the values: a change writes the values through, e.g. clear() removes the header
+        return new HeaderValues(key.toString(), new ArrayList<>(headers.getAll(key.toString())));
     }
 
     @SafeVarargs
@@ -104,7 +106,8 @@ public class JaxRsObjectHeadersMultivaluedMap extends AbstractMap<String, List<O
 
     @Override
     public void addFirst(String key, Object value) {
-        computeIfPresent(key, (k, old) -> Stream.concat(Stream.of(value), old.stream()).toList());
+        List<Object> old = get(key);
+        put(key, old == null ? List.of(value) : Stream.concat(Stream.of(value), old.stream()).toList());
     }
 
     @Override
@@ -141,6 +144,59 @@ public class JaxRsObjectHeadersMultivaluedMap extends AbstractMap<String, List<O
     @Override
     public boolean containsKey(Object key) {
         return headers.contains(key.toString());
+    }
+
+    /**
+     * The values of a header, which write a change through to the headers.
+     */
+    private final class HeaderValues extends AbstractList<Object> {
+        private final String name;
+        private final List<Object> values;
+
+        HeaderValues(String name, List<Object> values) {
+            this.name = name;
+            this.values = values;
+        }
+
+        @Override
+        public Object get(int index) {
+            return values.get(index);
+        }
+
+        @Override
+        public int size() {
+            return values.size();
+        }
+
+        @Override
+        public Object set(int index, Object element) {
+            Object previous = values.set(index, element);
+            write();
+            return previous;
+        }
+
+        @Override
+        public void add(int index, Object element) {
+            values.add(index, element);
+            write();
+        }
+
+        @Override
+        public Object remove(int index) {
+            Object previous = values.remove(index);
+            write();
+            return previous;
+        }
+
+        @Override
+        protected void removeRange(int fromIndex, int toIndex) {
+            values.subList(fromIndex, toIndex).clear();
+            write();
+        }
+
+        private void write() {
+            put(name, new ArrayList<>(values));
+        }
     }
 
 }

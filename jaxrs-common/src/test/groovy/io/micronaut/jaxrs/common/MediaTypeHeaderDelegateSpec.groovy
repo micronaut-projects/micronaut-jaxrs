@@ -5,6 +5,14 @@ import spock.lang.Specification
 
 class MediaTypeHeaderDelegateSpec extends Specification {
 
+    void "a media type with a '/' only after its parameters is rejected as invalid"() {
+        when:
+        MediaType.valueOf("x;y/z")
+
+        then:
+        thrown(IllegalArgumentException)
+    }
+
     void "an empty quoted parameter value is the empty string"() {
         expect:
         MediaType.valueOf('a/b;x=""').getParameters().get("x") == ""
