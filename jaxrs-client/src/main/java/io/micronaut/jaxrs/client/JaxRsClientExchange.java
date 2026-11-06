@@ -19,6 +19,7 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import io.micronaut.core.io.buffer.ByteBuffer;
 import io.micronaut.core.type.Argument;
+import io.micronaut.http.ByteBodyHttpResponse;
 import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpMethod;
 import io.micronaut.http.HttpRequest;
@@ -29,6 +30,7 @@ import io.micronaut.http.MutableHttpHeaders;
 import io.micronaut.http.MutableHttpRequest;
 import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.http.body.BodyElements;
+import io.micronaut.http.body.CloseableByteBody;
 import io.micronaut.http.client.exceptions.HttpClientResponseException;
 import io.micronaut.http.client.exceptions.ReadTimeoutException;
 import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
@@ -56,6 +58,7 @@ import jakarta.ws.rs.core.GenericEntity;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
 
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -116,6 +119,7 @@ final class JaxRsClientExchange {
     CompletableFuture<Exchanged> send(@Nullable String method, @Nullable Entity<?> requestEntity) {
         var future = new CompletableFuture<Exchanged>();
         JaxRsClientRequestContext requestContext = null;
+        JaxRsStreamedUpload upload = null;
         try {
             MutableHttpRequest<Object> request = createRequest(method, requestEntity);
             Object entityValue = null;
@@ -140,10 +144,32 @@ final class JaxRsClientExchange {
                 future.complete(new Exchanged(written(aborted), requestContext));
                 return future;
             }
-            request = changed(configuration, request, requestContext);
+            upload = new JaxRsStreamedUpload(client);
+            request = changed(configuration, request, requestContext, upload);
             // the relative links of the response are resolved against the URI of the request
             URI requestUri = request.getUri();
             JaxRsClientRequestContext sentContext = requestContext;
+            CompletableFuture<HttpResponse<?>> streamed = upload.exchange();
+            if (streamed != null) {
+                // an entity larger than the client buffers: the request was sent as it was written
+                upload.finish();
+                future.whenComplete((ignored, failure) -> {
+                    if (future.isCancelled()) {
+                        streamed.cancel(false);
+                    }
+                });
+                var _ = streamed.whenComplete((response, error) -> {
+                    Throwable throwable = unwrap(error);
+                    if (throwable != null) {
+                        future.completeExceptionally(failure(throwable));
+                    } else if (response == null) {
+                        future.completeExceptionally(new ProcessingException("Expected a response"));
+                    } else {
+                        receivedRaw(response, requestUri, sentContext, future);
+                    }
+                });
+                return future;
+            }
             // the body is received as it arrives: it is not buffered unless an entity is read of it
             CompletableFuture<HttpResponse<BodyElements<ByteBuffer<?>>>> exchange = client.httpClient().toAsyncStreaming()
                 .exchangeStream(request).toCompletableFuture();
@@ -171,11 +197,61 @@ final class JaxRsClientExchange {
         } catch (JaxRsIOException e) {
             closeReplacedEntityStream(requestContext, e);
             future.completeExceptionally(new ProcessingException(e.getCause()));
+            abort(upload, e);
         } catch (Exception e) {
             closeReplacedEntityStream(requestContext, e);
             future.completeExceptionally(new ProcessingException(e));
+            abort(upload, e);
         }
         return future;
+    }
+
+    /**
+     * Abort the request sent while its entity was written, when writing it failed.
+     */
+    private static void abort(@Nullable JaxRsStreamedUpload upload, Exception failure) {
+        if (upload != null && upload.exchange() != null) {
+            upload.fail(failure);
+        }
+    }
+
+    /**
+     * Complete an exchange with the response of a request sent while its entity was written: the
+     * entity is the stream of its body as it arrives, which closing the response releases.
+     */
+    private static void receivedRaw(HttpResponse<?> response, URI requestUri,
+                                    JaxRsClientRequestContext requestContext, CompletableFuture<Exchanged> future) {
+        MutableHttpResponse<Object> head = HttpResponseFactory.INSTANCE.status(response.code(), response.reason());
+        response.getHeaders().forEachValue(head.getHeaders()::add);
+        head.attribute(JaxRsResponse.REQUEST_URI, requestUri);
+        if (response instanceof ByteBodyHttpResponse<?> byteBodyResponse && byteBodyResponse.hasByteBody()) {
+            CloseableByteBody body = byteBodyResponse.byteBody().move();
+            if (body.expectedLength().orElse(-1) == 0) {
+                body.close();
+            } else {
+                InputStream entityStream = new FilterInputStream(body.toInputStream()) {
+                    @Override
+                    public void close() throws IOException {
+                        try {
+                            super.close();
+                        } finally {
+                            body.close();
+                        }
+                    }
+                };
+                head.setAttribute(RECEIVED_ENTITY_STREAM, entityStream);
+            }
+        }
+        if (!future.complete(new Exchanged(new JaxRsMutableResponse(head), requestContext))) {
+            // the invocation was cancelled
+            head.removeAttribute(RECEIVED_ENTITY_STREAM, InputStream.class).ifPresent(stream -> {
+                try {
+                    stream.close();
+                } catch (IOException e) {
+                    // nothing to release more
+                }
+            });
+        }
     }
 
     /**
@@ -272,7 +348,8 @@ final class JaxRsClientExchange {
      * the entity stream they replaced, the one of the ordinary exchanges and of the event sources.
      */
     @SuppressWarnings("unchecked")
-    static MutableHttpRequest<Object> changed(JaxRsConfiguration configuration, MutableHttpRequest<Object> request, JaxRsClientRequestContext requestContext) throws IOException {
+    static MutableHttpRequest<Object> changed(JaxRsConfiguration configuration, MutableHttpRequest<Object> request, JaxRsClientRequestContext requestContext,
+                                              @Nullable JaxRsStreamedUpload upload) throws IOException {
         request = withChangedMethod(request, requestContext);
         Object entity = requestContext.getEntity();
         if (entity == null) {
@@ -283,8 +360,13 @@ final class JaxRsClientExchange {
         try {
             // the entity as the filters left it, with the media type they left
             // written to bytes when a filter replaced the entity stream, which writes them
-            configuration.entityIO().writeBody(request, requestContext.getEntityArgument(), entity, requestContext.isEntityStreamReplaced(),
-                requestContext.properties());
+            // else sent as it is written once it is larger than the client buffers
+            boolean replaced = requestContext.isEntityStreamReplaced();
+            configuration.entityIO().writeBody(request, requestContext.getEntityArgument(), entity, replaced,
+                requestContext.properties(), replaced ? null : upload);
+            if (upload != null && upload.exchange() != null) {
+                return request;
+            }
             Object body = request.getBody().orElse(null);
             if (body instanceof byte[] bytes) {
                 request.body(requestContext.writeThroughEntityStream(bytes));

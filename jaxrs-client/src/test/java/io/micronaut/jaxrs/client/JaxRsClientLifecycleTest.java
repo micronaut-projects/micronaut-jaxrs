@@ -394,6 +394,25 @@ class JaxRsClientLifecycleTest {
     }
 
     @Test
+    void aLargeEntityIsSentAsItIsWritten() {
+        ClientTestController.uploadStarted = new java.util.concurrent.CompletableFuture<>();
+        int half = 2 * 1024 * 1024;
+        jakarta.ws.rs.core.StreamingOutput entity = output -> {
+            output.write(new byte[half]);
+            try {
+                // the server receives the request before the entity is written: it is not buffered
+                ClientTestController.uploadStarted.get(10, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (Exception e) {
+                throw new IOException("The upload did not start", e);
+            }
+            output.write(new byte[half]);
+        };
+
+        String received = target("upload").request().post(Entity.entity(entity, MediaType.APPLICATION_OCTET_STREAM), String.class);
+        assertEquals(String.valueOf(2 * half), received);
+    }
+
+    @Test
     void anEntityStreamIsReceivedAsItArrivesWithoutBeingBuffered() throws IOException {
         // larger than the max-content-length of the HTTP client, which a buffered body is limited by
         try (Response response = target("large").request().get(); InputStream stream = response.readEntity(InputStream.class)) {

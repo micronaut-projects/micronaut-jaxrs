@@ -25,6 +25,7 @@ import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpMessage;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.MutableHttpMessage;
+import io.micronaut.http.MutableHttpRequest;
 import io.micronaut.http.body.MessageBodyHandlerRegistry;
 import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
 import io.micronaut.jaxrs.common.ByteArrayByteBuffer;
@@ -47,6 +48,7 @@ import java.io.FilterInputStream;
 import java.io.FilterReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.Reader;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -205,7 +207,7 @@ final class JaxRsClientEntityIO {
         }
         Providers previous = JaxRsCurrentProviders.set(providers);
         try {
-            writeBodyOfConfiguration(mutableHttpMessage, bodyArgument, body, false, new LinkedHashMap<>(), List.of());
+            writeBodyOfConfiguration(mutableHttpMessage, bodyArgument, body, false, new LinkedHashMap<>(), List.of(), null);
         } finally {
             JaxRsCurrentProviders.restore(previous);
         }
@@ -222,17 +224,19 @@ final class JaxRsClientEntityIO {
      * @param bytes              Whether the entity must be written to bytes, e.g. to write them
      *                           through the entity stream a filter replaced
      * @param properties         The properties of the request, which the writer interceptor contexts share
+     * @param upload             Sends the request once the entity is larger than the client
+     *                           buffers, the rest of it as it is written, {@code null} to buffer it
      * @param <T>                The type of the entity
      */
     @SuppressWarnings("unchecked")
     <T> void writeBody(MutableHttpMessage<?> mutableHttpMessage, Argument<T> bodyArgument, @Nullable T body, boolean bytes,
-                       Map<String, Object> properties) {
+                       Map<String, Object> properties, @Nullable JaxRsStreamedUpload upload) {
         if (body == null) {
             return;
         }
         Providers previous = JaxRsCurrentProviders.set(providers);
         try {
-            writeBodyOfConfiguration(mutableHttpMessage, bodyArgument, body, bytes, properties, providers.getWriterInterceptors());
+            writeBodyOfConfiguration(mutableHttpMessage, bodyArgument, body, bytes, properties, providers.getWriterInterceptors(), upload);
         } finally {
             JaxRsCurrentProviders.restore(previous);
         }
@@ -240,17 +244,19 @@ final class JaxRsClientEntityIO {
 
     @SuppressWarnings("unchecked")
     private <T> void writeBodyOfConfiguration(MutableHttpMessage<?> mutableHttpMessage, Argument<T> bodyArgument, T body, boolean bytes,
-                                              Map<String, Object> properties, List<BeanRegistration<WriterInterceptor>> writerInterceptors) {
+                                              Map<String, Object> properties, List<BeanRegistration<WriterInterceptor>> writerInterceptors,
+                                              @Nullable JaxRsStreamedUpload upload) {
         if (body instanceof GenericEntity<?> genericEntity) {
             // the entity, written as its raw type and its generic type (JAX-RS 4.2.2)
             Object entity = genericEntity.getEntity();
             if (entity != null) {
                 writeBodyOfConfiguration(mutableHttpMessage, argument(genericEntity, AnnotationMetadata.EMPTY_METADATA), entity, bytes, properties,
-                    writerInterceptors);
+                    writerInterceptors, upload);
             }
             return;
         }
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        // in memory, unless the entity is larger than the client buffers: then it is sent as it is written
+        var outputStream = new SpillingOutputStream(mutableHttpMessage, upload);
         io.micronaut.http.MediaType mediaType = mutableHttpMessage.getContentType().orElse(MediaType.ALL_TYPE);
 
         final AtomicBoolean written = new AtomicBoolean(false);
@@ -287,7 +293,9 @@ final class JaxRsClientEntityIO {
 
         if (written.get() || !writerInterceptors.isEmpty()) {
             // what the writer wrote, or the interceptors, which may write the entity without proceeding
-            mutableHttpMessage.body(outputStream.toByteArray());
+            if (!outputStream.spilled()) {
+                mutableHttpMessage.body(outputStream.toByteArray());
+            }
         } else {
             mutableHttpMessage.body(body);
         }
@@ -322,6 +330,58 @@ final class JaxRsClientEntityIO {
      */
     private static MediaType clientMediaType(MediaType mediaType) {
         return mediaType.equals(MediaType.ALL_TYPE) ? MediaType.APPLICATION_JSON_TYPE : mediaType;
+    }
+
+    /**
+     * The stream an entity is written to: in memory, until it is larger than the client buffers
+     * with an upload: then the request is sent, and the rest of the entity as it is written.
+     */
+    private static final class SpillingOutputStream extends OutputStream {
+        private final MutableHttpMessage<?> message;
+        private final @Nullable JaxRsStreamedUpload upload;
+        private @Nullable ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        private @Nullable OutputStream spilled;
+
+        SpillingOutputStream(MutableHttpMessage<?> message, @Nullable JaxRsStreamedUpload upload) {
+            this.message = message;
+            this.upload = upload;
+        }
+
+        boolean spilled() {
+            return spilled != null;
+        }
+
+        byte[] toByteArray() {
+            ByteArrayOutputStream written = buffer;
+            return written == null ? new byte[0] : written.toByteArray();
+        }
+
+        @Override
+        public void write(int b) throws IOException {
+            write(new byte[] {(byte) b}, 0, 1);
+        }
+
+        @Override
+        public void write(byte[] b, int off, int len) throws IOException {
+            OutputStream out = spilled;
+            if (out != null) {
+                out.write(b, off, len);
+                return;
+            }
+            ByteArrayOutputStream written = buffer;
+            if (upload != null && written != null && message instanceof MutableHttpRequest<?> request
+                && written.size() + (long) len > JaxRsStreamedUpload.THRESHOLD) {
+                // the headers are sent as they are now
+                out = upload.start(request, written.toByteArray());
+                buffer = null;
+                spilled = out;
+                out.write(b, off, len);
+                return;
+            }
+            if (written != null) {
+                written.write(b, off, len);
+            }
+        }
     }
 
     /**
@@ -375,8 +435,9 @@ final class JaxRsClientEntityIO {
                     }
                 };
             }
-            if (close != null && value instanceof Reader reader) {
-                // a reader of the streams the interceptors set closes them too
+            if (close != null && type.getType() == Reader.class && value instanceof Reader reader) {
+                // a reader of the streams the interceptors set closes them too, unless a subtype is
+                // requested, which the wrapper is not
                 return (T) new FilterReader(reader) {
                     private boolean closed;
 

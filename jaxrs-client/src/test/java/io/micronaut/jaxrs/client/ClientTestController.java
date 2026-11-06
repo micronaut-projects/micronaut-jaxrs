@@ -205,4 +205,13 @@ class ClientTestController {
         // larger than the default max-content-length of the HTTP client
         return new byte[20 * 1024 * 1024];
     }
+
+    // completed once the upload of an entity reached the server, its body not received yet
+    static volatile java.util.concurrent.CompletableFuture<Void> uploadStarted = new java.util.concurrent.CompletableFuture<>();
+
+    @Post(value = "/upload", consumes = MediaType.ALL, produces = MediaType.TEXT_PLAIN)
+    Mono<String> upload(@Body Publisher<byte[]> body) {
+        uploadStarted.complete(null);
+        return Flux.from(body).map(bytes -> (long) bytes.length).reduce(0L, Long::sum).map(String::valueOf);
+    }
 }

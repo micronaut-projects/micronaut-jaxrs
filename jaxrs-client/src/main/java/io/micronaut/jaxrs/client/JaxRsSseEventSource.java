@@ -259,7 +259,7 @@ final class JaxRsSseEventSource implements SseEventSource {
         // the method and the entity a filter set, as in an ordinary exchange
         MutableHttpRequest<Object> sent;
         try {
-            sent = JaxRsClientExchange.changed(target.getConfiguration(), request, requestContext);
+            sent = JaxRsClientExchange.changed(target.getConfiguration(), request, requestContext, null);
         } catch (IOException | RuntimeException e) {
             error(e instanceof ProcessingException processing ? processing : new ProcessingException(e));
             return;
