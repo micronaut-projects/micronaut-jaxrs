@@ -397,7 +397,9 @@ final class JaxRsAsyncResponse implements AsyncResponse {
                 if (taskScheduler == null) {
                     throw new IllegalStateException("No task scheduler to time out the asynchronous response");
                 }
-                timeout = taskScheduler.schedule(Duration.ofNanos(unit.toNanos(time)), () -> timedOut(generation));
+                timeout = taskScheduler.schedule(Duration.ofNanos(unit.toNanos(time)),
+                    // handled in the context of the request, not of the thread that set the timeout
+                    () -> inRequest.execute(() -> timedOut(generation)));
             }
             // a time of zero or less suspends the response indefinitely
         }
