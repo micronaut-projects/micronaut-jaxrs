@@ -194,4 +194,9 @@ class ClientTestController {
     Publisher<Event<String>> bodyEvents(@Body String body) {
         return Flux.just(Event.of(body));
     }
+
+    @Get(value = "/raw-events", produces = MediaType.TEXT_EVENT_STREAM)
+    HttpResponse<String> rawEvents() {
+        return HttpResponse.ok("data:raw\r\n\r\n").contentType(MediaType.TEXT_EVENT_STREAM_TYPE);
+    }
 }

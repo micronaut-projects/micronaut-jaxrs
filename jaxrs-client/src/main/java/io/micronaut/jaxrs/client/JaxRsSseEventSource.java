@@ -16,6 +16,7 @@
 package io.micronaut.jaxrs.client;
 
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.io.buffer.ByteBuffer;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpRequest;
@@ -104,8 +105,8 @@ final class JaxRsSseEventSource implements SseEventSource {
     // the last event id and reconnection time of the stream, which the client follows also for a
     // block without data: one per source, kept across connections
     private final EventStreamState streamState = new EventStreamState();
-    private volatile @Nullable BodyElements<Event<String>> events;
-    // the entity stream a response filter set, which the events are read from
+    private volatile @Nullable BodyElements<ByteBuffer<?>> events;
+    // the entity stream the events are read from: the bytes of the connection, or the stream a filter set
     private volatile @Nullable InputStream replacedStream;
     private volatile @Nullable Future<?> pendingReconnect;
     // an own client: closing it disconnects, which the server sees, where cancelling a stream drains it
@@ -174,7 +175,7 @@ final class JaxRsSseEventSource implements SseEventSource {
     @Override
     public boolean close(long timeout, TimeUnit unit) {
         Future<?> reconnect;
-        BodyElements<Event<String>> current;
+        BodyElements<ByteBuffer<?>> current;
         InputStream replaced;
         DefaultHttpClient client;
         boolean closedAgain;
@@ -280,7 +281,7 @@ final class JaxRsSseEventSource implements SseEventSource {
         }
         // the response filters may block: they run on the executor of the client, not on the
         // event loop of the HTTP client (JAX-RS, ClientBuilder#executorService)
-        client.toAsyncStreaming().exchangeEventStream(sent, Argument.STRING).whenComplete((response, error) -> callbacks.dispatch(() -> {
+        client.toAsyncStreaming().exchangeStream(sent).whenComplete((response, error) -> callbacks.dispatch(() -> {
             if (error != null) {
                 failed(error instanceof CompletionException && error.getCause() != null ? error.getCause() : error, requestContext);
             } else {
@@ -293,8 +294,8 @@ final class JaxRsSseEventSource implements SseEventSource {
      * Receive the events of a response: a {@code 204 No Content} has none and ends the
      * processing, and a response that is not an event stream is an error (JAX-RS 9.4).
      */
-    private void receive(HttpResponse<BodyElements<Event<String>>> response, JaxRsClientRequestContext requestContext) {
-        BodyElements<Event<String>> body = response.body();
+    private void receive(HttpResponse<BodyElements<ByteBuffer<?>>> response, JaxRsClientRequestContext requestContext) {
+        BodyElements<ByteBuffer<?>> body = response.body();
         if (!open) {
             if (body != null) {
                 body.closeAsync();
@@ -302,13 +303,13 @@ final class JaxRsSseEventSource implements SseEventSource {
             return;
         }
         // the response filters see the status and the headers of each connection, before its
-        // events (JAX-RS 6.1), and may change them: the events are not an entity they can read
+        // events (JAX-RS 6.1), and may change them
         MutableHttpResponse<?> head = HttpResponse.status(response.status(), response.reason());
         response.getHeaders().forEachValue(head::header);
         JaxRsMutableResponse filtered = new JaxRsMutableResponse(head);
-        // a filter may replace the entity stream, e.g. to decode or to wrap it: the events are then
-        // read from it, and the stream it sees is the one of the events of the connection
-        InputStream unchanged = body == null ? InputStream.nullInputStream() : new EventsInputStream(body);
+        // the entity stream a filter sees is the bytes of the connection as they are received; it
+        // may replace it, e.g. to decode or to wrap it: the events are decoded from the result
+        InputStream unchanged = body == null ? InputStream.nullInputStream() : new BytesInputStream(body);
         filtered.setEntityStream(unchanged);
         try {
             filterResponse(filtered, requestContext);
@@ -332,7 +333,7 @@ final class JaxRsSseEventSource implements SseEventSource {
      * @param unchanged The entity stream before the filters
      * @param body      The events of the connection, {@code null} for an error response
      */
-    private void process(JaxRsMutableResponse filtered, InputStream unchanged, @Nullable BodyElements<Event<String>> body) {
+    private void process(JaxRsMutableResponse filtered, InputStream unchanged, @Nullable BodyElements<ByteBuffer<?>> body) {
         InputStream replacement = filtered.getEntityStream() == unchanged ? null : filtered.getEntityStream();
         int status = filtered.getStatus();
         if (status != HttpStatus.OK.getCode() && status != HttpStatus.NO_CONTENT.getCode()) {
@@ -371,49 +372,26 @@ final class JaxRsSseEventSource implements SseEventSource {
             error(new WebApplicationException("The response is not an event stream: " + contentType, filtered));
             return;
         }
-        if (replacement != null) {
-            // the events are the ones of the stream a filter set, which may read the events of
-            // the connection: they are closed with the source, or once the stream is read
-            if (body != null) {
-                synchronized (this) {
-                    if (!open) {
-                        body.closeAsync();
-                        closeQuietly(replacement);
-                        return;
-                    }
-                    events = body;
+        // the events are decoded from the entity stream, the one a filter set, which may read the
+        // bytes of the connection, else these bytes: they are closed with the source, or once the
+        // stream is read
+        InputStream stream = replacement != null ? replacement : unchanged;
+        if (body != null) {
+            synchronized (this) {
+                if (!open) {
+                    body.closeAsync();
+                    closeQuietly(stream);
+                    return;
                 }
+                events = body;
             }
-            receive(replacement);
-            return;
         }
-        if (body == null) {
-            return;
-        }
-        synchronized (this) {
-            if (!open) {
-                body.closeAsync();
-                return;
-            }
-            events = body;
-            connected = true;
-        }
-        // the next event is read once the consumers processed this one: a slow consumer slows the stream
-        body.forEach(event -> callbacks.received(inbound(event))).whenComplete((done, error) -> {
-            events = null;
-            if (!open) {
-                return;
-            }
-            if (error != null) {
-                LOG.debug("The event stream failed, reconnecting: {}", error.getMessage(), error);
-            }
-            // the connection is lost, closed by the server or broken: reconnect
-            reconnect(reconnectDelay());
-        });
+        receive(stream);
     }
 
     /**
-     * Receive the events of the entity stream a response filter set: they are read and processed
+     * Receive the events of the entity stream, the bytes of the connection or the stream a response
+     * filter set: they are read and processed
      * on the executor, in order, until the stream ends or the source is closed, which closes it.
      */
     private void receive(InputStream stream) {
@@ -446,7 +424,7 @@ final class JaxRsSseEventSource implements SseEventSource {
         } finally {
             replacedStream = null;
             closeQuietly(stream);
-            BodyElements<Event<String>> read = events;
+            BodyElements<ByteBuffer<?>> read = events;
             events = null;
             if (read != null) {
                 read.closeAsync();
@@ -685,18 +663,16 @@ final class JaxRsSseEventSource implements SseEventSource {
     }
 
     /**
-     * The events of a connection as the entity stream the response filters see: written back in
-     * the event stream format when a filter reads them, e.g. through a stream wrapping it. A space
-     * separates each field from its value, which the reader removes: a value starting with a space
-     * keeps it (HTML 9.2.6).
+     * The bytes of a connection as the entity stream the response filters see, as they are
+     * received: the events are decoded from the stream the filters leave.
      */
-    private static final class EventsInputStream extends InputStream {
-        private final BodyElements<Event<String>> events;
+    private static final class BytesInputStream extends InputStream {
+        private final BodyElements<ByteBuffer<?>> events;
         private byte[] pending = new byte[0];
         private int position;
         private boolean ended;
 
-        EventsInputStream(BodyElements<Event<String>> events) {
+        BytesInputStream(BodyElements<ByteBuffer<?>> events) {
             this.events = events;
         }
 
@@ -715,7 +691,7 @@ final class JaxRsSseEventSource implements SseEventSource {
                 if (ended) {
                     return -1;
                 }
-                Optional<Event<String>> next;
+                Optional<ByteBuffer<?>> next;
                 try {
                     // read on the executor of the client, like the stream a filter set
                     next = events.next().toCompletableFuture().join();
@@ -726,37 +702,14 @@ final class JaxRsSseEventSource implements SseEventSource {
                     ended = true;
                     return -1;
                 }
-                pending = encode(next.get());
+                // heap buffers that are not reference counted
+                pending = next.get().toByteArray();
                 position = 0;
             }
             int n = Math.min(len, pending.length - position);
             System.arraycopy(pending, position, b, off, n);
             position += n;
             return n;
-        }
-
-        private static byte[] encode(Event<String> event) {
-            var text = new StringBuilder();
-            if (event.getComment() != null) {
-                for (String line : event.getComment().split("\n", -1)) {
-                    text.append(": ").append(line).append('\n');
-                }
-            }
-            if (event.getId() != null) {
-                text.append("id: ").append(event.getId()).append('\n');
-            }
-            if (event.getName() != null) {
-                text.append("event: ").append(event.getName()).append('\n');
-            }
-            if (event.getRetry() != null) {
-                text.append("retry:").append(event.getRetry().toMillis()).append('\n');
-            }
-            if (event.getData() != null) {
-                for (String line : event.getData().split("\n", -1)) {
-                    text.append("data: ").append(line).append('\n');
-                }
-            }
-            return text.append('\n').toString().getBytes(StandardCharsets.UTF_8);
         }
 
         @Override

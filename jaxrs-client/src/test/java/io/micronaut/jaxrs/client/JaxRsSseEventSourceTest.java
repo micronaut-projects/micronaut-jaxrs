@@ -768,4 +768,39 @@ class JaxRsSseEventSourceTest {
             super.close();
         }
     }
+
+    @Test
+    void aResponseFilterReadsTheBytesOfTheConnection() throws Exception {
+        Client client = ClientBuilder.newClient();
+        try {
+            var seen = new java.io.ByteArrayOutputStream();
+            WebTarget target = target(client, "raw-events")
+                .register((ClientResponseFilter) (request, response) -> {
+                    java.io.InputStream received = response.getEntityStream();
+                    response.setEntityStream(new java.io.FilterInputStream(received) {
+                        @Override
+                        public int read(byte[] b, int off, int len) throws IOException {
+                            int n = super.read(b, off, len);
+                            if (n > 0) {
+                                synchronized (seen) {
+                                    seen.write(b, off, n);
+                                }
+                            }
+                            return n;
+                        }
+                    });
+                });
+            CompletableFuture<String> received = new CompletableFuture<>();
+            try (SseEventSource source = SseEventSource.target(target).build()) {
+                source.register(event -> received.complete(event.readData()));
+                source.open();
+                assertEquals("raw", received.get(10, TimeUnit.SECONDS));
+            }
+            synchronized (seen) {
+                assertTrue(seen.toString(StandardCharsets.UTF_8).startsWith("data:raw\r\n\r\n"), seen::toString);
+            }
+        } finally {
+            client.close();
+        }
+    }
 }
