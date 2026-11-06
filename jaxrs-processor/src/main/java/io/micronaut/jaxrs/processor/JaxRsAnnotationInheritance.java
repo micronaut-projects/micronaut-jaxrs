@@ -63,7 +63,8 @@ final class JaxRsAnnotationInheritance {
      * {@code @Produces}, nor the Micronaut ones they are mapped to. A subclass without its own
      * {@code @Path} is not a root resource: it is not routed with the one of its superclass. The
      * {@code @Path} of an implemented interface is kept: an implementation of a resource interface
-     * is routed with it.
+     * is routed with it. So is the one of an abstract superclass,
+     * which cannot be a root resource itself: a subclass implementing it is routed with it.
      *
      * @param element The class
      */
@@ -71,7 +72,7 @@ final class JaxRsAnnotationInheritance {
         AnnotationMetadata declared = element.getDeclaredMetadata();
         for (String name : element.getAnnotationNames()) {
             if (name.startsWith(JAX_RS_PACKAGE) && !KEPT_CLASS_ANNOTATIONS.contains(name) && !declared.hasDeclaredAnnotation(name)
-                && !(name.equals(Path.class.getName()) && implementsPath(element))) {
+                && !(name.equals(Path.class.getName()) && (implementsPath(element) || inheritsPathOfAbstractClass(element)))) {
                 element.removeAnnotation(name);
                 String mapped = MAPPED_CLASS_ANNOTATIONS.get(name);
                 if (mapped != null && !declared.hasDeclaredAnnotation(mapped)) {
@@ -79,6 +80,15 @@ final class JaxRsAnnotationInheritance {
                 }
             }
         }
+    }
+
+    private static boolean inheritsPathOfAbstractClass(ClassElement element) {
+        for (ClassElement type = element.getSuperType().orElse(null); type != null; type = type.getSuperType().orElse(null)) {
+            if (type.hasDeclaredAnnotation(Path.class)) {
+                return type.isAbstract();
+            }
+        }
+        return false;
     }
 
     private static boolean implementsPath(ClassElement element) {

@@ -5,7 +5,6 @@ import io.micronaut.context.annotation.Requires;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.client.HttpClient;
 import io.micronaut.http.client.annotation.Client;
-import io.micronaut.http.client.exceptions.HttpClientResponseException;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;
@@ -14,11 +13,11 @@ import jakarta.ws.rs.Produces;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * The {@code @Path} of a class is not inherited (JAX-RS 3.6): a subclass without its own is not a
- * root resource, it is reachable only from a sub-resource locator.
+ * The {@code @Path} of a class is not inherited (JAX-RS 3.6): a subclass of a root resource
+ * without its own is not a root resource, it is reachable only from a sub-resource locator. The
+ * one of an abstract class, which cannot be a root resource itself, is kept for its subclass.
  */
 @MicronautTest
 @Property(name = "spec.name", value = "InheritedPathTest")
@@ -29,10 +28,8 @@ class InheritedPathTest {
     HttpClient client;
 
     @Test
-    void subclassIsNotARootResource() {
-        HttpClientResponseException e = assertThrows(HttpClientResponseException.class,
-            () -> client.toBlocking().retrieve(HttpRequest.GET("/inherited-path/value")));
-        assertEquals(404, e.getStatus().getCode());
+    void subclassOfARootResourceIsNotARootResource() {
+        assertEquals("base", client.toBlocking().retrieve(HttpRequest.GET("/inherited-path/value")));
     }
 
     @Test
@@ -40,18 +37,28 @@ class InheritedPathTest {
         assertEquals("checked", client.toBlocking().retrieve(HttpRequest.GET("/inherited-path-locator/checked/value")));
     }
 
+    @Test
+    void subclassOfAnAbstractClassIsRoutedWithItsPath() {
+        assertEquals("implemented", client.toBlocking().retrieve(HttpRequest.GET("/abstract-path/value")));
+    }
+
+    @Requires(property = "spec.name", value = "InheritedPathTest")
     @Path("/inherited-path")
-    public abstract static class Base {
+    public static class Base {
         @GET
         @Path("/value")
         @Produces("text/plain")
         public String value() {
-            return "checked";
+            return "base";
         }
     }
 
     @Requires(property = "spec.name", value = "InheritedPathTest")
     public static class Checked extends Base {
+        @Override
+        public String value() {
+            return "checked";
+        }
     }
 
     @Requires(property = "spec.name", value = "InheritedPathTest")
@@ -61,5 +68,19 @@ class InheritedPathTest {
         public Checked checked() {
             return new Checked();
         }
+    }
+
+    @Path("/abstract-path")
+    public abstract static class AbstractBase {
+        @GET
+        @Path("/value")
+        @Produces("text/plain")
+        public String value() {
+            return "implemented";
+        }
+    }
+
+    @Requires(property = "spec.name", value = "InheritedPathTest")
+    public static class Implemented extends AbstractBase {
     }
 }

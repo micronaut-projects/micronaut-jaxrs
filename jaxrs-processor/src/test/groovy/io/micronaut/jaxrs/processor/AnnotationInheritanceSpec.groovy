@@ -126,6 +126,34 @@ class Test extends Base {
 }
 
 @jakarta.ws.rs.Path("/base")
+class Base {
+
+    public String test() {
+        return "";
+    }
+}
+""")
+
+        expect:
+        !definition.hasAnnotation(Path)
+        !definition.stringValue(HttpMethodMapping).isPresent()
+    }
+
+    void "the class inherits the @Path of its abstract superclass, which is not a root resource"() {
+        given:
+        def definition = buildBeanDefinition('test.Test', """
+package test;
+
+class Test extends Base {
+
+    @Override
+    @jakarta.ws.rs.GET
+    public String test() {
+        return "";
+    }
+}
+
+@jakarta.ws.rs.Path("/base")
 abstract class Base {
 
     public abstract String test();
@@ -133,8 +161,7 @@ abstract class Base {
 """)
 
         expect:
-        !definition.hasAnnotation(Path)
-        !definition.stringValue(HttpMethodMapping).isPresent()
+        definition.stringValue(Path).get() == "/base"
     }
 
     void "an override inherits the annotations of the nearest method that declares any"() {
@@ -417,7 +444,7 @@ interface Api {
         !method.hasStereotype(jakarta.ws.rs.NameBinding)
     }
 
-    void "an override declaring its own annotations discards the inherited name binding"() {
+    void "an override declaring its own annotations discards the name binding inherited from a superclass"() {
         given:
         def definition = buildBeanDefinition('test.Test', """
 package test;
@@ -448,7 +475,7 @@ abstract class Base {
         def method = definition.getRequiredMethod("test")
 
         expect:
-        !definition.hasAnnotation(Path)
+        definition.stringValue(Path).get() == "/base"
         method.hasAnnotation(jakarta.ws.rs.POST)
         !method.hasAnnotation("test.Secure")
     }
