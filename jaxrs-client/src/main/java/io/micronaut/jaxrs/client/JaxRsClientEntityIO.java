@@ -44,8 +44,10 @@ import jakarta.ws.rs.ext.WriterInterceptor;
 
 import java.io.ByteArrayOutputStream;
 import java.io.FilterInputStream;
+import java.io.FilterReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.Reader;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -357,6 +359,25 @@ final class JaxRsClientEntityIO {
             Runnable close = closer;
             if (close != null && value instanceof InputStream stream) {
                 return (T) new FilterInputStream(stream) {
+                    private boolean closed;
+
+                    @Override
+                    public void close() throws IOException {
+                        if (closed) {
+                            return;
+                        }
+                        closed = true;
+                        try {
+                            super.close();
+                        } finally {
+                            close.run();
+                        }
+                    }
+                };
+            }
+            if (close != null && value instanceof Reader reader) {
+                // a reader of the streams the interceptors set closes them too
+                return (T) new FilterReader(reader) {
                     private boolean closed;
 
                     @Override

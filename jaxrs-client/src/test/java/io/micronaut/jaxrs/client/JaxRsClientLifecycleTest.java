@@ -410,6 +410,27 @@ class JaxRsClientLifecycleTest {
     }
 
     @Test
+    void streamsOfAReaderInterceptorAreClosedWithTheReaderRead() throws IOException {
+        AtomicBoolean firstClosed = new AtomicBoolean();
+        AtomicBoolean secondClosed = new AtomicBoolean();
+        WebTarget target = target("hello")
+            .register((ReaderInterceptor) context -> {
+                context.setInputStream(tracking(context.getInputStream(), firstClosed));
+                // a second stream, independent of the first one
+                context.setInputStream(tracking(new ByteArrayInputStream("other".getBytes(StandardCharsets.UTF_8)), secondClosed));
+                return context.proceed();
+            });
+
+        Response response = target.request().get();
+        java.io.Reader reader = response.readEntity(java.io.Reader.class);
+        assertEquals('o', reader.read());
+        reader.close();
+        response.close();
+        assertTrue(secondClosed.get());
+        assertTrue(firstClosed.get());
+    }
+
+    @Test
     void streamOfAResponseFilterIsReadByTheReaderOfStreams() throws IOException {
         WebTarget target = target("hello")
             .register(new CustomStreamReader())
