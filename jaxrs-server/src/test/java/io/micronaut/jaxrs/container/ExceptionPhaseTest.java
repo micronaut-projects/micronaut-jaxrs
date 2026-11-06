@@ -25,6 +25,7 @@ import jakarta.ws.rs.ext.Provider;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
@@ -64,6 +65,15 @@ class ExceptionPhaseTest {
     @Test
     void emptyEntityOfAPrimitiveIsAClientError() {
         assertEquals(400, status(HttpRequest.POST("/int", "").contentType(MediaType.TEXT_PLAIN_TYPE)));
+    }
+
+    @Test
+    void unmappedServerErrorDoesNotDiscloseTheExceptionMessage() {
+        HttpClientResponseException e = assertThrows(HttpClientResponseException.class,
+            () -> client.toBlocking().retrieve(HttpRequest.GET("/secret")));
+        assertEquals(500, e.code());
+        String body = e.getResponse().getBody(String.class).orElse("");
+        assertFalse(body.contains("hunter2"), body);
     }
 
     @Test
@@ -217,6 +227,13 @@ class ExceptionPhaseTest {
         @Produces("text/plain")
         public String noContent() throws java.io.IOException {
             throw new jakarta.ws.rs.core.NoContentException("of the resource");
+        }
+
+        @GET
+        @Path("secret")
+        @Produces("text/plain")
+        public String secret() {
+            throw new IllegalStateException("jdbc:postgresql://db/secret?password=hunter2");
         }
 
         @POST

@@ -84,8 +84,16 @@ final class JaxRsGlobalExceptionHandler implements ExceptionHandler<Throwable, H
         }
         // the completion callbacks of an asynchronous response receive an unmapped exception
         request.setAttribute(JaxRsAsyncResponse.UNMAPPED_EXCEPTION, exception);
+        String message;
+        if (clientError) {
+            message = Objects.requireNonNullElse(exception.getMessage(), "Bad Request");
+        } else {
+            // the message of a server error, e.g. a connection string, is logged, not disclosed
+            LOG.error("Unexpected error occurred: {}", exception.getMessage(), exception);
+            message = "Internal Server Error";
+        }
         return responseProcessor.processResponse(ErrorContext.builder(request)
-            .errorMessage(Objects.requireNonNullElse(exception.getMessage(), "Unknown error"))
+            .errorMessage(message)
             .cause(exception)
             .build(), clientError ? HttpResponse.badRequest() : HttpResponse.serverError());
     }
