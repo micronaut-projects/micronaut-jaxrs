@@ -199,4 +199,10 @@ class ClientTestController {
     HttpResponse<String> rawEvents() {
         return HttpResponse.ok("data:raw\r\n\r\n").contentType(MediaType.TEXT_EVENT_STREAM_TYPE);
     }
+
+    @Get(value = "/large", produces = MediaType.APPLICATION_OCTET_STREAM)
+    byte[] large() {
+        // larger than the default max-content-length of the HTTP client
+        return new byte[20 * 1024 * 1024];
+    }
 }

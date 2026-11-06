@@ -394,6 +394,14 @@ class JaxRsClientLifecycleTest {
     }
 
     @Test
+    void anEntityStreamIsReceivedAsItArrivesWithoutBeingBuffered() throws IOException {
+        // larger than the max-content-length of the HTTP client, which a buffered body is limited by
+        try (Response response = target("large").request().get(); InputStream stream = response.readEntity(InputStream.class)) {
+            assertEquals(20 * 1024 * 1024, stream.transferTo(OutputStream.nullOutputStream()));
+        }
+    }
+
+    @Test
     void streamOfAReaderInterceptorIsClosedWithTheResponse() throws IOException {
         AtomicBoolean closed = new AtomicBoolean();
         WebTarget target = target("hello")

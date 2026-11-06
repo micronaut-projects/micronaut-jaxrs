@@ -49,8 +49,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Date;
 import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
@@ -309,7 +307,7 @@ final class JaxRsSseEventSource implements SseEventSource {
         JaxRsMutableResponse filtered = new JaxRsMutableResponse(head);
         // the entity stream a filter sees is the bytes of the connection as they are received; it
         // may replace it, e.g. to decode or to wrap it: the events are decoded from the result
-        InputStream unchanged = body == null ? InputStream.nullInputStream() : new BytesInputStream(body);
+        InputStream unchanged = body == null ? InputStream.nullInputStream() : new JaxRsBodyInputStream(body);
         filtered.setEntityStream(unchanged);
         try {
             filterResponse(filtered, requestContext);
@@ -660,62 +658,6 @@ final class JaxRsSseEventSource implements SseEventSource {
      */
     int pendingCallbacks() {
         return callbacks.pendingCallbacks();
-    }
-
-    /**
-     * The bytes of a connection as the entity stream the response filters see, as they are
-     * received: the events are decoded from the stream the filters leave.
-     */
-    private static final class BytesInputStream extends InputStream {
-        private final BodyElements<ByteBuffer<?>> events;
-        private byte[] pending = new byte[0];
-        private int position;
-        private boolean ended;
-
-        BytesInputStream(BodyElements<ByteBuffer<?>> events) {
-            this.events = events;
-        }
-
-        @Override
-        public int read() throws IOException {
-            byte[] one = new byte[1];
-            return read(one, 0, 1) == -1 ? -1 : one[0] & 0xFF;
-        }
-
-        @Override
-        public int read(byte[] b, int off, int len) throws IOException {
-            if (len == 0) {
-                return 0;
-            }
-            while (position == pending.length) {
-                if (ended) {
-                    return -1;
-                }
-                Optional<ByteBuffer<?>> next;
-                try {
-                    // read on the executor of the client, like the stream a filter set
-                    next = events.next().toCompletableFuture().join();
-                } catch (CompletionException | CancellationException e) {
-                    throw new IOException(e.getCause() == null ? e : e.getCause());
-                }
-                if (next.isEmpty()) {
-                    ended = true;
-                    return -1;
-                }
-                // heap buffers that are not reference counted
-                pending = next.get().toByteArray();
-                position = 0;
-            }
-            int n = Math.min(len, pending.length - position);
-            System.arraycopy(pending, position, b, off, n);
-            position += n;
-            return n;
-        }
-
-        @Override
-        public void close() {
-            events.closeAsync();
-        }
     }
 
     /**

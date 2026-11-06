@@ -112,6 +112,13 @@ public final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
         return httpClient;
     }
 
+    /**
+     * @return The HTTP client, e.g. to receive a body as it arrives
+     */
+    DefaultHttpClient httpClient() {
+        return httpClient;
+    }
+
     @Override
     public Client self() {
         return this;
