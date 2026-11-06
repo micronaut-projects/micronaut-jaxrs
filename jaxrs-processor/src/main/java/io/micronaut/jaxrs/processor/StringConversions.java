@@ -121,8 +121,11 @@ final class StringConversions {
             // the elements of an array (JAX-RS 3.2)
             type = type.fromArray();
         }
-        if (type.isPrimitive() || type.isArray() || type.getPackageName().startsWith("java.") || !isAccessible(type)
-            || generated.contains(owner.getName() + " " + type.getName())) {
+        // the types of java.lang, e.g. the boxed primitives, are converted by the conversion
+        // service; a type of the JDK only from the package of the class
+        boolean jdk = type.getPackageName().startsWith("java.");
+        if (type.isPrimitive() || type.isArray() || type.getPackageName().equals("java.lang") || !isAccessible(type)
+            || (jdk && !isPublic(type)) || generated.contains(owner.getName() + " " + type.getName())) {
             return;
         }
         String factory = factory(type);
@@ -149,6 +152,7 @@ final class StringConversions {
             writer.write("""
                 /** The String conversion of %1$s, generated for the JAX-RS parameters. */
                 @io.micronaut.core.annotation.Generated
+                @SuppressWarnings({"deprecation", "removal"})
                 public final class %2$s implements %3$s {
                     @Override
                     public Class<?> type() {

@@ -61,6 +61,12 @@ class StringFactoryParamTest {
     }
 
     @Test
+    void typesOfTheJdk() {
+        assertEquals("reader:abc 2020-01-02",
+            client.toBlocking().retrieve(HttpRequest.GET("/jdk?r=abc&d=2020-01-02")));
+    }
+
+    @Test
     void invalidValue() {
         HttpClientResponseException e = assertThrows(HttpClientResponseException.class,
             () -> client.toBlocking().retrieve(HttpRequest.GET("/method/x?v=fail")));
@@ -204,6 +210,15 @@ class StringFactoryParamTest {
         @Produces("text/plain")
         public String array(@QueryParam("a") OnlyValueOf[] a) {
             return java.util.Arrays.toString(a) + " " + setterValue;
+        }
+
+        @GET
+        @Path("/jdk")
+        @Produces("text/plain")
+        public String jdk(@QueryParam("r") java.io.StringReader r, @QueryParam("d") java.sql.Date d) throws java.io.IOException {
+            char[] chars = new char[16];
+            int read = r.read(chars);
+            return "reader:" + new String(chars, 0, read) + " " + d;
         }
 
         @GET

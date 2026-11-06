@@ -321,7 +321,8 @@ final class MetadataJaxRsReflection implements JaxRsReflection {
 
     /**
      * The String conversions the processor generated, by type: the services of the class loader of
-     * the type, which may not be the one of this class, loaded once by class loader.
+     * the type, which may not be the one of this class, loaded once by class loader. Those of a
+     * type of the JDK are the services of the class loader of this class.
      */
     private static final class StringConversions {
 
@@ -329,8 +330,9 @@ final class MetadataJaxRsReflection implements JaxRsReflection {
             @Override
             protected Optional<StringConversion> computeValue(Class<?> type) {
                 ClassLoader classLoader = type.getClassLoader();
-                if (classLoader == null) {
-                    return Optional.empty();
+                if (classLoader == null || classLoader == ClassLoader.getPlatformClassLoader()) {
+                    // a type of the JDK: its conversions are generated in the application
+                    classLoader = StringConversions.class.getClassLoader();
                 }
                 Map<Class<?>, StringConversion> conversions;
                 synchronized (BY_CLASS_LOADER) {
