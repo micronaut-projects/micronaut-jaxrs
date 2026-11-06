@@ -18,6 +18,7 @@ package io.micronaut.jaxrs.processor;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.inject.ast.ClassElement;
 import io.micronaut.inject.ast.ConstructorElement;
+import io.micronaut.inject.ast.Element;
 import io.micronaut.inject.ast.ElementQuery;
 import io.micronaut.inject.ast.FieldElement;
 import io.micronaut.inject.ast.MethodElement;
@@ -86,19 +87,28 @@ final class StringConversions {
             generate(field, element, context);
         }
         for (MethodElement method : element.getEnclosedElements(ElementQuery.ALL_METHODS)) {
-            for (ParameterElement parameter : method.getParameters()) {
-                generate(parameter, element, context);
+            ParameterElement[] parameters = method.getParameters();
+            if (parameters.length == 1) {
+                // a setter annotated with a parameter annotation
+                generate(method, parameters[0], element, context);
+            }
+            for (ParameterElement parameter : parameters) {
+                generate(parameter, parameter, element, context);
             }
         }
         for (ConstructorElement constructor : element.getEnclosedElements(ElementQuery.CONSTRUCTORS)) {
             for (ParameterElement parameter : constructor.getParameters()) {
-                generate(parameter, element, context);
+                generate(parameter, parameter, element, context);
             }
         }
     }
 
-    private void generate(TypedElement element, ClassElement owner, VisitorContext context) {
-        if (PARAMETERS.stream().noneMatch(element::hasAnnotation)) {
+    private void generate(FieldElement field, ClassElement owner, VisitorContext context) {
+        generate(field, field, owner, context);
+    }
+
+    private void generate(Element annotated, TypedElement element, ClassElement owner, VisitorContext context) {
+        if (PARAMETERS.stream().noneMatch(annotated::hasAnnotation)) {
             return;
         }
         ClassElement type = element.getGenericType();
@@ -107,6 +117,9 @@ final class StringConversions {
             if (type == null) {
                 return;
             }
+        } else if (type.isArray()) {
+            // the elements of an array (JAX-RS 3.2)
+            type = type.fromArray();
         }
         if (type.isPrimitive() || type.isArray() || type.getPackageName().startsWith("java.") || !isAccessible(type)
             || generated.contains(owner.getName() + " " + type.getName())) {

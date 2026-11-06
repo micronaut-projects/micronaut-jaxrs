@@ -258,6 +258,75 @@ public class Test {
         conversions['test.Test$Value$Other'].convert('x').value == 'other:x'
     }
 
+    void "the conversion of the elements of an array"() {
+        when:
+        def conversions = conversions('''
+package test;
+
+@jakarta.ws.rs.Path("/test")
+public class Test {
+
+    @jakarta.ws.rs.GET
+    public String get(@jakarta.ws.rs.QueryParam("v") Value[] v) {
+        return null;
+    }
+
+    public static class Value {
+        final String value;
+
+        private Value(String value) {
+            this.value = value;
+        }
+
+        public static Value valueOf(String value) {
+            return new Value("valueOf:" + value);
+        }
+    }
+}
+''')
+
+        then:
+        conversions['test.Test$Value'].convert('x').value == 'valueOf:x'
+    }
+
+    void "the conversion of the parameter of an annotated setter"() {
+        when:
+        def conversions = conversions('''
+package test;
+
+@jakarta.ws.rs.Path("/test")
+public class Test {
+
+    private Value value;
+
+    @jakarta.ws.rs.QueryParam("v")
+    public void setValue(Value value) {
+        this.value = value;
+    }
+
+    @jakarta.ws.rs.GET
+    public String get() {
+        return null;
+    }
+
+    public static class Value {
+        final String value;
+
+        private Value(String value) {
+            this.value = value;
+        }
+
+        public static Value valueOf(String value) {
+            return new Value("valueOf:" + value);
+        }
+    }
+}
+''')
+
+        then:
+        conversions['test.Test$Value'].convert('x').value == 'valueOf:x'
+    }
+
     /**
      * The generated conversions, by the name of their type.
      */
