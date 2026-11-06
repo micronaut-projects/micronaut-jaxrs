@@ -83,7 +83,8 @@ final class JaxRsContextConfiguration implements Configuration, JaxRsProviderReg
         Map<String, Object> set = features.get().properties();
         Set<String> removed = features.get().removedProperties();
         if (set.isEmpty() && removed.isEmpty()) {
-            return app == null ? Map.of() : app.getProperties();
+            // a view: the map of the application may be mutable
+            return app == null ? Map.of() : Collections.unmodifiableMap(app.getProperties());
         }
         // the ones of the application, without the ones the features removed, and the ones the
         // features set (FeatureContext#property)
