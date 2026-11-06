@@ -78,7 +78,7 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Ob
         int paramIndex = type.indexOf(';');
         String major;
         String subtype;
-        if (typeIndex < 0) { // possible "*"
+        if (typeIndex < 0 || paramIndex > -1 && typeIndex > paramIndex) { // possible "*", a '/' of a parameter is not the one of the type
 
             major = type;
             if (paramIndex > -1) {
