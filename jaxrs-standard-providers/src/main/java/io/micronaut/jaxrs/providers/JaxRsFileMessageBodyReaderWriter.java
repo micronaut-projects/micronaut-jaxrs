@@ -32,7 +32,6 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 
 /**
  * The standard provider of {@link File} for all media types (JAX-RS 4.2.4): an entity is read
@@ -55,8 +54,14 @@ public final class JaxRsFileMessageBodyReaderWriter implements MessageBodyReader
     public File readFrom(Class<File> type, Type genericType, Annotation[] annotations, MediaType mediaType,
                          MultivaluedMap<String, String> httpHeaders, InputStream entityStream) throws IOException {
         Path file = Files.createTempFile("jaxrs-entity", null);
+        // into the created file, keeping the owner-only permissions createTempFile gave it
+        try (OutputStream out = Files.newOutputStream(file)) {
+            entityStream.transferTo(out);
+        } catch (IOException | RuntimeException e) {
+            Files.deleteIfExists(file);
+            throw e;
+        }
         file.toFile().deleteOnExit();
-        Files.copy(entityStream, file, StandardCopyOption.REPLACE_EXISTING);
         return file.toFile();
     }
 
