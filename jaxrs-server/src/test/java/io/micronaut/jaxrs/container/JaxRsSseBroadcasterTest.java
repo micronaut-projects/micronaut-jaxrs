@@ -50,6 +50,25 @@ class JaxRsSseBroadcasterTest {
     }
 
     @Test
+    void aThrowingCloseCallbackDoesNotKeepTheOtherSinksOpen() {
+        var broadcaster = new JaxRsSseBroadcaster();
+        var first = new JaxRsSseEventSink(e -> String.valueOf(e.getData()));
+        var second = new JaxRsSseEventSink(e -> String.valueOf(e.getData()));
+        var notified = new java.util.concurrent.atomic.AtomicInteger();
+        broadcaster.onClose(s -> {
+            throw new IllegalStateException("listener failure");
+        });
+        broadcaster.onClose(s -> notified.incrementAndGet());
+        broadcaster.register(first);
+        broadcaster.register(second);
+        broadcaster.close();
+        assertTrue(first.isClosed());
+        assertTrue(second.isClosed());
+        Assertions.assertEquals(2, notified.get());
+        Assertions.assertEquals(0, broadcaster.registrations());
+    }
+
+    @Test
     void closingAgainFromACloseCallbackIsIgnored() {
         var broadcaster = new JaxRsSseBroadcaster();
         var first = new JaxRsSseEventSink(e -> String.valueOf(e.getData()));

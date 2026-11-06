@@ -28,6 +28,10 @@ import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.core.propagation.PropagatedContext;
 import io.micronaut.http.ServerHttpRequest;
 import io.micronaut.http.body.ByteBody;
+import io.micronaut.http.body.CloseableAvailableByteBody;
+import io.micronaut.core.util.SupplierUtil;
+import io.micronaut.inject.qualifiers.Qualifiers;
+import io.micronaut.scheduling.TaskExecutors;
 import io.micronaut.jaxrs.common.JaxRsContainerMessageBodyHandlerRegistry;
 import io.micronaut.jaxrs.common.JaxRsGenericEntity;
 import io.micronaut.jaxrs.common.JaxRsUtils;
@@ -53,6 +57,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.function.ToIntFunction;
 
@@ -85,6 +93,8 @@ final class JaxRsContainerFilters {
     private final NameBindingPredicate nameBindingPredicate;
     private final JaxRsFeatures features;
     private final JaxRsEntityPreparation entityPreparation = new JaxRsEntityPreparation();
+    // the executor of the filters, which can block, resolved when first used
+    private final Supplier<@Nullable Executor> blockingExecutor;
 
     JaxRsContainerFilters(ApplicationProvider applicationProvider,
                  BeanContext beanContext,
@@ -94,6 +104,10 @@ final class JaxRsContainerFilters {
         this.applicationProvider = applicationProvider;
         this.beanContext = beanContext;
         this.features = features;
+        this.blockingExecutor = SupplierUtil.memoized(() ->
+            beanContext.findBean(ExecutorService.class, Qualifiers.byName(TaskExecutors.BLOCKING))
+                .<Executor>map(e -> e)
+                .orElse(null));
         // the filters the features register are beans too
         features.configure();
         // the ones registered with the application, like the other providers (JAX-RS 2.3)
@@ -309,26 +323,53 @@ final class JaxRsContainerFilters {
      * so demand of the copy alone must pull the body, else a body larger than what the server
      * reads ahead, or one sent after {@code 100 Continue}, never completes. The original body
      * keeps what the copy read, bounded by the maximum request size of the server.
+     * The filters of a request the server received run on the blocking executor, not on the
+     * event loop: a filter can block, e.g. on a database.
      */
     private <M> CompletionStage<@Nullable M> withBufferedEntity(MutableHttpRequest<?> request, Filtering<M> filtering) {
-        if (!(request instanceof ServerHttpRequest<?> serverHttpRequest)
-            || request.getAttribute(JaxRsContainerRequestContext.BUFFERED_ENTITY).isPresent()
-            || !hasEntity(request)) {
+        if (!(request instanceof ServerHttpRequest<?> serverHttpRequest)) {
             return run(filtering);
         }
+        Executor executor = blockingExecutor.get();
         PropagatedContext propagatedContext = PropagatedContext.getOrEmpty();
-        return serverHttpRequest.byteBody().split(ByteBody.SplitBackpressureMode.FASTEST).buffer().thenCompose(body -> {
+        if (request.getAttribute(JaxRsContainerRequestContext.BUFFERED_ENTITY).isPresent()
+            || !hasEntity(serverHttpRequest)) {
+            if (executor == null) {
+                return run(filtering);
+            }
+            return CompletableFuture.supplyAsync(() -> {
+                try (PropagatedContext.Scope ignore = propagatedContext.propagate()) {
+                    return run(filtering);
+                }
+            }, executor).thenCompose(Function.identity());
+        }
+        Function<CloseableAvailableByteBody, CompletionStage<@Nullable M>> filter = body -> {
             request.setAttribute(JaxRsContainerRequestContext.BUFFERED_ENTITY, body.toByteArray());
             // the filters run in the context of the request, also when the body completes later
             try (PropagatedContext.Scope ignore = propagatedContext.propagate()) {
                 return run(filtering);
             }
-        });
+        };
+        CompletionStage<? extends CloseableAvailableByteBody> buffered = serverHttpRequest.byteBody().split(ByteBody.SplitBackpressureMode.FASTEST).buffer();
+        return executor == null ? buffered.thenCompose(filter) : buffered.thenComposeAsync(filter, executor);
     }
 
-    private static boolean hasEntity(HttpRequest<?> request) {
-        return request.getMethod().permitsRequestBody()
-            && (request.getContentLength() > 0 || request.getHeaders().contains(io.micronaut.http.HttpHeaders.TRANSFER_ENCODING));
+    /**
+     * Whether a response filter can filter a response, of any route.
+     *
+     * @return Whether there are response filters, or dynamic features that may register some
+     */
+    boolean mayFilterResponses() {
+        return !containerResponseFilters.isEmpty() || features.hasDynamicFeatures();
+    }
+
+    private static boolean hasEntity(ServerHttpRequest<?> request) {
+        if (!request.getMethod().permitsRequestBody()) {
+            return false;
+        }
+        // e.g. an HTTP/2 body has neither a length nor a transfer encoding: unknown, it may have content
+        java.util.OptionalLong length = request.byteBody().expectedLength();
+        return length.isEmpty() || length.getAsLong() > 0;
     }
 
     private static <M> CompletionStage<@Nullable M> run(Filtering<M> filtering) {

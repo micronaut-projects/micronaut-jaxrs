@@ -27,6 +27,8 @@ import io.micronaut.jaxrs.common.JaxRsIOException;
 import io.micronaut.jaxrs.runtime.ext.bind.UriInfoImpl;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.RouteInfo;
+import io.micronaut.scheduling.TaskExecutors;
+import io.micronaut.web.router.builder.FilterSpec;
 import io.micronaut.web.router.builder.HttpRouteBuilder;
 import io.micronaut.web.router.builder.HttpRoutes;
 import jakarta.inject.Singleton;
@@ -66,7 +68,7 @@ final class JaxRsServerFilters implements HttpRoutes {
 
     @Override
     public void routes(HttpRouteBuilder routes) {
-        routes.serverFilter("/**").preMatching()
+        FilterSpec<?> after = routes.serverFilter("/**").preMatching()
             .beforeReplacingAsync(request -> {
                 boolean normalized = normalize(request);
                 return filters.filterPreMatchingRequestAsync(request).thenApply(message -> {
@@ -92,6 +94,10 @@ final class JaxRsServerFilters implements HttpRoutes {
                     JaxRsAsyncResponse.completed(request);
                 }
             });
+        if (filters.mayFilterResponses()) {
+            // a response filter can block, e.g. on a database: not on the event loop
+            after.executeOn(TaskExecutors.BLOCKING);
+        }
     }
 
     /**

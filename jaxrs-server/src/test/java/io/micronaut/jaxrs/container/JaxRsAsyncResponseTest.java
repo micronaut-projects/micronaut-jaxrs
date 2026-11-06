@@ -36,6 +36,33 @@ class JaxRsAsyncResponseTest {
     }
 
     @Test
+    void theTimeoutIsHandledInTheContextOfTheRequest() throws Exception {
+        ThreadLocal<Boolean> inRequest = new ThreadLocal<>();
+        var scheduled = Executors.newSingleThreadScheduledExecutor();
+        try {
+            var scheduler = new io.micronaut.scheduling.ScheduledExecutorTaskScheduler(scheduled);
+            var asyncResponse = new JaxRsAsyncResponse(HttpResponse::ok, () -> scheduler, () -> null, task -> {
+                inRequest.set(true);
+                try {
+                    task.run();
+                } finally {
+                    inRequest.remove();
+                }
+            });
+            var handledInRequest = new java.util.concurrent.CompletableFuture<Boolean>();
+            asyncResponse.setTimeoutHandler(response -> {
+                handledInRequest.complete(Boolean.TRUE.equals(inRequest.get()));
+                response.resume("timed out");
+            });
+            // e.g. set again by a background worker, outside of the request
+            asyncResponse.setTimeout(10, TimeUnit.MILLISECONDS);
+            assertTrue(handledInRequest.get(10, TimeUnit.SECONDS));
+        } finally {
+            scheduled.shutdown();
+        }
+    }
+
+    @Test
     void notDoneWhileTheResumedValueIsProcessed() throws Exception {
         var converting = new java.util.concurrent.CountDownLatch(1);
         var release = new java.util.concurrent.CountDownLatch(1);

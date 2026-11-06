@@ -282,6 +282,11 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
         if (mutableHttpRequest.getAttribute(ENTITY_STREAM).isPresent()) {
             return true;
         }
+        if (bodyRequest instanceof ServerHttpRequest<?> serverHttpRequest) {
+            // e.g. an HTTP/2 body has neither a length nor a transfer encoding: unknown, it may have content
+            java.util.OptionalLong length = serverHttpRequest.byteBody().expectedLength();
+            return length.isEmpty() || length.getAsLong() > 0;
+        }
         HttpHeaders headers = bodyRequest.getHeaders();
         return bodyRequest.getContentLength() > 0 || headers.contains(HttpHeaders.TRANSFER_ENCODING) || bodyRequest.getBody().isPresent();
     }

@@ -491,6 +491,13 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
      * @param route The route of a request
      * @return The components the dynamic features registered for its resource method
      */
+    /**
+     * @return Whether a dynamic feature can register filters or interceptors for a resource method
+     */
+    boolean hasDynamicFeatures() {
+        return !dynamicFeatures.isEmpty();
+    }
+
     Components components(@Nullable RouteInfo<?> route) {
         Object key = JaxRsRouteSupport.resourceMethodKey(route);
         Class<?> resourceClass = JaxRsRouteSupport.resourceClass(route);

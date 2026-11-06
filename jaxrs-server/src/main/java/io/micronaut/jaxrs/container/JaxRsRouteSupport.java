@@ -212,7 +212,7 @@ public final class JaxRsRouteSupport {
                       BeanContext beanContext) {
         this.applicationProvider = applicationProvider;
         this.applicationPath = applicationProvider.getAnnotationMetadata().stringValue(jakarta.ws.rs.ApplicationPath.class)
-            .map(path -> java.net.URLDecoder.decode(path, java.nio.charset.StandardCharsets.UTF_8))
+            .map(ApplicationProvider::decodePath)
             .orElse("");
         this.conversionService = conversionService;
         // the registered ones (JAX-RS 2.3), resolved when first used: after the instances of the
@@ -606,6 +606,9 @@ public final class JaxRsRouteSupport {
         synchronized (parts) {
             part = parts.get(name);
         }
+        if (part == STREAMED) {
+            throw new IllegalStateException("The content of the part " + name + " was read as a stream already");
+        }
         if (part == null) {
             Optional<FileUpload> file = form.findFile(name);
             if (file.isPresent()) {
@@ -627,6 +630,37 @@ public final class JaxRsRouteSupport {
         // read with the registered readers (EntityPart.getContent)
         return JaxRsEntityPart.read(name, part.fileName(), part.mediaType(), part.content(),
             beanContext.findBean(jakarta.ws.rs.ext.Providers.class).orElse(null));
+    }
+
+    /**
+     * The content of a part of a multipart form as a stream: the file of a resource method that
+     * blocks is streamed from where the server stored it, e.g. on disk, not read into memory.
+     */
+    @Nullable InputStream formStream(HttpRequest<?> request, FormData form, String name) {
+        Map<String, FormPart> parts = formParts(request);
+        synchronized (parts) {
+            if (!parts.containsKey(name)) {
+                Optional<FileUpload> file = form.findFile(name);
+                if (file.isPresent()) {
+                    parts.put(name, STREAMED);
+                    InputStream stream = file.get().takeBody().toInputStream();
+                    ServerHttpRequest<?> serverRequest = JaxRsAsyncResponse.serverRequest(request);
+                    if (serverRequest != null) {
+                        // released with the request, also when the resource method does not close it
+                        serverRequest.whenResponseCompleted(failure -> {
+                            try {
+                                stream.close();
+                            } catch (IOException e) {
+                                // released already
+                            }
+                        });
+                    }
+                    return stream;
+                }
+            }
+        }
+        EntityPart part = formPart(request, form, name);
+        return part == null ? null : part.getContent();
     }
 
     /**
@@ -863,7 +897,9 @@ public final class JaxRsRouteSupport {
             writer = beanContext.getBean(MessageBodyHandlerRegistry.class).findWriter(type, mediaTypes);
         }
         if (writer.isEmpty()) {
-            return data.toString();
+            // the send fails, rather than the data written by its toString()
+            throw new jakarta.ws.rs.ProcessingException("No message body writer of the event data of type "
+                + type.getTypeName() + " for the media type " + mediaType);
         }
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         writer.get().writeTo(type, mediaType, data, new SimpleHttpHeaders(), out);
@@ -1450,6 +1486,9 @@ public final class JaxRsRouteSupport {
      * @param mediaType The media type
      * @param content   The content
      */
+    // a part whose file was streamed, see #formStream
+    private static final FormPart STREAMED = new FormPart(null, jakarta.ws.rs.core.MediaType.WILDCARD_TYPE, new byte[0]);
+
     private record FormPart(@Nullable String fileName, jakarta.ws.rs.core.MediaType mediaType, byte[] content) {
     }
 

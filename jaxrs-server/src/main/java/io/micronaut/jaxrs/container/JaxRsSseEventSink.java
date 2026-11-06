@@ -42,10 +42,8 @@ import java.util.function.Function;
  * {@code text/event-stream} response of the request, see {@link JaxRsServerFilters}. The events
  * sent before the response is written are buffered. The stage of a sent event completes once the
  * response stream took it, as its subscriber requested it, and fails when the client disconnects
- * before: a producer waiting for the stages follows the demand of the connection. Before the
- * response is written, while the resource method runs, the first
- * {@value #UNSUBSCRIBED_LIMIT} buffered events complete when buffered, so that a resource method
- * can wait for them.
+ * before: a producer waiting for the stages follows the demand of the connection. The response
+ * starts on the first event sent, so that a resource method can wait for the stages of its events.
  *
  * @author Denis Stepanov
  * @since 5.0.0
@@ -53,8 +51,6 @@ import java.util.function.Function;
 @Internal
 final class JaxRsSseEventSink implements SseEventSink, Publisher<Event<String>>, Subscription {
 
-    // the events a resource method can buffer before the response is written, with a completed stage
-    static final int UNSUBSCRIBED_LIMIT = 256;
     // the events waiting for the demand of the connection: a producer ignoring the stages of its
     // sends fails then, rather than growing the buffer without bound
     static final int PENDING_LIMIT = 65_536;
@@ -270,10 +266,6 @@ final class JaxRsSseEventSink implements SseEventSink, Publisher<Event<String>>,
                 if (buffer.size() >= PENDING_LIMIT) {
                     return CompletableFuture.failedFuture(new IllegalStateException(
                         "Too many events wait to be sent: " + PENDING_LIMIT));
-                }
-                if (subscriber == null && buffer.size() < UNSUBSCRIBED_LIMIT) {
-                    // buffered until the response is written, after the resource method
-                    pending.sent.complete(null);
                 }
                 buffer.add(pending);
                 started = firstSend;
