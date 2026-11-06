@@ -863,7 +863,9 @@ public final class JaxRsRouteSupport {
             writer = beanContext.getBean(MessageBodyHandlerRegistry.class).findWriter(type, mediaTypes);
         }
         if (writer.isEmpty()) {
-            return data.toString();
+            // the send fails, rather than the data written by its toString()
+            throw new jakarta.ws.rs.ProcessingException("No message body writer of the event data of type "
+                + type.getTypeName() + " for the media type " + mediaType);
         }
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         writer.get().writeTo(type, mediaType, data, new SimpleHttpHeaders(), out);
