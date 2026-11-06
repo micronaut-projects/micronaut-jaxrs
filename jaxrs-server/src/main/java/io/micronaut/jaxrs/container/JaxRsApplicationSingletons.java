@@ -76,7 +76,11 @@ final class JaxRsApplicationSingletons implements BeanCreatedEventListener<Appli
     public Application onCreated(BeanCreatedEvent<Application> event) {
         Application application = event.getBean();
         for (Object singleton : application.getSingletons()) {
-            if (isProvider(singleton) && !isRegistered(singleton.getClass())) {
+            if (isProvider(singleton) && isRegistered(singleton.getClass())) {
+                // registered by the Java SE bootstrap, which does not inject it: the
+                // registered instance is injected once, here
+                inject(context, context.getBean(singleton.getClass()));
+            } else if (isProvider(singleton)) {
                 // the @Context fields of the instance, like the ones of a bean of its class, also of
                 // a class the annotation processors never saw, with reflection
                 Object injected = inject(context, singleton);

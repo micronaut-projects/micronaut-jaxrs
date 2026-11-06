@@ -106,6 +106,56 @@ class SeBootstrapTest {
     }
 
     @Test
+    void contextFieldsOfAProviderInstanceAreInjected() throws Exception {
+        SeBootstrap.Configuration requested = SeBootstrap.Configuration.builder()
+            .port(SeBootstrap.Configuration.FREE_PORT)
+            .build();
+        System.setProperty("spec.name", "SeBootstrapTest");
+        SeBootstrap.Instance instance;
+        try {
+            instance = SeBootstrap.start(new SeProviderApplication(), requested).toCompletableFuture().get();
+        } finally {
+            System.clearProperty("spec.name");
+        }
+        try {
+            URI uri = instance.configuration().baseUriBuilder().path("se/resource").build();
+            try (HttpClient client = HttpClient.newHttpClient()) {
+                HttpResponse<String> response = client.send(HttpRequest.newBuilder(uri).header("X-In", "header").build(),
+                    HttpResponse.BodyHandlers.ofString());
+                assertEquals(200, response.statusCode());
+                assertEquals("header", response.headers().firstValue("X-Out").orElse(null));
+            }
+        } finally {
+            instance.stop().toCompletableFuture().get();
+        }
+    }
+
+    @Requires(property = "spec.name", value = "SeBootstrapTest")
+    @ApplicationPath("se")
+    public static final class SeProviderApplication extends Application {
+        private final Set<Object> singletons = Set.of(new SeResource("value"), new HeadersFilter());
+
+        @Override
+        public Set<Object> getSingletons() {
+            return singletons;
+        }
+    }
+
+    /**
+     * A filter instance of the application, which is not a bean.
+     */
+    public static final class HeadersFilter implements jakarta.ws.rs.container.ContainerResponseFilter {
+        @jakarta.ws.rs.core.Context
+        jakarta.ws.rs.core.HttpHeaders headers;
+
+        @Override
+        public void filter(jakarta.ws.rs.container.ContainerRequestContext requestContext,
+                           jakarta.ws.rs.container.ContainerResponseContext responseContext) {
+            responseContext.getHeaders().putSingle("X-Out", headers.getHeaderString("X-In"));
+        }
+    }
+
+    @Test
     void configurationHasDefaults() {
         SeBootstrap.Configuration configuration = SeBootstrap.Configuration.builder().build();
         assertEquals("HTTP", configuration.protocol());
