@@ -212,7 +212,7 @@ public final class JaxRsRouteSupport {
                       BeanContext beanContext) {
         this.applicationProvider = applicationProvider;
         this.applicationPath = applicationProvider.getAnnotationMetadata().stringValue(jakarta.ws.rs.ApplicationPath.class)
-            .map(path -> java.net.URLDecoder.decode(path, java.nio.charset.StandardCharsets.UTF_8))
+            .map(ApplicationProvider::decodePath)
             .orElse("");
         this.conversionService = conversionService;
         // the registered ones (JAX-RS 2.3), resolved when first used: after the instances of the

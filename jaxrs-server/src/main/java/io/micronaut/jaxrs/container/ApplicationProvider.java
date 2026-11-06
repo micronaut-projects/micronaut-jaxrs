@@ -57,7 +57,7 @@ public final class ApplicationProvider implements AnnotationMetadataProvider {
                         @Value("${micronaut.server.context-path}") @Nullable String contextPath) {
         this.annotationMetadata = applicationMetadata(beanContext);
         String applicationPath = annotationMetadata.stringValue(ApplicationPath.class)
-            .map(path -> URLDecoder.decode(path, StandardCharsets.UTF_8))
+            .map(ApplicationProvider::decodePath)
             .orElse("/");
         this.path = concatContextPath(contextPath, applicationPath);
         this.contextPath = contextPath == null || contextPath.isEmpty() || "/".equals(contextPath) ? "" : normalizeContextPath(contextPath);
@@ -110,10 +110,20 @@ public final class ApplicationProvider implements AnnotationMetadataProvider {
 
     @NonNull
     private String concatContextPath(@Nullable String contextPath, @NonNull String applicationPath) {
-        if (contextPath == null || contextPath.isEmpty() || contextPath.endsWith("/")) {
+        if (contextPath == null || contextPath.isEmpty() || "/".equals(contextPath)) {
             return normalizeContextPath(applicationPath);
         }
         return normalizeContextPath(normalizeContextPath(contextPath).concat(normalizeContextPath(applicationPath)));
+    }
+
+    /**
+     * Decode a path: unlike a form value, a literal plus sign is not a space.
+     *
+     * @param path The path
+     * @return The decoded path
+     */
+    static String decodePath(String path) {
+        return URLDecoder.decode(path.replace("+", "%2B"), StandardCharsets.UTF_8);
     }
 
     private String normalizeContextPath(String contextPath) {
