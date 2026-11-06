@@ -16,6 +16,15 @@
 package io.micronaut.jaxrs.container;
 
 import io.micronaut.context.BeanContext;
+import io.micronaut.aop.Intercepted;
+import io.micronaut.aop.InterceptedProxy;
+import io.micronaut.context.BeanRegistration;
+import io.micronaut.context.annotation.Prototype;
+import io.micronaut.context.exceptions.NonUniqueBeanException;
+import io.micronaut.http.ServerHttpRequest;
+import io.micronaut.inject.BeanIdentifier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.beans.BeanConstructor;
@@ -42,10 +51,14 @@ import org.jspecify.annotations.Nullable;
 import java.lang.annotation.Annotation;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Set;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
@@ -60,10 +73,17 @@ import java.util.function.Supplier;
 @Internal
 final class JaxRsResourceFactory {
 
+    private static final Logger LOG = LoggerFactory.getLogger(JaxRsResourceFactory.class);
+
     private static final List<Class<? extends Annotation>> REQUEST_ANNOTATIONS = List.of(
         PathParam.class, QueryParam.class, MatrixParam.class, HeaderParam.class, CookieParam.class,
         FormParam.class, BeanParam.class, Context.class
     );
+
+    // the instances owned by a request, destroyed once its response is done
+    private static final String OWNED = JaxRsResourceFactory.class.getName() + ".owned";
+    // the instances of explicit scopes whose members are set for a request
+    private static final String SCOPED_INITIALIZED = JaxRsResourceFactory.class.getName() + ".scoped";
 
     // the type created for a request whose members are set before its @PostConstruct methods run
     private static final ThreadLocal<@Nullable Initializing<?>> INITIALIZING = new ThreadLocal<>();
@@ -74,6 +94,10 @@ final class JaxRsResourceFactory {
     private final Map<Class<?>, Creator<?>> creators = new ConcurrentHashMap<>();
     // how ResourceContext creates and initializes classes for a request, empty for a class without values of the request
     private final Map<Class<?>, Optional<RequestType<?>>> contextRequestTypes = new ConcurrentHashMap<>();
+    // how to set the members of the targets of scoped proxies, by their classes
+    private final Map<Class<?>, Optional<RequestType<?>>> targetRequestTypes = new ConcurrentHashMap<>();
+    // the definitions the beans of the classes are resolved with, empty for one that is not unique
+    private final Map<Class<?>, Optional<BeanDefinition<?>>> resolved = new ConcurrentHashMap<>();
 
     /**
      * @param beanContext The bean context
@@ -150,7 +174,82 @@ final class JaxRsResourceFactory {
         if (requestType != null) {
             return create(requestType, request, pathVariables, contextForm(request));
         }
-        return definition != null ? beanContext.getBean(definition) : beanContext.inject(JaxRsReflection.get().instantiate(type));
+        return definition != null ? owned(request, beanContext.getBean(definition)) : beanContext.inject(JaxRsReflection.get().instantiate(type));
+    }
+
+    /**
+     * A bean resolved or created for a request: one the request owns, of a definition without a
+     * scope or a prototype, is destroyed once the response is done, so that its {@code @PreDestroy}
+     * methods run (JAX-RS 3.1.1, the per-request lifecycle), also when the response failed, was
+     * asynchronous or streamed. A singleton or a bean of another scope, e.g. the request scope, is
+     * left to its scope.
+     *
+     * @param request  The request
+     * @param instance The instance
+     * @param <T>      The type
+     * @return The instance
+     */
+    <T> T owned(HttpRequest<?> request, T instance) {
+        BeanDefinition<?> definition = resolved.computeIfAbsent(instance.getClass(), this::resolve).orElse(null);
+        if (definition == null || !isDependent(definition)) {
+            return instance;
+        }
+        @SuppressWarnings("unchecked")
+        BeanDefinition<T> typed = (BeanDefinition<T>) definition;
+        BeanRegistration<T> registration = BeanRegistration.of(beanContext, BeanIdentifier.of(typed.getBeanType().getName()), typed, instance);
+        Runnable destroy = () -> {
+            try {
+                beanContext.destroyBean(registration);
+            } catch (RuntimeException e) {
+                LOG.warn("Failed to destroy the resource {} of a request: {}", typed.getBeanType().getName(), e.getMessage(), e);
+            }
+        };
+        ServerHttpRequest<?> serverRequest = JaxRsAsyncResponse.serverRequest(request);
+        // the callback runs on the event loop: the @PreDestroy methods may block
+        Executor executor = support.blockingExecutor();
+        if (serverRequest != null && serverRequest.whenResponseCompleted(failure -> executor.execute(destroy))) {
+            return instance;
+        }
+        // a server that does not report it: once the response is processed, see #destroyOwned
+        @SuppressWarnings("unchecked")
+        List<Runnable> owned = request.getAttribute(OWNED, List.class).orElse(null);
+        if (owned == null) {
+            owned = new ArrayList<>(1);
+            request.setAttribute(OWNED, owned);
+        }
+        owned.add(destroy);
+        return instance;
+    }
+
+    /**
+     * Destroy the instances a request owns once its response is processed, on a server that does
+     * not report when the response is done, see {@link #owned}.
+     *
+     * @param request The request
+     */
+    static void destroyOwned(HttpRequest<?> request) {
+        @SuppressWarnings("unchecked")
+        List<Runnable> owned = request.getAttribute(OWNED, List.class).orElse(null);
+        if (owned != null) {
+            request.removeAttribute(OWNED, List.class);
+            owned.forEach(Runnable::run);
+        }
+    }
+
+    private Optional<BeanDefinition<?>> resolve(Class<?> type) {
+        try {
+            return beanContext.findBeanDefinition(type).map(definition -> definition);
+        } catch (NonUniqueBeanException e) {
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * @return Whether the instances of a definition belong to the ones they are created for: no
+     * scope, or the prototype scope
+     */
+    private static boolean isDependent(BeanDefinition<?> definition) {
+        return !definition.isSingleton() && definition.getScope().map(scope -> scope == Prototype.class).orElse(true);
     }
 
     /**
@@ -205,8 +304,13 @@ final class JaxRsResourceFactory {
      * How to create a class for every request: with the values of the request in its constructor,
      * fields and setters. {@code null} for a class that is not created per request.
      */
+    @SuppressWarnings("unchecked")
     <T> @Nullable RequestType<T> requestType(Class<T> type, @Nullable BeanDefinition<T> definition) {
         BeanIntrospection<T> introspection = introspection(type);
+        if (introspection == null && Intercepted.class.isAssignableFrom(type) && type.getSuperclass() != null) {
+            // a proxy, e.g. of a @RequestScope resource: the members of the class it proxies
+            introspection = (BeanIntrospection<T>) introspection(type.getSuperclass());
+        }
         Argument<?>[] constructorArguments = definition != null ? definition.getConstructor().getArguments()
             : introspection != null ? introspection.getConstructorArguments() : new Argument<?>[0];
         boolean encodedType = introspection != null && introspection.hasAnnotation(Encoded.class);
@@ -257,7 +361,9 @@ final class JaxRsResourceFactory {
                 requestNames[j++] = constructorArguments[i].getName();
             }
         }
-        return new RequestType<>(type, definition != null, introspection, constructorReaders, requestIndexes, requestNames, members,
+        // a resource of an explicit scope, e.g. @RequestScope, is resolved in it, unless its constructor reads the request
+        boolean scoped = definition != null && !isDependent(definition) && !definition.isSingleton() && count == 0;
+        return new RequestType<>(type, definition != null, scoped, introspection, constructorReaders, requestIndexes, requestNames, members,
             usesForm, encodedForm);
     }
 
@@ -279,9 +385,27 @@ final class JaxRsResourceFactory {
         T instance;
         BeanIntrospection<T> introspection = requestType.introspection();
         Initializing<T> initializing = new Initializing<>(requestType, request, pathVariables, form);
+        if (requestType.scoped()) {
+            // the instance of its scope: its members are set once for the request, when the scope
+            // creates it, else here, e.g. for the target of a scoped proxy
+            T scoped = initializing(initializing, () -> target(beanContext.getBean(requestType.type())));
+            if (!initializing.done && scopedInitialized(request).add(scoped)) {
+                if (scoped.getClass() == requestType.type()) {
+                    initializing.set(scoped);
+                } else {
+                    // the target of a proxy, whose type is the proxy class: the members of its class
+                    RequestType<?> targetType = targetRequestTypes.computeIfAbsent(scoped.getClass(), t -> Optional.ofNullable(requestType(t, null)))
+                        .orElse(null);
+                    if (targetType != null) {
+                        new Initializing<>(targetType, request, pathVariables, form).setUnchecked(scoped);
+                    }
+                }
+            }
+            return scoped;
+        }
         if (requestType.bean() || introspection == null) {
             // the members of a bean are set before its @PostConstruct methods run, see JaxRsResourceInitializer
-            instance = initializing(initializing, () -> createBean(requestType.type(), requestType.requestNames(), requestValues));
+            instance = owned(request, initializing(initializing, () -> createBean(requestType.type(), requestType.requestNames(), requestValues)));
         } else {
             T created = values.length == 0 ? introspection.instantiate() : introspection.instantiate(values);
             instance = initializing(initializing, () -> beanContext.inject(created));
@@ -413,6 +537,28 @@ final class JaxRsResourceFactory {
         return beanContext.createBean(type, arguments);
     }
 
+    /**
+     * The instances of explicit scopes whose members are set for a request.
+     */
+    @SuppressWarnings("unchecked")
+    private static Set<Object> scopedInitialized(HttpRequest<?> request) {
+        Set<Object> initialized = request.getAttribute(SCOPED_INITIALIZED, Set.class).orElse(null);
+        if (initialized == null) {
+            initialized = Collections.newSetFromMap(new IdentityHashMap<>());
+            request.setAttribute(SCOPED_INITIALIZED, initialized);
+        }
+        return initialized;
+    }
+
+    /**
+     * The target of a scoped proxy, e.g. of a {@code @RequestScope} bean, created in its scope if
+     * it has none yet.
+     */
+    @SuppressWarnings("unchecked")
+    private static <T> T target(T bean) {
+        return bean instanceof InterceptedProxy<?> proxy ? (T) proxy.interceptedTarget() : bean;
+    }
+
     private static <T> @Nullable BeanIntrospection<T> introspection(Class<T> type) {
         return JaxRsReflection.get().introspection(type);
     }
@@ -475,6 +621,7 @@ final class JaxRsResourceFactory {
      *
      * @param type               The type
      * @param bean               Whether it is a bean
+     * @param scoped             Whether it is a bean of an explicit scope, resolved in it
      * @param introspection      Its introspection
      * @param constructorReaders How to read the values of the parameters of its constructor
      * @param requestIndexes     The indexes of the parameters of its constructor read from the request
@@ -484,7 +631,7 @@ final class JaxRsResourceFactory {
      * @param encodedForm        Whether it reads an {@code @Encoded} form field, which needs the raw values of the form
      * @param <T>                The type
      */
-    record RequestType<T>(Class<T> type, boolean bean, @Nullable BeanIntrospection<T> introspection,
+    record RequestType<T>(Class<T> type, boolean bean, boolean scoped, @Nullable BeanIntrospection<T> introspection,
                                JaxRsParameterBinding.@Nullable ValueReader[] constructorReaders, int[] requestIndexes, String[] requestNames,
                                   List<Member<T>> members, boolean usesForm, boolean encodedForm) {
     }
