@@ -313,7 +313,7 @@ final class JaxRsContainerFilters {
     private <M> CompletionStage<@Nullable M> withBufferedEntity(MutableHttpRequest<?> request, Filtering<M> filtering) {
         if (!(request instanceof ServerHttpRequest<?> serverHttpRequest)
             || request.getAttribute(JaxRsContainerRequestContext.BUFFERED_ENTITY).isPresent()
-            || !hasEntity(request)) {
+            || !hasEntity(serverHttpRequest)) {
             return run(filtering);
         }
         PropagatedContext propagatedContext = PropagatedContext.getOrEmpty();
@@ -326,9 +326,13 @@ final class JaxRsContainerFilters {
         });
     }
 
-    private static boolean hasEntity(HttpRequest<?> request) {
-        return request.getMethod().permitsRequestBody()
-            && (request.getContentLength() > 0 || request.getHeaders().contains(io.micronaut.http.HttpHeaders.TRANSFER_ENCODING));
+    private static boolean hasEntity(ServerHttpRequest<?> request) {
+        if (!request.getMethod().permitsRequestBody()) {
+            return false;
+        }
+        // e.g. an HTTP/2 body has neither a length nor a transfer encoding: unknown, it may have content
+        java.util.OptionalLong length = request.byteBody().expectedLength();
+        return length.isEmpty() || length.getAsLong() > 0;
     }
 
     private static <M> CompletionStage<@Nullable M> run(Filtering<M> filtering) {
