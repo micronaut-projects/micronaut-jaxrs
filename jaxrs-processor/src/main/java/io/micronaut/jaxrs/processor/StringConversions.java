@@ -141,7 +141,14 @@ final class StringConversions {
 
                     @Override
                     public Object convert(String value) throws Exception {
-                        return %4$s(value);
+                        try {
+                            return %4$s(value);
+                        } catch (Exception | Error e) {
+                            throw e;
+                        } catch (Throwable e) {
+                            // declared by the factory
+                            throw new java.lang.reflect.InvocationTargetException(e);
+                        }
                     }
                 }
                 """.formatted(typeName, simpleName, SERVICE, factory.replace("TYPE", typeName)));
@@ -160,7 +167,7 @@ final class StringConversions {
         for (String name : factories) {
             boolean found = type.getEnclosedElements(ElementQuery.ALL_METHODS.named(name)).stream()
                 .anyMatch(method -> method.isStatic() && method.isPublic() && isStringParameter(method.getParameters())
-                    && method.getGenericReturnType().isAssignable(type));
+                    && method.getGenericReturnType().isAssignable(type) && isInherited(method, type));
             if (found) {
                 return "TYPE." + name;
             }
@@ -179,7 +186,17 @@ final class StringConversions {
     }
 
     private static boolean isStringParameter(ParameterElement[] parameters) {
-        return parameters.length == 1 && parameters[0].getType().getName().equals(String.class.getName());
+        return parameters.length == 1 && !parameters[0].getType().isArray()
+            && parameters[0].getType().getName().equals(String.class.getName());
+    }
+
+    /**
+     * Whether a static method is one of the type: the static methods of an interface are not
+     * inherited, by the types that implement it nor by its subinterfaces.
+     */
+    private static boolean isInherited(MethodElement method, ClassElement type) {
+        ClassElement declaring = method.getDeclaringType();
+        return !declaring.isInterface() || declaring.getName().equals(type.getName());
     }
 
     private static boolean isPublic(ClassElement type) {

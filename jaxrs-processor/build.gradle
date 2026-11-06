@@ -15,4 +15,6 @@ dependencies {
     testImplementation(mn.micronaut.inject.java.test)
     testImplementation(mnValidation.micronaut.validation)
     testImplementation(mn.micronaut.http.client)
+    // the String conversions are generated when the runtime is on the classpath
+    testImplementation(projects.micronautJaxrsCommon)
 }
