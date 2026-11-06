@@ -189,4 +189,9 @@ class ClientTestController {
     Publisher<Event<String>> gotEvents(HttpRequest<?> request) {
         return Flux.just(Event.of(request.getMethodName()));
     }
+
+    @Post(value = "/body-events", consumes = MediaType.ALL, produces = MediaType.TEXT_EVENT_STREAM)
+    Publisher<Event<String>> bodyEvents(@Body String body) {
+        return Flux.just(Event.of(body));
+    }
 }

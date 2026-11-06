@@ -257,8 +257,14 @@ final class JaxRsSseEventSource implements SseEventSource {
         if (requestContext == null) {
             return;
         }
-        // the method a filter set, as in an ordinary exchange
-        MutableHttpRequest<Object> sent = JaxRsClientExchange.withChangedMethod(request, requestContext);
+        // the method and the entity a filter set, as in an ordinary exchange
+        MutableHttpRequest<Object> sent;
+        try {
+            sent = JaxRsClientExchange.changed(target.getConfiguration(), request, requestContext);
+        } catch (IOException | RuntimeException e) {
+            error(e instanceof ProcessingException processing ? processing : new ProcessingException(e));
+            return;
+        }
         DefaultHttpClient client;
         synchronized (this) {
             // a close before the lock wins: no client is created after it
@@ -336,8 +342,10 @@ final class JaxRsSseEventSource implements SseEventSource {
                 closeReplaced(filtered, unchanged);
                 filtered.setEntityStream(InputStream.nullInputStream());
             }
-            // a 503 a filter set is retried like one of the server
-            if (!retried(filtered)) {
+            // a 503 a filter set is retried like one of the server: the response is discarded
+            if (retried(filtered)) {
+                closeReplaced(filtered, unchanged);
+            } else {
                 // another status is an error, e.g. a 201, with the filtered response (JAX-RS, SseEventSource)
                 error(JaxRsClientExchange.exception(filtered));
             }
@@ -492,10 +500,13 @@ final class JaxRsSseEventSource implements SseEventSource {
         try {
             Response response = JaxRsClientFilters.filterRequest(configuration, requestContext);
             if (response != null) {
+                // the entity stream a filter replaced writes nothing
+                requestContext.closeReplacedEntityStream(null);
                 aborted(response, requestContext);
                 return null;
             }
         } catch (IOException | RuntimeException e) {
+            requestContext.closeReplacedEntityStream(e);
             error(new ProcessingException(e));
             return null;
         }
@@ -515,7 +526,12 @@ final class JaxRsSseEventSource implements SseEventSource {
             return;
         }
         if (filtered.getStatusInfo().getFamily() == Response.Status.Family.SUCCESSFUL) {
-            // nothing to receive
+            // nothing to receive: its entity, e.g. a stream, is not read
+            try {
+                filtered.close();
+            } catch (ProcessingException e) {
+                LOG.debug("Closing an aborted response failed: {}", e.getMessage(), e);
+            }
             open = false;
             complete();
         } else {

@@ -135,7 +135,7 @@ final class JaxRsClientExchange {
                 future.complete(new Exchanged(written(aborted), requestContext));
                 return future;
             }
-            request = changed(request, requestContext);
+            request = changed(configuration, request, requestContext);
             // the relative links of the response are resolved against the URI of the request
             URI requestUri = request.getUri();
             JaxRsClientRequestContext sentContext = requestContext;
@@ -222,10 +222,10 @@ final class JaxRsClientExchange {
 
     /**
      * The request as the request filters changed it: its method, and its entity written through
-     * the entity stream they replaced.
+     * the entity stream they replaced, the one of the ordinary exchanges and of the event sources.
      */
     @SuppressWarnings("unchecked")
-    private MutableHttpRequest<Object> changed(MutableHttpRequest<Object> request, JaxRsClientRequestContext requestContext) throws IOException {
+    static MutableHttpRequest<Object> changed(JaxRsConfiguration configuration, MutableHttpRequest<Object> request, JaxRsClientRequestContext requestContext) throws IOException {
         request = withChangedMethod(request, requestContext);
         Object entity = requestContext.getEntity();
         if (entity == null) {
