@@ -66,6 +66,10 @@ public class SimpleSecurityContextImpl implements SecurityContext {
         if (cert != null) {
             return CLIENT_CERT_AUTH;
         }
+        if (getUserPrincipal() == null) {
+            // credentials that did not authenticate the request are no authentication scheme (SecurityContext)
+            return null;
+        }
         String authorization = request.getHeaders().get(HttpHeaders.AUTHORIZATION);
         if (authorization != null && authorization.startsWith(HttpHeaderValues.AUTHORIZATION_PREFIX_BASIC)) {
             return BASIC_AUTH;
