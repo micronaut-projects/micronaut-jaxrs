@@ -22,6 +22,7 @@ import io.micronaut.context.ApplicationContext;
 import io.micronaut.context.event.ApplicationEventListener;
 import io.micronaut.context.event.StartupEvent;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.order.OrderUtil;
 import io.micronaut.http.context.ServerRequestContext;
 import io.micronaut.jaxrs.common.JaxRsContainerMessageBodyHandlerRegistry;
 import io.micronaut.jaxrs.common.JaxRsRouteInterceptors;
@@ -58,6 +59,7 @@ import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -121,16 +123,15 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
     // the features are configured: the global registrations do not change any more
     private volatile boolean complete;
 
-    JaxRsFeatures(ApplicationContext context, JaxRsContainerMessageBodyHandlerRegistry registry,
-                  List<BeanRegistration<Feature>> features, List<BeanRegistration<DynamicFeature>> dynamicFeatures) {
+    JaxRsFeatures(ApplicationContext context, JaxRsContainerMessageBodyHandlerRegistry registry) {
         this.context = context;
         this.registry = registry;
         Application application = context.findBean(Application.class).orElse(null);
         // not the ones constrained to the client (@ConstrainedTo)
-        this.features = collect(Feature.class, features, application).stream()
+        this.features = collect(Feature.class, application).stream()
             .filter(this::isServerComponent)
             .toList();
-        this.dynamicFeatures = new CopyOnWriteArrayList<>(collect(DynamicFeature.class, dynamicFeatures, application).stream()
+        this.dynamicFeatures = new CopyOnWriteArrayList<>(collect(DynamicFeature.class, application).stream()
             .filter(this::isServerComponent)
             .toList());
         // not the ones constrained to the client
@@ -319,6 +320,42 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
         return JaxRsUtils.isServerProvider(annotationMetadata(component.getClass()));
     }
 
+    /**
+     * The beans of a contract whose definitions are eligible, ordered: only those are created, so
+     * that a provider that is not registered, e.g. one an application that lists its classes
+     * excludes, or one constrained to the client, is never instantiated.
+     *
+     * @param contract The contract
+     * @param eligible Whether a bean type is eligible, beyond the server constraint
+     * @param <T>      The contract type
+     * @return The registrations of the eligible beans
+     */
+    <T> List<BeanRegistration<T>> eligible(Class<T> contract, Predicate<Class<?>> eligible) {
+        List<BeanRegistration<T>> beans = new ArrayList<>();
+        for (BeanDefinition<T> definition : context.getBeanDefinitions(contract)) {
+            if (JaxRsUtils.isServerProvider(definition.getAnnotationMetadata()) && eligible.test(definition.getBeanType())) {
+                beans.add(context.getBeanRegistration(definition));
+            }
+        }
+        OrderUtil.sort(beans);
+        return beans;
+    }
+
+    /**
+     * The beans of a provider contract that are registered, see {@link #registered}: only those
+     * are created.
+     *
+     * @param contract The contract
+     * @param <I>      The contract type
+     * @return The registrations
+     */
+    <I> List<BeanRegistration<I>> registered(Class<I> contract) {
+        return registered(eligible(contract, beanType -> {
+            Registration registration = registrations.get(beanType);
+            return registry.isRegistered(beanType) && (registration == null || registration.isFor(contract));
+        }), contract);
+    }
+
     @Override
     public <I> List<BeanRegistration<I>> registered(List<BeanRegistration<I>> beans, Class<I> contract) {
         List<BeanRegistration<I>> registered = new ArrayList<>(beans.size());
@@ -393,7 +430,7 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
      * The instances of a type: the beans, the ones of the {@code Application}, and the ones the
      * service loader provides, one per class.
      */
-    private <T> List<T> collect(Class<T> type, List<BeanRegistration<T>> beans, @Nullable Application application) {
+    private <T> List<T> collect(Class<T> type, @Nullable Application application) {
         Map<Class<?>, T> instances = new LinkedHashMap<>();
         Set<Class<?>> listed = new HashSet<>();
         if (application != null) {
@@ -408,12 +445,9 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
                 }
             }
         }
-        for (BeanRegistration<T> bean : beans) {
+        for (BeanRegistration<T> bean : eligible(type, beanType -> listed.isEmpty() || listed.contains(beanType))) {
             // an application that lists its classes or instances registers only those (JAX-RS 2.3)
-            Class<?> beanType = bean.getBeanDefinition().getBeanType();
-            if (listed.isEmpty() || listed.contains(beanType)) {
-                instances.putIfAbsent(beanType, bean.getBean());
-            }
+            instances.putIfAbsent(bean.getBeanDefinition().getBeanType(), bean.getBean());
         }
         if (application != null) {
             for (Class<?> c : application.getClasses()) {

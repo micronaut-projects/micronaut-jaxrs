@@ -98,11 +98,12 @@ final class JaxRsContainerFilters {
         features.configure();
         // the ones registered with the application, like the other providers (JAX-RS 2.3)
         // for the contracts, with the priorities, a feature registered them with
+        // only the registered ones are created
         List<BeanRegistration<ContainerRequestFilter>> requestFilters = new ArrayList<>(
-            features.registered(beanContext.getBeanRegistrations(ContainerRequestFilter.class).stream().toList(), ContainerRequestFilter.class));
+            features.registered(ContainerRequestFilter.class));
         requestFilters.removeIf(br -> !registry.isRegistered(br.getBeanDefinition().getBeanType()));
         List<BeanRegistration<ContainerResponseFilter>> containerResponseFilters = new ArrayList<>(
-            features.registered(beanContext.getBeanRegistrations(ContainerResponseFilter.class).stream().toList(), ContainerResponseFilter.class));
+            features.registered(ContainerResponseFilter.class));
         containerResponseFilters.removeIf(br -> !registry.isRegistered(br.getBeanDefinition().getBeanType()));
         this.nameBindingPredicate = nameBindingPredicate;
         Map<Boolean, List<BeanRegistration<ContainerRequestFilter>>> matching = requestFilters.stream().collect(Collectors.groupingBy(br -> br.getBeanDefinition().hasAnnotation(PreMatching.class)));
