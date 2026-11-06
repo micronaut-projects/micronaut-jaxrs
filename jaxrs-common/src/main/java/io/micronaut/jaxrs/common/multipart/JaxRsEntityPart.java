@@ -167,7 +167,12 @@ public final class JaxRsEntityPart implements EntityPart {
             return (T) content;
         }
         if (rawType == InputStream.class) {
-            return (T) stream();
+            // a reader of the application, e.g. one that decrypts, takes precedence; the stream stays open
+            MessageBodyReader<T> reader = providers == null ? null
+                : providers.getMessageBodyReader(rawType, type.getType(), NO_ANNOTATIONS, mediaType);
+            InputStream stream = stream();
+            return reader == null ? (T) stream
+                : reader.readFrom(rawType, type.getType(), NO_ANNOTATIONS, mediaType, headers, stream);
         }
         // the content stream is closed once read (EntityPart.getContent)
         try (InputStream stream = stream()) {
@@ -234,7 +239,14 @@ public final class JaxRsEntityPart implements EntityPart {
                 }
             }
         } else {
-            headOut.write(bytes(available, partHeaders));
+            MessageBodyWriter writer = writer(available);
+            if (writer == null) {
+                headOut.write(bytes(null, partHeaders));
+            } else {
+                // streamed, not buffered: the head is written before the first byte
+                GenericType<?> type = type();
+                writer.writeTo(content, type.getRawType(), type.getType(), NO_ANNOTATIONS, mediaType, partHeaders, headOut);
+            }
         }
         headOut.writeHead();
     }

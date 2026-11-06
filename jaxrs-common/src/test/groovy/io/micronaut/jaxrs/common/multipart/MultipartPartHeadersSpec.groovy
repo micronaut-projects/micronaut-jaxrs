@@ -373,4 +373,112 @@ class MultipartPartHeadersSpec extends Specification {
         field.headers.getFirst("Content-Type") == "text/plain"
         file.headers.getFirst("Content-Type") == "application/octet-stream"
     }
+
+    void "a line break in a part header is rejected"() {
+        given:
+        def type = new GenericType<List<EntityPart>>() {}
+
+        when:
+        new JaxRsMultipartMessageBodyWriter().writeTo([EntityPart.withName("x").header(name, value).content("v").build()], List, type.type,
+            [] as java.lang.annotation.Annotation[], MediaType.valueOf("multipart/form-data; boundary=B"),
+            new MultivaluedHashMap<String, Object>(), new ByteArrayOutputStream())
+
+        then:
+        thrown(IllegalArgumentException)
+
+        where:
+        name           | value
+        "X-Label"      | "safe\r\nX-Injected: yes"
+        "X-Label"      | "safe\nX-Injected: yes"
+        "X-Bad\r\nX-I" | "v"
+        "X Bad"        | "v"
+    }
+
+    void "a header a part writer sets with a line break is rejected"() {
+        given:
+        def writer = [
+            isWriteable: { Class t, java.lang.reflect.Type g, java.lang.annotation.Annotation[] a, MediaType m -> true },
+            writeTo    : { Object o, Class t, java.lang.reflect.Type g, java.lang.annotation.Annotation[] a, MediaType m, MultivaluedMap h, OutputStream out ->
+                h.putSingle("X-Written", "1\r\nX-Injected: yes")
+                out.write(((String) o).bytes) }
+        ] as jakarta.ws.rs.ext.MessageBodyWriter
+        def multipartWriter = new JaxRsMultipartMessageBodyWriter()
+        multipartWriter.providers = [
+            getMessageBodyWriter: { Class t, java.lang.reflect.Type g, java.lang.annotation.Annotation[] a, MediaType m -> writer }
+        ] as Providers
+
+        when:
+        multipartWriter.writeTo([EntityPart.withName("x").content("v").build()], List, new GenericType<List<EntityPart>>() {}.type,
+            [] as java.lang.annotation.Annotation[], MediaType.valueOf("multipart/form-data; boundary=B"),
+            new MultivaluedHashMap<String, Object>(), new ByteArrayOutputStream())
+
+        then:
+        thrown(IllegalArgumentException)
+    }
+
+    void "the content of a part is written to the stream as its writer writes it"() {
+        given:
+        def chunks = []
+        def writer = [
+            isWriteable: { Class t, java.lang.reflect.Type g, java.lang.annotation.Annotation[] a, MediaType m -> true },
+            writeTo    : { Object o, Class t, java.lang.reflect.Type g, java.lang.annotation.Annotation[] a, MediaType m, MultivaluedMap h, OutputStream out ->
+                out.write("first".bytes)
+                out.flush()
+                chunks << "written"
+                out.write("second".bytes) }
+        ] as jakarta.ws.rs.ext.MessageBodyWriter
+        def providers = [
+            getMessageBodyWriter: { Class t, java.lang.reflect.Type g, java.lang.annotation.Annotation[] a, MediaType m -> writer }
+        ] as Providers
+        def out = new ByteArrayOutputStream() {
+            @Override
+            void flush() {
+                chunks << toString(StandardCharsets.UTF_8)
+            }
+        }
+
+        when:
+        ((JaxRsEntityPart) EntityPart.withName("x").content(new Object()).build()).write(out, providers, { h -> out.write("HEAD".bytes) })
+
+        then:
+        chunks[0] == "HEADfirst"
+        out.toString(StandardCharsets.UTF_8) == "HEADfirstsecond"
+    }
+
+    void "a close delimiter followed by other text is not one"() {
+        when:
+        def parts = read("--b\r\nContent-Disposition: form-data; name=\"x\"\r\n\r\none\r\n--b--NOT_A_BOUNDARY\r\nsuffix\r\n--b--\r\n", "b")
+
+        then:
+        parts.size() == 1
+        parts[0].getContent(String) == "one\r\n--b--NOT_A_BOUNDARY\r\nsuffix"
+        read("--b\r\nContent-Disposition: form-data; name=\"x\"\r\n\r\none\r\n--b--", "b")[0].getContent(String) == "one"
+        read("--b\r\nContent-Disposition: form-data; name=\"x\"\r\n\r\none\r\n--b-- \r\nepilogue", "b")[0].getContent(String) == "one"
+    }
+
+    void "an invalid Content-Type of a part is a bad request"() {
+        when:
+        read("--b\r\nContent-Disposition: form-data; name=\"x\"\r\nContent-Type: invalid\r\n\r\none\r\n--b--\r\n", "b")
+
+        then:
+        thrown(jakarta.ws.rs.BadRequestException)
+    }
+
+    void "an InputStream read of a part uses an application reader"() {
+        given:
+        def reader = [
+            isReadable: { Class t, java.lang.reflect.Type g, java.lang.annotation.Annotation[] a, MediaType m -> t == InputStream },
+            readFrom  : { Class t, java.lang.reflect.Type g, java.lang.annotation.Annotation[] a, MediaType m, MultivaluedMap h, InputStream s ->
+                new ByteArrayInputStream(("decrypted:" + new String(s.readAllBytes(), StandardCharsets.UTF_8)).bytes) }
+        ] as MessageBodyReader
+        def providers = [
+            getMessageBodyReader: { Class t, java.lang.reflect.Type g, java.lang.annotation.Annotation[] a, MediaType m -> t == InputStream ? reader : null }
+        ] as Providers
+
+        expect:
+        new String(JaxRsEntityPart.read("x", null, MediaType.TEXT_PLAIN_TYPE, "abc".bytes, providers).getContent(InputStream).readAllBytes(),
+            StandardCharsets.UTF_8) == "decrypted:abc"
+        new String(JaxRsEntityPart.read("x", null, MediaType.TEXT_PLAIN_TYPE, "abc".bytes, null).getContent(InputStream).readAllBytes(),
+            StandardCharsets.UTF_8) == "abc"
+    }
 }

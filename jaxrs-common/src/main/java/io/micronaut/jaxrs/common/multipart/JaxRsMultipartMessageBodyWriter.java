@@ -143,15 +143,38 @@ public final class JaxRsMultipartMessageBodyWriter implements MessageBodyWriter<
                 contentType = entry.getValue().get(0);
             }
         }
-        head.append("\r\n").append(HttpHeaders.CONTENT_TYPE).append(": ").append(JaxRsHeaderUtil.headerToString(contentType)).append("\r\n");
+        head.append("\r\n").append(HttpHeaders.CONTENT_TYPE).append(": ").append(headerValue(contentType)).append("\r\n");
         headers.forEach((name, values) -> {
             if (!name.equalsIgnoreCase(Multipart.CONTENT_DISPOSITION) && !name.equalsIgnoreCase(HttpHeaders.CONTENT_TYPE) && values != null) {
+                checkHeaderName(name);
                 for (Object value : values) {
-                    head.append(name).append(": ").append(JaxRsHeaderUtil.headerToString(value)).append("\r\n");
+                    head.append(name).append(": ").append(headerValue(value)).append("\r\n");
                 }
             }
         });
         head.append("\r\n");
         entityStream.write(head.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static void checkHeaderName(String name) {
+        // a token (RFC 9110 5.1)
+        if (name.isEmpty()) {
+            throw new IllegalArgumentException("Empty part header name");
+        }
+        for (int i = 0; i < name.length(); i++) {
+            char c = name.charAt(i);
+            if (c <= ' ' || c >= 0x7F || "\"(),/:;<=>?@[\\]{}".indexOf(c) >= 0) {
+                throw new IllegalArgumentException("Invalid part header name: " + name);
+            }
+        }
+    }
+
+    private static String headerValue(Object value) {
+        String string = JaxRsHeaderUtil.headerToString(value);
+        if (string != null && (string.indexOf('\r') >= 0 || string.indexOf('\n') >= 0)) {
+            // a line break would end the header, starting another
+            throw new IllegalArgumentException("Part header value contains a line break");
+        }
+        return string;
     }
 }

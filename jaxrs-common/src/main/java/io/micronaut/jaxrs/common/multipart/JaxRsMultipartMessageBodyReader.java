@@ -126,7 +126,12 @@ public final class JaxRsMultipartMessageBodyReader implements MessageBodyReader<
             throw new BadRequestException("A part of the multipart entity has no name");
         }
         String contentType = headers.getFirst(HttpHeaders.CONTENT_TYPE);
-        MediaType mediaType = contentType == null ? MediaType.TEXT_PLAIN_TYPE : MediaType.valueOf(contentType);
+        MediaType mediaType;
+        try {
+            mediaType = contentType == null ? MediaType.TEXT_PLAIN_TYPE : MediaType.valueOf(contentType);
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException("A part of the multipart entity has an invalid Content-Type", e);
+        }
         if (contentType == null) {
             // the default type (RFC 7578 section 4.4) is the one of the headers too
             headers.putSingle(HttpHeaders.CONTENT_TYPE, mediaType.toString());
@@ -160,13 +165,15 @@ public final class JaxRsMultipartMessageBodyReader implements MessageBodyReader<
     }
 
     private static boolean isDelimiterEnd(byte[] entity, int position) {
-        if (startsWith(entity, position, CLOSE)) {
-            return true;
+        boolean close = startsWith(entity, position, CLOSE);
+        if (close) {
+            position += CLOSE.length;
         }
         while (position < entity.length && (entity[position] == ' ' || entity[position] == '\t')) {
             position++;
         }
-        return startsWith(entity, position, CRLF);
+        // the close delimiter may also end the entity, without an epilogue
+        return startsWith(entity, position, CRLF) || (close && position == entity.length);
     }
 
     private static boolean startsWith(byte[] array, int position, byte[] prefix) {

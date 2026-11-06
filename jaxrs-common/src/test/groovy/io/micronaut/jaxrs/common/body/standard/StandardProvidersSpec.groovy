@@ -2,6 +2,7 @@ package io.micronaut.jaxrs.common.body.standard
 
 import jakarta.ws.rs.core.MediaType
 import jakarta.ws.rs.core.MultivaluedHashMap
+import jakarta.ws.rs.core.MultivaluedMap
 import jakarta.ws.rs.core.NoContentException
 import spock.lang.Specification
 
@@ -77,5 +78,63 @@ class StandardProvidersSpec extends Specification {
         then:
         thrown(IOException)
         closed
+    }
+
+    void "a malformed form is a bad request"() {
+        when:
+        reader.readFrom(MultivaluedMap, MultivaluedMap, NONE, MediaType.APPLICATION_FORM_URLENCODED_TYPE, null,
+                new ByteArrayInputStream("x=%ZZ".bytes))
+
+        then:
+        thrown(jakarta.ws.rs.BadRequestException)
+
+        where:
+        reader << [new JaxRsMultivaluedStringStringMapMessageBodyReader(), new JaxRsMultivaluedStringObjectMapMessageBodyReader()]
+    }
+
+    void "a Reader is written without closing the entity stream and closed when the write fails"() {
+        given:
+        boolean outClosed = false
+        def out = new ByteArrayOutputStream() {
+            @Override
+            void close() {
+                outClosed = true
+            }
+        }
+        boolean readerClosed = false
+        def reader = new StringReader("abc") {
+            @Override
+            void close() {
+                readerClosed = true
+            }
+        }
+
+        when:
+        new JaxRsReaderMessageBodyWriter().writeTo(reader, Reader, Reader, NONE, MediaType.TEXT_PLAIN_TYPE, new MultivaluedHashMap<String, Object>(), out)
+
+        then:
+        out.toString("UTF-8") == "abc"
+        !outClosed
+        readerClosed
+
+        when:
+        readerClosed = false
+        reader = new StringReader("abc") {
+            @Override
+            void close() {
+                readerClosed = true
+            }
+        }
+        def failing = new OutputStream() {
+            @Override
+            void write(int b) throws IOException {
+                throw new IOException("broken")
+            }
+        }
+        new JaxRsReaderMessageBodyWriter().writeTo(reader, Reader, Reader, NONE, MediaType.TEXT_PLAIN_TYPE, new MultivaluedHashMap<String, Object>(), failing)
+
+        then:
+        thrown(IOException)
+        readerClosed
     }
 }

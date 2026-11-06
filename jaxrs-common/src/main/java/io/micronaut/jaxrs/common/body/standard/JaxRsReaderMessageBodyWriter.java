@@ -64,13 +64,11 @@ public final class JaxRsReaderMessageBodyWriter<T extends Reader> implements Mes
         Charset charset = io.micronaut.http.body.MessageBodyWriter.
             findCharset(JaxRsUtils.convert(mediaType), new CaseInsensitiveMutableHttpHeaders((Map) httpHeaders, ConversionService.SHARED))
             .orElse(StandardCharsets.UTF_8);
-        try (OutputStreamWriter out = new OutputStreamWriter(entityStream, charset)) {
+        // the entity stream belongs to the runtime: flushed, not closed; the Reader is closed even on failure
+        try (reader) {
+            OutputStreamWriter out = new OutputStreamWriter(entityStream, charset);
             reader.transferTo(out);
-        }
-        try {
-            reader.close();
-        } catch (IOException ignore) {
-            // Ignore
+            out.flush();
         }
     }
 }

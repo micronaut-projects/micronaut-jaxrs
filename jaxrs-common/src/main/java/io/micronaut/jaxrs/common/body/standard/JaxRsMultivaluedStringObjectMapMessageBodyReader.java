@@ -20,6 +20,7 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.Order;
 import io.micronaut.core.io.IOUtils;
 import io.micronaut.core.order.Ordered;
+import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedHashMap;
@@ -62,7 +63,13 @@ public final class JaxRsMultivaluedStringObjectMapMessageBodyReader implements M
                                                 MediaType mediaType, MultivaluedMap<String, String> httpHeaders,
                                                 InputStream entityStream) throws IOException {
         BufferedReader reader = new BufferedReader(new InputStreamReader(entityStream, StandardCharsets.UTF_8));
-        Map<String, List<String>> decoded = formUrlEncodedDecoder.decodeAll(IOUtils.readText(reader), FormMaps.charset(mediaType));
+        Map<String, List<String>> decoded;
+        try {
+            decoded = formUrlEncodedDecoder.decodeAll(IOUtils.readText(reader), FormMaps.charset(mediaType));
+        } catch (IllegalArgumentException e) {
+            // a malformed escape is a malformed entity, not a server failure
+            throw new BadRequestException("The form entity is malformed", e);
+        }
         MultivaluedHashMap<String, Object> map = new MultivaluedHashMap<>();
         // every value of a field repeated in the form
         decoded.forEach((key, values) -> map.addAll(key, new ArrayList<Object>(values)));
