@@ -47,28 +47,31 @@ final class JaxRsAnnotationInheritance {
 
     private static final String JAX_RS_PACKAGE = "jakarta.ws.rs.";
     private static final String HTTP_ANNOTATION_PACKAGE = "io.micronaut.http.annotation.";
-    // the class annotations that stay inherited: the path a subclass is routed with, and the ones
-    // that are not annotations of a resource
-    private static final Set<String> KEPT_CLASS_ANNOTATIONS = Set.of(Path.class.getName(), Provider.class.getName(),
+    // the class annotations that stay inherited: the ones that are not annotations of a resource
+    private static final Set<String> KEPT_CLASS_ANNOTATIONS = Set.of(Provider.class.getName(),
         "jakarta.ws.rs.ApplicationPath");
     private static final Map<String, String> MAPPED_CLASS_ANNOTATIONS = Map.of(
         jakarta.ws.rs.Produces.class.getName(), Produces.class.getName(),
-        jakarta.ws.rs.Consumes.class.getName(), Consumes.class.getName());
+        jakarta.ws.rs.Consumes.class.getName(), Consumes.class.getName(),
+        Path.class.getName(), HttpMethodMapping.class.getName());
 
     private JaxRsAnnotationInheritance() {
     }
 
     /**
      * The JAX-RS annotations of a class are not inherited by its subclasses (JAX-RS 3.6), e.g. its
-     * {@code @Produces}, nor the Micronaut ones they are mapped to. The {@code @Path} of a
-     * superclass is kept: a subclass is routed with it.
+     * {@code @Produces}, nor the Micronaut ones they are mapped to. A subclass without its own
+     * {@code @Path} is not a root resource: it is not routed with the one of its superclass. The
+     * {@code @Path} of an implemented interface is kept: an implementation of a resource interface
+     * is routed with it.
      *
      * @param element The class
      */
     static void normalizeClass(ClassElement element) {
         AnnotationMetadata declared = element.getDeclaredMetadata();
         for (String name : element.getAnnotationNames()) {
-            if (name.startsWith(JAX_RS_PACKAGE) && !KEPT_CLASS_ANNOTATIONS.contains(name) && !declared.hasDeclaredAnnotation(name)) {
+            if (name.startsWith(JAX_RS_PACKAGE) && !KEPT_CLASS_ANNOTATIONS.contains(name) && !declared.hasDeclaredAnnotation(name)
+                && !(name.equals(Path.class.getName()) && implementsPath(element))) {
                 element.removeAnnotation(name);
                 String mapped = MAPPED_CLASS_ANNOTATIONS.get(name);
                 if (mapped != null && !declared.hasDeclaredAnnotation(mapped)) {
@@ -76,6 +79,17 @@ final class JaxRsAnnotationInheritance {
                 }
             }
         }
+    }
+
+    private static boolean implementsPath(ClassElement element) {
+        for (ClassElement type = element; type != null; type = type.getSuperType().orElse(null)) {
+            for (ClassElement implemented : type.getInterfaces()) {
+                if (implemented.hasAnnotation(Path.class) || implementsPath(implemented)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**

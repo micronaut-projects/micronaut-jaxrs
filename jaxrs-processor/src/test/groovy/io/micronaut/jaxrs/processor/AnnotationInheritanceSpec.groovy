@@ -111,7 +111,7 @@ interface Api {
         method.arguments[0].annotationMetadata.stringValue(jakarta.ws.rs.HeaderParam).get() == 'h'
     }
 
-    void "the class keeps the @Path of its superclass"() {
+    void "the class does not inherit the @Path of its superclass"() {
         given:
         def definition = buildBeanDefinition('test.Test', """
 package test;
@@ -133,7 +133,8 @@ abstract class Base {
 """)
 
         expect:
-        definition.stringValue(Path).get() == '/base'
+        !definition.hasAnnotation(Path)
+        !definition.stringValue(HttpMethodMapping).isPresent()
     }
 
     void "an override inherits the annotations of the nearest method that declares any"() {
@@ -416,7 +417,7 @@ interface Api {
         !method.hasStereotype(jakarta.ws.rs.NameBinding)
     }
 
-    void "an override declaring its own annotations keeps the @Path of the superclass"() {
+    void "an override declaring its own annotations discards the inherited name binding"() {
         given:
         def definition = buildBeanDefinition('test.Test', """
 package test;
@@ -447,7 +448,7 @@ abstract class Base {
         def method = definition.getRequiredMethod("test")
 
         expect:
-        definition.stringValue(Path).get() == '/base'
+        !definition.hasAnnotation(Path)
         method.hasAnnotation(jakarta.ws.rs.POST)
         !method.hasAnnotation("test.Secure")
     }
