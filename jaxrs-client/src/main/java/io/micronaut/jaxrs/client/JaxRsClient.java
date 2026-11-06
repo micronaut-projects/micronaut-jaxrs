@@ -28,7 +28,6 @@ import jakarta.ws.rs.sse.SseEventSource;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 import java.net.URI;
-import java.security.NoSuchAlgorithmException;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -51,7 +50,7 @@ public final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
     private final JaxRsConfiguration config;
     private final @Nullable ExecutorService executorService;
     private final @Nullable ScheduledExecutorService scheduledExecutorService;
-    private final @Nullable SSLContext sslContext;
+    private final SSLContext sslContext;
     private final @Nullable HostnameVerifier hostnameVerifier;
     // the event sources opened from the targets of this client, closed with it
     private final Set<SseEventSource> eventSources = ConcurrentHashMap.newKeySet();
@@ -64,7 +63,7 @@ public final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
      * @param config           The configuration
      * @param executorService  The executor service of the builder
      * @param scheduledExecutorService The scheduled executor service of the builder
-     * @param sslContext       The SSL context of the builder, {@code null} for the default one
+     * @param sslContext       The SSL context the client connects with
      * @param hostnameVerifier The host name verifier of the builder
      */
     JaxRsClient(DefaultHttpClient httpClient,
@@ -72,7 +71,7 @@ public final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
                 JaxRsConfiguration config,
                 @Nullable ExecutorService executorService,
                 @Nullable ScheduledExecutorService scheduledExecutorService,
-                @Nullable SSLContext sslContext,
+                SSLContext sslContext,
                 @Nullable HostnameVerifier hostnameVerifier) {
         this.httpClient = httpClient;
         this.httpClients = httpClients;
@@ -216,14 +215,7 @@ public final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
     @Override
     public SSLContext getSslContext() {
         checkOpen();
-        if (sslContext != null) {
-            return sslContext;
-        }
-        try {
-            return SSLContext.getDefault();
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException(e);
-        }
+        return sslContext;
     }
 
     @Override

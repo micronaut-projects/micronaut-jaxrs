@@ -86,11 +86,10 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
         DefaultHttpClientConfiguration configuration = new DefaultHttpClientConfiguration();
         configuration.setConnectTimeout(connectTimeout);
         configuration.setReadTimeout(readTimeout);
-        // the SSL of this builder, else the one of the HTTP client
+        // the SSL of this builder, else the default one of the JVM, captured now: the client
+        // connects with the context it reports
         SSLContext clientSslContext = JaxRsClientSsl.sslContext(sslContext, keyStore, keyStorePassword, trustStore, hostnameVerifier);
-        if (clientSslContext != null) {
-            JaxRsClientSsl.configure(configuration.getSslConfiguration(), clientSslContext, hostnameVerifier);
-        }
+        JaxRsClientSsl.configure(configuration.getSslConfiguration(), clientSslContext, hostnameVerifier);
         // the main HTTP client owns the event loop: the other HTTP clients of the client, e.g. of
         // its event sources, run on it, and it shuts it down when it closes
         DefaultHttpClient httpClient = DefaultHttpClient.builder().configuration(configuration).build();
