@@ -325,6 +325,7 @@ final class MetadataJaxRsReflection implements JaxRsReflection {
      * the type, which may not be the one of this class, loaded once by class loader. The conversions
      * of a class loader reference its classes, they are kept weakly: they would keep the class
      * loader, the weak key, e.g. of an application that is undeployed. Each type keeps its own.
+     * Those of a type of the JDK are the services of the class loader of this class.
      */
     private static final class StringConversions {
 
@@ -332,8 +333,9 @@ final class MetadataJaxRsReflection implements JaxRsReflection {
             @Override
             protected Optional<StringConversion> computeValue(Class<?> type) {
                 ClassLoader classLoader = type.getClassLoader();
-                if (classLoader == null) {
-                    return Optional.empty();
+                if (classLoader == null || classLoader == ClassLoader.getPlatformClassLoader()) {
+                    // a type of the JDK: its conversions are generated in the application
+                    classLoader = StringConversions.class.getClassLoader();
                 }
                 Map<Class<?>, StringConversion> conversions;
                 synchronized (BY_CLASS_LOADER) {

@@ -55,6 +55,18 @@ class StringFactoryParamTest {
     }
 
     @Test
+    void arrayElementsAndSetters() {
+        assertEquals("[valueOf:a, valueOf:b] valueOf:s",
+            client.toBlocking().retrieve(HttpRequest.GET("/array?a=a&a=b&s=s")));
+    }
+
+    @Test
+    void typesOfTheJdk() {
+        assertEquals("reader:abc 2020-01-02",
+            client.toBlocking().retrieve(HttpRequest.GET("/jdk?r=abc&d=2020-01-02")));
+    }
+
+    @Test
     void invalidValue() {
         HttpClientResponseException e = assertThrows(HttpClientResponseException.class,
             () -> client.toBlocking().retrieve(HttpRequest.GET("/method/x?v=fail")));
@@ -118,6 +130,42 @@ class StringFactoryParamTest {
         }
     }
 
+    /** Only valueOf, of the parameters of a type used only in an array or by a setter. */
+    public static final class OnlyValueOf {
+        private final String value;
+
+        private OnlyValueOf(String value) {
+            this.value = value;
+        }
+
+        public static OnlyValueOf valueOf(String value) {
+            return new OnlyValueOf("valueOf:" + value);
+        }
+
+        @Override
+        public String toString() {
+            return value;
+        }
+    }
+
+    /** Only valueOf, of the parameter of a setter. */
+    public static final class SetterValue {
+        private final String value;
+
+        private SetterValue(String value) {
+            this.value = value;
+        }
+
+        public static SetterValue valueOf(String value) {
+            return new SetterValue("valueOf:" + value);
+        }
+
+        @Override
+        public String toString() {
+            return value;
+        }
+    }
+
     public static class Bean {
         @QueryParam("v")
         WithValueOf v;
@@ -135,6 +183,13 @@ class StringFactoryParamTest {
         @BeanParam
         Bean bean;
 
+        SetterValue setterValue;
+
+        @QueryParam("s")
+        public void setSetterValue(SetterValue setterValue) {
+            this.setterValue = setterValue;
+        }
+
         @GET
         @Path("/method/{p}")
         @Produces("text/plain")
@@ -148,6 +203,22 @@ class StringFactoryParamTest {
         @Produces("text/plain")
         public String collections(@QueryParam("v") List<WithValueOf> v, @MatrixParam("m") SortedSet<WithFromString> m) {
             return v + " " + m;
+        }
+
+        @GET
+        @Path("/array")
+        @Produces("text/plain")
+        public String array(@QueryParam("a") OnlyValueOf[] a) {
+            return java.util.Arrays.toString(a) + " " + setterValue;
+        }
+
+        @GET
+        @Path("/jdk")
+        @Produces("text/plain")
+        public String jdk(@QueryParam("r") java.io.StringReader r, @QueryParam("d") java.sql.Date d) throws java.io.IOException {
+            char[] chars = new char[16];
+            int read = r.read(chars);
+            return "reader:" + new String(chars, 0, read) + " " + d;
         }
 
         @GET

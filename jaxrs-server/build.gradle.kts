@@ -22,6 +22,9 @@ dependencies {
 	testAnnotationProcessor(projects.micronautJaxrsProcessor)
 
 	testImplementation(projects.micronautJaxrsProcessor)
+    // the compilation of resources with the route validation of the controllers, see RouteValidationSpec
+    testImplementation(mn.micronaut.inject.java.test)
+    testImplementation(mn.micronaut.http.validation)
     testImplementation(mnSerde.micronaut.serde.jackson)
     // the reflection of the classes the annotation processors never saw, see JaxRsReflection
     testRuntimeOnly(mn.micronaut.reflection)

@@ -18,6 +18,7 @@ package io.micronaut.jaxrs.processor;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.inject.ast.ClassElement;
 import io.micronaut.inject.ast.ConstructorElement;
+import io.micronaut.inject.ast.Element;
 import io.micronaut.inject.ast.ElementQuery;
 import io.micronaut.inject.ast.FieldElement;
 import io.micronaut.inject.ast.MethodElement;
@@ -63,7 +64,8 @@ final class StringConversions {
     private static final Set<String> COLLECTIONS = Set.of(List.class.getName(), Set.class.getName(),
         SortedSet.class.getName(), Collection.class.getName());
 
-    // the types whose conversion this compilation generated
+    // the classes and types whose conversion this compilation generated: a class owns the
+    // conversions of its own types, which an incremental build deletes with it
     private final Set<String> generated = new HashSet<>();
 
     void reset() {
@@ -85,19 +87,28 @@ final class StringConversions {
             generate(field, element, context);
         }
         for (MethodElement method : element.getEnclosedElements(ElementQuery.ALL_METHODS)) {
-            for (ParameterElement parameter : method.getParameters()) {
-                generate(parameter, element, context);
+            ParameterElement[] parameters = method.getParameters();
+            if (parameters.length == 1) {
+                // a setter annotated with a parameter annotation
+                generate(method, parameters[0], element, context);
+            }
+            for (ParameterElement parameter : parameters) {
+                generate(parameter, parameter, element, context);
             }
         }
         for (ConstructorElement constructor : element.getEnclosedElements(ElementQuery.CONSTRUCTORS)) {
             for (ParameterElement parameter : constructor.getParameters()) {
-                generate(parameter, element, context);
+                generate(parameter, parameter, element, context);
             }
         }
     }
 
-    private void generate(TypedElement element, ClassElement owner, VisitorContext context) {
-        if (PARAMETERS.stream().noneMatch(element::hasAnnotation)) {
+    private void generate(FieldElement field, ClassElement owner, VisitorContext context) {
+        generate(field, field, owner, context);
+    }
+
+    private void generate(Element annotated, TypedElement element, ClassElement owner, VisitorContext context) {
+        if (PARAMETERS.stream().noneMatch(annotated::hasAnnotation)) {
             return;
         }
         ClassElement type = element.getGenericType();
@@ -106,21 +117,29 @@ final class StringConversions {
             if (type == null) {
                 return;
             }
+        } else if (type.isArray()) {
+            // the elements of an array (JAX-RS 3.2)
+            type = type.fromArray();
         }
-        if (type.isPrimitive() || type.isArray() || type.getPackageName().startsWith("java.") || !isAccessible(type)
-            || generated.contains(type.getName())) {
+        // the types of java.lang, e.g. the boxed primitives, are converted by the conversion
+        // service; a type of the JDK only from the package of the class
+        boolean jdk = type.getPackageName().startsWith("java.");
+        if (type.isPrimitive() || type.isArray() || type.getPackageName().equals("java.lang") || !isAccessible(type)
+            || (jdk && !isPublic(type)) || generated.contains(owner.getName() + " " + type.getName())) {
             return;
         }
         String factory = factory(type);
         if (factory == null) {
             return;
         }
-        generated.add(type.getName());
+        generated.add(owner.getName() + " " + type.getName());
         // in the package of the class, which does not split the package of a library type, unless
         // the type is reachable only from its own package
         String packageName = isPublic(type) ? owner.getPackageName() : type.getPackageName();
-        String typeName = type.getName().replace('$', '.');
-        String simpleName = type.getName().replace('.', '_').replace('$', '_') + SUFFIX;
+        // the source name, also of a nested class whose name has a $
+        String typeName = type.getCanonicalName();
+        // unique for each class and type: the escaped binary names have no $
+        String simpleName = escape(owner.getName()) + "$" + escape(type.getName()) + SUFFIX;
         String className = packageName.isEmpty() ? simpleName : packageName + "." + simpleName;
         GeneratedFile file = context.visitGeneratedSourceFile(packageName, simpleName, owner).orElse(null);
         if (file == null) {
@@ -133,6 +152,7 @@ final class StringConversions {
             writer.write("""
                 /** The String conversion of %1$s, generated for the JAX-RS parameters. */
                 @io.micronaut.core.annotation.Generated
+                @SuppressWarnings({"deprecation", "removal"})
                 public final class %2$s implements %3$s {
                     @Override
                     public Class<?> type() {
@@ -141,7 +161,14 @@ final class StringConversions {
 
                     @Override
                     public Object convert(String value) throws Exception {
-                        return %4$s(value);
+                        try {
+                            return %4$s(value);
+                        } catch (Exception | Error e) {
+                            throw e;
+                        } catch (Throwable e) {
+                            // declared by the factory
+                            throw new java.lang.reflect.InvocationTargetException(e);
+                        }
                     }
                 }
                 """.formatted(typeName, simpleName, SERVICE, factory.replace("TYPE", typeName)));
@@ -160,7 +187,7 @@ final class StringConversions {
         for (String name : factories) {
             boolean found = type.getEnclosedElements(ElementQuery.ALL_METHODS.named(name)).stream()
                 .anyMatch(method -> method.isStatic() && method.isPublic() && isStringParameter(method.getParameters())
-                    && method.getGenericReturnType().isAssignable(type));
+                    && method.getGenericReturnType().isAssignable(type) && isInherited(method, type));
             if (found) {
                 return "TYPE." + name;
             }
@@ -179,7 +206,35 @@ final class StringConversions {
     }
 
     private static boolean isStringParameter(ParameterElement[] parameters) {
-        return parameters.length == 1 && parameters[0].getType().getName().equals(String.class.getName());
+        return parameters.length == 1 && !parameters[0].getType().isArray()
+            && parameters[0].getType().getName().equals(String.class.getName());
+    }
+
+    /**
+     * Whether a static method is one of the type: the static methods of an interface are not
+     * inherited, by the types that implement it nor by its subinterfaces.
+     */
+    private static boolean isInherited(MethodElement method, ClassElement type) {
+        ClassElement declaring = method.getDeclaringType();
+        return !declaring.isInterface() || declaring.getName().equals(type.getName());
+    }
+
+    /**
+     * A binary name as a part of an identifier, without collisions: {@code _} is escaped, and the
+     * package and nesting separators are replaced.
+     */
+    private static String escape(String binaryName) {
+        StringBuilder escaped = new StringBuilder(binaryName.length() + 8);
+        for (int i = 0; i < binaryName.length(); i++) {
+            char c = binaryName.charAt(i);
+            switch (c) {
+                case '.' -> escaped.append("_0");
+                case '_' -> escaped.append("_1");
+                case '$' -> escaped.append("_2");
+                default -> escaped.append(c);
+            }
+        }
+        return escaped.toString();
     }
 
     private static boolean isPublic(ClassElement type) {
