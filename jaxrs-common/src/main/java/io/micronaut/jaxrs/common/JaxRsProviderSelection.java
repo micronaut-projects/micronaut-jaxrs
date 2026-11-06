@@ -24,6 +24,7 @@ import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 /**
  * The matching and ordering of the entity providers of JAX-RS, shared by the server and the
@@ -71,18 +72,33 @@ public final class JaxRsProviderSelection {
         .thenComparing(Rank::standard)
         .thenComparingInt(Rank::priority);
 
+    // the packages of the providers of the modules of Micronaut JAX-RS, not any one of io.micronaut,
+    // e.g. of an application
+    private static final Set<String> STANDARD_PACKAGES = Set.of(
+        "io.micronaut.jaxrs.client",
+        "io.micronaut.jaxrs.common",
+        "io.micronaut.jaxrs.common.body.standard",
+        "io.micronaut.jaxrs.common.multipart",
+        "io.micronaut.jaxrs.common.sse",
+        "io.micronaut.jaxrs.container",
+        "io.micronaut.jaxrs.providers",
+        "io.micronaut.jaxrs.runtime.ext.bind",
+        "io.micronaut.jaxrs.security.bind",
+        "io.micronaut.jaxrs.servlet"
+    );
+
     private JaxRsProviderSelection() {
     }
 
     /**
-     * Whether a provider is a standard one, of Micronaut, which the ones of the application come
-     * before (JAX-RS 4.1.3).
+     * Whether a provider is a standard one, of Micronaut JAX-RS, which the ones of the application
+     * come before (JAX-RS 4.1.3).
      *
      * @param providerClass The class of the provider
      * @return Whether it is a standard one
      */
     public static boolean isStandard(Class<?> providerClass) {
-        return providerClass.getName().startsWith("io.micronaut.");
+        return STANDARD_PACKAGES.contains(providerClass.getPackageName());
     }
 
     /**
