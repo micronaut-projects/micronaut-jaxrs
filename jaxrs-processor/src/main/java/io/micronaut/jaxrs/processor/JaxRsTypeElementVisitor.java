@@ -31,6 +31,7 @@ import io.micronaut.http.annotation.Consumes;
 import io.micronaut.http.annotation.Controller;
 import io.micronaut.http.annotation.CookieValue;
 import io.micronaut.http.annotation.Header;
+import io.micronaut.http.annotation.HttpMethodMapping;
 import io.micronaut.http.annotation.PathVariable;
 import io.micronaut.http.annotation.Produces;
 import io.micronaut.http.annotation.UriMapping;
@@ -256,6 +257,14 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
             // a private method cannot be executable
             element.removeAnnotationIf(annotation -> annotation.getAnnotationName().startsWith("io.micronaut.http.annotation."));
             return;
+        }
+        if (runtimeRoutes && isPublic && element.hasStereotype(HttpMethodMapping.class) && !element.getOwningType().hasStereotype(Controller.class)
+            && !element.getDeclaringType().isInterface()) {
+            // routed at runtime with its JAX-RS annotations, not as the method of a controller: the
+            // route validation of the controllers does not apply, e.g. a path variable may be read
+            // from a field
+            element.removeStereotype(HttpMethodMapping.class);
+            element.removeAnnotation(HttpMethodMapping.class);
         }
         if (element.hasStereotype(HttpMethod.class)) {
             if (!runtimeRoutes && currentClassElement != null && !currentClassElement.hasAnnotation(Controller.class) && !currentClassElement.isAbstract()) {
