@@ -20,6 +20,9 @@ import jakarta.ws.rs.sse.OutboundSseEvent;
 import jakarta.ws.rs.sse.SseBroadcaster;
 import jakarta.ws.rs.sse.SseEventSink;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +41,8 @@ import java.util.function.Consumer;
  */
 @Internal
 final class JaxRsSseBroadcaster implements SseBroadcaster {
+
+    private static final Logger LOG = LoggerFactory.getLogger(JaxRsSseBroadcaster.class);
 
     private final List<SseEventSink> sinks = new CopyOnWriteArrayList<>();
     private final List<BiConsumer<SseEventSink, Throwable>> onError = new CopyOnWriteArrayList<>();
@@ -149,7 +154,11 @@ final class JaxRsSseBroadcaster implements SseBroadcaster {
                 sink.close();
             } catch (IOException e) {
                 for (BiConsumer<SseEventSink, Throwable> callback : onError) {
-                    callback.accept(sink, e);
+                    try {
+                        callback.accept(sink, e);
+                    } catch (RuntimeException failure) {
+                        LOG.warn("An SSE broadcaster error callback failed", failure);
+                    }
                 }
             }
             closed(sink);
@@ -180,7 +189,12 @@ final class JaxRsSseBroadcaster implements SseBroadcaster {
         }
         if (removed) {
             for (Consumer<SseEventSink> callback : onClose) {
-                callback.accept(sink);
+                try {
+                    callback.accept(sink);
+                } catch (RuntimeException e) {
+                    // a failing callback neither skips the other callbacks nor keeps the other sinks open
+                    LOG.warn("An SSE broadcaster close callback failed", e);
+                }
             }
         }
     }
