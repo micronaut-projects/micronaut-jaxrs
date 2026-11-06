@@ -84,6 +84,13 @@ class MultipartTest {
     }
 
     @Test
+    void aFilePartIsStreamed() throws Exception {
+        HttpResponse<String> response = post("stream");
+        assertEquals(200, response.statusCode(), response.body());
+        assertEquals("true:file content", response.body());
+    }
+
+    @Test
     void partsAreWrittenWithABoundary() throws Exception {
         HttpResponse<String> response = post("echo");
         assertEquals(200, response.statusCode(), response.body());
@@ -157,6 +164,16 @@ class MultipartTest {
                              @FormParam("file") InputStream stream) throws IOException {
             return text + "|" + file.getFileName().orElse(null) + ":" + file.getContent(String.class)
                 + "|" + new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+
+        @POST
+        @Path("stream")
+        @Consumes(MediaType.MULTIPART_FORM_DATA)
+        public String stream(@FormParam("file") InputStream stream) throws IOException {
+            try (stream) {
+                // streamed from the upload, not a copy of its content in memory
+                return !(stream instanceof java.io.ByteArrayInputStream) + ":" + new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+            }
         }
 
         @POST

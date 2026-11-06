@@ -254,8 +254,10 @@ final class JaxRsParameterBinding {
         }
         if (type == EntityPart.class || type == InputStream.class) {
             // a part of a multipart form (JAX-RS 3.1 section 3.5.4)
-            EntityPart part = support.formPart(request, form, name);
-            return part == null || type == EntityPart.class ? part : part.getContent();
+            if (type == InputStream.class) {
+                return support.formStream(request, form, name);
+            }
+            return support.formPart(request, form, name);
         }
         // the form of a route with an @Encoded form parameter is read with its raw values
         List<String> values = form.getValues(name);
