@@ -52,6 +52,7 @@ import java.io.Reader;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * The standard provider of JSON-B for the JSON media types (JAX-RS 4.2.4, 11.2.7), when a JSON-B
@@ -132,8 +133,9 @@ public final class JaxRsJsonbMessageBodyReaderWriter implements MessageBodyReade
         if (mediaType == null) {
             return false;
         }
-        String subtype = mediaType.getSubtype();
-        return ("application".equals(mediaType.getType()) || "text".equals(mediaType.getType()))
+        // media type tokens are case-insensitive (RFC 9110 8.3.1)
+        String subtype = mediaType.getSubtype().toLowerCase(Locale.ROOT);
+        return ("application".equalsIgnoreCase(mediaType.getType()) || "text".equalsIgnoreCase(mediaType.getType()))
             && ("json".equals(subtype) || subtype.endsWith("+json"));
     }
 

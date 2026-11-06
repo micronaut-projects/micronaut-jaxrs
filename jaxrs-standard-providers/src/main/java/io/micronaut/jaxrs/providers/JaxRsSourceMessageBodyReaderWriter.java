@@ -29,11 +29,15 @@ import jakarta.ws.rs.ext.MessageBodyReader;
 import jakarta.ws.rs.ext.MessageBodyWriter;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
+import org.xml.sax.XMLReader;
 
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.parsers.SAXParserFactory;
+import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Source;
+import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
@@ -88,7 +92,18 @@ public final class JaxRsSourceMessageBodyReaderWriter implements MessageBodyRead
             }
         }
         if (requested == SAXSource.class) {
-            return new SAXSource(new InputSource(entity));
+            try {
+                SAXParserFactory factory = SAXParserFactory.newInstance();
+                factory.setNamespaceAware(true);
+                factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+                factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+                factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+                factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+                XMLReader reader = factory.newSAXParser().getXMLReader();
+                return new SAXSource(reader, new InputSource(entity));
+            } catch (SAXException | ParserConfigurationException e) {
+                throw new InternalServerErrorException(e);
+            }
         }
         return new StreamSource(entity);
     }
@@ -104,7 +119,13 @@ public final class JaxRsSourceMessageBodyReaderWriter implements MessageBodyRead
         try {
             TransformerFactory factory = TransformerFactory.newInstance();
             factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
-            factory.newTransformer().transform(source, new StreamResult(entityStream));
+            Transformer transformer = factory.newTransformer();
+            String charset = mediaType == null ? null : mediaType.getParameters().get(MediaType.CHARSET_PARAMETER);
+            if (charset != null) {
+                // the XML declaration and bytes follow the charset the response declares
+                transformer.setOutputProperty(OutputKeys.ENCODING, charset);
+            }
+            transformer.transform(source, new StreamResult(entityStream));
         } catch (TransformerException e) {
             throw new IOException("Failed to write the XML source", e);
         }

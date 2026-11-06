@@ -18,6 +18,8 @@ package io.micronaut.jaxrs.providers;
 import jakarta.ws.rs.core.MediaType;
 import org.jspecify.annotations.Nullable;
 
+import java.util.Locale;
+
 /**
  * The XML media types of the standard providers (JAX-RS 4.2.4): {@code text/xml},
  * {@code application/xml} and {@code application/*+xml}.
@@ -39,10 +41,11 @@ final class XmlMediaTypes {
             return true;
         }
         String type = mediaType.getType();
-        String subtype = mediaType.getSubtype();
-        if ("text".equals(type)) {
+        // media type tokens are case-insensitive (RFC 9110 8.3.1)
+        String subtype = mediaType.getSubtype().toLowerCase(Locale.ROOT);
+        if ("text".equalsIgnoreCase(type)) {
             return "xml".equals(subtype) || mediaType.isWildcardSubtype();
         }
-        return "application".equals(type) && ("xml".equals(subtype) || subtype.endsWith("+xml") || mediaType.isWildcardSubtype());
+        return "application".equalsIgnoreCase(type) && ("xml".equals(subtype) || subtype.endsWith("+xml") || mediaType.isWildcardSubtype());
     }
 }
