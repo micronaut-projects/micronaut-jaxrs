@@ -270,7 +270,8 @@ public interface JaxRsReflection {
 
     /**
      * The definition of a class the annotation processors never saw, as a bean found by each of
-     * its types.
+     * its types: a singleton, the default lifecycle of a provider (JAX-RS 4.1), unless the class
+     * declares a scope.
      *
      * @param type The class
      * @param <T>  The type

@@ -433,7 +433,12 @@ public final class ReflectiveJaxRsReflection implements JaxRsReflection {
             return null;
         }
         // found by each of its types: a runtime definition is only indexed by the types it exposes
-        return ReflectionBeanDefinition.builder((Class) type).exposedTypes(supertypes(type)).build();
+        ReflectionBeanDefinition<T> definition = ReflectionBeanDefinition.builder((Class) type).exposedTypes(supertypes(type)).build();
+        if (definition.getScope().isPresent() || definition.isSingleton()) {
+            return definition;
+        }
+        // a provider without a scope is a singleton (JAX-RS 4.1)
+        return ReflectionBeanDefinition.builder((Class) type).exposedTypes(supertypes(type)).singleton(true).build();
     }
 
     /**

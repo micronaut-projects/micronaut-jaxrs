@@ -520,6 +520,14 @@ public final class JaxRsRouteSupport {
     }
 
     /**
+     * @return The executor of the blocking tasks, else one that runs them on the calling thread
+     */
+    Executor blockingExecutor() {
+        Executor blocking = blockingExecutor.get();
+        return blocking == null ? Runnable::run : blocking;
+    }
+
+    /**
      * The executor an asynchronous resource method runs on once its entity is read, which may be
      * on the event loop: the one of its route, e.g. of its {@code @ExecuteOn}, else the blocking
      * one, as the readers and the method may block like the ones of a synchronous method.

@@ -66,6 +66,13 @@ public final class JaxRsSeConfiguration implements SeBootstrap.Configuration {
         return properties.containsKey(name);
     }
 
+    /**
+     * @return The properties that were set, without the defaults
+     */
+    public Map<String, Object> properties() {
+        return properties;
+    }
+
     private static @Nullable SSLContext defaultSslContext() {
         try {
             return SSLContext.getDefault();

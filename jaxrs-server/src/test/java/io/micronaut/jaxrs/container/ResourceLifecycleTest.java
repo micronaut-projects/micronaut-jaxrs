@@ -6,7 +6,10 @@ import io.micronaut.http.HttpRequest;
 import io.micronaut.http.client.HttpClient;
 import io.micronaut.http.client.annotation.Client;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
+import io.micronaut.runtime.http.scope.RequestScope;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
+import jakarta.ws.rs.container.ResourceContext;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.GET;
@@ -74,6 +77,87 @@ class ResourceLifecycleTest {
     @Test
     void postConstructSeesTheValuesOfTheRequest() {
         assertEquals("value|value", client.toBlocking().retrieve(HttpRequest.GET("/post-construct?x=value")));
+    }
+
+    @Test
+    void perRequestResourcesAreDestroyedOnceTheResponseIsDone() throws InterruptedException {
+        int plain = DestroyedResource.DESTROYED.get();
+        int reading = ReadingDestroyedResource.DESTROYED.get();
+        assertEquals("destroyed", client.toBlocking().retrieve(HttpRequest.GET("/destroyed")));
+        assertEquals("value", client.toBlocking().retrieve(HttpRequest.GET("/reading-destroyed?x=value")));
+        long deadline = System.currentTimeMillis() + 5000;
+        while ((DestroyedResource.DESTROYED.get() == plain || ReadingDestroyedResource.DESTROYED.get() == reading)
+            && System.currentTimeMillis() < deadline) {
+            Thread.sleep(10);
+        }
+        assertEquals(plain + 1, DestroyedResource.DESTROYED.get());
+        assertEquals(reading + 1, ReadingDestroyedResource.DESTROYED.get());
+    }
+
+    @Test
+    void requestScopedResourceWithRequestValuesIsTheInstanceOfItsScope() {
+        assertEquals("true value", client.toBlocking().retrieve(HttpRequest.GET("/request-scoped?x=value")));
+    }
+
+    @Requires(property = "spec.name", value = "ResourceLifecycleTest")
+    @Path("/lifecycle/destroyed")
+    public static class DestroyedResource {
+        static final AtomicInteger DESTROYED = new AtomicInteger();
+
+        @GET
+        public String get() {
+            return "destroyed";
+        }
+
+        @PreDestroy
+        void destroy() {
+            DESTROYED.incrementAndGet();
+        }
+    }
+
+    @Requires(property = "spec.name", value = "ResourceLifecycleTest")
+    @Path("/lifecycle/reading-destroyed")
+    public static class ReadingDestroyedResource {
+        static final AtomicInteger DESTROYED = new AtomicInteger();
+
+        @QueryParam("x")
+        String x;
+
+        @GET
+        public String get() {
+            return x;
+        }
+
+        @PreDestroy
+        void destroy() {
+            DESTROYED.incrementAndGet();
+        }
+    }
+
+    @Requires(property = "spec.name", value = "ResourceLifecycleTest")
+    @RequestScope
+    @Path("/lifecycle/request-scoped")
+    public static class RequestScopedResource {
+        @QueryParam("x")
+        String x;
+
+        @Context
+        ResourceContext resourceContext;
+
+        @GET
+        public String get() {
+            RequestScopedResource same = resourceContext.getResource(RequestScopedResource.class);
+            return (same.id() == id()) + " " + same.x();
+        }
+
+        // through the scoped proxy, which delegates to the instance of the request
+        public Object id() {
+            return this;
+        }
+
+        public String x() {
+            return x;
+        }
     }
 
     @Requires(property = "spec.name", value = "ResourceLifecycleTest")

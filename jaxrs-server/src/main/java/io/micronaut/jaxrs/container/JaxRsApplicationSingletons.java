@@ -19,6 +19,8 @@ import io.micronaut.context.ApplicationContext;
 import io.micronaut.context.RuntimeBeanDefinition;
 import io.micronaut.context.event.BeanCreatedEvent;
 import io.micronaut.context.event.BeanCreatedEventListener;
+import io.micronaut.context.event.BeanInitializedEventListener;
+import io.micronaut.context.event.BeanInitializingEvent;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.beans.BeanIntrospection;
 import io.micronaut.core.type.Argument;
@@ -40,6 +42,8 @@ import jakarta.ws.rs.ext.ReaderInterceptor;
 import jakarta.ws.rs.ext.WriterInterceptor;
 
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 /**
@@ -56,7 +60,7 @@ import java.util.function.Supplier;
  */
 @Internal
 @Singleton
-final class JaxRsApplicationSingletons implements BeanCreatedEventListener<Application> {
+final class JaxRsApplicationSingletons implements BeanCreatedEventListener<Application>, BeanInitializedEventListener<Object> {
 
     private static final List<Class<?>> PROVIDER_CONTRACTS = List.of(
         ContainerRequestFilter.class, ContainerResponseFilter.class,
@@ -66,6 +70,8 @@ final class JaxRsApplicationSingletons implements BeanCreatedEventListener<Appli
     );
 
     private final ApplicationContext context;
+    // the classes registered with a reflective definition, which does not inject their @Context members
+    private final Set<Class<?>> reflective = ConcurrentHashMap.newKeySet();
 
     JaxRsApplicationSingletons(ApplicationContext context) {
         this.context = context;
@@ -76,7 +82,11 @@ final class JaxRsApplicationSingletons implements BeanCreatedEventListener<Appli
     public Application onCreated(BeanCreatedEvent<Application> event) {
         Application application = event.getBean();
         for (Object singleton : application.getSingletons()) {
-            if (isProvider(singleton) && !isRegistered(singleton.getClass())) {
+            if (isProvider(singleton) && isRegistered(singleton.getClass())) {
+                // registered by the Java SE bootstrap, which does not inject it: the
+                // registered instance is injected once, here
+                inject(context, context.getBean(singleton.getClass()));
+            } else if (isProvider(singleton)) {
                 // the @Context fields of the instance, like the ones of a bean of its class, also of
                 // a class the annotation processors never saw, with reflection
                 Object injected = inject(context, singleton);
@@ -89,6 +99,31 @@ final class JaxRsApplicationSingletons implements BeanCreatedEventListener<Appli
             }
         }
         return application;
+    }
+
+    /**
+     * The {@code @Context} members of a provider registered with a reflective definition, once it
+     * is injected, before its {@code @PostConstruct} methods run.
+     */
+    @Override
+    public Object onInitialized(BeanInitializingEvent<Object> event) {
+        Object bean = event.getBean();
+        if (!reflective.isEmpty() && reflective.contains(bean.getClass())) {
+            JaxRsReflection.get().injectFields(bean, jakarta.ws.rs.core.Context.class, t -> context.findBean(t).orElse(null));
+        }
+        return bean;
+    }
+
+    /**
+     * Register the reflective definition of a provider class the annotation processors never saw:
+     * its {@code @Context} members are injected once it is created, see {@link #onInitialized}.
+     *
+     * @param context    The context
+     * @param definition The definition
+     */
+    static void registerReflective(ApplicationContext context, RuntimeBeanDefinition<?> definition) {
+        context.getBean(JaxRsApplicationSingletons.class).reflective.add(definition.getBeanType());
+        context.registerBeanDefinition(definition);
     }
 
     /**
@@ -106,7 +141,7 @@ final class JaxRsApplicationSingletons implements BeanCreatedEventListener<Appli
                 + (JaxRsReflection.get().isReflective() ? "it cannot be instantiated"
                     : "annotate it with @Provider, or add io.micronaut:micronaut-reflection to the runtime classpath"));
         }
-        context.registerBeanDefinition(definition);
+        registerReflective(context, definition);
     }
 
     private static boolean isProviderClass(Class<?> type) {
@@ -173,7 +208,9 @@ final class JaxRsApplicationSingletons implements BeanCreatedEventListener<Appli
         if (introspection == null) {
             return false;
         }
-        register(context, type, SupplierUtil.memoized(() -> inject(context, introspection.instantiate())));
+        // with the @Context parameters of its constructor (JAX-RS 4.1.3)
+        register(context, type, SupplierUtil.memoized(() -> inject(context,
+            JaxRsReflection.get().instantiate(type, t -> context.findBean(t).orElse(null)))));
         return true;
     }
 
