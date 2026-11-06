@@ -94,7 +94,7 @@ final class JaxRsResourceFactory {
     private final Map<Class<?>, Creator<?>> creators = new ConcurrentHashMap<>();
     // how ResourceContext creates and initializes classes for a request, empty for a class without values of the request
     private final Map<Class<?>, Optional<RequestType<?>>> contextRequestTypes = new ConcurrentHashMap<>();
-    // how to set the members of the targets of scoped proxies, by their classes
+    // how to set the members of the targets of scoped proxies, by the classes they proxy
     private final Map<Class<?>, Optional<RequestType<?>>> targetRequestTypes = new ConcurrentHashMap<>();
     // the definitions the beans of the classes are resolved with, empty for one that is not unique
     private final Map<Class<?>, Optional<BeanDefinition<?>>> resolved = new ConcurrentHashMap<>();
@@ -387,19 +387,18 @@ final class JaxRsResourceFactory {
         Initializing<T> initializing = new Initializing<>(requestType, request, pathVariables, form);
         if (requestType.scoped()) {
             // the instance of its scope: its members are set once for the request, when the scope
-            // creates it, else here, e.g. for the target of a scoped proxy
-            T scoped = initializing(initializing, () -> target(beanContext.getBean(requestType.type())));
-            if (!initializing.done && scopedInitialized(request).add(scoped)) {
-                if (scoped.getClass() == requestType.type()) {
-                    initializing.set(scoped);
-                } else {
-                    // the target of a proxy, whose type is the proxy class: the members of its class
-                    RequestType<?> targetType = targetRequestTypes.computeIfAbsent(scoped.getClass(), t -> Optional.ofNullable(requestType(t, null)))
-                        .orElse(null);
-                    if (targetType != null) {
-                        new Initializing<>(targetType, request, pathVariables, form).setUnchecked(scoped);
-                    }
-                }
+            // creates it, before its @PostConstruct methods run, else here, e.g. for an instance the
+            // scope already has. The type of a scoped proxy is the proxy class, the scope creates
+            // the target, an instance of the class it proxies: the members of that class
+            Initializing<?> target = initializing;
+            if (Intercepted.class.isAssignableFrom(requestType.type()) && requestType.type().getSuperclass() != null) {
+                RequestType<?> targetType = targetRequestTypes.computeIfAbsent(requestType.type().getSuperclass(),
+                    t -> Optional.ofNullable(requestType(t, null))).orElse(null);
+                target = targetType == null ? initializing : new Initializing<>(targetType, request, pathVariables, form);
+            }
+            T scoped = initializing(target, () -> target(beanContext.getBean(requestType.type())));
+            if (scopedInitialized(request).add(scoped) && !target.done) {
+                target.setUnchecked(scoped);
             }
             return scoped;
         }
@@ -420,7 +419,7 @@ final class JaxRsResourceFactory {
      * Create or inject an instance whose members are set once it is injected, before its
      * {@code @PostConstruct} methods run, see {@link JaxRsResourceInitializer}.
      */
-    private static <T> T initializing(Initializing<T> initializing, Supplier<T> injection) {
+    private static <T> T initializing(Initializing<?> initializing, Supplier<T> injection) {
         Initializing<?> previous = INITIALIZING.get();
         INITIALIZING.set(initializing.requestType.members().isEmpty() ? null : initializing);
         try {

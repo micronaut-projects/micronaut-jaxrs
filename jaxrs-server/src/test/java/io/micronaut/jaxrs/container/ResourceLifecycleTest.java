@@ -99,6 +99,12 @@ class ResourceLifecycleTest {
         assertEquals("true value", client.toBlocking().retrieve(HttpRequest.GET("/request-scoped?x=value")));
     }
 
+    @Test
+    void requestScopedResourceMembersAreSetBeforePostConstruct() {
+        assertEquals("value|value", client.toBlocking().retrieve(HttpRequest.GET("/request-scoped-post-construct?x=value")));
+        assertEquals("other|other", client.toBlocking().retrieve(HttpRequest.GET("/request-scoped-post-construct?x=other")));
+    }
+
     @Requires(property = "spec.name", value = "ResourceLifecycleTest")
     @Path("/lifecycle/destroyed")
     public static class DestroyedResource {
@@ -157,6 +163,26 @@ class ResourceLifecycleTest {
 
         public String x() {
             return x;
+        }
+    }
+
+    @Requires(property = "spec.name", value = "ResourceLifecycleTest")
+    @RequestScope
+    @Path("/lifecycle/request-scoped-post-construct")
+    public static class RequestScopedPostConstructResource {
+        @QueryParam("x")
+        String x;
+
+        private String copied;
+
+        @PostConstruct
+        void init() {
+            copied = x;
+        }
+
+        @GET
+        public String get() {
+            return x + "|" + copied;
         }
     }
 
