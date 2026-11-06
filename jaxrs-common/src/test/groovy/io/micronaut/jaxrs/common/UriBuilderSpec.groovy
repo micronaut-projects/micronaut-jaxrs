@@ -6,6 +6,21 @@ import spock.lang.Specification
 
 class UriBuilderSpec extends Specification {
 
+    void "an opaque URI replaces the path and the query"() {
+        expect:
+        UriBuilder.fromUri("https://old.example/old?q=1").uri(URI.create("mailto:user@example.org")).build().toString() == "mailto:user@example.org"
+    }
+
+    void "the value of a host template cannot add a port, unlike the one of an IP literal"() {
+        when:
+        def uri = UriBuilder.fromUri("http://{host}/").build("safe.example:1234")
+
+        then:
+        uri.port == -1
+        uri.toString() == "http://safe.example%3A1234/"
+        UriBuilder.fromUri("http://{host}:8080/").build("[::1]").toString() == "http://[::1]:8080/"
+    }
+
     void "the templates of an opaque URI are resolved"() {
         expect:
         UriBuilder.fromUri("mailto:{user}@example.org").build("alice").toString() == "mailto:alice@example.org"

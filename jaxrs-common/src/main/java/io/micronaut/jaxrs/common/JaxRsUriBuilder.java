@@ -226,6 +226,13 @@ final class JaxRsUriBuilder extends UriBuilder {
         if (uri.isOpaque()) {
             scheme = uri.getScheme();
             ssp = uri.getRawSchemeSpecificPart();
+            // an opaque URI replaces the hierarchical components
+            authority = null;
+            userInfo = null;
+            host = null;
+            port = -1;
+            path = null;
+            query = null;
             return this;
         }
 
