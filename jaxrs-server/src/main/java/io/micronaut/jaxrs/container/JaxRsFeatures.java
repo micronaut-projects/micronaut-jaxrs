@@ -457,8 +457,8 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
         if (context.containsBean(type)) {
             return context.getBean(type);
         }
-        // a class the annotation processors never saw
-        Object instance = JaxRsReflection.get().instantiate(type);
+        // a class the annotation processors never saw, with the @Context parameters of its constructor (JAX-RS 4.1.3)
+        Object instance = JaxRsReflection.get().instantiate(type, t -> context.findBean(t).orElse(null));
         return injected(instance);
     }
 

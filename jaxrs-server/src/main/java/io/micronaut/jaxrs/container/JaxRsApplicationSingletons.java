@@ -173,7 +173,9 @@ final class JaxRsApplicationSingletons implements BeanCreatedEventListener<Appli
         if (introspection == null) {
             return false;
         }
-        register(context, type, SupplierUtil.memoized(() -> inject(context, introspection.instantiate())));
+        // with the @Context parameters of its constructor (JAX-RS 4.1.3)
+        register(context, type, SupplierUtil.memoized(() -> inject(context,
+            JaxRsReflection.get().instantiate(type, t -> context.findBean(t).orElse(null)))));
         return true;
     }
 
