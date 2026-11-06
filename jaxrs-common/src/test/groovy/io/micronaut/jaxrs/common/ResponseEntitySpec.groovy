@@ -90,6 +90,27 @@ class ResponseEntitySpec extends Specification {
         thrown(IllegalStateException)
     }
 
+    void "close releases the buffered entity and the entities read"() {
+        given:
+        def response = received("ignored")
+        response.setEntityStream(new ByteArrayInputStream("abc".bytes))
+
+        expect:
+        response.bufferEntity()
+        response.readEntity(String) == "abc"
+
+        when:
+        response.close()
+        def entity = response.entity()
+
+        then:
+        entity.@buffer == null
+        entity.@readEntity == null
+        entity.@readBody == null
+        response.getResponse().body() == null
+        response.status == 200
+    }
+
     void "bufferEntity buffers the entity stream a filter set"() {
         given:
         def response = received("original")
