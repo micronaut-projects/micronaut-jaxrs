@@ -248,12 +248,14 @@ public final class ReflectiveJaxRsReflection implements JaxRsReflection {
         // valueOf before fromString, except for an enum
         for (String factory : type.isEnum() ? new String[]{"fromString", "valueOf"} : new String[]{"valueOf", "fromString"}) {
             Method method = ReflectionUtils.findMethod(type, factory, String.class).orElse(null);
-            if (method != null && Modifier.isStatic(method.getModifiers()) && type.isAssignableFrom(method.getReturnType())) {
+            // a public one: a private helper of the type is not its conversion
+            if (method != null && Modifier.isStatic(method.getModifiers()) && Modifier.isPublic(method.getModifiers())
+                && type.isAssignableFrom(method.getReturnType())) {
                 return value -> invoke(() -> method.invoke(null, value));
             }
         }
         Constructor<?> constructor = ReflectionUtils.findConstructor(type, String.class).orElse(null);
-        if (constructor != null) {
+        if (constructor != null && Modifier.isPublic(constructor.getModifiers())) {
             return value -> invoke(() -> constructor.newInstance(value));
         }
         return null;

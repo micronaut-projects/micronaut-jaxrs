@@ -49,6 +49,14 @@ class ReflectiveJaxRsReflectionSpec extends Specification {
         metadata.stringValue(Produces).get() == "text/plain"
     }
 
+    void "a private valueOf helper is not the String conversion, the public constructor is"() {
+        when:
+        def conversion = new ReflectiveJaxRsReflection().stringConversion(PrivateValueOfParam)
+
+        then:
+        conversion.apply("x").value() == "x"
+    }
+
     void "the annotations of a method handed over include the ones it inherits"() {
         expect:
         new ReflectiveJaxRsReflection().annotationMetadata(PathImpl.getMethod("get")).stringValue(Path).get() == "sub"
