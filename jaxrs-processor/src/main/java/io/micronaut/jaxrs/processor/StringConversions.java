@@ -63,7 +63,8 @@ final class StringConversions {
     private static final Set<String> COLLECTIONS = Set.of(List.class.getName(), Set.class.getName(),
         SortedSet.class.getName(), Collection.class.getName());
 
-    // the types whose conversion this compilation generated
+    // the classes and types whose conversion this compilation generated: a class owns the
+    // conversions of its own types, which an incremental build deletes with it
     private final Set<String> generated = new HashSet<>();
 
     void reset() {
@@ -108,19 +109,21 @@ final class StringConversions {
             }
         }
         if (type.isPrimitive() || type.isArray() || type.getPackageName().startsWith("java.") || !isAccessible(type)
-            || generated.contains(type.getName())) {
+            || generated.contains(owner.getName() + " " + type.getName())) {
             return;
         }
         String factory = factory(type);
         if (factory == null) {
             return;
         }
-        generated.add(type.getName());
+        generated.add(owner.getName() + " " + type.getName());
         // in the package of the class, which does not split the package of a library type, unless
         // the type is reachable only from its own package
         String packageName = isPublic(type) ? owner.getPackageName() : type.getPackageName();
-        String typeName = type.getName().replace('$', '.');
-        String simpleName = type.getName().replace('.', '_').replace('$', '_') + SUFFIX;
+        // the source name, also of a nested class whose name has a $
+        String typeName = type.getCanonicalName();
+        // unique for each class and type: the escaped binary names have no $
+        String simpleName = escape(owner.getName()) + "$" + escape(type.getName()) + SUFFIX;
         String className = packageName.isEmpty() ? simpleName : packageName + "." + simpleName;
         GeneratedFile file = context.visitGeneratedSourceFile(packageName, simpleName, owner).orElse(null);
         if (file == null) {
@@ -197,6 +200,24 @@ final class StringConversions {
     private static boolean isInherited(MethodElement method, ClassElement type) {
         ClassElement declaring = method.getDeclaringType();
         return !declaring.isInterface() || declaring.getName().equals(type.getName());
+    }
+
+    /**
+     * A binary name as a part of an identifier, without collisions: {@code _} is escaped, and the
+     * package and nesting separators are replaced.
+     */
+    private static String escape(String binaryName) {
+        StringBuilder escaped = new StringBuilder(binaryName.length() + 8);
+        for (int i = 0; i < binaryName.length(); i++) {
+            char c = binaryName.charAt(i);
+            switch (c) {
+                case '.' -> escaped.append("_0");
+                case '_' -> escaped.append("_1");
+                case '$' -> escaped.append("_2");
+                default -> escaped.append(c);
+            }
+        }
+        return escaped.toString();
     }
 
     private static boolean isPublic(ClassElement type) {

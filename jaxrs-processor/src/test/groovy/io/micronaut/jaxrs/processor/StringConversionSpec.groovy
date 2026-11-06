@@ -157,6 +157,107 @@ public class Test {
         thrown(AssertionError)
     }
 
+    void "each class owns the conversions of its types, which an incremental build deletes with it"() {
+        when:
+        def conversions = conversionsOf('''
+package test;
+
+public class Test {
+
+    @jakarta.ws.rs.Path("/a")
+    public static class A {
+        @jakarta.ws.rs.GET
+        public String get(@jakarta.ws.rs.QueryParam("v") Value v) {
+            return null;
+        }
+    }
+
+    @jakarta.ws.rs.Path("/b")
+    public static class B {
+        @jakarta.ws.rs.GET
+        public String get(@jakarta.ws.rs.QueryParam("v") Value v, @jakarta.ws.rs.HeaderParam("h") Value h) {
+            return null;
+        }
+    }
+
+    public static class Value {
+        public Value(String value) {
+        }
+    }
+}
+''')
+
+        then:
+        conversions.size() == 2
+        conversions.every { it.type().name == 'test.Test$Value' }
+        conversions.collect { it.class.name }.toSet().size() == 2
+    }
+
+    void "the conversions of types whose names differ by their separators do not collide"() {
+        when:
+        def conversions = conversions('''
+package test;
+
+@jakarta.ws.rs.Path("/test")
+public class Test {
+
+    @jakarta.ws.rs.GET
+    public String get(@jakarta.ws.rs.QueryParam("a") A.B ab, @jakarta.ws.rs.QueryParam("b") A_B a_b) {
+        return null;
+    }
+
+    public static class A {
+        public static class B {
+            final String value;
+
+            public B(String value) {
+                this.value = "A.B:" + value;
+            }
+        }
+    }
+
+    public static class A_B {
+        final String value;
+
+        public A_B(String value) {
+            this.value = "A_B:" + value;
+        }
+    }
+}
+''')
+
+        then:
+        conversions['test.Test$A$B'].convert('x').value == 'A.B:x'
+        conversions['test.Test$A_B'].convert('x').value == 'A_B:x'
+    }
+
+    void "the conversion of a nested class whose name has a dollar sign"() {
+        when:
+        def conversions = conversions('''
+package test;
+
+@jakarta.ws.rs.Path("/test")
+public class Test {
+
+    @jakarta.ws.rs.GET
+    public String get(@jakarta.ws.rs.QueryParam("v") Value$Other v) {
+        return null;
+    }
+
+    public static class Value$Other {
+        final String value;
+
+        public Value$Other(String value) {
+            this.value = "other:" + value;
+        }
+    }
+}
+''')
+
+        then:
+        conversions['test.Test$Value$Other'].convert('x').value == 'other:x'
+    }
+
     /**
      * The generated conversions, by the name of their type.
      */
