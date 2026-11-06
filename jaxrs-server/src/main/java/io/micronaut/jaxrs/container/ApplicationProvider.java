@@ -76,10 +76,16 @@ public final class ApplicationProvider implements AnnotationMetadataProvider {
         if (definition.get().getBeanType() != Application.class) {
             return definition.get().getAnnotationMetadata();
         }
-        Class<? extends Application> type = beanContext.getBean(Application.class).getClass();
-        return beanContext.findBeanDefinition(type)
+        // the class the factory names, without creating it: the application may be injected
+        // with values that need this provider, e.g. its UriInfo
+        Class<?> type = JaxRsApplicationFactory.applicationClass(beanContext);
+        if (type == null) {
+            type = beanContext.getBean(Application.class).getClass();
+        }
+        Class<?> applicationType = type;
+        return beanContext.findBeanDefinition(applicationType)
             .map(AnnotationMetadataProvider::getAnnotationMetadata)
-            .orElseGet(() -> JaxRsRouteInterceptors.metadata(type));
+            .orElseGet(() -> JaxRsRouteInterceptors.metadata(applicationType));
     }
 
     /**

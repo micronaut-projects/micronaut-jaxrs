@@ -59,6 +59,53 @@ class SeBootstrapTest {
     }
 
     @Test
+    void requestedApplicationClassIsServedOverAnotherApplicationBean() throws Exception {
+        SeBootstrap.Configuration requested = SeBootstrap.Configuration.builder()
+            .port(SeBootstrap.Configuration.FREE_PORT)
+            .build();
+        System.setProperty("spec.name", "SeBootstrapTest.class");
+        SeBootstrap.Instance instance;
+        try {
+            instance = SeBootstrap.start(RequestedApplication.class, requested).toCompletableFuture().get();
+        } finally {
+            System.clearProperty("spec.name");
+        }
+        try {
+            assertEquals(RequestedApplication.class,
+                instance.unwrap(ApplicationContext.class).getBean(Application.class).getClass());
+            URI uri = instance.configuration().baseUriBuilder().path("resource").build();
+            try (HttpClient client = HttpClient.newHttpClient()) {
+                HttpResponse<String> response = client.send(HttpRequest.newBuilder(uri).build(), HttpResponse.BodyHandlers.ofString());
+                assertEquals(200, response.statusCode());
+                assertEquals("class", response.body());
+            }
+        } finally {
+            instance.stop().toCompletableFuture().get();
+        }
+    }
+
+    @Requires(property = "spec.name", value = "SeBootstrapTest.class")
+    // ordered before the other applications
+    @io.micronaut.core.annotation.Order(io.micronaut.core.order.Ordered.HIGHEST_PRECEDENCE)
+    @ApplicationPath("other")
+    public static class OtherApplication extends Application {
+    }
+
+    // not a bean: an Application without @ApplicationPath, introspected to be created without reflection
+    @io.micronaut.core.annotation.Introspected
+    public static class RequestedApplication extends Application {
+    }
+
+    @Requires(property = "spec.name", value = "SeBootstrapTest.class")
+    @Path("resource")
+    public static class ClassResource {
+        @GET
+        public String get() {
+            return "class";
+        }
+    }
+
+    @Test
     void configurationHasDefaults() {
         SeBootstrap.Configuration configuration = SeBootstrap.Configuration.builder().build();
         assertEquals("HTTP", configuration.protocol());
