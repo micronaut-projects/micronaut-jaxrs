@@ -141,4 +141,20 @@ class UriBuilderSpec extends Specification {
         UriBuilder.fromUri("http://api.example/").host("evil.example:8443").build().toString() == "http://evil.example%3A8443/"
         UriBuilder.fromUri("http://api.example/").host("[::1]").port(8443).build().toString() == "http://[::1]:8443/"
     }
+
+    void "an unpaired high surrogate of a template value is an illegal argument"() {
+        when:
+        UriBuilder.fromPath("/x/{p}").build(value)
+
+        then:
+        thrown(IllegalArgumentException)
+
+        where:
+        value << ["a\uD83D", "a\uD83Db"]
+    }
+
+    void "a surrogate pair of a template value is encoded"() {
+        expect:
+        UriBuilder.fromPath("/x/{p}").build("a\uD83D\uDE00").toString() == "/x/a%F0%9F%98%80"
+    }
 }

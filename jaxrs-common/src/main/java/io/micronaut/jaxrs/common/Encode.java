@@ -424,6 +424,9 @@ final class Encode {
                 continue;
             }
             if (Character.isHighSurrogate(currentChar)) {
+                if (i + 1 >= segment.length() || !Character.isLowSurrogate(segment.charAt(i + 1))) {
+                    throw new IllegalArgumentException("A high surrogate without a low surrogate cannot be encoded: " + segment);
+                }
                 String part = segment.substring(i, i + 2);
                 result.append(URLEncoder.encode(part, StandardCharsets.UTF_8));
                 ++i;
