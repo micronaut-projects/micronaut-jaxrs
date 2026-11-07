@@ -55,6 +55,10 @@ public final class CookieHeaderDelegate implements RuntimeDelegate.HeaderDelegat
                 String[] nv = part.split("=", 2);
                 String name = nv.length > 0 ? nv[0].trim() : "";
                 String value = nv.length > 1 ? JaxRsHeaderUtil.unquote(nv[1].trim()) : "";
+                if (name.isEmpty()) {
+                    // an empty part, or a value without a name, is not a cookie
+                    continue;
+                }
                 if (!name.startsWith("$")) {
                     if (cookieName != null) {
                         cookies.add(new Cookie.Builder(cookieName)
@@ -94,7 +98,11 @@ public final class CookieHeaderDelegate implements RuntimeDelegate.HeaderDelegat
 
     @Override
     public Cookie fromString(String value) throws IllegalArgumentException {
-        return parseCookies(value).get(0);
+        List<Cookie> cookies = parseCookies(value);
+        if (cookies.isEmpty()) {
+            throw new IllegalArgumentException("Invalid cookie: " + value);
+        }
+        return cookies.get(0);
     }
 
     @Override

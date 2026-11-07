@@ -59,4 +59,21 @@ class CookieHeaderDelegateSpec extends Specification {
         delegate.fromString(delegate.toString(new Cookie.Builder("n").value("a,b").build())).value == "a,b"
         CookieHeaderDelegate.parseCookies('n="a;b"; m=c').collect { it.value } == ["a;b", "c"]
     }
+
+    void "a string without a named cookie is not a cookie"() {
+        when:
+        Cookie.valueOf(value)
+
+        then:
+        thrown(IllegalArgumentException)
+
+        where:
+        value << ["", "   ", ";", "=v"]
+    }
+
+    void "an empty part of a Cookie header is skipped"() {
+        expect:
+        CookieHeaderDelegate.parseCookies(";").isEmpty()
+        CookieHeaderDelegate.parseCookies("; a=1;").collect { it.name } == ["a"]
+    }
 }
