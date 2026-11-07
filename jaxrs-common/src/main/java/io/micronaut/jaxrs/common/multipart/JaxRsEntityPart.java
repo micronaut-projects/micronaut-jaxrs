@@ -102,6 +102,31 @@ public final class JaxRsEntityPart implements EntityPart {
     }
 
     /**
+     * A part read from a multipart entity, whose content is a range of the bytes of the entity:
+     * the range is not copied.
+     *
+     * @param name      The name
+     * @param fileName  The file name
+     * @param mediaType The media type
+     * @param headers   The headers
+     * @param entity    The bytes of the entity
+     * @param offset    The offset of the content
+     * @param length    The length of the content
+     * @param providers The providers that read the content
+     * @return The part
+     */
+    public static JaxRsEntityPart read(String name,
+                                       @Nullable String fileName,
+                                       MediaType mediaType,
+                                       MultivaluedMap<String, String> headers,
+                                       byte[] entity,
+                                       int offset,
+                                       int length,
+                                       @Nullable Providers providers) {
+        return new JaxRsEntityPart(name, fileName, mediaType, headers, new ByteArrayInputStream(entity, offset, length), null, providers);
+    }
+
+    /**
      * New headers of a part, whose names are case-insensitive (RFC 7578, RFC 2045).
      *
      * @return The headers

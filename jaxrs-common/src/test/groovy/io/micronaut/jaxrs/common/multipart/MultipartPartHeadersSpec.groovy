@@ -498,4 +498,16 @@ class MultipartPartHeadersSpec extends Specification {
         then:
         thrown(jakarta.ws.rs.BadRequestException)
     }
+
+    void "the content of a read part is a range of the entity, not a copy"() {
+        given:
+        byte[] entity = "xxabcxx".bytes
+        def part = JaxRsEntityPart.read("x", null, MediaType.TEXT_PLAIN_TYPE, JaxRsEntityPart.headers(), entity, 2, 3, null)
+
+        when:
+        entity[2] = (byte) 'A'
+
+        then:
+        part.getContent(String) == "Abc"
+    }
 }

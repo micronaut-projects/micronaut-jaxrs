@@ -118,13 +118,14 @@ public final class JaxRsMultipartMessageBodyReader implements MessageBodyReader<
             }
             MultivaluedMap<String, String> headers = headers(new String(entity, position, headersEnd - position, StandardCharsets.UTF_8));
             int contentStart = headersEnd + (headersEnd == position ? CRLF.length : HEADERS_END.length);
-            parts.add(part(headers, Arrays.copyOfRange(entity, contentStart, end)));
+            // the content of a part is a range of the entity, not a copy
+            parts.add(part(headers, entity, contentStart, end - contentStart));
             position = end + nextDelimiter.length;
         }
         return parts;
     }
 
-    private EntityPart part(MultivaluedMap<String, String> headers, byte[] content) {
+    private EntityPart part(MultivaluedMap<String, String> headers, byte[] entity, int offset, int length) {
         String disposition = headers.getFirst(Multipart.CONTENT_DISPOSITION);
         String name = disposition == null ? null : Multipart.parameter(disposition, "name");
         if (name == null) {
@@ -141,7 +142,7 @@ public final class JaxRsMultipartMessageBodyReader implements MessageBodyReader<
             // the default type (RFC 7578 section 4.4) is the one of the headers too
             headers.putSingle(HttpHeaders.CONTENT_TYPE, mediaType.toString());
         }
-        return JaxRsEntityPart.read(name, Multipart.parameter(disposition, "filename"), mediaType, headers, content, providers);
+        return JaxRsEntityPart.read(name, Multipart.parameter(disposition, "filename"), mediaType, headers, entity, offset, length, providers);
     }
 
     private static MultivaluedMap<String, String> headers(String block) {
