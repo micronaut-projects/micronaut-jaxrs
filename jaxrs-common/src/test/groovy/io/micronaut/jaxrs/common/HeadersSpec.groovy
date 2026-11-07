@@ -209,4 +209,19 @@ class HeadersSpec extends Specification {
         then:
         headers.getAll("X-Test") == ["b", "a"]
     }
+
+    void "a null object header value is ignored"() {
+        given:
+        def headers = new SimpleHttpHeaders()
+        headers.add("X-Trace-Id", "a")
+        def map = new JaxRsMutableObjectHeadersMultivaluedMap(headers)
+
+        when:
+        map.add("X-Other", null)
+        map.putSingle("X-Trace-Id", null)
+
+        then:
+        !headers.contains("X-Other")
+        !headers.contains("X-Trace-Id")
+    }
 }

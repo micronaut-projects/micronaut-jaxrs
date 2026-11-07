@@ -23,7 +23,6 @@ import jakarta.ws.rs.ext.RuntimeDelegate;
 import org.jspecify.annotations.Nullable;
 
 import java.util.List;
-import java.util.Objects;
 
 /**
  * The representation of mutable headers as {@link MultivaluedMap}.
@@ -43,14 +42,17 @@ public final class JaxRsMutableObjectHeadersMultivaluedMap extends JaxRsObjectHe
     }
 
     @Override
-    public void putSingle(String key, Object value) {
+    public void putSingle(String key, @Nullable Object value) {
         remove(key);
         add(key, value);
     }
 
     @Override
-    public void add(String key, Object value) {
-        Objects.requireNonNull(value);
+    public void add(String key, @Nullable Object value) {
+        if (value == null) {
+            // a MultivaluedMap ignores a null value, putSingle only removes the header
+            return;
+        }
         RuntimeDelegate.HeaderDelegate<Object> headerDelegate = RuntimeDelegate.getInstance().createHeaderDelegate((Class<Object>) value.getClass());
         headers.add(key, headerDelegate.toString(value));
     }
