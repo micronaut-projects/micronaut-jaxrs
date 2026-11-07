@@ -17,14 +17,19 @@ import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.client.ClientBuilder;
 import jakarta.ws.rs.client.Entity;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.ext.ContextResolver;
 import jakarta.ws.rs.ext.Provider;
 import org.junit.jupiter.api.Test;
 
+import java.io.ByteArrayOutputStream;
+import java.lang.annotation.Annotation;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -52,6 +57,15 @@ class JsonbProviderTest {
             // the resolver names the properties in snake case
             assertEquals("{\"first_name\":\"Joe echoed\"}", response.body());
         }
+    }
+
+    @Test
+    void writerUsesTheCharsetOfTheMediaType() throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        new JaxRsJsonbMessageBodyReaderWriter().writeTo(Map.of("v", "\u00e9"), Map.class, Map.class,
+            new Annotation[0], MediaType.valueOf("application/json;charset=ISO-8859-1"),
+            new MultivaluedHashMap<>(), out);
+        assertEquals("{\"v\":\"\u00e9\"}", out.toString(StandardCharsets.ISO_8859_1));
     }
 
     @Test

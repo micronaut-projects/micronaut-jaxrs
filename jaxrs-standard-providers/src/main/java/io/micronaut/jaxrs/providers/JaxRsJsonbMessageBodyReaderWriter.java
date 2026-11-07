@@ -51,6 +51,7 @@ import java.io.OutputStream;
 import java.io.Reader;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
+import java.nio.charset.Charset;
 import java.util.List;
 import java.util.Locale;
 
@@ -123,7 +124,15 @@ public final class JaxRsJsonbMessageBodyReaderWriter implements MessageBodyReade
     public void writeTo(Object value, Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType,
                         MultivaluedMap<String, Object> httpHeaders, OutputStream entityStream) throws IOException {
         try {
-            jsonb(type, mediaType).toJson(value, genericType == null ? type : genericType, entityStream);
+            Jsonb jsonb = jsonb(type, mediaType);
+            Type jsonType = genericType == null ? type : genericType;
+            String charset = mediaType == null ? null : mediaType.getParameters().get(MediaType.CHARSET_PARAMETER);
+            if (charset == null) {
+                jsonb.toJson(value, jsonType, entityStream);
+            } else {
+                // the bytes are in the charset the Content-Type declares
+                entityStream.write(jsonb.toJson(value, jsonType).getBytes(Charset.forName(charset)));
+            }
         } catch (JsonbException e) {
             throw new InternalServerErrorException(e);
         }
