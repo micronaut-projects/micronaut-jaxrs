@@ -233,7 +233,8 @@ final class Encode {
      * @return encoded host
      */
     public static String encodeHost(String value) {
-        return encodeValue(value, HOST_ENCODING);
+        // the ':' of an IP literal, e.g. [::1], else of a registered name, which cannot add a port
+        return encodeValue(value, value.startsWith("[") && value.endsWith("]") ? HOST_ENCODING : REG_NAME_ENCODING);
     }
 
     /**

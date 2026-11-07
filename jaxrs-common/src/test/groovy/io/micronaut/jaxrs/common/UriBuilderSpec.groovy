@@ -135,4 +135,10 @@ class UriBuilderSpec extends Specification {
         expect:
         UriBuilder.fromUri("http://localhost/").replaceQuery("a={x:\\d{2}}").build("12").toString() == "http://localhost/?a=12"
     }
+
+    void "a host cannot add a port, unlike the one of an IP literal"() {
+        expect:
+        UriBuilder.fromUri("http://api.example/").host("evil.example:8443").build().toString() == "http://evil.example%3A8443/"
+        UriBuilder.fromUri("http://api.example/").host("[::1]").port(8443).build().toString() == "http://[::1]:8443/"
+    }
 }
