@@ -186,21 +186,24 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
     @Override
     public Response.ResponseBuilder header(String name, @Nullable Object value) {
         if (value != null) {
+            String stringValue;
             if (value instanceof Date date) {
                 // an IMF-fixdate (RFC 9110 5.6.7)
-                // one more value: the values set before are kept as the metadata
-                metadata.sync(response.getHeaders(), name);
-                response.getHeaders().add(name, DateHeaderDelegate.INSTANCE.toString(date));
-                metadata.add(response.getHeaders(), name, date);
+                stringValue = DateHeaderDelegate.INSTANCE.toString(date);
             } else {
                 RuntimeDelegate.HeaderDelegate headerDelegate = getInstance().createHeaderDelegate(value.getClass());
                 if (headerDelegate == null) {
-                    response.header(name, value.toString());
+                    stringValue = value.toString();
                 } else {
-                    String stringValue = headerDelegate.toString(value);
-                    response.header(name, stringValue == null ? "" : stringValue);
+                    String written = headerDelegate.toString(value);
+                    stringValue = written == null ? "" : written;
                 }
             }
+            // one more value: the values set before are kept as the metadata, and the object of
+            // this one, e.g. an EntityTag, is a value of Response.getHeaders()
+            metadata.sync(response.getHeaders(), name);
+            response.getHeaders().add(name, stringValue);
+            metadata.add(response.getHeaders(), name, value);
         } else {
             response.getHeaders().remove(name);
         }

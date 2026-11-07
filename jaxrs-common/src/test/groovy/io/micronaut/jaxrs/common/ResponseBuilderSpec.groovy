@@ -303,4 +303,18 @@ class ResponseBuilderSpec extends Specification {
             Date.from(java.time.Instant.parse("1994-11-06T08:49:37Z"))
         Response.ok().header(HttpHeaders.LAST_MODIFIED, "not a date").build().lastModified == null
     }
+
+    void "a header object is kept as the value of the headers of the response"() {
+        given:
+        def tag = new EntityTag("x")
+
+        when:
+        def response = Response.ok().header(HttpHeaders.ETAG, tag).header("X-Count", 3).build()
+
+        then:
+        response.headers.getFirst(HttpHeaders.ETAG).is(tag)
+        response.headers.getFirst("X-Count") == 3
+        response.getHeaderString(HttpHeaders.ETAG) == '"x"'
+        response.getHeaderString("X-Count") == "3"
+    }
 }
