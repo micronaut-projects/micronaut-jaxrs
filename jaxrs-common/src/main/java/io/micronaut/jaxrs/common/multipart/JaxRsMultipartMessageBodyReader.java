@@ -107,6 +107,11 @@ public final class JaxRsMultipartMessageBodyReader implements MessageBodyReader<
             }
             position += CRLF.length;
             int headersEnd = startsWith(entity, position, CRLF) ? position : indexOf(entity, HEADERS_END, position);
+            int nextPart = delimiterIndex(entity, nextDelimiter, position);
+            if (headersEnd > position && nextPart >= 0 && nextPart < headersEnd) {
+                // the headers of the part must end before the next delimiter, else those of the next part are taken
+                throw new BadRequestException("A part of the multipart entity has no end of its headers");
+            }
             int end = headersEnd < 0 ? -1 : delimiterIndex(entity, nextDelimiter, headersEnd);
             if (end < 0) {
                 throw new BadRequestException("The multipart entity is not terminated");

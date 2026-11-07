@@ -481,4 +481,21 @@ class MultipartPartHeadersSpec extends Specification {
         new String(JaxRsEntityPart.read("x", null, MediaType.TEXT_PLAIN_TYPE, "abc".bytes, null).getContent(InputStream).readAllBytes(),
             StandardCharsets.UTF_8) == "abc"
     }
+
+    void "a part whose headers do not end is a bad request"() {
+        given:
+        def body = "--b\r\n" +
+            "Content-Disposition: form-data; name=\"a\"\r\n" +
+            "--b\r\n" +
+            "Content-Disposition: form-data; name=\"c\"\r\n" +
+            "\r\n" +
+            "X\r\n" +
+            "--b--\r\n"
+
+        when:
+        read(body, "b")
+
+        then:
+        thrown(jakarta.ws.rs.BadRequestException)
+    }
 }
