@@ -99,6 +99,14 @@ public final class JaxRsMessageBodyWriter<T> implements MessageBodyWriter<T> {
                     if (produces.size() == 1) {
                         httpHeaders.add(HttpHeaders.CONTENT_TYPE, produces.get(0).toString());
                     }
+                } else if (Objects.requireNonNull(JaxRsUtils.convert(mediaType)).isWildcardSubtype()) {
+                    // not a concrete media type: the one the writer produces, else application/octet-stream
+                    // for application/* (JAX-RS 3.8)
+                    if (produces.size() == 1 && !produces.get(0).getSubtype().equals("*")) {
+                        httpHeaders.add(HttpHeaders.CONTENT_TYPE, produces.get(0).toString());
+                    } else if ("application".equalsIgnoreCase(mediaType.getType())) {
+                        httpHeaders.add(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_OCTET_STREAM);
+                    }
                 } else {
                     httpHeaders.add(HttpHeaders.CONTENT_TYPE, mediaType.toString());
                 }
