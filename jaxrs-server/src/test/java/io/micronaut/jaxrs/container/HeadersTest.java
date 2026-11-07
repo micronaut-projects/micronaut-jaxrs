@@ -107,7 +107,7 @@ class HeadersTest {
         cacheControl.getCacheExtension().put("foo", "bar");
 
         assertEquals(
-            "no-cache, must-revalidate, no-transform, proxy-revalidate, s-maxage=0, max-age=0, private, foo=\"bar\"",
+            "no-cache, must-revalidate, no-transform, proxy-revalidate, s-maxage=0, max-age=0, private, foo=bar",
             RuntimeDelegate.getInstance().createHeaderDelegate(CacheControl.class).toString(cacheControl)
         );
     }

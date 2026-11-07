@@ -132,9 +132,8 @@ class CacheControlDelegate implements RuntimeDelegate.HeaderDelegate<CacheContro
             if (fields.isEmpty()) {
                 addDirective(NO_CACHE, buffer);
             } else {
-                for (String field : value.getNoCacheFields()) {
-                    addDirective(NO_CACHE, buffer).append("=\"").append(field).append("\"");
-                }
+                // one directive with the list of fields (RFC 9111 5.2.2.4, 5.2.2.7), a repeated one is ambiguous
+                addDirective(NO_CACHE, buffer).append("=\"").append(String.join(", ", fields)).append('"');
             }
         }
         if (value.isMustRevalidate()) {
@@ -160,16 +159,21 @@ class CacheControlDelegate implements RuntimeDelegate.HeaderDelegate<CacheContro
             if (fields.isEmpty()) {
                 addDirective(PRIVATE, buffer);
             } else {
-                for (String field : value.getPrivateFields()) {
-                    addDirective(PRIVATE, buffer).append("=\"").append(field).append("\"");
-                }
+                // one directive with the list of fields (RFC 9111 5.2.2.4, 5.2.2.7), a repeated one is ambiguous
+                addDirective(PRIVATE, buffer).append("=\"").append(String.join(", ", fields)).append('"');
             }
         }
         for (String key : value.getCacheExtension().keySet()) {
             String val = value.getCacheExtension().get(key);
             addDirective(key, buffer);
             if (val != null && !val.isEmpty()) {
-                JaxRsHeaderUtil.appendQuoted(buffer.append('='), val);
+                buffer.append('=');
+                // the token form when it is allowed (RFC 9111 5.2)
+                if (MediaTypeHeaderDelegate.requiresQuoting(val)) {
+                    JaxRsHeaderUtil.appendQuoted(buffer, val);
+                } else {
+                    buffer.append(val);
+                }
             }
         }
         return buffer.toString();

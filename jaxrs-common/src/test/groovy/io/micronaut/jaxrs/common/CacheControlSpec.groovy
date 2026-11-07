@@ -61,4 +61,36 @@ class CacheControlSpec extends Specification {
         cleanup:
         Locale.default = locale
     }
+
+    void "the fields of #directive are written as one directive"() {
+        given:
+        def cacheControl = new CacheControl()
+        cacheControl.noTransform = false
+        if (directive == "no-cache") {
+            cacheControl.noCache = true
+            cacheControl.noCacheFields.addAll(["Set-Cookie", "Authorization"])
+        } else {
+            cacheControl.private = true
+            cacheControl.privateFields.addAll(["Set-Cookie", "Authorization"])
+        }
+
+        expect:
+        CacheControlDelegate.INSTANCE.toString(cacheControl) == "$directive=\"Set-Cookie, Authorization\""
+
+        where:
+        directive << ["no-cache", "private"]
+    }
+
+    void "an extension value is written as a token when it is one"() {
+        given:
+        def cacheControl = new CacheControl()
+        cacheControl.noTransform = false
+        cacheControl.cacheExtension.put("stale-while-revalidate", "60")
+        cacheControl.cacheExtension.put("ext", "a, b")
+
+        expect:
+        def written = CacheControlDelegate.INSTANCE.toString(cacheControl)
+        written.contains("stale-while-revalidate=60")
+        written.contains('ext="a, b"')
+    }
 }
