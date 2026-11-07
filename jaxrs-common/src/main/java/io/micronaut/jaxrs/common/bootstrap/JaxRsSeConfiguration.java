@@ -63,7 +63,12 @@ public final class JaxRsSeConfiguration implements SeBootstrap.Configuration {
 
     @Override
     public boolean hasProperty(String name) {
-        return properties.containsKey(name);
+        // configured explicitly or by default, like property(name) (the default method of the API)
+        return properties.containsKey(name) || switch (name) {
+            case PROTOCOL, HOST, PORT, ROOT_PATH, SSL_CLIENT_AUTHENTICATION -> true;
+            case SSL_CONTEXT -> defaultSslContext() != null;
+            default -> false;
+        };
     }
 
     /**

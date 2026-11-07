@@ -60,6 +60,13 @@ public final class JaxRsSeBootstrapServer implements JaxRsSeBootstrap {
     // the prefix of the properties SeBootstrap.Configuration defines
     private static final String JAXRS_PROPERTIES = "jakarta.ws.rs.";
 
+    /**
+     * @return Whether the property was set, not defaulted: hasProperty is true for a default as well
+     */
+    private static boolean isSet(SeBootstrap.Configuration configuration, String name) {
+        return configuration instanceof JaxRsSeConfiguration se ? se.properties().containsKey(name) : configuration.hasProperty(name);
+    }
+
     @Override
     public CompletionStage<SeBootstrap.Instance> bootstrap(Application application, SeBootstrap.Configuration configuration) {
         return started(() -> start(application, null, configuration));
@@ -108,7 +115,7 @@ public final class JaxRsSeBootstrapServer implements JaxRsSeBootstrap {
             properties.put(portProperty, port);
         }
         // the SSL context of the configuration, else the key stores of the configuration of the server
-        boolean sslContext = https && configuration.hasProperty(SeBootstrap.Configuration.SSL_CONTEXT);
+        boolean sslContext = https && isSet(configuration, SeBootstrap.Configuration.SSL_CONTEXT);
         if (https) {
             properties.put("micronaut.server.ssl.enabled", true);
             if (sslContext) {
@@ -118,7 +125,7 @@ public final class JaxRsSeBootstrapServer implements JaxRsSeBootstrap {
                 // the server serves with the SSLContext bean of this name, over its key stores
                 properties.put("micronaut.server.ssl.context-name", SSL_CONTEXT_NAME);
             }
-            if (configuration.hasProperty(SeBootstrap.Configuration.SSL_CLIENT_AUTHENTICATION)) {
+            if (isSet(configuration, SeBootstrap.Configuration.SSL_CLIENT_AUTHENTICATION)) {
                 SeBootstrap.Configuration.SSLClientAuthentication authentication = configuration.sslClientAuthentication();
                 if (authentication == SeBootstrap.Configuration.SSLClientAuthentication.OPTIONAL) {
                     properties.put("micronaut.server.ssl.client-authentication", "want");
