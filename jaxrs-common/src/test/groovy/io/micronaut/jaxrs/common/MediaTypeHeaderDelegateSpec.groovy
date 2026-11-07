@@ -73,4 +73,11 @@ class MediaTypeHeaderDelegateSpec extends Specification {
         cleanup:
         Locale.setDefault(previous)
     }
+
+    void "a parameter without a value is parsed as an empty value and serialized again"() {
+        expect:
+        MediaType.valueOf("text/plain;foo").getParameters().get("foo") == ""
+        MediaType.valueOf("text/plain;charset=").toString() == 'text/plain;charset=""'
+        new MediaType("text", "plain", [foo: null]).toString() == 'text/plain;foo=""'
+    }
 }

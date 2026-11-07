@@ -108,6 +108,8 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Ob
         }
         if (params != null && !params.isEmpty()) {
             Map<String, String> typeParams = new ParameterParser().parse(params, ';');
+            // a parameter without a value is kept as an empty value, MediaType must not hold a null
+            typeParams.replaceAll((name, value) -> value == null ? "" : value);
             return new MediaType(major, subtype, typeParams);
         } else {
             return new MediaType(major, subtype);
@@ -156,6 +158,9 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Ob
         for (String name : type.getParameters().keySet()) {
             buf.append(';').append(name).append('=');
             String val = type.getParameters().get(name);
+            if (val == null) {
+                val = "";
+            }
             if (val.isEmpty() || requiresQuoting(val)) {
                 // RFC 9110 5.6.4: a quote or a backslash in a quoted-string is a quoted-pair
                 JaxRsHeaderUtil.appendQuoted(buf, val);
