@@ -317,4 +317,15 @@ class ResponseBuilderSpec extends Specification {
         response.getHeaderString(HttpHeaders.ETAG) == '"x"'
         response.getHeaderString("X-Count") == "3"
     }
+
+    void "variants replace the Vary header"() {
+        given:
+        def variants = Variant.mediaTypes(MediaType.APPLICATION_JSON_TYPE, MediaType.APPLICATION_XML_TYPE).build()
+
+        when:
+        def response = Response.ok().variants(variants).variants(variants).build()
+
+        then:
+        response.stringHeaders.get(HttpHeaders.VARY) == [HttpHeaders.ACCEPT]
+    }
 }

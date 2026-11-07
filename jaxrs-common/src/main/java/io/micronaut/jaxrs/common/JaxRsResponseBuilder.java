@@ -381,7 +381,7 @@ final class JaxRsResponseBuilder extends Response.ResponseBuilder {
         appendVary(vary, variants.stream().map(Variant::getLanguage).toList(), HttpHeaders.ACCEPT_LANGUAGE);
         appendVary(vary, variants.stream().map(Variant::getEncoding).toList(), HttpHeaders.ACCEPT_ENCODING);
         if (!vary.isEmpty()) {
-            response.getHeaders().add(HttpHeaders.VARY, vary.toString());
+            replaceHeader(HttpHeaders.VARY, vary.toString());
         }
         return this;
     }
