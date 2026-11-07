@@ -92,6 +92,44 @@ class StandardProvidersSpec extends Specification {
         reader << [new JaxRsMultivaluedStringStringMapMessageBodyReader(), new JaxRsMultivaluedStringObjectMapMessageBodyReader()]
     }
 
+    void "a malformed number is a bad request"() {
+        when:
+        new JaxRsNumberMessageBodyReaderWriter<Integer>().readFrom(Integer, Integer, NONE, MediaType.TEXT_PLAIN_TYPE, null,
+                new ByteArrayInputStream("abc".bytes))
+
+        then:
+        thrown(jakarta.ws.rs.BadRequestException)
+    }
+
+    void "an unsupported charset of a text entity is a bad request"() {
+        when:
+        reader.readFrom(type, type, NONE, MediaType.valueOf(mediaType), null, new ByteArrayInputStream("1".bytes))
+
+        then:
+        thrown(jakarta.ws.rs.BadRequestException)
+
+        where:
+        reader                                           | type           | mediaType
+        new JaxRsStringMessageBodyReaderWriter()         | String         | "text/plain;charset=bogus"
+        new JaxRsNumberMessageBodyReaderWriter<Integer>() | Integer        | "text/plain;charset=bogus"
+        new JaxRsCharacterMessageBodyReaderWriter()      | Character      | "text/plain;charset=bogus"
+        new JaxRsBooleanMessageBodyReaderWriter()        | Boolean        | "text/plain;charset=b@d"
+        new JaxRsMultivaluedStringStringMapMessageBodyReader() | MultivaluedMap | "application/x-www-form-urlencoded;charset=bogus"
+    }
+
+    void "a form entity is decoded in its charset"() {
+        when:
+        MultivaluedMap<String, ?> map = reader.readFrom(MultivaluedMap, MultivaluedMap, NONE,
+                MediaType.valueOf("application/x-www-form-urlencoded;charset=ISO-8859-1"), null,
+                new ByteArrayInputStream("name=café".getBytes("ISO-8859-1")))
+
+        then:
+        map.getFirst("name") == "café"
+
+        where:
+        reader << [new JaxRsMultivaluedStringStringMapMessageBodyReader(), new JaxRsMultivaluedStringObjectMapMessageBodyReader()]
+    }
+
     void "a Reader is written without closing the entity stream and closed when the write fails"() {
         given:
         boolean outClosed = false

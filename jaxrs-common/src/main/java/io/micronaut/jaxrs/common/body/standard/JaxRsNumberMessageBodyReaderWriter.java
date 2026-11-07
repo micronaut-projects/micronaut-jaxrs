@@ -21,6 +21,7 @@ import io.micronaut.core.annotation.Order;
 import io.micronaut.core.order.Ordered;
 import io.micronaut.core.reflect.ReflectionUtils;
 import io.micronaut.jaxrs.common.JaxRsIOException;
+import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.WebApplicationException;
@@ -65,7 +66,12 @@ final class JaxRsNumberMessageBodyReaderWriter<T extends Number> implements jaka
     @Override
     public T readFrom(Class<T> type, Type genericType, Annotation[] annotations, jakarta.ws.rs.core.MediaType mediaType, MultivaluedMap<String, String> httpHeaders, InputStream entityStream) throws IOException, WebApplicationException {
         String text = JaxRsStringMessageBodyReaderWriter.readToString(entityStream, mediaType, true);
-        return (T) readNumber(type, text);
+        try {
+            return (T) readNumber(type, text);
+        } catch (NumberFormatException e) {
+            // a malformed number is a malformed entity, not a server failure
+            throw new BadRequestException("The entity is not a valid number", e);
+        }
     }
 
     private static <T extends Number> Number readNumber(Class<T> type, String text) {

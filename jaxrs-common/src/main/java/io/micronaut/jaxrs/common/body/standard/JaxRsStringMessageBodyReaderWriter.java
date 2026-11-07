@@ -21,6 +21,7 @@ import io.micronaut.core.annotation.Order;
 import io.micronaut.core.io.IOUtils;
 import io.micronaut.core.order.Ordered;
 import io.micronaut.jaxrs.common.JaxRsIOException;
+import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
@@ -64,7 +65,14 @@ public final class JaxRsStringMessageBodyReaderWriter implements MessageBodyRead
     }
 
     static String readToString(InputStream entityStream, MediaType mediaType, boolean requiredNonEmpty) {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(entityStream, getCharset(mediaType)))) {
+        Charset charset;
+        try {
+            charset = getCharset(mediaType);
+        } catch (IllegalArgumentException e) {
+            // an unknown or illegal charset of the request is the client's failure
+            throw new BadRequestException("The charset of the entity is not supported", e);
+        }
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(entityStream, charset))) {
             String text = IOUtils.readText(reader);
             if (requiredNonEmpty && text.isEmpty()) {
                 throw new NoContentException("No content");

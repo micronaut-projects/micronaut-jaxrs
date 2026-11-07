@@ -33,7 +33,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
-import java.nio.charset.StandardCharsets;
+import java.nio.charset.Charset;
 import java.util.List;
 import java.util.Map;
 
@@ -61,12 +61,14 @@ public final class JaxRsMultivaluedStringStringMapMessageBodyReader implements M
     public MultivaluedMap<String, String> readFrom(Class<MultivaluedMap<String, String>> type, Type genericType, Annotation[] annotations,
                                                 MediaType mediaType, MultivaluedMap<String, String> httpHeaders,
                                                 InputStream entityStream) throws IOException {
-        BufferedReader reader = new BufferedReader(new InputStreamReader(entityStream, StandardCharsets.UTF_8));
         Map<String, List<String>> decoded;
         try {
-            decoded = formUrlEncodedDecoder.decodeAll(IOUtils.readText(reader), FormMaps.charset(mediaType));
+            Charset charset = FormMaps.charset(mediaType);
+            // the raw bytes are in the charset of the form, like its escapes
+            BufferedReader reader = new BufferedReader(new InputStreamReader(entityStream, charset));
+            decoded = formUrlEncodedDecoder.decodeAll(IOUtils.readText(reader), charset);
         } catch (IllegalArgumentException e) {
-            // a malformed escape is a malformed entity, not a server failure
+            // a malformed escape or an unsupported charset is a malformed entity, not a server failure
             throw new BadRequestException("The form entity is malformed", e);
         }
         MultivaluedHashMap<String, String> map = new MultivaluedHashMap<>();
