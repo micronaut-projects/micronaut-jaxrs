@@ -461,9 +461,7 @@ public final class JaxRsRouteSupport {
         }
         Executor executor = propagating(request, executor(request));
         return read
-            .thenApplyAsync(form -> filteredForm(request, form), executor)
-            .thenCompose(form -> readParts(request, form))
-            .thenComposeAsync(form -> call(handler, request, pathVariables, form), executor);
+            .thenComposeAsync(form -> call(handler, request, pathVariables, filteredForm(request, form)), executor);
     }
 
     /**
@@ -484,11 +482,10 @@ public final class JaxRsRouteSupport {
         Executor executor = locatorExecutor(executorName);
         PropagatedContext context = PropagatedContext.getOrEmpty();
         return form
-            .thenApplyAsync(read -> filteredForm(request, read), executor)
-            .thenCompose(read -> readParts(request, read))
             .thenApplyAsync(read -> context.propagate(() -> {
                 try {
-                    return locator.locate(read);
+                    FormData filtered = filteredForm(request, read);
+                    return locator.locate(filtered == null ? read : filtered);
                 } catch (Exception e) {
                     // the router answers the cause with the error routes
                     throw new CompletionException(e);
@@ -561,23 +558,6 @@ public final class JaxRsRouteSupport {
         });
     }
 
-    /**
-     * Read the files of a multipart form without blocking, before an asynchronous resource method
-     * reads them as parts, see {@link #formPart}.
-     */
-    private static CompletionStage<FormData> readParts(HttpRequest<?> request, FormData form) {
-        Map<String, FormPart> parts = formParts(request);
-        CompletableFuture<?>[] reads = form.names().stream()
-            .flatMap(name -> form.findFile(name).stream().map(upload -> upload.bytes(Integer.MAX_VALUE)
-                .thenAccept(content -> {
-                    synchronized (parts) {
-                        parts.put(name, filePart(upload, content));
-                    }
-                }).toCompletableFuture()))
-            .toArray(CompletableFuture[]::new);
-        return CompletableFuture.allOf(reads).thenApply(ignored -> form);
-    }
-
     @SuppressWarnings("unchecked")
     private static Map<String, FormPart> formParts(HttpRequest<?> request) {
         Map<String, FormPart> parts = request.getAttribute(FormPart.class.getName(), Map.class).orElse(null);
@@ -605,8 +585,8 @@ public final class JaxRsRouteSupport {
 
     /**
      * A part of a multipart form: a new {@link EntityPart} each time, as its content is read once,
-     * over the content of the field, which is read once per request. The file of an asynchronous
-     * resource method was read before it is called; a resource method that blocks reads it here.
+     * over the content of the field, which is read once per request, off the event loop, from where
+     * the server stored it.
      */
     @Nullable EntityPart formPart(HttpRequest<?> request, FormData form, String name) {
         Map<String, FormPart> parts = formParts(request);
@@ -633,7 +613,9 @@ public final class JaxRsRouteSupport {
                 }
                 part = new FormPart(null, jakarta.ws.rs.core.MediaType.TEXT_PLAIN_TYPE, values.get(0).getBytes(StandardCharsets.UTF_8));
             }
-            parts.put(name, part);
+            synchronized (parts) {
+                parts.put(name, part);
+            }
         }
         // read with the registered readers (EntityPart.getContent)
         return JaxRsEntityPart.read(name, part.fileName(), part.mediaType(), part.content(),
@@ -641,8 +623,7 @@ public final class JaxRsRouteSupport {
     }
 
     /**
-     * The content of a part of a multipart form as a stream: the file of a resource method that
-     * blocks is streamed from where the server stored it, e.g. on disk, not read into memory.
+     * The content of a part of a multipart form as a stream: the file is streamed from where the server stored it, e.g. on disk, not read into memory.
      */
     @Nullable InputStream formStream(HttpRequest<?> request, FormData form, String name) {
         Map<String, FormPart> parts = formParts(request);
