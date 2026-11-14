@@ -34,7 +34,6 @@ import jakarta.ws.rs.core.GenericType;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
-import jakarta.ws.rs.ext.RuntimeDelegate;
 import org.jspecify.annotations.Nullable;
 
 import java.net.URI;
@@ -142,7 +141,7 @@ final class JaxRsInvocationBuilder implements Invocation.Builder {
 
     @Override
     public Invocation.Builder cookie(Cookie cookie) {
-        mutableHttpHeaders.add(HttpHeaders.COOKIE, toRuntimeString(cookie));
+        mutableHttpHeaders.add(HttpHeaders.COOKIE, JaxRsHeaderUtil.headerToString(cookie));
         return this;
     }
 
@@ -157,7 +156,7 @@ final class JaxRsInvocationBuilder implements Invocation.Builder {
         if (cacheControl == null) {
             mutableHttpHeaders.remove(HttpHeaders.CACHE_CONTROL);
         } else {
-            mutableHttpHeaders.set(HttpHeaders.CACHE_CONTROL, toRuntimeString(cacheControl));
+            mutableHttpHeaders.set(HttpHeaders.CACHE_CONTROL, JaxRsHeaderUtil.headerToString(cacheControl));
         }
         return this;
     }
@@ -356,9 +355,5 @@ final class JaxRsInvocationBuilder implements Invocation.Builder {
     @Override
     public <T> T method(String name, Entity<?> entity, GenericType<T> responseType) {
         return build(name, entity).invoke(responseType);
-    }
-
-    private <T> String toRuntimeString(T value) {
-        return RuntimeDelegate.getInstance().createHeaderDelegate((Class<T>) value.getClass()).toString(value);
     }
 }
