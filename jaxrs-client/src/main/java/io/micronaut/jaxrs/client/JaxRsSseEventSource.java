@@ -36,7 +36,7 @@ import jakarta.ws.rs.ProcessingException;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.client.ResponseProcessingException;
 import jakarta.ws.rs.core.Response;
-import jakarta.ws.rs.ext.RuntimeDelegate;
+import io.micronaut.jaxrs.common.DateHeaderDelegate;
 import jakarta.ws.rs.sse.InboundSseEvent;
 import jakarta.ws.rs.sse.SseEventSource;
 import org.jspecify.annotations.Nullable;
@@ -88,7 +88,8 @@ final class JaxRsSseEventSource implements SseEventSource {
     });
 
     private final JaxRsWebTarget target;
-    private final ScheduledExecutorService scheduler;
+    // the scheduler of the client, null if none: then the delayed executor of the JDK
+    private final @Nullable ScheduledExecutorService scheduler;
     // the consumers, and the execution of the callbacks, which outlives the connection
     private final JaxRsSseCallbacks callbacks;
     // whether a connection received an event stream: then a broken connection is reconnected
@@ -113,8 +114,7 @@ final class JaxRsSseEventSource implements SseEventSource {
     JaxRsSseEventSource(JaxRsWebTarget target, long reconnectDelay) {
         this.target = target;
         this.configuredReconnectDelay = reconnectDelay;
-        ScheduledExecutorService clientScheduler = target.client().getScheduledExecutorService();
-        this.scheduler = clientScheduler != null ? clientScheduler : DefaultScheduler.INSTANCE;
+        this.scheduler = target.client().getScheduledExecutorService();
         this.callbacks = new JaxRsSseCallbacks(target.client().getExecutorService());
     }
 
@@ -251,7 +251,6 @@ final class JaxRsSseEventSource implements SseEventSource {
             // an empty id resets the last one: no header (HTML 9.2.6)
             request.header("Last-Event-ID", id);
         }
-        request.setAttribute(EventStreamState.ATTRIBUTE, streamState);
         JaxRsClientRequestContext requestContext = filtered(request);
         if (requestContext == null) {
             return;
@@ -599,7 +598,7 @@ final class JaxRsSseEventSource implements SseEventSource {
         }
         try {
             // any of the formats of RFC 9110, 5.6.7
-            Date date = RuntimeDelegate.getInstance().createHeaderDelegate(Date.class).fromString(value);
+            Date date = DateHeaderDelegate.INSTANCE.fromString(value);
             return Math.max(0, date.getTime() - System.currentTimeMillis());
         } catch (IllegalArgumentException e) {
             return null;
@@ -630,7 +629,12 @@ final class JaxRsSseEventSource implements SseEventSource {
                 try {
                     // the timer only dispatches the connection: its request filters may block, and
                     // the scheduler may be shared by other sources
-                    pendingReconnect = scheduler.schedule(this::dispatchConnect, delay, TimeUnit.MILLISECONDS);
+                    ScheduledExecutorService clientScheduler = scheduler;
+                    pendingReconnect = clientScheduler != null
+                        ? clientScheduler.schedule(this::dispatchConnect, delay, TimeUnit.MILLISECONDS)
+                        // a cancelled stage does not run: its timer only skips it
+                        : CompletableFuture.runAsync(this::dispatchConnect,
+                            CompletableFuture.delayedExecutor(delay, TimeUnit.MILLISECONDS, Runnable::run));
                     return;
                 } catch (RuntimeException e) {
                     // the scheduler is shut down
@@ -658,18 +662,6 @@ final class JaxRsSseEventSource implements SseEventSource {
      */
     int pendingCallbacks() {
         return callbacks.pendingCallbacks();
-    }
-
-    /**
-     * The scheduler of the event sources of the clients built without a scheduled executor
-     * service: its thread does not keep the JVM alive.
-     */
-    private static final class DefaultScheduler {
-        static final ScheduledExecutorService INSTANCE = Executors.newSingleThreadScheduledExecutor(runnable -> {
-            Thread thread = new Thread(runnable, "jaxrs-sse-event-source");
-            thread.setDaemon(true);
-            return thread;
-        });
     }
 
     /**
