@@ -85,6 +85,9 @@ final class JaxRsClientProviders implements Providers {
     // the providers found among the components of the configuration: replaced, not changed, when
     // the components change
     private volatile @Nullable Tables tables;
+    // set on the thread that builds the tables: a provider instantiated meanwhile, e.g. one that
+    // looks up a context resolver in its constructor (JAX-RS 4.1.3, 10.2.6), finds it without them
+    private final ThreadLocal<Boolean> building = new ThreadLocal<>();
 
     /**
      * @param configuration The configuration
@@ -111,7 +114,12 @@ final class JaxRsClientProviders implements Providers {
         List<Component> components = configuration.components();
         Tables current = tables;
         if (current == null || current.components != components) {
-            current = new Tables(components, this::contextValue);
+            building.set(Boolean.TRUE);
+            try {
+                current = new Tables(components, this::contextValue);
+            } finally {
+                building.remove();
+            }
             tables = current;
         }
         return current;
@@ -479,7 +487,9 @@ final class JaxRsClientProviders implements Providers {
         MediaType micronautMediaType = mediaType == null ? null : JaxRsUtils.convert(mediaType);
         List<BeanRegistration<ContextResolver>> candidates = new ArrayList<>();
         Set<BeanRegistration<ContextResolver>> untyped = new HashSet<>();
-        for (ContextResolverEntry entry : tables().contextResolvers) {
+        List<ContextResolverEntry> entries = building.get() != null
+            ? contextResolvers(configuration.components(), this::contextValue) : tables().contextResolvers;
+        for (ContextResolverEntry entry : entries) {
             BeanRegistration<ContextResolver> registration = entry.registration();
             Class<?> resolvedType = entry.contextType();
             if ((resolvedType == null || contextType.isAssignableFrom(resolvedType))
