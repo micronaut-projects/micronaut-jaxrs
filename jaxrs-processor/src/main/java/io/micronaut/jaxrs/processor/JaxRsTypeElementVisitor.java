@@ -162,8 +162,8 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         }
         // the @Path of a class maps to the annotation of a resource method or locator: the
         // methods of the class are not all resource methods
-        element.removeStereotype(HttpMethodMappingMapper.RESOURCE_METHOD);
-        element.removeAnnotation(HttpMethodMappingMapper.RESOURCE_METHOD);
+        element.removeStereotype(PathAnnotationMapper.RESOURCE_METHOD);
+        element.removeAnnotation(PathAnnotationMapper.RESOURCE_METHOD);
         introspectResourcePath(element);
         if (!runtimeRoutes) {
             // the runtime routes need the JAX-RS server, and are enabled for Java: other languages,
@@ -260,8 +260,8 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         boolean isPublic = element.isPublic() || element.getDeclaringType().isInterface() && !element.isPrivate();
         if (runtimeRoutes && !isPublic && (element.hasStereotype(HttpMethod.class) || element.hasDeclaredAnnotation(Path.class))) {
             // routed at runtime only when public
-            element.removeStereotype(HttpMethodMappingMapper.RESOURCE_METHOD);
-            element.removeAnnotation(HttpMethodMappingMapper.RESOURCE_METHOD);
+            element.removeStereotype(PathAnnotationMapper.RESOURCE_METHOD);
+            element.removeAnnotation(PathAnnotationMapper.RESOURCE_METHOD);
             // not a resource method nor a sub-resource locator: only public methods are (JAX-RS 3.3.1),
             // the runtime routes leave it out
             context.warn("The method is not public, so it is not a JAX-RS resource method or sub-resource locator, and it is not routed", element);

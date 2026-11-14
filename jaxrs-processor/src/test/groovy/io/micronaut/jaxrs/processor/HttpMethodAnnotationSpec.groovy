@@ -516,4 +516,30 @@ interface Test extends TestService {
         HEAD    | Head    | "/foo"
         OPTIONS | Options | "/foo"
     }
+
+    void "only the JAX-RS methods are resource methods"() {
+        given:
+        def definition = buildBeanDefinition('test.Test', """
+package test;
+
+@io.micronaut.http.annotation.Controller("/test")
+class Test {
+
+    @io.micronaut.http.annotation.Get("/micronaut")
+    String micronaut() {
+        return "ok";
+    }
+
+    @jakarta.ws.rs.GET
+    @jakarta.ws.rs.Path("/jaxrs")
+    public String jaxrs() {
+        return "ok";
+    }
+}
+""")
+
+        expect:
+        !definition.getRequiredMethod("micronaut").hasStereotype(PathAnnotationMapper.RESOURCE_METHOD)
+        definition.getRequiredMethod("jaxrs").hasStereotype(PathAnnotationMapper.RESOURCE_METHOD)
+    }
 }
