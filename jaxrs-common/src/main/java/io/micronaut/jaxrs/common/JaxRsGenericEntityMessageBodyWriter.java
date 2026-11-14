@@ -18,6 +18,7 @@ package io.micronaut.jaxrs.common;
 import io.micronaut.context.BeanProvider;
 import io.micronaut.context.BeanRegistration;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.io.buffer.ReadBufferFactory;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -35,6 +36,7 @@ import io.micronaut.http.body.MessageBodyHandlerRegistry;
 import io.micronaut.http.body.MessageBodyWriter;
 import io.micronaut.http.body.ResponseBodyWriter;
 import io.micronaut.http.codec.CodecException;
+import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.core.GenericEntity;
 import jakarta.ws.rs.core.MultivaluedMap;
@@ -64,13 +66,26 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
     private final List<BeanRegistration<WriterInterceptor>> writerInterceptorsRegistrations;
     private final NameBindingPredicate nameBindingPredicate;
     private final BeanProvider<JaxRsRouteInterceptors> routeInterceptors;
+    private final ConversionService conversionService;
 
     JaxRsGenericEntityMessageBodyWriter(JaxRsContainerMessageBodyHandlerRegistry jaxRsMessageBodyHandlerRegistry,
                                         MessageBodyHandlerRegistry registry,
                                         List<BeanRegistration<WriterInterceptor>> writerInterceptorsRegistrations,
                                         NameBindingPredicate nameBindingPredicate,
                                         BeanProvider<JaxRsRouteInterceptors> routeInterceptors) {
+        this(jaxRsMessageBodyHandlerRegistry, registry, writerInterceptorsRegistrations, nameBindingPredicate, routeInterceptors,
+            ConversionService.SHARED);
+    }
+
+    @Inject
+    JaxRsGenericEntityMessageBodyWriter(JaxRsContainerMessageBodyHandlerRegistry jaxRsMessageBodyHandlerRegistry,
+                                        MessageBodyHandlerRegistry registry,
+                                        List<BeanRegistration<WriterInterceptor>> writerInterceptorsRegistrations,
+                                        NameBindingPredicate nameBindingPredicate,
+                                        BeanProvider<JaxRsRouteInterceptors> routeInterceptors,
+                                        ConversionService conversionService) {
         this.routeInterceptors = routeInterceptors;
+        this.conversionService = conversionService;
         this.jaxRsMessageBodyHandlerRegistry = jaxRsMessageBodyHandlerRegistry;
         this.registry = registry;
         this.writerInterceptorsRegistrations = writerInterceptorsRegistrations;
@@ -110,6 +125,11 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
             var state = new JaxRsWriterInterceptorContextState.ClassicState(outgoingHeaders, entity, outputStream);
             try {
                 new JaxRsInterceptedWrite<T, JaxRsWriterInterceptorContextState.ClassicState>(interceptors) {
+
+                    @Override
+                    protected ConversionService conversionService() {
+                        return conversionService;
+                    }
 
                     @Override
                     protected void writeToAfterInterception(Argument<Object> argument,
@@ -436,6 +456,11 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
             } else {
                 try {
                     new JaxRsInterceptedWrite<T, ByteBodyState>(interceptors) {
+
+                        @Override
+                        protected ConversionService conversionService() {
+                            return conversionService;
+                        }
 
                         @Override
                         protected void writeToAfterInterception(Argument<Object> argument,

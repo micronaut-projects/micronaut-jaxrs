@@ -20,6 +20,7 @@ import io.micronaut.context.BeanRegistration;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import io.micronaut.core.annotation.Order;
+import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.io.buffer.ByteBuffer;
 import io.micronaut.core.order.Ordered;
 import io.micronaut.core.type.Argument;
@@ -60,12 +61,15 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
     private final NameBindingPredicate nameBindingPredicate;
     private final JaxRsFeatures features;
     private final BeanProvider<MessageBodyHandlerRegistry> micronautReaders;
+    private final ConversionService conversionService;
 
     public JaxRsMessageBodyReaders(JaxRsContainerMessageBodyHandlerRegistry registry,
                                    List<BeanRegistration<ReaderInterceptor>> readerInterceptorsRegsRegistrations,
                                    NameBindingPredicate nameBindingPredicate,
                                    JaxRsFeatures features,
-                                   BeanProvider<MessageBodyHandlerRegistry> micronautReaders) {
+                                   BeanProvider<MessageBodyHandlerRegistry> micronautReaders,
+                                   ConversionService conversionService) {
+        this.conversionService = conversionService;
         this.features = features;
         this.micronautReaders = micronautReaders;
         this.registry = registry;
@@ -134,7 +138,7 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
         if (interceptors == null) {
             return reader.read((Argument) type, mediaType, httpHeaders, entity);
         }
-        return new ServerInterceptedRead<Object>(interceptors) {
+        return new ServerInterceptedRead<Object>(interceptors, conversionService) {
 
             @Override
             protected @Nullable Object readFromAfterInterception(Argument<Object> type, @Nullable MediaType mediaType, Headers httpHeaders, InputStream inputStream) {
@@ -173,7 +177,7 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
             }
             throw new CodecException("No reader registered for " + type + " with media type " + mediaType);
         }
-        return new ServerInterceptedRead<T>(interceptors) {
+        return new ServerInterceptedRead<T>(interceptors, conversionService) {
 
             @Override
             protected @Nullable T readFromAfterInterception(Argument<Object> type, @Nullable MediaType mediaType, Headers httpHeaders, InputStream inputStream) {
@@ -198,7 +202,7 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
             }
             throw new CodecException("No reader found for " + mediaType + " and type " + type);
         }
-        return new ServerInterceptedRead<T>(interceptors) {
+        return new ServerInterceptedRead<T>(interceptors, conversionService) {
 
             @Override
             protected @Nullable T readFromAfterInterception(Argument<Object> type, @Nullable MediaType mediaType, Headers httpHeaders, InputStream inputStream) {
@@ -235,8 +239,16 @@ final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
      */
     private abstract static class ServerInterceptedRead<T> extends JaxRsInterceptedRead<T> {
 
-        ServerInterceptedRead(List<ReaderInterceptor> interceptors) {
+        private final ConversionService conversionService;
+
+        ServerInterceptedRead(List<ReaderInterceptor> interceptors, ConversionService conversionService) {
             super(interceptors);
+            this.conversionService = conversionService;
+        }
+
+        @Override
+        protected ConversionService conversionService() {
+            return conversionService;
         }
 
         @Override

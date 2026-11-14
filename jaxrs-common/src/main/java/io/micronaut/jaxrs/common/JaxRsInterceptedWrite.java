@@ -72,6 +72,14 @@ public abstract class JaxRsInterceptedWrite<T, S extends JaxRsWriterInterceptorC
         this.bound = interceptors;
     }
 
+    /**
+     * @return The conversion service of an entity of another type than the one to read or write:
+     * the shared one by default, for a client without a context
+     */
+    protected ConversionService conversionService() {
+        return ConversionService.SHARED;
+    }
+
     public final void intercept(@NonNull Argument<T> type,
                                 @NonNull MediaType mediaType,
                                 S state) throws CodecException {
@@ -104,7 +112,7 @@ public abstract class JaxRsInterceptedWrite<T, S extends JaxRsWriterInterceptorC
                         Argument<Object> argument = (Argument<Object>) ctx.asArgument();
                         Object newEntity = ctx.getEntity();
                         if (!argument.isInstance(newEntity)) {
-                            newEntity = ConversionService.SHARED.convertRequired(newEntity, argument.getType());
+                            newEntity = conversionService().convertRequired(newEntity, argument.getType());
                             ctx.setEntity(newEntity);
                         }
                         writeToAfterInterception(

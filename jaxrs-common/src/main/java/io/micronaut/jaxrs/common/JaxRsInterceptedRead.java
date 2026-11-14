@@ -74,6 +74,14 @@ public abstract class JaxRsInterceptedRead<T> {
         this.bound = interceptors;
     }
 
+    /**
+     * @return The conversion service of an entity of another type than the one to read or write:
+     * the shared one by default, for a client without a context
+     */
+    protected ConversionService conversionService() {
+        return ConversionService.SHARED;
+    }
+
     public final @Nullable T intercept(@NonNull Argument<T> type,
                              @Nullable MediaType mediaType,
                              @NonNull Headers httpHeaders,
@@ -143,7 +151,7 @@ public abstract class JaxRsInterceptedRead<T> {
                     return null;
                 }
                 if (!type.isInstance(value)) {
-                    return ConversionService.SHARED.convertRequired(value, type);
+                    return conversionService().convertRequired(value, type);
                 }
                 return (T) value;
             } else {
