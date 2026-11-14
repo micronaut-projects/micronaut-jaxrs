@@ -96,8 +96,6 @@ final class JaxRsResourceFactory {
     private final Map<Class<?>, Optional<RequestType<?>>> contextRequestTypes = new ConcurrentHashMap<>();
     // how to set the members of the targets of scoped proxies, by the classes they proxy
     private final Map<Class<?>, Optional<RequestType<?>>> targetRequestTypes = new ConcurrentHashMap<>();
-    // the definitions the beans of the classes are resolved with, empty for one that is not unique
-    private final Map<Class<?>, Optional<BeanDefinition<?>>> resolved = new ConcurrentHashMap<>();
 
     /**
      * @param beanContext The bean context
@@ -190,7 +188,7 @@ final class JaxRsResourceFactory {
      * @return The instance
      */
     <T> T owned(HttpRequest<?> request, T instance) {
-        BeanDefinition<?> definition = resolved.computeIfAbsent(instance.getClass(), this::resolve).orElse(null);
+        BeanDefinition<?> definition = resolve(instance.getClass()).orElse(null);
         if (definition == null || !isDependent(definition)) {
             return instance;
         }

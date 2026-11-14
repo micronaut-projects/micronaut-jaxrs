@@ -111,7 +111,7 @@ final class JaxRsBoundProviders {
      * which the chains are bound with.
      *
      * @param resourceMethod The element of the resource method, see
-     *                       {@link JaxRsRouteSupport#resourceMethodKey}, {@code null} for none
+     *                       the {@link JaxRsRouteResource} of the route, {@code null} for none
      * @param bindings       The name bindings of the route of the request
      */
     record Key(@Nullable Object resourceMethod, List<String> bindings) {

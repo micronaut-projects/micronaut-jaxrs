@@ -24,6 +24,7 @@ import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.PathVariables;
 import io.micronaut.http.form.FormData;
+import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
 import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.jaxrs.common.reflect.WritableMember;
 import io.micronaut.jaxrs.runtime.ext.bind.JaxRsRequestUri;
@@ -48,9 +49,7 @@ import jakarta.ws.rs.ext.ParamConverterProvider;
 import org.jspecify.annotations.Nullable;
 
 import java.io.InputStream;
-import java.lang.annotation.Annotation;
 import java.net.URLDecoder;
-import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -84,7 +83,6 @@ final class JaxRsParameterBinding {
 
     private final Supplier<List<ParamConverterProvider>> paramConverterProviders;
 
-    private final Map<ConverterKey, StringConverter> converters = new ConcurrentHashMap<>();
 
     private final Map<Class<?>, BeanParamBinder> beanParams = new ConcurrentHashMap<>();
 
@@ -264,13 +262,16 @@ final class JaxRsParameterBinding {
         if (JaxRsRouteSupport.isRawForm(request)) {
             if (!encoded) {
                 Charset charset = JaxRsRouteSupport.formCharset(request);
-                values = values.stream().map(value -> URLDecoder.decode(value, charset)).toList();
+                try {
+                    values = values.stream().map(value -> URLDecoder.decode(value, charset)).toList();
+                } catch (IllegalArgumentException e) {
+                    // a malformed percent-encoding is a malformed request
+                    throw new BadRequestException("Malformed form entity: " + e.getMessage(), e);
+                }
             }
-        } else if (encoded) {
-            // the decoded values of a form read for parameters that are not @Encoded: form encoding, a space is a plus
-            Charset charset = JaxRsRouteSupport.formCharset(request);
-            values = values.stream().map(value -> URLEncoder.encode(value, charset)).toList();
         }
+        // else the values as sent: a multipart form has no encoded values, and encoding the decoded
+        // values again does not give the values as they were sent
         return conversion.convert(values, false);
     }
 
@@ -406,9 +407,9 @@ final class JaxRsParameterBinding {
     private void convertDefault(Conversion conversion, String defaultValue) {
         Argument<?> argument = conversion.argument;
         Argument<?> target = conversion.target;
-        Annotation[] annotations = target.synthesizeAll();
         for (ParamConverterProvider provider : paramConverterProviders.get()) {
-            ParamConverter<?> converter = provider.getConverter(target.getType(), target.asType(), annotations);
+            ParamConverter<?> converter = provider.getConverter(target.getType(), target.asType(),
+                JaxRsArgumentUtil.annotations(target.getAnnotationMetadata(), provider));
             if (converter == null) {
                 continue;
             }
@@ -458,9 +459,9 @@ final class JaxRsParameterBinding {
     @SuppressWarnings({"unchecked", "rawtypes"})
     private StringConverter converter(Argument<?> argument) {
         Class<?> type = argument.getType();
-        Annotation[] annotations = argument.synthesizeAll();
         for (ParamConverterProvider provider : paramConverterProviders.get()) {
-            ParamConverter paramConverter = provider.getConverter(type, argument.asType(), annotations);
+            ParamConverter paramConverter = provider.getConverter(type, argument.asType(),
+                JaxRsArgumentUtil.annotations(argument.getAnnotationMetadata(), provider));
             if (paramConverter != null) {
                 return paramConverter::fromString;
             }
@@ -498,15 +499,6 @@ final class JaxRsParameterBinding {
     @FunctionalInterface
     private interface StringConverter {
         @Nullable Object convert(String value) throws Exception;
-    }
-
-    /**
-     * The key of the converter of a parameter: its type, and its annotations.
-     *
-     * @param argument    The parameter
-     * @param annotations The annotations of the parameter
-     */
-    private record ConverterKey(Argument<?> argument, AnnotationMetadata annotations) {
     }
 
     /**
@@ -583,14 +575,12 @@ final class JaxRsParameterBinding {
         }
 
         /**
-         * The converter of the elements, of the shared ones: the annotations are part of the key,
-         * as a {@link ParamConverterProvider} sees them, and arguments are equal without them.
+         * The converter of the elements, resolved when first used.
          */
         private StringConverter converter() {
             StringConverter c = converter;
             if (c == null) {
-                c = converters.computeIfAbsent(new ConverterKey(target, target.getAnnotationMetadata()),
-                    key -> JaxRsParameterBinding.this.converter(key.argument()));
+                c = JaxRsParameterBinding.this.converter(target);
                 converter = c;
             }
             return c;

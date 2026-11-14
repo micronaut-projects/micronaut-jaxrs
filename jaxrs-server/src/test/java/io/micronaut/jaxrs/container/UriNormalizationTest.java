@@ -73,6 +73,14 @@ class UriNormalizationTest {
         assertTrue(response.endsWith("tilde /api/norm/~?null"), response);
     }
 
+    @Test
+    void requestOutsideTheApplicationPathIsNotNormalized() throws Exception {
+        // the filters of the server outside the application see the URI as it was received
+        String response = get("/outside/%7e");
+        assertTrue(response.startsWith("HTTP/1.1 200"), response);
+        assertTrue(response.endsWith("outside /outside/%7e"), response);
+    }
+
     /**
      * Sent raw: the clients normalize the path themselves.
      */
@@ -126,6 +134,15 @@ class UriNormalizationTest {
         @Produces("text/plain")
         public String any(@Context UriInfo uriInfo) {
             return "any " + uriInfo.getRequestUri().getRawPath();
+        }
+    }
+
+    @Requires(property = "spec.name", value = "UriNormalizationTest")
+    @io.micronaut.http.annotation.ServerFilter("/outside/**")
+    public static class OutsideFilter {
+        @io.micronaut.http.annotation.RequestFilter
+        public io.micronaut.http.HttpResponse<String> filter(io.micronaut.http.HttpRequest<?> request) {
+            return io.micronaut.http.HttpResponse.ok("outside " + request.getUri().getRawPath());
         }
     }
 }

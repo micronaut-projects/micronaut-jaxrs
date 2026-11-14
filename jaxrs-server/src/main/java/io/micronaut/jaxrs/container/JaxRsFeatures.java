@@ -15,6 +15,7 @@
  */
 package io.micronaut.jaxrs.container;
 
+import io.micronaut.core.io.service.SoftServiceLoader;
 import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.inject.BeanDefinition;
@@ -55,12 +56,10 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 
 /**
  * The {@link Feature}s and {@link DynamicFeature}s of the application: the beans, the ones its
@@ -116,9 +115,10 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
     private final List<Feature> features;
     // the dynamic features the features register are added when they are configured
     private final List<DynamicFeature> dynamicFeatures;
-    private final Map<Object, Components> components = new ConcurrentHashMap<>();
     // the filters and interceptors bound to the resource methods, see #bound
     private final Map<JaxRsBoundProviders.Key, JaxRsBoundProviders> bound = new ConcurrentHashMap<>();
+    // the components of the resource methods of controller routes, which have no route attribute to keep them
+    private final Map<JaxRsRouteResource, Components> controllerComponents = new ConcurrentHashMap<>();
     private volatile boolean configured;
     // the features are configured: the global registrations do not change any more
     private volatile boolean complete;
@@ -397,33 +397,37 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
     /**
      * The components the dynamic features register for a resource method.
      *
-     * @param resourceClass The resource class
-     * @param key           The element of the resource method, see {@link JaxRsRouteSupport#resourceMethodKey}
-     * @param method        The resource method
-     * @return The components
+     * @param resource The resource method of a route
+     * @return The components, built once per resource method
      */
-    Components components(Class<?> resourceClass, Object key, Supplier<Method> method) {
+    private Components components(JaxRsRouteResource resource) {
         if (dynamicFeatures.isEmpty()) {
             return Components.EMPTY;
         }
-        return components.computeIfAbsent(key, k -> {
-            JaxRsFeatureContext featureContext = new JaxRsFeatureContext(this, false);
-            ResourceInfo resourceInfo = new ResourceInfo() {
-                @Override
-                public Method getResourceMethod() {
-                    return method.get();
-                }
+        if (resource.isController()) {
+            return controllerComponents.computeIfAbsent(resource, r -> r.components(this::newComponents));
+        }
+        return resource.components(this::newComponents);
+    }
 
-                @Override
-                public Class<?> getResourceClass() {
-                    return resourceClass;
-                }
-            };
-            for (DynamicFeature feature : dynamicFeatures) {
-                feature.configure(resourceInfo, featureContext);
+    private Components newComponents(JaxRsRouteResource resource) {
+        Class<?> resourceClass = resource.resourceClass();
+        JaxRsFeatureContext featureContext = new JaxRsFeatureContext(this, false);
+        ResourceInfo resourceInfo = new ResourceInfo() {
+            @Override
+            public Method getResourceMethod() {
+                return Objects.requireNonNull(resource.method());
             }
-            return featureContext.components();
-        });
+
+            @Override
+            public Class<?> getResourceClass() {
+                return resourceClass;
+            }
+        };
+        for (DynamicFeature feature : dynamicFeatures) {
+            feature.configure(resourceInfo, featureContext);
+        }
+        return featureContext.components();
     }
 
     /**
@@ -472,7 +476,7 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
             classLoaders.add(type.getClassLoader());
         }
         for (ClassLoader classLoader : classLoaders) {
-            for (T loaded : ServiceLoader.load(type, classLoader)) {
+            for (T loaded : SoftServiceLoader.load(type, classLoader).collectAll()) {
                 if (!instances.containsKey(loaded.getClass())) {
                     // injected before it is configured, like an instance of the application
                     T injected = type.cast(injected(loaded));
@@ -533,12 +537,8 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
     }
 
     Components components(@Nullable RouteInfo<?> route) {
-        Object key = JaxRsRouteSupport.resourceMethodKey(route);
-        Class<?> resourceClass = JaxRsRouteSupport.resourceClass(route);
-        if (key == null || resourceClass == null) {
-            return Components.EMPTY;
-        }
-        return components(resourceClass, key, () -> Objects.requireNonNull(JaxRsRouteSupport.resourceMethod(route)));
+        JaxRsRouteResource resource = JaxRsRouteResource.of(route);
+        return resource == null ? Components.EMPTY : components(resource);
     }
 
     /**
@@ -550,10 +550,7 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
      * @return The chains
      */
     JaxRsBoundProviders bound(@Nullable RouteInfo<?> route) {
-        Object key = JaxRsRouteSupport.resourceMethodKey(route);
-        if (JaxRsRouteSupport.resourceClass(route) == null) {
-            key = null;
-        }
+        Object key = JaxRsRouteResource.of(route);
         List<String> bindings = ServerRequestContext.currentRequest()
             .flatMap(RouteAttributes::getRouteInfo)
             .map(current -> List.copyOf(current.getAnnotationMetadata().getAnnotationNamesByStereotype(NameBinding.class)))

@@ -91,6 +91,13 @@ class MultipartTest {
     }
 
     @Test
+    void aFilePartOfAnAsynchronousMethodIsStreamed() throws Exception {
+        HttpResponse<String> response = post("stream-async");
+        assertEquals(200, response.statusCode(), response.body());
+        assertEquals("true:file content", response.body());
+    }
+
+    @Test
     void partsAreWrittenWithABoundary() throws Exception {
         HttpResponse<String> response = post("echo");
         assertEquals(200, response.statusCode(), response.body());
@@ -174,6 +181,13 @@ class MultipartTest {
                 // streamed from the upload, not a copy of its content in memory
                 return !(stream instanceof java.io.ByteArrayInputStream) + ":" + new String(stream.readAllBytes(), StandardCharsets.UTF_8);
             }
+        }
+
+        @POST
+        @Path("stream-async")
+        @Consumes(MediaType.MULTIPART_FORM_DATA)
+        public java.util.concurrent.CompletionStage<String> streamAsync(@FormParam("file") InputStream stream) throws IOException {
+            return java.util.concurrent.CompletableFuture.completedFuture(stream(stream));
         }
 
         @POST

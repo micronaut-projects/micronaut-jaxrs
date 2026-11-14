@@ -27,11 +27,11 @@ import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.bind.binders.AnnotatedRequestArgumentBinder;
 import io.micronaut.http.bind.binders.RequestArgumentBinder;
+import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.ext.ParamConverter;
 import jakarta.ws.rs.ext.ParamConverterProvider;
 
-import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.util.List;
 import java.util.Optional;
@@ -82,9 +82,9 @@ final class QueryParamArgumentBinder<T> extends AbstractArgumentBinder<T> implem
         if (!paramConverterProviders.isEmpty()) {
             Class<T> rawType = argument.getType();
             Type type = argument.asType();
-            Annotation[] annotations = argument.synthesizeAll();
             for (ParamConverterProvider paramConverterProvider : paramConverterProviders) {
-                paramConverter = paramConverterProvider.getConverter(rawType, type, annotations);
+                paramConverter = paramConverterProvider.getConverter(rawType, type,
+                    JaxRsArgumentUtil.annotations(argument.getAnnotationMetadata(), paramConverterProvider));
                 if (paramConverter != null) {
                     break;
                 }

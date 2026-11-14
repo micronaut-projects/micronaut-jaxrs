@@ -18,12 +18,12 @@ package io.micronaut.jaxrs.container;
 import io.micronaut.jaxrs.common.JaxRsIOException;
 import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.context.BeanContext;
+import io.micronaut.context.BeanProvider;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.AnnotationMetadataProvider;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.RouteInfo;
-import io.micronaut.web.router.MethodBasedRouteInfo;
 import io.micronaut.http.simple.SimpleHttpHeaders;
 import io.micronaut.jaxrs.common.JaxRsUtils;
 import io.micronaut.http.body.AsyncRequestBody;
@@ -106,7 +106,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PushbackInputStream;
 import java.io.UncheckedIOException;
-import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
@@ -184,8 +183,6 @@ public final class JaxRsRouteSupport {
 
     private final RequestBinderRegistry binderRegistry;
 
-    private final Map<Argument<?>, Optional<ArgumentBinder<Object, HttpRequest<?>>>> contextBinders = new ConcurrentHashMap<>();
-
     private final BeanContext beanContext;
     // the executors of the sub-resource locators that read the form, by name
     private final Map<String, Executor> locatorExecutors = new ConcurrentHashMap<>();
@@ -194,10 +191,10 @@ public final class JaxRsRouteSupport {
 
     private final JaxRsParameterBinding parameters;
 
-    private volatile @Nullable JaxRsMessageBodyReaders<?> readers;
+    // beans that depend on the routes: resolved when first used
+    private final BeanProvider<JaxRsMessageBodyReaders<?>> readers;
 
-    private volatile @Nullable JaxRsContainerFilters containerFilters;
-
+    private final BeanProvider<JaxRsContainerFilters> containerFilters;
     private volatile @Nullable Set<Class<?>> registeredClasses;
 
     // the thread selection of the server, resolved when first used
@@ -209,7 +206,11 @@ public final class JaxRsRouteSupport {
     JaxRsRouteSupport(ApplicationProvider applicationProvider,
                       ConversionService conversionService,
                       RequestBinderRegistry binderRegistry,
-                      BeanContext beanContext) {
+                      BeanContext beanContext,
+                      BeanProvider<JaxRsMessageBodyReaders<?>> readers,
+                      BeanProvider<JaxRsContainerFilters> containerFilters) {
+        this.readers = readers;
+        this.containerFilters = containerFilters;
         this.applicationProvider = applicationProvider;
         this.applicationPath = applicationProvider.getAnnotationMetadata().stringValue(jakarta.ws.rs.ApplicationPath.class)
             .map(ApplicationProvider::decodePath)
@@ -384,15 +385,36 @@ public final class JaxRsRouteSupport {
         route.produces(metadata.produces.length == 0 ? new MediaType[]{MediaType.ALL_TYPE} : mediaTypes(metadata.produces));
         Optional<? extends ExecutableMethod<?, ?>> method = beanContext.findBeanDefinition(metadata.resourceClass)
             .flatMap(definition -> definition.findMethod(metadata.methodName, metadata.parameterTypes));
-        if (method.isPresent() && method.get().getDeclaringType() != metadata.resourceClass) {
-            // implemented by a superclass: its annotations are inherited in the resource class
-            route.annotationMetadata(new InheritedResourceMethod(metadata.resourceClass, method.get()));
-        } else if (method.isPresent()) {
-            route.annotationMetadata(method.get());
+        Class<?> resourceClass = metadata.resourceClass;
+        JaxRsRouteResource resource;
+        if (method.isPresent()) {
+            ExecutableMethod<?, ?> executable = method.get();
+            route.annotationMetadata(executable);
+            if (executable.getDeclaringType() != resourceClass) {
+                // implemented by a superclass: its annotations are inherited in the resource class
+                resource = new JaxRsRouteResource(resourceClass, () -> JaxRsReflection.get().targetMethod(executable),
+                    () -> JaxRsReflection.get().methodAnnotations(resourceClass, executable),
+                    () -> JaxRsReflection.get().annotations(resourceClass, executable));
+            } else {
+                resource = new JaxRsRouteResource(resourceClass, () -> JaxRsReflection.get().targetMethod(executable),
+                    () -> JaxRsReflection.get().methodAnnotations(executable),
+                    () -> JaxRsReflection.get().annotations(executable));
+            }
         } else {
             // a sub-resource that is not a bean: the route has the annotations of its method and class
-            route.annotationMetadata(new SubResourceMethod(metadata, subResourceAnnotations(metadata)));
+            AnnotationMetadata subResource = subResourceAnnotations(metadata);
+            route.annotationMetadata(new AnnotationMetadataProvider() {
+                @Override
+                public AnnotationMetadata getAnnotationMetadata() {
+                    return subResource;
+                }
+            });
+            Supplier<AnnotationMetadata> annotations = () -> JaxRsReflection.get().methodAnnotations(resourceClass, metadata.methodName, metadata.parameterTypes);
+            resource = new JaxRsRouteResource(resourceClass,
+                () -> JaxRsReflection.get().targetMethod(resourceClass, metadata.methodName, metadata.parameterTypes), annotations,
+                () -> JaxRsReflection.get().annotations(annotations.get(), resourceClass.getClassLoader()));
         }
+        route.attribute(JaxRsRouteResource.ATTRIBUTE, resource);
         // the post-matching request filters of the resource method (JAX-RS 6.7.2), once the entity
         // they may read is buffered
         return route.beforeReplacingAsync(request -> containerFilters().filterRequestAsync(RouteAttributes.getRouteInfo(request).orElseThrow(), request)).and();
@@ -418,12 +440,7 @@ public final class JaxRsRouteSupport {
     }
 
     private JaxRsContainerFilters containerFilters() {
-        JaxRsContainerFilters filters = this.containerFilters;
-        if (filters == null) {
-            filters = beanContext.getBean(JaxRsContainerFilters.class);
-            this.containerFilters = filters;
-        }
-        return filters;
+        return containerFilters.get();
     }
 
     /**
@@ -461,9 +478,7 @@ public final class JaxRsRouteSupport {
         }
         Executor executor = propagating(request, executor(request));
         return read
-            .thenApplyAsync(form -> filteredForm(request, form), executor)
-            .thenCompose(form -> readParts(request, form))
-            .thenComposeAsync(form -> call(handler, request, pathVariables, form), executor);
+            .thenComposeAsync(form -> call(handler, request, pathVariables, filteredForm(request, form)), executor);
     }
 
     /**
@@ -484,11 +499,10 @@ public final class JaxRsRouteSupport {
         Executor executor = locatorExecutor(executorName);
         PropagatedContext context = PropagatedContext.getOrEmpty();
         return form
-            .thenApplyAsync(read -> filteredForm(request, read), executor)
-            .thenCompose(read -> readParts(request, read))
             .thenApplyAsync(read -> context.propagate(() -> {
                 try {
-                    return locator.locate(read);
+                    FormData filtered = filteredForm(request, read);
+                    return locator.locate(filtered == null ? read : filtered);
                 } catch (Exception e) {
                     // the router answers the cause with the error routes
                     throw new CompletionException(e);
@@ -561,23 +575,6 @@ public final class JaxRsRouteSupport {
         });
     }
 
-    /**
-     * Read the files of a multipart form without blocking, before an asynchronous resource method
-     * reads them as parts, see {@link #formPart}.
-     */
-    private static CompletionStage<FormData> readParts(HttpRequest<?> request, FormData form) {
-        Map<String, FormPart> parts = formParts(request);
-        CompletableFuture<?>[] reads = form.names().stream()
-            .flatMap(name -> form.findFile(name).stream().map(upload -> upload.bytes(Integer.MAX_VALUE)
-                .thenAccept(content -> {
-                    synchronized (parts) {
-                        parts.put(name, filePart(upload, content));
-                    }
-                }).toCompletableFuture()))
-            .toArray(CompletableFuture[]::new);
-        return CompletableFuture.allOf(reads).thenApply(ignored -> form);
-    }
-
     @SuppressWarnings("unchecked")
     private static Map<String, FormPart> formParts(HttpRequest<?> request) {
         Map<String, FormPart> parts = request.getAttribute(FormPart.class.getName(), Map.class).orElse(null);
@@ -605,8 +602,8 @@ public final class JaxRsRouteSupport {
 
     /**
      * A part of a multipart form: a new {@link EntityPart} each time, as its content is read once,
-     * over the content of the field, which is read once per request. The file of an asynchronous
-     * resource method was read before it is called; a resource method that blocks reads it here.
+     * over the content of the field, which is read once per request, off the event loop, from where
+     * the server stored it.
      */
     @Nullable EntityPart formPart(HttpRequest<?> request, FormData form, String name) {
         Map<String, FormPart> parts = formParts(request);
@@ -633,7 +630,9 @@ public final class JaxRsRouteSupport {
                 }
                 part = new FormPart(null, jakarta.ws.rs.core.MediaType.TEXT_PLAIN_TYPE, values.get(0).getBytes(StandardCharsets.UTF_8));
             }
-            parts.put(name, part);
+            synchronized (parts) {
+                parts.put(name, part);
+            }
         }
         // read with the registered readers (EntityPart.getContent)
         return JaxRsEntityPart.read(name, part.fileName(), part.mediaType(), part.content(),
@@ -641,8 +640,7 @@ public final class JaxRsRouteSupport {
     }
 
     /**
-     * The content of a part of a multipart form as a stream: the file of a resource method that
-     * blocks is streamed from where the server stored it, e.g. on disk, not read into memory.
+     * The content of a part of a multipart form as a stream: the file is streamed from where the server stored it, e.g. on disk, not read into memory.
      */
     @Nullable InputStream formStream(HttpRequest<?> request, FormData form, String name) {
         Map<String, FormPart> parts = formParts(request);
@@ -815,12 +813,7 @@ public final class JaxRsRouteSupport {
     }
 
     private JaxRsMessageBodyReaders<?> readers() {
-        JaxRsMessageBodyReaders<?> readers = this.readers;
-        if (readers == null) {
-            readers = beanContext.getBean(JaxRsMessageBodyReaders.class);
-            this.readers = readers;
-        }
-        return readers;
+        return readers.get();
     }
 
     /**
@@ -955,8 +948,8 @@ public final class JaxRsRouteSupport {
                 return replaced.get();
             }
         }
-        Optional<ArgumentBinder<Object, HttpRequest<?>>> binder = contextBinders.computeIfAbsent(argument,
-            a -> (Optional) binderRegistry.findArgumentBinder((Argument) a));
+        // the registry caches the binders
+        Optional<ArgumentBinder<Object, HttpRequest<?>>> binder = (Optional) binderRegistry.findArgumentBinder((Argument) argument);
         if (binder.isPresent()) {
             ArgumentConversionContext context = ConversionContext.of(argument);
             ArgumentBinder.BindingResult<?> result = binder.get().bind(context, request);
@@ -1122,40 +1115,12 @@ public final class JaxRsRouteSupport {
     }
 
     /**
-     * The element of the resource method a route implements: the bean method given to the route,
-     * or the {@link RouteMetadata} of a sub-resource that is not a bean. A handler route has no
-     * Java method of its own.
-     *
-     * @param route The route
-     * @return The element, or {@code null} for a route that is not a JAX-RS resource method
-     */
-    static @Nullable Object resourceMethodKey(@Nullable RouteInfo<?> route) {
-        AnnotationMetadataProvider provider = provider(route);
-        if (provider instanceof ExecutableMethod<?, ?> method) {
-            return method;
-        }
-        if (provider instanceof InheritedResourceMethod inherited) {
-            return inherited;
-        }
-        return provider instanceof SubResourceMethod subResource ? subResource.metadata() : null;
-    }
-
-    /**
      * @param route The route
      * @return The resource method it implements, or {@code null} for a route that is not a JAX-RS resource method
      */
     static @Nullable Method resourceMethod(@Nullable RouteInfo<?> route) {
-        AnnotationMetadataProvider provider = provider(route);
-        if (provider instanceof ExecutableMethod<?, ?> method) {
-            return JaxRsReflection.get().targetMethod(method);
-        }
-        if (provider instanceof InheritedResourceMethod(Class<?> ignored, ExecutableMethod<?, ?> method)) {
-            return JaxRsReflection.get().targetMethod(method);
-        }
-        if (provider instanceof SubResourceMethod(RouteMetadata metadata, AnnotationMetadata ignored)) {
-            return JaxRsReflection.get().targetMethod(metadata.resourceClass, metadata.methodName, metadata.parameterTypes);
-        }
-        return null;
+        JaxRsRouteResource resource = JaxRsRouteResource.of(route);
+        return resource == null ? null : resource.method();
     }
 
     /**
@@ -1164,37 +1129,8 @@ public final class JaxRsRouteSupport {
      * its class, or {@code null} for a route that is not a JAX-RS resource method
      */
     static @Nullable AnnotationMetadata resourceMethodAnnotations(@Nullable RouteInfo<?> route) {
-        AnnotationMetadataProvider provider = provider(route);
-        if (provider instanceof ExecutableMethod<?, ?> method) {
-            return JaxRsReflection.get().methodAnnotations(method);
-        }
-        if (provider instanceof InheritedResourceMethod(Class<?> resourceClass, ExecutableMethod<?, ?> method)) {
-            return JaxRsReflection.get().methodAnnotations(resourceClass, method);
-        }
-        if (provider instanceof SubResourceMethod(RouteMetadata metadata, AnnotationMetadata ignored)) {
-            return JaxRsReflection.get().methodAnnotations(metadata.resourceClass, metadata.methodName, metadata.parameterTypes);
-        }
-        return null;
-    }
-
-    /**
-     * @param route The route
-     * @return The annotations of the resource method it implements as objects, as JAX-RS hands
-     * them to the providers, or {@code null} for a route that is not a JAX-RS resource method
-     */
-    static Annotation @Nullable [] resourceMethodAnnotationObjects(@Nullable RouteInfo<?> route) {
-        AnnotationMetadataProvider provider = provider(route);
-        if (provider instanceof ExecutableMethod<?, ?> method) {
-            return JaxRsReflection.get().annotations(method);
-        }
-        if (provider instanceof InheritedResourceMethod(Class<?> resourceClass, ExecutableMethod<?, ?> method)) {
-            return JaxRsReflection.get().annotations(resourceClass, method);
-        }
-        if (provider instanceof SubResourceMethod(RouteMetadata metadata, AnnotationMetadata ignored)) {
-            AnnotationMetadata annotations = JaxRsReflection.get().methodAnnotations(metadata.resourceClass, metadata.methodName, metadata.parameterTypes);
-            return JaxRsReflection.get().annotations(annotations, metadata.resourceClass.getClassLoader());
-        }
-        return null;
+        JaxRsRouteResource resource = JaxRsRouteResource.of(route);
+        return resource == null ? null : resource.annotations();
     }
 
     /**
@@ -1202,17 +1138,11 @@ public final class JaxRsRouteSupport {
      * @return The resource class of the resource method it implements
      */
     static @Nullable Class<?> resourceClass(@Nullable RouteInfo<?> route) {
-        if (provider(route) instanceof SubResourceMethod subResource) {
-            return subResource.metadata().resourceClass;
-        }
-        if (provider(route) instanceof InheritedResourceMethod inherited) {
-            return inherited.resourceClass();
+        JaxRsRouteResource resource = JaxRsRouteResource.of(route);
+        if (resource != null) {
+            return resource.resourceClass();
         }
         return route == null ? null : route.getDeclaringType();
-    }
-
-    private static @Nullable AnnotationMetadataProvider provider(@Nullable RouteInfo<?> route) {
-        return route instanceof MethodBasedRouteInfo<?, ?> methodRoute ? methodRoute.getAnnotationMetadataProvider().orElse(null) : null;
     }
 
     /**
@@ -1534,27 +1464,6 @@ public final class JaxRsRouteSupport {
      * @param metadata           The metadata of the resource method
      * @param annotationMetadata The annotations of the method and its class
      */
-    /**
-     * The resource method of a resource class implemented by a superclass: its annotations are the
-     * ones of the method, the JAX-RS ones it inherits are resolved from the resource class.
-     *
-     * @param resourceClass The resource class
-     * @param method        The executable method, of the superclass
-     */
-    private record InheritedResourceMethod(Class<?> resourceClass, ExecutableMethod<?, ?> method) implements AnnotationMetadataProvider {
-        @Override
-        public AnnotationMetadata getAnnotationMetadata() {
-            return method.getAnnotationMetadata();
-        }
-    }
-
-    private record SubResourceMethod(RouteMetadata metadata, AnnotationMetadata annotationMetadata) implements AnnotationMetadataProvider {
-        @Override
-        public AnnotationMetadata getAnnotationMetadata() {
-            return annotationMetadata;
-        }
-    }
-
     /**
      * The entity of a response that no writer writes as an acceptable type, which a response
      * filter can repair: by replacing it, or by giving it a type, annotations or a media type a
