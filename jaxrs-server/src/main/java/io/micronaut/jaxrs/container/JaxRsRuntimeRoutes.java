@@ -46,16 +46,10 @@ import io.micronaut.http.PathVariables;
 import io.micronaut.web.router.builder.AsyncBodyRequestHandler;
 import io.micronaut.web.router.builder.BodyRequestHandler;
 import io.micronaut.web.router.builder.HttpRouteBuilder;
-import io.micronaut.web.router.builder.HttpRouteGroup;
+import io.micronaut.web.router.builder.HttpRouteScope;
 import io.micronaut.web.router.builder.HttpRouteSpec;
 import io.micronaut.web.router.builder.HttpRoutes;
-import io.micronaut.web.router.builder.LocatedAsyncBodyRequestHandler;
-import io.micronaut.web.router.builder.LocatedBodyRequestHandler;
 import io.micronaut.web.router.builder.LocatedHttpRouteBuilder;
-import io.micronaut.web.router.builder.LocatedHttpRouteGroup;
-import io.micronaut.web.router.builder.LocatedHttpRouteSpec;
-import io.micronaut.web.router.builder.LocatedLocatorHandler;
-import io.micronaut.web.router.builder.LocatedRequestHandler;
 import io.micronaut.web.router.builder.LocatedRoutes;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.BeanParam;
@@ -201,7 +195,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     @Override
     public void routes(HttpRouteBuilder routes) {
         support.routes(routes, group -> {
-            Routes<@Nullable Void> root = new RootRoutes(group);
+            Routes<@Nullable Void> root = new GroupRoutes<>(group, false);
             rootResources().forEach((type, resource) -> {
                 if (support.isRegistered(type)) {
                     route(root, type, resource);
@@ -257,7 +251,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             public void routes(LocatedHttpRouteBuilder<T> routes) {
                 support.locatedRoutes(routes, group -> {
                     Instances<T, T> instances = (request, pathVariables, form, target) -> Objects.requireNonNull(target, "target");
-                    declare(new LocatedGroupRoutes<>(group), type, methods(type), "", instances, false, false);
+                    declare(new GroupRoutes<T>(group, true), type, methods(type), "", instances, false, false);
                 });
             }
         };
@@ -1292,23 +1286,28 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     }
 
     /**
-     * The root routes.
+     * The routes of a group: the root routes, or the routes of a class located at runtime, whose
+     * handlers get the target, {@code null} for a root route.
+     *
+     * @param <L> The type of the target
      */
-    private final class RootRoutes implements Routes<@Nullable Void> {
-        private final HttpRouteGroup routes;
+    private final class GroupRoutes<L> implements Routes<L> {
+        private final HttpRouteScope routes;
+        private final boolean located;
 
-        RootRoutes(HttpRouteGroup routes) {
+        GroupRoutes(HttpRouteScope routes, boolean located) {
             this.routes = routes;
+            this.located = located;
         }
 
         @Override
         public boolean located() {
-            return false;
+            return located;
         }
 
         @Override
         public String prefix(String template) {
-            return support.prefix(template);
+            return located ? template : support.prefix(template);
         }
 
         /**
@@ -1316,121 +1315,62 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
          * type of the entity, like the return type of a controller method.
          */
         private HttpRouteSpec spec(Declaration route) {
-            HttpRouteSpec spec = support.configure(routes.route(route.method(), support.template(route.template())), route.metadata());
+            HttpRouteSpec spec = support.configure(routes.route(route.method(),
+                located ? support.locatedTemplate(route.template()) : support.template(route.template())), route.metadata());
             return route.responseType() == null ? spec : spec.responseType(route.responseType());
         }
 
-        @Override
-        public void handle(Declaration route, Handler<@Nullable Void, Void> handler) {
-            spec(route).handle((request, pathVariables) -> handler.handle(request, pathVariables, null, null));
-        }
-
-        @Override
-        public void handleEntity(Declaration route, Handler<@Nullable Void, byte[]> handler) {
-            spec(route).body(JaxRsRouteSupport.ENTITY).handle((BodyRequestHandler<byte[]>) (request, pathVariables, body) -> handler.handle(request, pathVariables, null, body));
-        }
-
-        @Override
-        public void handleForm(Declaration route, Handler<@Nullable Void, FormData> handler) {
-            spec(route).form().handle((BodyRequestHandler<FormData>) (request, pathVariables, form) -> handler.handle(request, pathVariables, null, form));
-        }
-
-        @Override
-        public void handleAsync(Declaration route, AsyncHandler<@Nullable Void> handler) {
-            spec(route).body().handleAsync((AsyncBodyRequestHandler<AsyncRequestBody>) (request, pathVariables, body) -> handler.handle(request, pathVariables, null, body));
-        }
-
-        @Override
-        public void locate(String executor, String prefix, boolean form, boolean rawForm, Locator<@Nullable Void> locator) {
-            // the router does not select a locator route as JAX-RS does: a root resource class with a more
-            // specific @Path that matches the path, but none of whose routes does, answers 404
-            if (!form) {
-                routes.<Object>locateOn(executor, prefix, (request, pathVariables) -> support.commitsToLocator(request, prefix)
-                    ? locator.locate(request, pathVariables, null, null) : null, support.locatedRoutes());
-            } else if (rawForm) {
-                routes.locator(prefix).body().<Object>locateAsync((request, pathVariables, body) -> support.commitsToLocator(request, prefix)
-                    ? support.locateWithForm(executor, request, support.rawLocatorForm(request, body),
-                        read -> locator.locate(request, pathVariables, null, read))
-                    : CompletableFuture.completedFuture(null), support.locatedRoutes());
-            } else {
-                routes.locator(prefix).form().<Object>locateAsync((request, pathVariables, read) -> support.commitsToLocator(request, prefix)
-                    ? support.locateWithForm(executor, request, CompletableFuture.completedFuture(read),
-                        value -> locator.locate(request, pathVariables, null, value))
-                    : CompletableFuture.completedFuture(null), support.locatedRoutes());
-            }
-        }
-    }
-
-    /**
-     * The routes of a class located at runtime, whose handlers get the target.
-     *
-     * @param <L> The type of the target
-     */
-    private final class LocatedGroupRoutes<L> implements Routes<L> {
-        private final LocatedHttpRouteGroup<L> routes;
-
-        LocatedGroupRoutes(LocatedHttpRouteGroup<L> routes) {
-            this.routes = routes;
-        }
-
-        @Override
-        public boolean located() {
-            return true;
-        }
-
-        @Override
-        public String prefix(String template) {
-            return template;
-        }
-
-        /**
-         * The route of a declaration, with its settings, see {@link RootRoutes#spec}.
-         */
-        private LocatedHttpRouteSpec<L> spec(Declaration route) {
-            LocatedHttpRouteSpec<L> spec = routes.route(route.method(), support.locatedTemplate(route.template()));
-            support.configure(spec, route.metadata());
-            return route.responseType() == null ? spec : spec.responseType(route.responseType());
+        @SuppressWarnings("unchecked")
+        private static <L> @Nullable L target(PathVariables pathVariables) {
+            return (L) LocatedRoutes.locatedTarget(pathVariables);
         }
 
         @Override
         public void handle(Declaration route, Handler<L, Void> handler) {
-            spec(route).handle((LocatedRequestHandler<L>) (request, pathVariables, target) -> handler.handle(request, pathVariables, target, null));
+            spec(route).handle((request, pathVariables) -> handler.handle(request, pathVariables, target(pathVariables), null));
         }
 
         @Override
         public void handleEntity(Declaration route, Handler<L, byte[]> handler) {
-            spec(route).body(JaxRsRouteSupport.ENTITY)
-                .handle((LocatedBodyRequestHandler<L, byte[]>) (request, pathVariables, target, body) -> handler.handle(request, pathVariables, target, body));
+            spec(route).body(JaxRsRouteSupport.ENTITY).handle((BodyRequestHandler<byte[]>) (request, pathVariables, body) ->
+                handler.handle(request, pathVariables, target(pathVariables), body));
         }
 
         @Override
         public void handleForm(Declaration route, Handler<L, FormData> handler) {
-            spec(route).form()
-                .handle((LocatedBodyRequestHandler<L, FormData>) (request, pathVariables, target, form) -> handler.handle(request, pathVariables, target, form));
+            spec(route).form().handle((BodyRequestHandler<FormData>) (request, pathVariables, form) ->
+                handler.handle(request, pathVariables, target(pathVariables), form));
         }
 
         @Override
         public void handleAsync(Declaration route, AsyncHandler<L> handler) {
-            spec(route).body()
-                .handleAsync((LocatedAsyncBodyRequestHandler<L, AsyncRequestBody>) (request, pathVariables, target, body) -> handler.handle(request, pathVariables, target, body));
+            spec(route).body().handleAsync((AsyncBodyRequestHandler<AsyncRequestBody>) (request, pathVariables, body) ->
+                handler.handle(request, pathVariables, target(pathVariables), body));
+        }
+
+        /**
+         * The router does not select a locator route as JAX-RS does: a root resource class with a
+         * more specific {@code @Path} that matches the path, but none of whose routes does, answers 404.
+         */
+        private boolean commits(HttpRequest<?> request, String prefix) {
+            return located || support.commitsToLocator(request, prefix);
         }
 
         @Override
-        @SuppressWarnings("unchecked")
         public void locate(String executor, String prefix, boolean form, boolean rawForm, Locator<L> locator) {
             if (!form) {
-                routes.<Object>locateOn(executor, prefix, (LocatedLocatorHandler<L, Object>) (request, pathVariables, target) ->
-                    locator.locate(request, pathVariables, target, null), support.locatedRoutes());
+                routes.<Object>locateOn(executor, prefix, (request, pathVariables) -> commits(request, prefix)
+                    ? locator.locate(request, pathVariables, target(pathVariables), null) : null, support.locatedRoutes());
             } else if (rawForm) {
-                routes.locator(prefix).body().<Object>locateAsync((request, pathVariables, body) ->
-                    support.locateWithForm(executor, request, support.rawLocatorForm(request, body),
-                        read -> locator.locate(request, pathVariables, (L) LocatedRoutes.locatedTarget(pathVariables), read)),
-                    support.locatedRoutes());
+                routes.locator(prefix).body().<Object>locateAsync((request, pathVariables, body) -> commits(request, prefix)
+                    ? support.locateWithForm(executor, request, support.rawLocatorForm(request, body),
+                        read -> locator.locate(request, pathVariables, target(pathVariables), read))
+                    : CompletableFuture.completedFuture(null), support.locatedRoutes());
             } else {
-                routes.locator(prefix).form().<Object>locateAsync((request, pathVariables, read) ->
-                    support.locateWithForm(executor, request, CompletableFuture.completedFuture(read),
-                        value -> locator.locate(request, pathVariables, (L) LocatedRoutes.locatedTarget(pathVariables), value)),
-                    support.locatedRoutes());
+                routes.locator(prefix).form().<Object>locateAsync((request, pathVariables, read) -> commits(request, prefix)
+                    ? support.locateWithForm(executor, request, CompletableFuture.completedFuture(read),
+                        value -> locator.locate(request, pathVariables, target(pathVariables), value))
+                    : CompletableFuture.completedFuture(null), support.locatedRoutes());
             }
         }
     }
