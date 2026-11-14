@@ -142,19 +142,34 @@ final class JaxRsServerFilters implements HttpRoutes {
     }
 
     private boolean underApplicationPath(String rawPath) {
-        // the application path is decoded: the path is compared decoded too, but for an encoded
-        // slash, which is not a segment separator
-        String path;
-        try {
-            path = ApplicationProvider.decodePath(rawPath.replace("%2F", "%252F").replace("%2f", "%252f"));
-        } catch (IllegalArgumentException e) {
-            path = rawPath;
+        // the application path is decoded: the segments of the path are compared decoded, each
+        // apart, as an encoded slash is part of a segment, not a separator
+        String[] applicationSegments = segments(applicationProvider.getPath());
+        String[] segments = segments(rawPath);
+        if (segments.length < applicationSegments.length) {
+            return false;
         }
-        String applicationPath = applicationProvider.getPath();
-        if (applicationPath.endsWith("/")) {
-            applicationPath = applicationPath.substring(0, applicationPath.length() - 1);
+        for (int i = 0; i < applicationSegments.length; i++) {
+            String segment;
+            try {
+                segment = ApplicationProvider.decodePath(segments[i]);
+            } catch (IllegalArgumentException e) {
+                segment = segments[i];
+            }
+            if (!segment.equals(applicationSegments[i])) {
+                return false;
+            }
         }
-        return applicationPath.isEmpty() || path.equals(applicationPath) || path.startsWith(applicationPath + "/");
+        return true;
+    }
+
+    /**
+     * @return The segments of a path, without the empty ones of its leading and trailing slashes
+     */
+    private static String[] segments(String path) {
+        int start = path.startsWith("/") ? 1 : 0;
+        int end = path.endsWith("/") && path.length() > start ? path.length() - 1 : path.length();
+        return start >= end ? new String[0] : path.substring(start, end).split("/", -1);
     }
 
     /**
