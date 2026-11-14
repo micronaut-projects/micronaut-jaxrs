@@ -319,7 +319,7 @@ final class JaxRsSseEventSource implements SseEventSource {
         }
         // the response filters see the status and the headers of each connection, before its
         // events (JAX-RS 6.1), and may change them
-        MutableHttpResponse<?> head = HttpResponse.status(response.status(), response.reason());
+        MutableHttpResponse<Object> head = HttpResponseFactory.INSTANCE.status(response.code(), response.reason());
         response.getHeaders().forEachValue(head::header);
         JaxRsMutableResponse filtered = new JaxRsMutableResponse(head);
         // the entity stream a filter sees is the bytes of the connection as they are received; it

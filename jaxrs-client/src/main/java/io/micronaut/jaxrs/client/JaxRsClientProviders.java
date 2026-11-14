@@ -125,6 +125,35 @@ final class JaxRsClientProviders implements Providers {
         return current;
     }
 
+    /**
+     * @return The readers: found without the tables while they are being built, e.g. for a
+     * provider that looks up a reader in its constructor (JAX-RS 4.1.3, 10.2.6)
+     */
+    private List<Definition<io.micronaut.http.body.MessageBodyReader<?>>> readers() {
+        return building.get() != null ? readers(configuration.components(), this::contextValue) : tables().readers;
+    }
+
+    /**
+     * @return The writers: found without the tables while they are being built
+     */
+    private List<Definition<io.micronaut.http.body.MessageBodyWriter<?>>> writers() {
+        return building.get() != null ? writers(configuration.components(), this::contextValue) : tables().writers;
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static List<Definition<io.micronaut.http.body.MessageBodyReader<?>>> readers(List<Component> components,
+                                                                                       Function<Class<?>, @Nullable Object> contextValues) {
+        return (List) definitions(components, contextValues, MessageBodyReader.class,
+            (reader, metadata) -> new JaxRsMessageBodyReader<>((MessageBodyReader<Object>) reader), io.micronaut.http.body.MessageBodyReader.class);
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static List<Definition<io.micronaut.http.body.MessageBodyWriter<?>>> writers(List<Component> components,
+                                                                                       Function<Class<?>, @Nullable Object> contextValues) {
+        return (List) definitions(components, contextValues, MessageBodyWriter.class,
+            (writer, metadata) -> new JaxRsMessageBodyWriter<>(metadata, (MessageBodyWriter<Object>) writer), io.micronaut.http.body.MessageBodyWriter.class);
+    }
+
     List<BeanRegistration<ReaderInterceptor>> getReaderInterceptors() {
         return tables().readerInterceptors;
     }
@@ -261,7 +290,7 @@ final class JaxRsClientProviders implements Providers {
     @SuppressWarnings("unchecked")
     <T> io.micronaut.http.body.@Nullable MessageBodyReader<T> findReader(Argument<T> argument,
                                                                                 @Nullable MediaType mediaType) {
-        List<Definition<io.micronaut.http.body.MessageBodyReader<?>>> readers = tables().readers;
+        List<Definition<io.micronaut.http.body.MessageBodyReader<?>>> readers = readers();
         // First, the JAX-RS reader in the order of the readers (JAX-RS 4.2.1)
         Definition<io.micronaut.http.body.MessageBodyReader<?>> best = select(readers, definition ->
             definition.provider() instanceof JaxRsMessageBodyReader<?> jaxRsReader
@@ -290,7 +319,7 @@ final class JaxRsClientProviders implements Providers {
                                                                                 MediaType mediaType) {
         // the JAX-RS writers and the other ones ranked together: a closer type first, e.g. the
         // String writer before a writer of any object of the application (JAX-RS 4.2.2, steps 4-6)
-        Definition<io.micronaut.http.body.MessageBodyWriter<?>> best = select(tables().writers, definition -> {
+        Definition<io.micronaut.http.body.MessageBodyWriter<?>> best = select(writers(), definition -> {
             io.micronaut.http.body.MessageBodyWriter<T> writer = (io.micronaut.http.body.MessageBodyWriter<T>) definition.provider();
             if (!definition.type().isAssignableFrom(argument.getType())) {
                 return null;
@@ -430,7 +459,7 @@ final class JaxRsClientProviders implements Providers {
     public <T> @Nullable MessageBodyReader<T> getMessageBodyReader(Class<T> type, Type genericType, Annotation[] annotations, jakarta.ws.rs.core.MediaType mediaType) {
         // selected like the readers of the entities (JAX-RS 4.2.1)
         MediaType micronautMediaType = JaxRsUtils.convert(mediaType);
-        Definition<io.micronaut.http.body.MessageBodyReader<?>> best = select(tables().readers, definition ->
+        Definition<io.micronaut.http.body.MessageBodyReader<?>> best = select(readers(), definition ->
             definition.provider() instanceof JaxRsMessageBodyReader<?> jaxRsReader
                 && isCompatible(definition.metadata(), Consumes.class, micronautMediaType)
                 && definition.type().isAssignableFrom(type)
@@ -446,7 +475,7 @@ final class JaxRsClientProviders implements Providers {
     public <T> @Nullable MessageBodyWriter<T> getMessageBodyWriter(Class<T> type, Type genericType, Annotation[] annotations, jakarta.ws.rs.core.MediaType mediaType) {
         // selected like the writers of the entities (JAX-RS 4.2.2)
         MediaType micronautMediaType = JaxRsUtils.convert(mediaType);
-        Definition<io.micronaut.http.body.MessageBodyWriter<?>> best = select(tables().writers, definition ->
+        Definition<io.micronaut.http.body.MessageBodyWriter<?>> best = select(writers(), definition ->
             definition.provider() instanceof JaxRsMessageBodyWriter<?> jaxRsWriter
                 && isCompatible(definition.metadata(), Produces.class, micronautMediaType)
                 && definition.type().isAssignableFrom(type)
@@ -665,10 +694,8 @@ final class JaxRsClientProviders implements Providers {
             this.components = components;
             readerInterceptors = registrations(components, ReaderInterceptor.class, contextValues);
             writerInterceptors = registrations(components, WriterInterceptor.class, contextValues);
-            readers = (List) definitions(components, contextValues, MessageBodyReader.class,
-                (reader, metadata) -> new JaxRsMessageBodyReader<>((MessageBodyReader<Object>) reader), io.micronaut.http.body.MessageBodyReader.class);
-            writers = (List) definitions(components, contextValues, MessageBodyWriter.class,
-                (writer, metadata) -> new JaxRsMessageBodyWriter<>(metadata, (MessageBodyWriter<Object>) writer), io.micronaut.http.body.MessageBodyWriter.class);
+            readers = readers(components, contextValues);
+            writers = writers(components, contextValues);
             requestFilters = registrations(components, ClientRequestFilter.class, contextValues).stream().map(BeanRegistration::getBean).toList();
             // in the reverse order of their priorities (JAX-RS 6.6)
             responseFilters = registrations(components, ClientResponseFilter.class, contextValues).stream().map(BeanRegistration::getBean).toList().reversed();
