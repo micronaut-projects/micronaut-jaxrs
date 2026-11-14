@@ -120,6 +120,10 @@ final class JaxRsClientProviders implements Providers {
             } finally {
                 building.remove();
             }
+            if (components.stream().anyMatch(Component::isConstructing)) {
+                // found for the constructor of a component, without it: not kept
+                return current;
+            }
             tables = current;
         }
         return current;
