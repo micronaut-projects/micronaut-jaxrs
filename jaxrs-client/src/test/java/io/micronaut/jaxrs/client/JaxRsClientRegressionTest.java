@@ -81,6 +81,12 @@ class JaxRsClientRegressionTest {
     }
 
     @Test
+    void aSuccessfulResponseWithAnUnknownStatusOfAnEventSourceIsAnError() throws Exception {
+        Throwable error = awaitError("unknown-success");
+        assertEquals(299, assertInstanceOf(WebApplicationException.class, error).getResponse().getStatus());
+    }
+
+    @Test
     void aFilterLookingUpTheEntityProvidersInItsConstructorIsInstantiatedOnce() {
         ProviderLookingFilter.instances.set(0);
         String text = client.target(server.getURI()).path("regression").path("text")
@@ -163,6 +169,11 @@ class JaxRsClientRegressionTest {
         @Get(value = "/unknown-status", produces = io.micronaut.http.MediaType.TEXT_EVENT_STREAM)
         HttpResponse<String> unknownStatus() {
             return HttpResponse.<String>status(499, "Client Closed").body("closed");
+        }
+
+        @Get(value = "/unknown-success", produces = io.micronaut.http.MediaType.TEXT_EVENT_STREAM)
+        HttpResponse<String> unknownSuccess() {
+            return HttpResponse.<String>status(299, "Unknown").body("data: x\n\n");
         }
     }
 }
