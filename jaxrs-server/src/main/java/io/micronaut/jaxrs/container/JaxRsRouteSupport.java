@@ -89,6 +89,7 @@ import jakarta.ws.rs.NotAcceptableException;
 import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.NotSupportedException;
 import jakarta.ws.rs.WebApplicationException;
+import io.micronaut.http.sse.SseEmitter;
 import jakarta.ws.rs.sse.SseEventSink;
 import jakarta.ws.rs.sse.OutboundSseEvent;
 import jakarta.ws.rs.core.Application;
@@ -172,6 +173,8 @@ public final class JaxRsRouteSupport {
 
     // the attribute of the request that holds its stub servlet request
     private static final String STUB_SERVLET_REQUEST = JaxRsRouteSupport.class.getName() + ".servletRequest";
+    // a part whose file was streamed, see #formStream
+    private static final FormPart STREAMED = new FormPart(null, jakarta.ws.rs.core.MediaType.WILDCARD_TYPE, new byte[0]);
 
     private final ApplicationProvider applicationProvider;
 
@@ -855,19 +858,18 @@ public final class JaxRsRouteSupport {
     }
 
     /**
-     * The event sink of a request, whose events are the body of its response, see
-     * {@link JaxRsServerFilters}.
+     * The event sink of a request, over the emitter of the events of its response.
+     *
+     * @param request The request
+     * @param events  The emitter of the events of the route
+     * @return The sink, also bound to the {@code SseEventSink} parameters of the request
      */
-    JaxRsSseEventSink sseEventSink(HttpRequest<?> request) {
-        Optional<JaxRsSseEventSink> existing = request.getAttribute(SSE_EVENT_SINK, JaxRsSseEventSink.class);
-        if (existing.isPresent()) {
-            return existing.get();
-        }
+    JaxRsSseEventSink sseEventSink(HttpRequest<?> request, SseEmitter events) {
         // the writer of the data may read the request, e.g. its UriInfo, also when an event is
         // sent from another thread: it runs in the context of the request (JAX-RS 10.1)
         PropagatedContext context = PropagatedContext.getOrEmpty();
         Executor blocking = blockingExecutor.get();
-        JaxRsSseEventSink sink = new JaxRsSseEventSink(event -> {
+        JaxRsSseEventSink sink = new JaxRsSseEventSink(events, event -> {
             try (PropagatedContext.Scope ignored = context.propagate()) {
                 return ServerRequestContext.with(request, (Supplier<String>) () -> sseData(event));
             }
@@ -875,9 +877,9 @@ public final class JaxRsRouteSupport {
         request.setAttribute(SSE_EVENT_SINK, sink);
         ServerHttpRequest<?> serverRequest = JaxRsAsyncResponse.serverRequest(request);
         if (serverRequest != null) {
-            // the client may disconnect before the first event subscribes to the events: the sink
-            // is closed then too (JAX-RS, SseEventSink#isClosed)
-            serverRequest.whenAbandoned(sink::cancel);
+            // the emitter notices a disconnect before the response only on a send: the sink is
+            // closed then too (JAX-RS, SseEventSink#isClosed)
+            serverRequest.whenAbandoned(sink::disconnected);
         }
         return sink;
     }
@@ -943,7 +945,8 @@ public final class JaxRsRouteSupport {
             return request;
         }
         if (type == SseEventSink.class) {
-            return sseEventSink(request);
+            return request.getAttribute(SSE_EVENT_SINK, JaxRsSseEventSink.class)
+                .orElseThrow(() -> new IllegalStateException("An SseEventSink is bound to the parameters of a resource method of an event stream"));
         }
         if (type == SecurityContext.class) {
             Optional<SecurityContext> replaced = request.getAttribute(JaxRsContainerRequestContext.SECURITY_CONTEXT, SecurityContext.class);
@@ -1428,9 +1431,6 @@ public final class JaxRsRouteSupport {
      * @param mediaType The media type
      * @param content   The content
      */
-    // a part whose file was streamed, see #formStream
-    private static final FormPart STREAMED = new FormPart(null, jakarta.ws.rs.core.MediaType.WILDCARD_TYPE, new byte[0]);
-
     private record FormPart(@Nullable String fileName, jakarta.ws.rs.core.MediaType mediaType, byte[] content) {
     }
 
