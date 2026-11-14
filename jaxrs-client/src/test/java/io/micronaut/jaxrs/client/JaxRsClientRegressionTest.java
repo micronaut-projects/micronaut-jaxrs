@@ -156,6 +156,36 @@ class JaxRsClientRegressionTest {
     }
 
     @Test
+    void aFeatureFilterLookingUpTheProvidersInItsConstructorIsAFilter() {
+        FeatureFilter.filtered.set(0);
+        String text = client.target(server.getURI()).path("regression").path("text")
+            .register(FeatureFilter.class)
+            .request()
+            .get(String.class);
+
+        assertEquals("text", text);
+        assertEquals(1, FeatureFilter.filtered.get());
+    }
+
+    public static class FeatureFilter implements jakarta.ws.rs.core.Feature, jakarta.ws.rs.client.ClientRequestFilter {
+        static final AtomicInteger filtered = new AtomicInteger();
+
+        public FeatureFilter(@Context Providers providers) {
+            lookUpStringProviders(providers);
+        }
+
+        @Override
+        public boolean configure(jakarta.ws.rs.core.FeatureContext context) {
+            return true;
+        }
+
+        @Override
+        public void filter(jakarta.ws.rs.client.ClientRequestContext requestContext) {
+            filtered.incrementAndGet();
+        }
+    }
+
+    @Test
     void aFilterLookingUpTheEntityProvidersInItsConstructorIsInstantiatedOnce() {
         ProviderLookingFilter.instances.set(0);
         String text = client.target(server.getURI()).path("regression").path("text")
