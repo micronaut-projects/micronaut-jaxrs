@@ -15,7 +15,7 @@
  */
 /**
  * What the JAX-RS implementation reads or does with reflection, only when the
- * {@code micronaut-reflection} module is on the classpath: see {@link io.micronaut.jaxrs.common.reflect.JaxRsReflection}.
+ * {@code micronaut-jaxrs-reflection} module is on the classpath: see {@link io.micronaut.jaxrs.common.reflect.JaxRsReflection}.
  *
  * @since 5.0.0
  */

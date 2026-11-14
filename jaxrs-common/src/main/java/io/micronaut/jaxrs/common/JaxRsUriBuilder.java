@@ -404,7 +404,7 @@ final class JaxRsUriBuilder extends UriBuilder {
         if (value == null) {
             throw new IllegalArgumentException(JaxRsReflection.get().isReflective()
                 ? "class must be annotated with @Path"
-                : "class must be annotated with @Path, and the annotations of a class the annotation processors did not see need reflection: add io.micronaut:micronaut-reflection to the runtime classpath");
+                : "class must be annotated with @Path, and the annotations of a class the annotation processors did not see need reflection: add io.micronaut.jaxrs:micronaut-jaxrs-reflection, which brings io.micronaut:micronaut-reflection, to the runtime classpath");
         }
         path = paths(path, new String[] {value});
         return this;

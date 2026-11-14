@@ -11,7 +11,7 @@ dependencies {
     testImplementation projects.micronautJaxrsClient
     testImplementation mn.micronaut.http.server.netty
     testImplementation mnSerde.micronaut.serde.jackson
-    testRuntimeOnly mn.micronaut.reflection
+    testRuntimeOnly projects.micronautJaxrsReflection
     testImplementation libs.jersey.common
     testImplementation libs.jersey.server
     testRuntimeOnly libs.jersey.hk2

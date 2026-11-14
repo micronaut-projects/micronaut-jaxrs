@@ -20,7 +20,6 @@ import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.beans.BeanIntrospection;
 import io.micronaut.core.io.service.SoftServiceLoader;
-import io.micronaut.core.reflect.ClassUtils;
 import io.micronaut.core.type.Argument;
 import io.micronaut.inject.ExecutableMethod;
 import org.jspecify.annotations.Nullable;
@@ -35,7 +34,7 @@ import java.util.function.Function;
  * processors never saw, of the annotations the JAX-RS API hands over as objects, and the
  * reflective members the JAX-RS API returns.
  *
- * <p>Without the {@code micronaut-reflection} module on the classpath, it uses only the metadata
+ * <p>Without the {@code micronaut-jaxrs-reflection} module on the classpath, it uses only the metadata
  * the annotation processors generate: introspections and bean definitions, and fails with a clear
  * error where JAX-RS needs a reflective member. With the module, the implementation the service
  * loader finds uses reflection.</p>
@@ -47,12 +46,7 @@ import java.util.function.Function;
 public interface JaxRsReflection {
 
     /**
-     * The class of the {@code micronaut-reflection} module that enables reflection.
-     */
-    String REFLECTION_MODULE_CLASS = "io.micronaut.reflection.ReflectionBeanIntrospection";
-
-    /**
-     * @return The implementation: reflective when the {@code micronaut-reflection} module is on
+     * @return The implementation: reflective when the {@code micronaut-jaxrs-reflection} module is on
      * the classpath, else the one of the generated metadata
      */
     static JaxRsReflection get() {
@@ -289,14 +283,10 @@ public interface JaxRsReflection {
         }
 
         private static JaxRsReflection load() {
-            ClassLoader classLoader = JaxRsReflection.class.getClassLoader();
-            if (ClassUtils.isPresent(REFLECTION_MODULE_CLASS, classLoader)) {
-                JaxRsReflection reflection = SoftServiceLoader.load(JaxRsReflection.class, classLoader).firstAvailable().orElse(null);
-                if (reflection != null) {
-                    return reflection;
-                }
-            }
-            return new MetadataJaxRsReflection();
+            // the reflective implementation of the micronaut-jaxrs-reflection module, if present
+            return SoftServiceLoader.load(JaxRsReflection.class, JaxRsReflection.class.getClassLoader())
+                .firstAvailable()
+                .orElseGet(MetadataJaxRsReflection::new);
         }
     }
 }

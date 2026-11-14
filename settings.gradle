@@ -32,6 +32,7 @@ include 'jaxrs-servlet'
 include 'jaxrs-client'
 include 'jaxrs-common'
 include 'jaxrs-standard-providers'
+include 'jaxrs-reflection'
 
 include 'tests:jaxrs-tck'
 include 'tests:jaxrs-conformance'

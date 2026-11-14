@@ -139,7 +139,7 @@ final class JaxRsApplicationSingletons implements BeanCreatedEventListener<Appli
         if (definition == null) {
             throw new IllegalStateException("The provider class " + type.getName() + " the application lists is not a bean: "
                 + (JaxRsReflection.get().isReflective() ? "it cannot be instantiated"
-                    : "annotate it with @Provider, or add io.micronaut:micronaut-reflection to the runtime classpath"));
+                    : "annotate it with @Provider, or add io.micronaut.jaxrs:micronaut-jaxrs-reflection, which brings io.micronaut:micronaut-reflection, to the runtime classpath"));
         }
         registerReflective(context, definition);
     }

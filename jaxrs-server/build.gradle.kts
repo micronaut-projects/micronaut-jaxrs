@@ -27,7 +27,7 @@ dependencies {
     testImplementation(mn.micronaut.http.validation)
     testImplementation(mnSerde.micronaut.serde.jackson)
     // the reflection of the classes the annotation processors never saw, see JaxRsReflection
-    testRuntimeOnly(mn.micronaut.reflection)
+    testRuntimeOnly(projects.micronautJaxrsReflection)
 	testImplementation(mn.micronaut.http.server.netty)
     testImplementation(mnServlet.servlet.api)
 	testImplementation(mn.micronaut.http.client)
@@ -40,7 +40,7 @@ dependencies {
 }
 
 noReflection {
-    // reflection is used only through JaxRsReflection, when the micronaut-reflection module is on the classpath
+    // reflection is used only through JaxRsReflection, when the micronaut-jaxrs-reflection module is on the classpath
     // the parameter converters are handed the annotations as Annotation[], synthesized from the metadata
     allowIn("io.micronaut.jaxrs.container.JaxRsParameterBinding", "ANNOTATION_SYNTHESIS")
     // the Feature services
@@ -55,13 +55,13 @@ noReflection {
     allowIn("io.micronaut.jaxrs.container.QueryParamArgumentBinder", "ANNOTATION_SYNTHESIS")
 }
 
-// the server without the micronaut-reflection module: only the generated metadata is used
+// the server without the micronaut-jaxrs-reflection module: only the generated metadata is used
 val testWithoutReflection by tasks.registering(Test::class) {
-    description = "Runs the tests without the micronaut-reflection module on the classpath."
+    description = "Runs the tests without the micronaut-jaxrs-reflection module on the classpath."
     group = "verification"
     val test = tasks.named<Test>("test").get()
     testClassesDirs = test.testClassesDirs
-    classpath = test.classpath.filter { !it.name.startsWith("micronaut-reflection") }
+    classpath = test.classpath.filter { !it.name.startsWith("micronaut-reflection") && !it.name.startsWith("micronaut-jaxrs-reflection") && !it.path.contains("/jaxrs-reflection/build/") }
     useJUnitPlatform()
     systemProperty("micronaut.jaxrs.test.reflection", "false")
 }

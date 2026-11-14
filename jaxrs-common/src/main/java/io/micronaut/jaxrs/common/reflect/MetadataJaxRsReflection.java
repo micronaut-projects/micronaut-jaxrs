@@ -283,7 +283,7 @@ final class MetadataJaxRsReflection implements JaxRsReflection {
     }
 
     private static String unsupported(String what) {
-        return what + " needs reflection: add io.micronaut:micronaut-reflection to the runtime classpath";
+        return what + " needs reflection: add io.micronaut.jaxrs:micronaut-jaxrs-reflection, which brings io.micronaut:micronaut-reflection, to the runtime classpath";
     }
 
     /**

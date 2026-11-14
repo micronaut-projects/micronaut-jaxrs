@@ -53,8 +53,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 /**
- * The {@link JaxRsReflection} of the {@code micronaut-reflection} module: the service the
- * service loader finds when the module is on the classpath.
+ * The {@link JaxRsReflection} that uses reflection, with the {@code micronaut-reflection} module:
+ * the service the service loader finds when this module is on the classpath.
  *
  * @author Denis Stepanov
  * @since 5.0.0
