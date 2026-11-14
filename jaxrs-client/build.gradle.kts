@@ -4,7 +4,6 @@ plugins {
 dependencies {
     api(mn.micronaut.http)
     api(libs.managed.jaxrs.api)
-    implementation(mnReactor.micronaut.reactor)
     implementation(projects.micronautJaxrsCommon)
     implementation(mn.micronaut.http.client)
     implementation(mn.micronaut.buffer.netty)
@@ -12,6 +11,7 @@ dependencies {
     testAnnotationProcessor(mn.micronaut.inject.java)
     testImplementation(mn.micronaut.http.server.netty)
     testImplementation(mnTest.micronaut.test.junit5)
+    testImplementation(mnReactor.micronaut.reactor)
     testImplementation(mnSerde.micronaut.serde.jackson)
     // the reflection of the providers the tests register, see JaxRsReflection
     testRuntimeOnly(projects.micronautJaxrsReflection)

@@ -27,7 +27,6 @@ import io.micronaut.http.MediaType;
 import io.micronaut.http.body.TypedMessageBodyReader;
 import io.micronaut.http.body.TypedMessageBodyWriter;
 import io.micronaut.jaxrs.common.JaxRsMessageBodyReader;
-import io.micronaut.jaxrs.common.JaxRsMessageBodyReaderDefinition;
 import io.micronaut.jaxrs.common.JaxRsMessageBodyWriter;
 import io.micronaut.jaxrs.common.JaxRsRouteInterceptors;
 import io.micronaut.jaxrs.common.JaxRsProviderSelection;
@@ -62,9 +61,10 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.Supplier;
 /**
  * The providers of a client configuration (JAX-RS 4): the readers, writers, interceptors, filters
@@ -82,13 +82,15 @@ final class JaxRsClientProviders implements Providers {
     // providers, so these use the configuration of the current invocation, else this one
     private final Providers contextProviders = new CurrentProviders(this);
     private final Configuration contextConfiguration;
-    private volatile Tables tables;
+    // the providers found among the components of the configuration: replaced, not changed, when
+    // the components change
+    private volatile @Nullable Tables tables;
 
     /**
      * @param configuration The configuration
-     * @param tables        The providers found among its components so far
+     * @param tables        The providers found among its components so far, {@code null} if none
      */
-    JaxRsClientProviders(JaxRsConfiguration configuration, Tables tables) {
+    JaxRsClientProviders(JaxRsConfiguration configuration, @Nullable Tables tables) {
         this.configuration = configuration;
         this.contextConfiguration = new CurrentConfiguration(configuration);
         this.tables = tables;
@@ -102,77 +104,78 @@ final class JaxRsClientProviders implements Providers {
     }
 
     /**
-     * @return The providers found among the components, which a copy of the configuration shares
-     * until the components of either change
+     * @return The providers found among the current components of the configuration, which a copy
+     * of the configuration shares as long as it has the same components
      */
     Tables tables() {
-        return tables;
-    }
-
-    /**
-     * Forget the providers found among the components, when the components change.
-     */
-    void clear() {
-        tables = new Tables();
+        List<Component> components = configuration.components();
+        Tables current = tables;
+        if (current == null || current.components != components) {
+            current = new Tables(components, this::contextValue);
+            tables = current;
+        }
+        return current;
     }
 
     List<BeanRegistration<ReaderInterceptor>> getReaderInterceptors() {
-        List<BeanRegistration<ReaderInterceptor>> interceptors = tables.readerInterceptors;
-        if (interceptors == null) {
-            interceptors = registrationsOfType(ReaderInterceptor.class);
-            tables.readerInterceptors = interceptors;
-        }
-        return interceptors;
+        return tables().readerInterceptors;
     }
 
     List<BeanRegistration<WriterInterceptor>> getWriterInterceptors() {
-        List<BeanRegistration<WriterInterceptor>> interceptors = tables.writerInterceptors;
-        if (interceptors == null) {
-            interceptors = registrationsOfType(WriterInterceptor.class);
-            tables.writerInterceptors = interceptors;
-        }
-        return interceptors;
+        return tables().writerInterceptors;
     }
 
-    private List<JaxRsMessageBodyReaderDefinition> getReaders() {
-        List<JaxRsMessageBodyReaderDefinition> found = tables.readers;
-        if (found == null) {
-            List<JaxRsMessageBodyReaderDefinition> built = new ArrayList<>();
-            for (JaxRsConfiguration.Component component : configuration.components()) {
-                AnnotationMetadata metadata = component.metadata();
-                if (isNotConstrainedToClient(metadata)) {
-                    continue;
-                }
-                MessageBodyReader<?> reader = registeredFor(component, MessageBodyReader.class)
-                    ? injected(component.tryGet(MessageBodyReader.class, this::contextValue)) : null;
-                if (reader != null) {
-                    built.add(new JaxRsMessageBodyReaderDefinition(
-                        providedType(reader, MessageBodyReader.class),
-                        new JaxRsMessageBodyReader<>(reader),
-                        priority(component, MessageBodyReader.class),
-                        metadata
-                    ));
-                }
-                io.micronaut.http.body.MessageBodyReader<?> micronautReader = registeredFor(component, io.micronaut.http.body.MessageBodyReader.class)
-                    ? injected(component.tryGet(io.micronaut.http.body.MessageBodyReader.class, this::contextValue)) : null;
-                if (micronautReader != null) {
-                    Argument<?> type = micronautReader instanceof TypedMessageBodyReader<?> typedMessageBodyReader
-                        ? typedMessageBodyReader.getType()
-                        : providedType(micronautReader, io.micronaut.http.body.MessageBodyReader.class);
-                    built.add(new JaxRsMessageBodyReaderDefinition(
-                        type,
-                        micronautReader,
-                        priority(component, io.micronaut.http.body.MessageBodyReader.class),
-                        metadata
-                    ));
-                }
+    List<ClientRequestFilter> getRequestFilters() {
+        return tables().requestFilters;
+    }
+
+    List<ClientResponseFilter> getResponseFilters() {
+        return tables().responseFilters;
+    }
+
+    /**
+     * The readers or the writers of the components, the JAX-RS ones and the ones of Micronaut, in
+     * the order of their priorities (JAX-RS 4.1.3).
+     *
+     * @param components        The components
+     * @param contextValues     The context values of the constructor of a component registered as a class
+     * @param jaxRsContract     The JAX-RS contract
+     * @param jaxRsAdapter      The provider of Micronaut of a JAX-RS provider
+     * @param micronautContract The contract of Micronaut
+     * @param <P>               The contract of Micronaut
+     * @return The providers
+     */
+    @SuppressWarnings("unchecked")
+    private static <P> List<Definition<P>> definitions(List<Component> components, Function<Class<?>, @Nullable Object> contextValues,
+                                                       Class<?> jaxRsContract, BiFunction<Object, AnnotationMetadata, P> jaxRsAdapter,
+                                                       Class<P> micronautContract) {
+        List<Definition<P>> built = new ArrayList<>();
+        for (Component component : components) {
+            AnnotationMetadata metadata = component.metadata();
+            if (isNotConstrainedToClient(metadata)) {
+                continue;
             }
-            // in the order of their priorities (JAX-RS 4.1.3), a stable sort
-            built.sort(Comparator.comparingInt(JaxRsMessageBodyReaderDefinition::priority));
-            found = Collections.unmodifiableList(built);
-            tables.readers = found;
+            Object provider = registeredFor(component, jaxRsContract) ? component.tryGet(jaxRsContract, contextValues) : null;
+            if (provider != null) {
+                built.add(new Definition<>(providedType(provider, jaxRsContract), jaxRsAdapter.apply(provider, metadata),
+                    priority(component, jaxRsContract), metadata));
+            }
+            P micronautProvider = registeredFor(component, micronautContract) ? component.tryGet(micronautContract, contextValues) : null;
+            if (micronautProvider != null) {
+                Argument<?> type;
+                if (micronautContract == io.micronaut.http.body.MessageBodyReader.class && micronautProvider instanceof TypedMessageBodyReader<?> typed) {
+                    type = typed.getType();
+                } else if (micronautContract == io.micronaut.http.body.MessageBodyWriter.class && micronautProvider instanceof TypedMessageBodyWriter<?> typed) {
+                    type = typed.getType();
+                } else {
+                    type = providedType(micronautProvider, micronautContract);
+                }
+                built.add(new Definition<>(type, micronautProvider, priority(component, micronautContract), metadata));
+            }
         }
-        return found;
+        // a stable sort
+        built.sort(Comparator.comparingInt(Definition::priority));
+        return Collections.unmodifiableList(built);
     }
 
     static boolean isNotConstrainedToClient(AnnotationMetadata annotationMetadata) {
@@ -207,47 +210,6 @@ final class JaxRsClientProviders implements Providers {
             }
         }
         return JaxRsUtils.getPriorityOrder(component.metadata());
-    }
-
-    private List<JaxRsMessageBodyWriterDefinition> getWriters() {
-        List<JaxRsMessageBodyWriterDefinition> found = tables.writers;
-        if (found == null) {
-            List<JaxRsMessageBodyWriterDefinition> built = new ArrayList<>();
-            for (JaxRsConfiguration.Component component : configuration.components()) {
-                AnnotationMetadata metadata = component.metadata();
-                if (isNotConstrainedToClient(metadata)) {
-                    continue;
-                }
-                MessageBodyWriter<?> writer = registeredFor(component, MessageBodyWriter.class)
-                    ? injected(component.tryGet(MessageBodyWriter.class, this::contextValue)) : null;
-                if (writer != null) {
-                    built.add(new JaxRsMessageBodyWriterDefinition(
-                        providedType(writer, MessageBodyWriter.class),
-                        new JaxRsMessageBodyWriter<>(metadata, (MessageBodyWriter<Object>) writer),
-                        priority(component, MessageBodyWriter.class),
-                        metadata
-                    ));
-                }
-                io.micronaut.http.body.MessageBodyWriter<?> micronautWriter = registeredFor(component, io.micronaut.http.body.MessageBodyWriter.class)
-                    ? injected(component.tryGet(io.micronaut.http.body.MessageBodyWriter.class, this::contextValue)) : null;
-                if (micronautWriter != null) {
-                    Argument<?> type = micronautWriter instanceof TypedMessageBodyWriter<?> typedMessageBodyWriter
-                        ? typedMessageBodyWriter.getType()
-                        : providedType(micronautWriter, io.micronaut.http.body.MessageBodyWriter.class);
-                    built.add(new JaxRsMessageBodyWriterDefinition(
-                        type,
-                        micronautWriter,
-                        priority(component, io.micronaut.http.body.MessageBodyWriter.class),
-                        metadata
-                    ));
-                }
-            }
-            // in the order of their priorities (JAX-RS 4.1.3), a stable sort
-            built.sort(Comparator.comparingInt(JaxRsMessageBodyWriterDefinition::priority));
-            found = Collections.unmodifiableList(built);
-            tables.writers = found;
-        }
-        return found;
     }
 
     /**
@@ -288,65 +250,71 @@ final class JaxRsClientProviders implements Providers {
         return () -> JaxRsCurrentProviders.restore(previous);
     }
 
+    @SuppressWarnings("unchecked")
     <T> io.micronaut.http.body.@Nullable MessageBodyReader<T> findReader(Argument<T> argument,
                                                                                 @Nullable MediaType mediaType) {
+        List<Definition<io.micronaut.http.body.MessageBodyReader<?>>> readers = tables().readers;
         // First, the JAX-RS reader in the order of the readers (JAX-RS 4.2.1)
-        io.micronaut.http.body.MessageBodyReader<T> best = null;
-        Rank bestRank = null;
-        for (JaxRsMessageBodyReaderDefinition readerDer : getReaders()) {
-            io.micronaut.http.body.MessageBodyReader<T> reader = (io.micronaut.http.body.MessageBodyReader<T>) readerDer.messageBodyReader();
-            if (reader instanceof JaxRsMessageBodyReader<?> jaxRsReader
-                && isCompatible(readerDer.metadata(), Consumes.class, mediaType)
-                && readerDer.type().isAssignableFrom(argument.getType()) && reader.isReadable(argument, mediaType)) {
-                Rank rank = rank(readerDer.type().getType(), jaxRsReader.delegate(), readerDer.metadata(), Consumes.class, readerDer.priority(),
-                    argument.getType(), mediaType);
-                if (bestRank == null || JaxRsProviderSelection.APPLICATION_FIRST_READER_ORDER.compare(rank, bestRank) < 0) {
-                    best = reader;
-                    bestRank = rank;
-                }
-            }
-        }
+        Definition<io.micronaut.http.body.MessageBodyReader<?>> best = select(readers, definition ->
+            definition.provider() instanceof JaxRsMessageBodyReader<?> jaxRsReader
+                && isCompatible(definition.metadata(), Consumes.class, mediaType)
+                && definition.type().isAssignableFrom(argument.getType())
+                && ((io.micronaut.http.body.MessageBodyReader<T>) jaxRsReader).isReadable(argument, mediaType)
+                ? rank(definition, jaxRsReader.delegate(), Consumes.class, argument.getType(), mediaType) : null,
+            JaxRsProviderSelection.APPLICATION_FIRST_READER_ORDER);
         if (best != null) {
-            return best;
+            return (io.micronaut.http.body.MessageBodyReader<T>) best.provider();
         }
         // Find any kind of reader
-        for (JaxRsMessageBodyReaderDefinition readerDer : getReaders()) {
-            io.micronaut.http.body.MessageBodyReader<T> reader = (io.micronaut.http.body.MessageBodyReader<T>) readerDer.messageBodyReader();
+        for (Definition<io.micronaut.http.body.MessageBodyReader<?>> definition : readers) {
+            io.micronaut.http.body.MessageBodyReader<T> reader = (io.micronaut.http.body.MessageBodyReader<T>) definition.provider();
             // the JAX-RS readers were all considered above
             if (!(reader instanceof JaxRsMessageBodyReader<?>)
-                && readerDer.type().isAssignableFrom(argument.getType()) && reader.isReadable(argument, mediaType)) {
+                && definition.type().isAssignableFrom(argument.getType()) && reader.isReadable(argument, mediaType)) {
                 return reader;
             }
         }
         return null;
     }
 
+    @SuppressWarnings("unchecked")
     <T> io.micronaut.http.body.@Nullable MessageBodyWriter<T> findWriter(Argument<T> argument,
                                                                                 MediaType mediaType) {
         // the JAX-RS writers and the other ones ranked together: a closer type first, e.g. the
         // String writer before a writer of any object of the application (JAX-RS 4.2.2, steps 4-6)
-        io.micronaut.http.body.MessageBodyWriter<T> best = null;
-        Rank bestRank = null;
-        for (JaxRsMessageBodyWriterDefinition writerDef : getWriters()) {
-            io.micronaut.http.body.MessageBodyWriter<T> writer = (io.micronaut.http.body.MessageBodyWriter<T>) writerDef.messageBodyWriter();
-            Rank rank;
-            if (writer instanceof JaxRsMessageBodyWriter<?> jaxRsWriter) {
-                if (!isCompatible(writerDef.metadata(), Produces.class, mediaType)
-                    || !writerDef.type().isAssignableFrom(argument.getType()) || !writer.isWriteable(argument, mediaType)) {
-                    continue;
-                }
-                rank = rank(writerDef.type().getType(), jaxRsWriter.delegate(), writerDef.metadata(), Produces.class, writerDef.priority(),
-                    argument.getType(), mediaType);
-            } else {
-                if (!writerDef.type().isAssignableFrom(argument.getType()) || !writer.isWriteable(argument, mediaType)) {
-                    continue;
-                }
-                // a writer of Micronaut: a standard one, without a declared media type
-                rank = new Rank(0, true, writerDef.priority(), JaxRsUtils.typeDistance(writerDef.type().getType(), argument.getType()));
+        Definition<io.micronaut.http.body.MessageBodyWriter<?>> best = select(tables().writers, definition -> {
+            io.micronaut.http.body.MessageBodyWriter<T> writer = (io.micronaut.http.body.MessageBodyWriter<T>) definition.provider();
+            if (!definition.type().isAssignableFrom(argument.getType())) {
+                return null;
             }
-            if (bestRank == null || JaxRsProviderSelection.WRITER_ORDER.compare(rank, bestRank) < 0) {
-                best = writer;
-                bestRank = rank;
+            if (writer instanceof JaxRsMessageBodyWriter<?> jaxRsWriter) {
+                return isCompatible(definition.metadata(), Produces.class, mediaType) && writer.isWriteable(argument, mediaType)
+                    ? rank(definition, jaxRsWriter.delegate(), Produces.class, argument.getType(), mediaType) : null;
+            }
+            // a writer of Micronaut: a standard one, without a declared media type
+            return writer.isWriteable(argument, mediaType)
+                ? new Rank(0, true, definition.priority(), JaxRsUtils.typeDistance(definition.type().getType(), argument.getType())) : null;
+        }, JaxRsProviderSelection.WRITER_ORDER);
+        return best == null ? null : (io.micronaut.http.body.MessageBodyWriter<T>) best.provider();
+    }
+
+    /**
+     * Select the best of the candidates: the first of the lowest rank in an order.
+     *
+     * @param candidates The candidates
+     * @param rank       The rank of a candidate, {@code null} for one that does not apply
+     * @param order      The order of the ranks
+     * @param <D>        The type of the candidates
+     * @return The best candidate, {@code null} if none applies
+     */
+    private static <D> @Nullable D select(List<D> candidates, Function<D, @Nullable Rank> rank, Comparator<Rank> order) {
+        D best = null;
+        Rank bestRank = null;
+        for (D candidate : candidates) {
+            Rank candidateRank = rank.apply(candidate);
+            if (candidateRank != null && (bestRank == null || order.compare(candidateRank, bestRank) < 0)) {
+                best = candidate;
+                bestRank = candidateRank;
             }
         }
         return best;
@@ -372,25 +340,8 @@ final class JaxRsClientProviders implements Providers {
         return new Rank(specificity, JaxRsProviderSelection.isStandard(provider.getClass()), priority, JaxRsUtils.typeDistance(provided, type));
     }
 
-    List<ClientRequestFilter> getRequestFilters() {
-        List<ClientRequestFilter> filters = tables.requestFilters;
-        if (filters == null) {
-            filters = getComponentOfType(ClientRequestFilter.class);
-            tables.requestFilters = filters;
-        }
-        return filters;
-    }
-
-    List<ClientResponseFilter> getResponseFilters() {
-        List<ClientResponseFilter> filters = tables.responseFilters;
-        if (filters == null) {
-            // in the reverse order of their priorities (JAX-RS 6.6)
-            filters = new ArrayList<>(getComponentOfType(ClientResponseFilter.class));
-            Collections.reverse(filters);
-            filters = Collections.unmodifiableList(filters);
-            tables.responseFilters = filters;
-        }
-        return filters;
+    private static Rank rank(Definition<?> definition, Object provider, Class<? extends Annotation> declaring, Class<?> type, @Nullable MediaType mediaType) {
+        return rank(definition.type().getType(), provider, definition.metadata(), declaring, definition.priority(), type, mediaType);
     }
 
     /**
@@ -399,74 +350,53 @@ final class JaxRsClientProviders implements Providers {
      * @return The registered providers of a type, in the order of their priorities
      */
     <T> List<T> getProviders(Class<T> type) {
-        return getComponentOfType(type);
-    }
-
-    private <T> List<T> getComponentOfType(Class<T> type) {
-        return registrationsOfType(type).stream().map(BeanRegistration::getBean).toList();
+        return registrations(configuration.components(), type, this::contextValue).stream().map(BeanRegistration::getBean).toList();
     }
 
     /**
      * @return The registered providers of a type with their priorities, in the order of the priorities
      */
-    @SuppressWarnings("unchecked")
-    private <T> List<BeanRegistration<T>> registrationsOfType(Class<T> type) {
-        Tables current = tables;
-        List<BeanRegistration<?>> found = current.registrations.get(type);
-        if (found == null) {
-            found = Collections.unmodifiableList(findRegistrations(type));
-            current.registrations.put(type, found);
+    private static <T> List<BeanRegistration<T>> registrations(List<Component> components, Class<T> type,
+                                                               Function<Class<?>, @Nullable Object> contextValues) {
+        var registrations = new ArrayList<BeanRegistration<T>>();
+        for (Component component : components) {
+            if (!registeredFor(component, type) || isNotConstrainedToClient(component.metadata())) {
+                // registered for other contracts only, or for another runtime (@ConstrainedTo)
+                continue;
+            }
+            T instance = component.tryGet(type, contextValues);
+            if (instance != null) {
+                registrations.add(JaxRsRouteInterceptors.registration(instance, component.metadata(), priority(component, type)));
+            }
         }
-        return (List<BeanRegistration<T>>) (List<?>) found;
+        registrations.sort(Comparator.comparingInt(BeanRegistration::getOrder));
+        return Collections.unmodifiableList(registrations);
     }
 
     /**
      * @return The context resolvers with their context types, {@code null} for a resolver whose context type is not known
      */
     @SuppressWarnings("rawtypes")
-    private List<ContextResolverEntry> contextResolvers() {
-        Tables current = tables;
-        List<ContextResolverEntry> found = current.contextResolvers;
-        if (found == null) {
-            List<ContextResolverEntry> built = new ArrayList<>();
-            for (BeanRegistration<ContextResolver> registration : registrationsOfType(ContextResolver.class)) {
-                Argument<?> resolved = JaxRsReflection.get().resolveGeneric(registration.getBean().getClass(), ContextResolver.class);
-                Argument<?>[] arguments = resolved == null ? new Argument<?>[0] : resolved.getTypeParameters();
-                built.add(new ContextResolverEntry(registration, arguments.length == 0 ? null : arguments[0].getType()));
-            }
-            found = Collections.unmodifiableList(built);
-            current.contextResolvers = found;
+    private static List<ContextResolverEntry> contextResolvers(List<Component> components, Function<Class<?>, @Nullable Object> contextValues) {
+        List<ContextResolverEntry> built = new ArrayList<>();
+        for (BeanRegistration<ContextResolver> registration : registrations(components, ContextResolver.class, contextValues)) {
+            Argument<?> resolved = JaxRsReflection.get().resolveGeneric(registration.getBean().getClass(), ContextResolver.class);
+            Argument<?>[] arguments = resolved == null ? new Argument<?>[0] : resolved.getTypeParameters();
+            built.add(new ContextResolverEntry(registration, arguments.length == 0 ? null : arguments[0].getType()));
         }
-        return found;
-    }
-
-    private <T> List<BeanRegistration<T>> findRegistrations(Class<T> type) {
-        var registrations = new ArrayList<BeanRegistration<T>>();
-        for (JaxRsConfiguration.Component component : configuration.components()) {
-            if (!registeredFor(component, type) || isNotConstrainedToClient(component.metadata())) {
-                // registered for other contracts only, or for another runtime (@ConstrainedTo)
-                continue;
-            }
-            T instance = injected(component.tryGet(type, this::contextValue));
-            if (instance != null) {
-                registrations.add(JaxRsRouteInterceptors.registration(instance, component.metadata(), priority(component, type)));
-            }
-        }
-        registrations.sort(Comparator.comparingInt(BeanRegistration::getOrder));
-        return registrations;
+        return Collections.unmodifiableList(built);
     }
 
     /**
      * Inject the {@code @Context} fields of a provider a client supports (JAX-RS 9.2): its
-     * {@link Providers} and {@link Configuration}. The other context types are the ones of a
-     * server request.
+     * {@link Providers} and {@link Configuration}, once, when it is registered or instantiated.
+     * The other context types are the ones of a server request.
+     *
+     * @param instance      The provider
+     * @param contextValues The values of the context types
      */
-    <T> @Nullable T injected(@Nullable T instance) {
-        if (instance == null) {
-            return null;
-        }
-        JaxRsReflection.get().injectFields(instance, Context.class, this::contextValue);
-        return instance;
+    static void inject(Object instance, Function<Class<?>, @Nullable Object> contextValues) {
+        JaxRsReflection.get().injectFields(instance, Context.class, contextValues);
     }
 
     /**
@@ -492,22 +422,15 @@ final class JaxRsClientProviders implements Providers {
     public <T> @Nullable MessageBodyReader<T> getMessageBodyReader(Class<T> type, Type genericType, Annotation[] annotations, jakarta.ws.rs.core.MediaType mediaType) {
         // selected like the readers of the entities (JAX-RS 4.2.1)
         MediaType micronautMediaType = JaxRsUtils.convert(mediaType);
-        MessageBodyReader<T> best = null;
-        Rank bestRank = null;
-        for (JaxRsMessageBodyReaderDefinition definition : getReaders()) {
-            if (definition.messageBodyReader() instanceof JaxRsMessageBodyReader<?> jaxRsReader
+        Definition<io.micronaut.http.body.MessageBodyReader<?>> best = select(tables().readers, definition ->
+            definition.provider() instanceof JaxRsMessageBodyReader<?> jaxRsReader
                 && isCompatible(definition.metadata(), Consumes.class, micronautMediaType)
                 && definition.type().isAssignableFrom(type)
-                && jaxRsReader.delegate().isReadable(type, genericType, annotations, mediaType)) {
-                Rank rank = rank(definition.type().getType(), jaxRsReader.delegate(), definition.metadata(), Consumes.class, definition.priority(),
-                    type, micronautMediaType);
-                if (bestRank == null || JaxRsProviderSelection.APPLICATION_FIRST_READER_ORDER.compare(rank, bestRank) < 0) {
-                    best = (MessageBodyReader<T>) jaxRsReader.delegate();
-                    bestRank = rank;
-                }
-            }
-        }
-        return best != null ? best : (MessageBodyReader<T>) standardProvider(type);
+                && jaxRsReader.delegate().isReadable(type, genericType, annotations, mediaType)
+                ? rank(definition, jaxRsReader.delegate(), Consumes.class, type, micronautMediaType) : null,
+            JaxRsProviderSelection.APPLICATION_FIRST_READER_ORDER);
+        return best != null ? (MessageBodyReader<T>) ((JaxRsMessageBodyReader<?>) best.provider()).delegate()
+            : (MessageBodyReader<T>) standardProvider(type);
     }
 
     @Override
@@ -515,22 +438,15 @@ final class JaxRsClientProviders implements Providers {
     public <T> @Nullable MessageBodyWriter<T> getMessageBodyWriter(Class<T> type, Type genericType, Annotation[] annotations, jakarta.ws.rs.core.MediaType mediaType) {
         // selected like the writers of the entities (JAX-RS 4.2.2)
         MediaType micronautMediaType = JaxRsUtils.convert(mediaType);
-        MessageBodyWriter<T> best = null;
-        Rank bestRank = null;
-        for (JaxRsMessageBodyWriterDefinition definition : getWriters()) {
-            if (definition.messageBodyWriter() instanceof JaxRsMessageBodyWriter<?> jaxRsWriter
+        Definition<io.micronaut.http.body.MessageBodyWriter<?>> best = select(tables().writers, definition ->
+            definition.provider() instanceof JaxRsMessageBodyWriter<?> jaxRsWriter
                 && isCompatible(definition.metadata(), Produces.class, micronautMediaType)
                 && definition.type().isAssignableFrom(type)
-                && jaxRsWriter.delegate().isWriteable(type, genericType, annotations, mediaType)) {
-                Rank rank = rank(definition.type().getType(), jaxRsWriter.delegate(), definition.metadata(), Produces.class, definition.priority(),
-                    type, micronautMediaType);
-                if (bestRank == null || JaxRsProviderSelection.WRITER_ORDER.compare(rank, bestRank) < 0) {
-                    best = (MessageBodyWriter<T>) jaxRsWriter.delegate();
-                    bestRank = rank;
-                }
-            }
-        }
-        return best != null ? best : (MessageBodyWriter<T>) standardProvider(type);
+                && jaxRsWriter.delegate().isWriteable(type, genericType, annotations, mediaType)
+                ? rank(definition, jaxRsWriter.delegate(), Produces.class, type, micronautMediaType) : null,
+            JaxRsProviderSelection.WRITER_ORDER);
+        return best != null ? (MessageBodyWriter<T>) ((JaxRsMessageBodyWriter<?>) best.provider()).delegate()
+            : (MessageBodyWriter<T>) standardProvider(type);
     }
 
     /**
@@ -563,7 +479,7 @@ final class JaxRsClientProviders implements Providers {
         MediaType micronautMediaType = mediaType == null ? null : JaxRsUtils.convert(mediaType);
         List<BeanRegistration<ContextResolver>> candidates = new ArrayList<>();
         Set<BeanRegistration<ContextResolver>> untyped = new HashSet<>();
-        for (ContextResolverEntry entry : contextResolvers()) {
+        for (ContextResolverEntry entry : tables().contextResolvers) {
             BeanRegistration<ContextResolver> registration = entry.registration();
             Class<?> resolvedType = entry.contextType();
             if ((resolvedType == null || contextType.isAssignableFrom(resolvedType))
@@ -720,19 +636,46 @@ final class JaxRsClientProviders implements Providers {
     }
 
     /**
-     * The providers found among the components of a configuration, built lazily, fully, then
-     * published unmodifiable: the copies of a configuration share them, until their components change.
+     * The providers found among the components of a configuration, built at once: the copies of a
+     * configuration share them, as long as they have the same components.
      */
     static final class Tables {
-        private volatile @Nullable List<BeanRegistration<ReaderInterceptor>> readerInterceptors;
-        private volatile @Nullable List<BeanRegistration<WriterInterceptor>> writerInterceptors;
-        private volatile @Nullable List<JaxRsMessageBodyReaderDefinition> readers;
-        private volatile @Nullable List<JaxRsMessageBodyWriterDefinition> writers;
-        private volatile @Nullable List<ClientRequestFilter> requestFilters;
-        private volatile @Nullable List<ClientResponseFilter> responseFilters;
-        private volatile @Nullable List<ContextResolverEntry> contextResolvers;
-        // the registered providers of a type, e.g. of the RX invoker providers
-        private final Map<Class<?>, List<BeanRegistration<?>>> registrations = new ConcurrentHashMap<>();
+        // the immutable components they were found among
+        private final List<Component> components;
+        private final List<BeanRegistration<ReaderInterceptor>> readerInterceptors;
+        private final List<BeanRegistration<WriterInterceptor>> writerInterceptors;
+        private final List<Definition<io.micronaut.http.body.MessageBodyReader<?>>> readers;
+        private final List<Definition<io.micronaut.http.body.MessageBodyWriter<?>>> writers;
+        private final List<ClientRequestFilter> requestFilters;
+        private final List<ClientResponseFilter> responseFilters;
+        private final List<ContextResolverEntry> contextResolvers;
+
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        Tables(List<Component> components, Function<Class<?>, @Nullable Object> contextValues) {
+            this.components = components;
+            readerInterceptors = registrations(components, ReaderInterceptor.class, contextValues);
+            writerInterceptors = registrations(components, WriterInterceptor.class, contextValues);
+            readers = (List) definitions(components, contextValues, MessageBodyReader.class,
+                (reader, metadata) -> new JaxRsMessageBodyReader<>((MessageBodyReader<Object>) reader), io.micronaut.http.body.MessageBodyReader.class);
+            writers = (List) definitions(components, contextValues, MessageBodyWriter.class,
+                (writer, metadata) -> new JaxRsMessageBodyWriter<>(metadata, (MessageBodyWriter<Object>) writer), io.micronaut.http.body.MessageBodyWriter.class);
+            requestFilters = registrations(components, ClientRequestFilter.class, contextValues).stream().map(BeanRegistration::getBean).toList();
+            // in the reverse order of their priorities (JAX-RS 6.6)
+            responseFilters = registrations(components, ClientResponseFilter.class, contextValues).stream().map(BeanRegistration::getBean).toList().reversed();
+            contextResolvers = JaxRsClientProviders.contextResolvers(components, contextValues);
+        }
+    }
+
+    /**
+     * A reader or a writer of the configuration.
+     *
+     * @param type     The type it reads or writes
+     * @param provider The reader or writer of Micronaut, an adapter of a JAX-RS one
+     * @param priority The priority
+     * @param metadata The annotations of the class of the provider
+     * @param <P>      The type of the provider
+     */
+    private record Definition<P>(Argument<?> type, P provider, int priority, AnnotationMetadata metadata) {
     }
 
     /**

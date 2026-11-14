@@ -73,7 +73,9 @@ final class JaxRsConfiguration implements Configuration {
 
     private static final Logger LOG = LoggerFactory.getLogger(JaxRsConfiguration.class);
     private final Map<String, Object> properties;
-    private final List<Component> components;
+    // the components, an immutable list replaced when one is registered: the copies of the
+    // configuration share it, and the providers found among it, until it changes
+    private volatile List<Component> components;
 
     // the features whose configure returned true
     private final List<Feature> enabledFeatures;
@@ -83,15 +85,11 @@ final class JaxRsConfiguration implements Configuration {
     private final JaxRsClientEntityIO entityIO;
 
     public JaxRsConfiguration() {
-        this(new LinkedHashMap<>(), new ArrayList<>());
-    }
-
-    public JaxRsConfiguration(Map<String, Object> properties, List<Component> components) {
-        this(properties, components, new ArrayList<>(), new JaxRsClientProviders.Tables(), null);
+        this(new LinkedHashMap<>(), List.of(), new ArrayList<>(), null, null);
     }
 
     private JaxRsConfiguration(Map<String, Object> properties, List<Component> components, List<Feature> enabledFeatures,
-                               JaxRsClientProviders.Tables tables, @Nullable MessageBodyHandlerRegistry handlerRegistry) {
+                               JaxRsClientProviders.@Nullable Tables tables, @Nullable MessageBodyHandlerRegistry handlerRegistry) {
         this.properties = properties;
         this.components = components;
         this.enabledFeatures = enabledFeatures;
@@ -106,15 +104,18 @@ final class JaxRsConfiguration implements Configuration {
      * @return The copy
      */
     JaxRsConfiguration copy() {
-        return new JaxRsConfiguration(new LinkedHashMap<>(properties), new ArrayList<>(components), new ArrayList<>(enabledFeatures),
+        return new JaxRsConfiguration(new LinkedHashMap<>(properties), components, new ArrayList<>(enabledFeatures),
             providers.tables(), entityIO.handlerRegistry());
     }
 
     /**
-     * Forget the providers found among the components, when the components change.
+     * Add a component: the components are replaced by a copy with it.
      */
-    private void clearCaches() {
-        providers.clear();
+    private void append(Component component) {
+        List<Component> appended = new ArrayList<>(components.size() + 1);
+        appended.addAll(components);
+        appended.add(component);
+        components = Collections.unmodifiableList(appended);
     }
 
     /**
@@ -128,12 +129,11 @@ final class JaxRsConfiguration implements Configuration {
             return;
         }
         properties.clear();
-        components.clear();
+        components = List.of();
         enabledFeatures.clear();
-        clearCaches();
         if (configuration instanceof JaxRsConfiguration jaxRsConfiguration) {
             properties.putAll(jaxRsConfiguration.properties);
-            components.addAll(jaxRsConfiguration.components);
+            components = jaxRsConfiguration.components;
             enabledFeatures.addAll(jaxRsConfiguration.enabledFeatures);
             return;
         }
@@ -245,8 +245,8 @@ final class JaxRsConfiguration implements Configuration {
      * @param component The provider
      */
     void registerStandard(Object component) {
-        components.add(InstanceComponent.of(component, NO_PRIORITY, List.of()));
-        clearCaches();
+        JaxRsClientProviders.inject(component, providers::contextValue);
+        append(InstanceComponent.of(component, NO_PRIORITY, List.of()));
     }
 
     void register(Object component, int priority) {
@@ -289,8 +289,11 @@ final class JaxRsConfiguration implements Configuration {
             LOG.warn("The component {} is registered already: the registration is ignored", componentClass.getName());
             return;
         }
-        components.add(component);
-        clearCaches();
+        if (component instanceof InstanceComponent instanceComponent) {
+            // a registered instance is injected once, a class when it is instantiated
+            JaxRsClientProviders.inject(instanceComponent.component(), providers::contextValue);
+        }
+        append(component);
         if (JaxRsClientProviders.isNotConstrainedToClient(component.metadata())) {
             // kept in the configuration, which may configure a server, but not used by the client
             LOG.warn("The component {} is constrained to another runtime than the client: the client ignores it", componentClass.getName());
@@ -299,7 +302,7 @@ final class JaxRsConfiguration implements Configuration {
         if (JaxRsClientProviders.registeredFor(component, Feature.class)) {
             // a feature shared by configurations is injected with the one it configures
             try (JaxRsClientProviders.CurrentScope ignored = providers.current()) {
-                Feature feature = providers.injected(component.tryGet(Feature.class, providers::contextValue));
+                Feature feature = component.tryGet(Feature.class, providers::contextValue);
                 if (feature != null && feature.configure(new ClientFeatureContext())) {
                     enabledFeatures.add(feature);
                 }
@@ -498,8 +501,8 @@ final class JaxRsConfiguration implements Configuration {
     }
 
     /**
-     * A component registered as a class: it is instantiated once, when it is first used, and the
-     * copies of the configuration share the instance.
+     * A component registered as a class: it is instantiated and injected once, when it is first
+     * used, and the copies of the configuration share the instance.
      */
     static final class ClassComponent implements Component {
 
@@ -536,8 +539,10 @@ final class JaxRsConfiguration implements Configuration {
                 synchronized (this) {
                     current = instance;
                     if (current == null) {
-                        // with the longest constructor of its context values (JAX-RS 4.1.3)
+                        // with the longest constructor of its context values (JAX-RS 4.1.3), its
+                        // fields injected once, with the context of the configuration that uses it first
                         current = JaxRsReflection.get().instantiate(componentClass, contextValues);
+                        JaxRsClientProviders.inject(current, contextValues);
                         instance = current;
                     }
                 }

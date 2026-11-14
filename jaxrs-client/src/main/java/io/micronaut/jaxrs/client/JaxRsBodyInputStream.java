@@ -16,7 +16,7 @@
 package io.micronaut.jaxrs.client;
 
 import io.micronaut.core.annotation.Internal;
-import io.micronaut.core.io.buffer.ByteBuffer;
+import io.micronaut.core.io.buffer.ReadBuffer;
 import io.micronaut.http.body.BodyElements;
 
 import java.io.IOException;
@@ -35,7 +35,7 @@ import java.util.concurrent.CompletionException;
 @Internal
 final class JaxRsBodyInputStream extends InputStream {
 
-    private final BodyElements<ByteBuffer<?>> body;
+    private final BodyElements<ReadBuffer> body;
     private byte[] pending;
     private int position;
     private boolean ended;
@@ -44,7 +44,7 @@ final class JaxRsBodyInputStream extends InputStream {
      * @param first The first piece of the body, received already, empty if none
      * @param body  The other pieces of the body: heap buffers that are not reference counted
      */
-    JaxRsBodyInputStream(byte[] first, BodyElements<ByteBuffer<?>> body) {
+    JaxRsBodyInputStream(byte[] first, BodyElements<ReadBuffer> body) {
         this.pending = first;
         this.body = body;
     }
@@ -52,7 +52,7 @@ final class JaxRsBodyInputStream extends InputStream {
     /**
      * @param body The pieces of the body: heap buffers that are not reference counted
      */
-    JaxRsBodyInputStream(BodyElements<ByteBuffer<?>> body) {
+    JaxRsBodyInputStream(BodyElements<ReadBuffer> body) {
         this(new byte[0], body);
     }
 
@@ -71,7 +71,7 @@ final class JaxRsBodyInputStream extends InputStream {
             if (ended) {
                 return -1;
             }
-            Optional<ByteBuffer<?>> next;
+            Optional<ReadBuffer> next;
             try {
                 // read on the thread of the reader, e.g. the executor of the client
                 next = body.next().toCompletableFuture().join();
@@ -82,7 +82,7 @@ final class JaxRsBodyInputStream extends InputStream {
                 ended = true;
                 return -1;
             }
-            pending = next.get().toByteArray();
+            pending = next.get().toArray();
             position = 0;
         }
         int n = Math.min(len, pending.length - position);

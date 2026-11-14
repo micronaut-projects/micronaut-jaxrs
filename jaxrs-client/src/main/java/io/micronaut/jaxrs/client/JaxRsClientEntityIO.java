@@ -262,9 +262,14 @@ final class JaxRsClientEntityIO {
         final AtomicBoolean written = new AtomicBoolean(false);
         if (writerInterceptors.isEmpty()) {
             io.micronaut.http.body.MessageBodyWriter<T> writer = providers.findWriter(bodyArgument, mediaType);
-            if (writer == null && bytes) {
+            if (writer == null && (bytes || mutableHttpMessage instanceof MutableHttpRequest<?>)) {
+                // a request is sent as bytes: the entity no JAX-RS writer writes is written by the HTTP client
                 writer = findClientWriter(bodyArgument, mediaType);
                 mediaType = clientMediaType(mediaType);
+                if (writer != null && mutableHttpMessage.getContentType().isEmpty()) {
+                    // the media type the HTTP client writes the entity with
+                    mutableHttpMessage.getHeaders().contentType(mediaType);
+                }
             }
             if (writer != null) {
                 writer.writeTo(bodyArgument, mediaType, body, mutableHttpMessage.getHeaders(), outputStream);

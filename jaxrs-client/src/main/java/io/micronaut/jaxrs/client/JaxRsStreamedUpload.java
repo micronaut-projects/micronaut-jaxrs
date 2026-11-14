@@ -15,8 +15,8 @@
  */
 package io.micronaut.jaxrs.client;
 
-import io.micronaut.buffer.netty.NettyByteBufferFactory;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.io.buffer.ByteArrayBufferFactory;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.MutableHttpRequest;
 import io.micronaut.http.body.ByteBodyFactory;
@@ -53,7 +53,10 @@ final class JaxRsStreamedUpload {
     // the pieces written and not sent yet: the writer waits when it is full
     private static final int PENDING_PIECES = 16;
     private static final byte[] END = new byte[0];
-    private static final ByteBodyFactory BODY_FACTORY = ByteBodyFactory.createDefault(NettyByteBufferFactory.DEFAULT);
+    private static final ByteBodyFactory BODY_FACTORY = ByteBodyFactory.createDefault(ByteArrayBufferFactory.INSTANCE);
+    // the transport reads the entity on a thread of its own, not on the executor of the client: the
+    // writer of an asynchronous invocation, which waits for the transport, may hold its only thread
+    private static final Executor READER = runnable -> Thread.ofVirtual().name("jaxrs-client-upload").start(runnable);
 
     private final JaxRsClient client;
     private final BlockingQueue<byte[]> pieces = new ArrayBlockingQueue<>(PENDING_PIECES);
@@ -84,8 +87,7 @@ final class JaxRsStreamedUpload {
      */
     OutputStream start(MutableHttpRequest<?> request, byte[] written) throws IOException {
         put(written);
-        CloseableByteBody body = InputStreamByteBody.create(new PiecesInputStream(), OptionalLong.empty(),
-            client.getExecutorService(), BODY_FACTORY);
+        CloseableByteBody body = InputStreamByteBody.create(new PiecesInputStream(), OptionalLong.empty(), READER, BODY_FACTORY);
         exchange = client.httpClient().toAsyncRaw().exchange(request, body).toCompletableFuture();
         return new OutputStream() {
             @Override
@@ -141,7 +143,7 @@ final class JaxRsStreamedUpload {
     }
 
     /**
-     * The entity as the transport reads it, on the executor of the client.
+     * The entity as the transport reads it, on a thread of its own.
      */
     private final class PiecesInputStream extends InputStream {
         private byte[] current = new byte[0];

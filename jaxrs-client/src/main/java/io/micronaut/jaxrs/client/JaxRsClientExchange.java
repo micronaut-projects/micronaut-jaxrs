@@ -17,7 +17,8 @@ package io.micronaut.jaxrs.client;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
-import io.micronaut.core.io.buffer.ByteBuffer;
+import io.micronaut.core.io.buffer.ByteArrayBufferFactory;
+import io.micronaut.core.io.buffer.ReadBuffer;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.ByteBodyHttpResponse;
 import io.micronaut.http.HttpHeaders;
@@ -30,8 +31,8 @@ import io.micronaut.http.MutableHttpHeaders;
 import io.micronaut.http.MutableHttpRequest;
 import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.http.body.BodyElements;
+import io.micronaut.http.body.ByteBodyFactory;
 import io.micronaut.http.body.CloseableByteBody;
-import io.micronaut.http.client.exceptions.HttpClientResponseException;
 import io.micronaut.http.client.exceptions.ReadTimeoutException;
 import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
 import io.micronaut.jaxrs.common.JaxRsHeaderUtil;
@@ -58,7 +59,6 @@ import jakarta.ws.rs.core.GenericEntity;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
 
-import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -84,6 +84,7 @@ final class JaxRsClientExchange {
 
     // the attribute of a received response: the stream of its body as it arrives
     private static final String RECEIVED_ENTITY_STREAM = "io.micronaut.jaxrs.client.receivedEntityStream";
+    private static final ByteBodyFactory BODY_FACTORY = ByteBodyFactory.createDefault(ByteArrayBufferFactory.INSTANCE);
 
     private final JaxRsClient client;
     private final URI uri;
@@ -149,44 +150,24 @@ final class JaxRsClientExchange {
             // the relative links of the response are resolved against the URI of the request
             URI requestUri = request.getUri();
             JaxRsClientRequestContext sentContext = requestContext;
-            CompletableFuture<HttpResponse<?>> streamed = upload.exchange();
-            if (streamed != null) {
+            CompletableFuture<HttpResponse<?>> exchange = upload.exchange();
+            if (exchange != null) {
                 // an entity larger than the client buffers: the request was sent as it was written
                 upload.finish();
-                future.whenComplete((ignored, failure) -> {
-                    if (future.isCancelled()) {
-                        streamed.cancel(false);
-                    }
-                });
-                var _ = streamed.whenComplete((response, error) -> {
-                    Throwable throwable = unwrap(error);
-                    if (throwable != null) {
-                        future.completeExceptionally(failure(throwable));
-                    } else if (response == null) {
-                        future.completeExceptionally(new ProcessingException("Expected a response"));
-                    } else {
-                        receivedRaw(response, requestUri, sentContext, future);
-                    }
-                });
-                return future;
+            } else {
+                exchange = client.httpClient().toAsyncRaw().exchange(request, requestBody(request)).toCompletableFuture();
             }
-            // the body is received as it arrives: it is not buffered unless an entity is read of it
-            CompletableFuture<HttpResponse<BodyElements<ByteBuffer<?>>>> exchange = client.httpClient().toAsyncStreaming()
-                .exchangeStream(request).toCompletableFuture();
             // the exchange of a cancelled invocation is cancelled: core cancels the transport with
             // its own future, not with a dependent stage
+            CompletableFuture<HttpResponse<?>> transport = exchange;
             future.whenComplete((ignored, failure) -> {
                 if (future.isCancelled()) {
-                    exchange.cancel(false);
+                    transport.cancel(false);
                 }
             });
-            var _ = exchange.whenComplete((response, error) -> {
+            var _ = transport.whenComplete((response, error) -> {
                 Throwable throwable = unwrap(error);
-                if (throwable instanceof HttpClientResponseException httpClientResponseException) {
-                    // a response that is not successful is filtered like any other
-                    future.complete(new Exchanged(new JaxRsMutableResponse(httpClientResponseException.getResponse().toMutableResponse()
-                        .attribute(JaxRsResponse.REQUEST_URI, requestUri)), sentContext));
-                } else if (throwable != null) {
+                if (throwable != null) {
                     future.completeExceptionally(failure(throwable));
                 } else if (response == null) {
                     future.completeExceptionally(new ProcessingException("Expected a response"));
@@ -216,75 +197,70 @@ final class JaxRsClientExchange {
     }
 
     /**
-     * Complete an exchange with the response of a request sent while its entity was written: the
-     * entity is the stream of its body as it arrives, which closing the response releases.
+     * The body of a request: the bytes its entity was written to, none without an entity.
      */
-    private static void receivedRaw(HttpResponse<?> response, URI requestUri,
-                                    JaxRsClientRequestContext requestContext, CompletableFuture<Exchanged> future) {
+    static @Nullable CloseableByteBody requestBody(MutableHttpRequest<Object> request) {
+        Object body = request.getBody().orElse(null);
+        if (body == null) {
+            return null;
+        }
+        if (body instanceof byte[] bytes) {
+            return BODY_FACTORY.adapt(bytes);
+        }
+        throw new ProcessingException("No writer of the entity type " + body.getClass().getName());
+    }
+
+    /**
+     * Complete an exchange with a received response: an empty body is no entity, else the entity
+     * is the stream of the body as it arrives, which closing the response releases. A body of
+     * unknown length is empty when it ends before its first bytes.
+     */
+    private static void received(HttpResponse<?> response, URI requestUri,
+                                 JaxRsClientRequestContext requestContext, CompletableFuture<Exchanged> future) {
         MutableHttpResponse<Object> head = HttpResponseFactory.INSTANCE.status(response.code(), response.reason());
         response.getHeaders().forEachValue(head.getHeaders()::add);
         head.attribute(JaxRsResponse.REQUEST_URI, requestUri);
-        if (response instanceof ByteBodyHttpResponse<?> byteBodyResponse && byteBodyResponse.hasByteBody()) {
-            CloseableByteBody body = byteBodyResponse.byteBody().move();
-            if (body.expectedLength().orElse(-1) == 0) {
-                body.close();
-            } else {
-                InputStream entityStream = new FilterInputStream(body.toInputStream()) {
-                    @Override
-                    public void close() throws IOException {
-                        try {
-                            super.close();
-                        } finally {
-                            body.close();
-                        }
-                    }
-                };
-                head.setAttribute(RECEIVED_ENTITY_STREAM, entityStream);
-            }
+        if (!(response instanceof ByteBodyHttpResponse<?> byteBodyResponse) || !byteBodyResponse.hasByteBody()) {
+            future.complete(new Exchanged(new JaxRsMutableResponse(head), requestContext));
+            return;
         }
-        if (!future.complete(new Exchanged(new JaxRsMutableResponse(head), requestContext))) {
-            // the invocation was cancelled
-            head.removeAttribute(RECEIVED_ENTITY_STREAM, InputStream.class).ifPresent(stream -> {
-                try {
-                    stream.close();
-                } catch (IOException e) {
-                    // nothing to release more
+        CloseableByteBody body = byteBodyResponse.byteBody().move();
+        long length = body.expectedLength().orElse(-1);
+        if (length == 0) {
+            body.close();
+            future.complete(new Exchanged(new JaxRsMutableResponse(head), requestContext));
+        } else if (length > 0) {
+            complete(head, new JaxRsBodyInputStream(body.toReadBufferElements()), requestContext, future);
+        } else {
+            BodyElements<ReadBuffer> elements = body.toReadBufferElements();
+            var _ = elements.next().whenComplete((first, error) -> {
+                if (error != null) {
+                    var _ = elements.closeAsync();
+                    future.completeExceptionally(failure(unwrap(error)));
+                } else if (first.isEmpty()) {
+                    var _ = elements.closeAsync();
+                    future.complete(new Exchanged(new JaxRsMutableResponse(head), requestContext));
+                } else {
+                    complete(head, new JaxRsBodyInputStream(first.get().toArray(), elements), requestContext, future);
                 }
             });
         }
     }
 
     /**
-     * Complete an exchange with a received response once its first bytes arrive: an empty body is
-     * no entity, else the entity is the stream of the body as it arrives, which closing the
-     * response releases.
+     * Complete an exchange with a response and the entity stream the filters see.
      */
-    private static void received(HttpResponse<BodyElements<ByteBuffer<?>>> response, URI requestUri,
+    private static void complete(MutableHttpResponse<Object> head, InputStream entityStream,
                                  JaxRsClientRequestContext requestContext, CompletableFuture<Exchanged> future) {
-        MutableHttpResponse<Object> head = HttpResponseFactory.INSTANCE.status(response.code(), response.reason());
-        response.getHeaders().forEachValue(head.getHeaders()::add);
-        head.attribute(JaxRsResponse.REQUEST_URI, requestUri);
-        BodyElements<ByteBuffer<?>> body = response.body();
-        if (body == null) {
-            future.complete(new Exchanged(new JaxRsMutableResponse(head), requestContext));
-            return;
-        }
-        var _ = body.next().whenComplete((first, error) -> {
-            if (error != null) {
-                var _ = body.closeAsync();
-                future.completeExceptionally(failure(unwrap(error)));
-            } else if (first.isEmpty()) {
-                future.complete(new Exchanged(new JaxRsMutableResponse(head), requestContext));
-            } else {
-                var entityStream = new JaxRsBodyInputStream(first.get().toByteArray(), body);
-                // the entity stream of the response the filters see
-                head.setAttribute(RECEIVED_ENTITY_STREAM, entityStream);
-                if (!future.complete(new Exchanged(new JaxRsMutableResponse(head), requestContext))) {
-                    // the invocation was cancelled
-                    entityStream.close();
-                }
+        head.setAttribute(RECEIVED_ENTITY_STREAM, entityStream);
+        if (!future.complete(new Exchanged(new JaxRsMutableResponse(head), requestContext))) {
+            // the invocation was cancelled
+            try {
+                entityStream.close();
+            } catch (IOException e) {
+                // nothing to release more
             }
-        });
+        }
     }
 
     /**

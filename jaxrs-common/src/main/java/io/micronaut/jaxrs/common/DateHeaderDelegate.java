@@ -37,9 +37,9 @@ import java.util.Locale;
  * @since 5.2.0
  */
 @Internal
-final class DateHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Date> {
+public final class DateHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Date> {
 
-    static final DateHeaderDelegate INSTANCE = new DateHeaderDelegate();
+    public static final DateHeaderDelegate INSTANCE = new DateHeaderDelegate();
 
     // the preferred format, e.g. Sun, 06 Nov 1994 08:49:37 GMT
     private static final DateTimeFormatter IMF_FIXDATE = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss 'GMT'", Locale.US)

@@ -214,4 +214,11 @@ class ClientTestController {
         uploadStarted.complete(null);
         return Flux.from(body).map(bytes -> (long) bytes.length).reduce(0L, Long::sum).map(String::valueOf);
     }
+
+    // a chunked body without any bytes
+    @Post(value = "/empty-chunked", consumes = MediaType.ALL, produces = MediaType.APPLICATION_OCTET_STREAM)
+    Flux<byte[]> emptyChunked(@Body Publisher<byte[]> body) {
+        // the end of the body comes later than its headers
+        return Flux.from(body).thenMany(Flux.just(new byte[0]).concatWith(Mono.delay(Duration.ofMillis(200)).then(Mono.empty())));
+    }
 }
