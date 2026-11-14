@@ -8,6 +8,7 @@ import io.micronaut.http.annotation.Get;
 import io.micronaut.runtime.server.EmbeddedServer;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
+import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.client.ClientBuilder;
 import jakarta.ws.rs.core.Context;
@@ -31,6 +32,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 /**
  * Regressions of the providers and the event sources of the client.
@@ -70,6 +72,12 @@ class JaxRsClientRegressionTest {
     void anEndlessErrorResponseOfAnEventSourceIsAnError() throws Exception {
         Throwable error = awaitError("endless-error");
         assertFalse(error instanceof OutOfMemoryError);
+    }
+
+    @Test
+    void anErrorResponseWithAnUnknownStatusOfAnEventSourceIsAnError() throws Exception {
+        Throwable error = awaitError("unknown-status");
+        assertEquals(499, assertInstanceOf(WebApplicationException.class, error).getResponse().getStatus());
     }
 
     private Throwable awaitError(String path) throws Exception {
@@ -124,6 +132,11 @@ class JaxRsClientRegressionTest {
         HttpResponse<Flux<byte[]>> endlessError() {
             byte[] piece = new byte[64 * 1024];
             return HttpResponse.<Flux<byte[]>>serverError().body(Flux.<byte[]>generate(sink -> sink.next(piece)));
+        }
+
+        @Get(value = "/unknown-status", produces = io.micronaut.http.MediaType.TEXT_EVENT_STREAM)
+        HttpResponse<String> unknownStatus() {
+            return HttpResponse.<String>status(499, "Client Closed").body("closed");
         }
     }
 }
