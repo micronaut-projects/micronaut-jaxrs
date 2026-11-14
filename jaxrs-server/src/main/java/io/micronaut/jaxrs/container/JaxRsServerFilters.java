@@ -106,16 +106,19 @@ final class JaxRsServerFilters implements HttpRoutes {
      * Normalize the request URI before it is matched, the one {@code UriInfo} reflects (JAX-RS
      * 3.7.1): the syntax-based normalization of RFC 3986, 6.2.2.
      *
+     * Only a request under the application path is normalized: the routes of the rest of the
+     * server match the URI as it was received.
+     *
      * @return Whether the URI of the request was changed
      */
-    private static boolean normalize(MutableHttpRequest<?> request) {
+    private boolean normalize(MutableHttpRequest<?> request) {
         URI uri = request.getUri();
         String rawPath = uri.getRawPath();
         if (rawPath == null || rawPath.indexOf('%') < 0 && rawPath.indexOf('.') < 0) {
             return false;
         }
         String normalized = normalizePath(rawPath);
-        if (normalized.equals(rawPath)) {
+        if (normalized.equals(rawPath) || !underApplicationPath(normalized)) {
             return false;
         }
         StringBuilder target = new StringBuilder();
@@ -136,6 +139,14 @@ final class JaxRsServerFilters implements HttpRoutes {
             // left as it is
             return false;
         }
+    }
+
+    private boolean underApplicationPath(String path) {
+        String applicationPath = applicationProvider.getPath();
+        if (applicationPath.endsWith("/")) {
+            applicationPath = applicationPath.substring(0, applicationPath.length() - 1);
+        }
+        return applicationPath.isEmpty() || path.equals(applicationPath) || path.startsWith(applicationPath + "/");
     }
 
     /**
