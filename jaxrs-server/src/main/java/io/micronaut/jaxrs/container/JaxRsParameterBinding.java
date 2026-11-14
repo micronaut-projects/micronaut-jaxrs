@@ -24,6 +24,7 @@ import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.PathVariables;
 import io.micronaut.http.form.FormData;
+import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
 import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.jaxrs.common.reflect.WritableMember;
 import io.micronaut.jaxrs.runtime.ext.bind.JaxRsRequestUri;
@@ -48,7 +49,6 @@ import jakarta.ws.rs.ext.ParamConverterProvider;
 import org.jspecify.annotations.Nullable;
 
 import java.io.InputStream;
-import java.lang.annotation.Annotation;
 import java.net.URLDecoder;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
@@ -408,9 +408,9 @@ final class JaxRsParameterBinding {
     private void convertDefault(Conversion conversion, String defaultValue) {
         Argument<?> argument = conversion.argument;
         Argument<?> target = conversion.target;
-        Annotation[] annotations = target.synthesizeAll();
         for (ParamConverterProvider provider : paramConverterProviders.get()) {
-            ParamConverter<?> converter = provider.getConverter(target.getType(), target.asType(), annotations);
+            ParamConverter<?> converter = provider.getConverter(target.getType(), target.asType(),
+                JaxRsArgumentUtil.annotations(target.getAnnotationMetadata(), provider));
             if (converter == null) {
                 continue;
             }
@@ -460,9 +460,9 @@ final class JaxRsParameterBinding {
     @SuppressWarnings({"unchecked", "rawtypes"})
     private StringConverter converter(Argument<?> argument) {
         Class<?> type = argument.getType();
-        Annotation[] annotations = argument.synthesizeAll();
         for (ParamConverterProvider provider : paramConverterProviders.get()) {
-            ParamConverter paramConverter = provider.getConverter(type, argument.asType(), annotations);
+            ParamConverter paramConverter = provider.getConverter(type, argument.asType(),
+                JaxRsArgumentUtil.annotations(argument.getAnnotationMetadata(), provider));
             if (paramConverter != null) {
                 return paramConverter::fromString;
             }

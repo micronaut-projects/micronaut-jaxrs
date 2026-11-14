@@ -15,6 +15,7 @@
  */
 package io.micronaut.jaxrs.container;
 
+import io.micronaut.core.io.service.SoftServiceLoader;
 import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.inject.BeanDefinition;
@@ -55,7 +56,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -472,7 +472,7 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
             classLoaders.add(type.getClassLoader());
         }
         for (ClassLoader classLoader : classLoaders) {
-            for (T loaded : ServiceLoader.load(type, classLoader)) {
+            for (T loaded : SoftServiceLoader.load(type, classLoader).collectAll()) {
                 if (!instances.containsKey(loaded.getClass())) {
                     // injected before it is configured, like an instance of the application
                     T injected = type.cast(injected(loaded));
