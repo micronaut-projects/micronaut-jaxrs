@@ -50,7 +50,6 @@ import org.jspecify.annotations.Nullable;
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
 import java.net.URLDecoder;
-import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -264,13 +263,16 @@ final class JaxRsParameterBinding {
         if (JaxRsRouteSupport.isRawForm(request)) {
             if (!encoded) {
                 Charset charset = JaxRsRouteSupport.formCharset(request);
-                values = values.stream().map(value -> URLDecoder.decode(value, charset)).toList();
+                try {
+                    values = values.stream().map(value -> URLDecoder.decode(value, charset)).toList();
+                } catch (IllegalArgumentException e) {
+                    // a malformed percent-encoding is a malformed request
+                    throw new BadRequestException("Malformed form entity: " + e.getMessage(), e);
+                }
             }
-        } else if (encoded) {
-            // the decoded values of a form read for parameters that are not @Encoded: form encoding, a space is a plus
-            Charset charset = JaxRsRouteSupport.formCharset(request);
-            values = values.stream().map(value -> URLEncoder.encode(value, charset)).toList();
         }
+        // else the values as sent: a multipart form has no encoded values, and encoding the decoded
+        // values again does not give the values as they were sent
         return conversion.convert(values, false);
     }
 

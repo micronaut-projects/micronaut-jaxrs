@@ -655,13 +655,14 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 routes.handleAsync(declaration, (request, pathVariables, target, requestBody) ->
                     callAsync(method, instances, request, pathVariables, target, null, null));
             }
-        } else if (form && encodedForm) {
+        } else if (form && encodedForm && method.formEntity()) {
             // the form of the entity, with its raw values: an url-encoded form, the only one with encoded values
             routes.handleEntity(declaration, (request, pathVariables, target, value) ->
                 call(method, instances, request, pathVariables, target, support.entityForm(request, value, true), null));
-        } else if (form && usesResourceContext) {
-            // the resources of the ResourceContext may have @Encoded form members: the form is read with
-            // its raw values, which the form parameters that are not @Encoded decode
+        } else if (form && (encodedForm || usesResourceContext)) {
+            // an @Encoded form parameter, or the resources of the ResourceContext that may have @Encoded form members:
+            // an url-encoded form, the only one with encoded values, is read with its raw values, which the form
+            // parameters that are not @Encoded decode; a multipart form is read as it is
             routes.handleAsync(declaration, (request, pathVariables, target, requestBody) -> support.formAsync(request, pathVariables, requestBody,
                 true, (readRequest, readPathVariables, value) -> CompletableFuture.completedFuture(
                     call(method, instances, readRequest, readPathVariables, target, value, null))));

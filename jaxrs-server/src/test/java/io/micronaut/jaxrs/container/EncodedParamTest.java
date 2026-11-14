@@ -113,10 +113,29 @@ class EncodedParamTest {
         assertEquals("a%20b!|a b!", post("/api/encoded-field/located", "x=a%20b!&y=a%20b!"));
     }
 
+    @Test
+    void encodedFormParamOfALocatedMethod() throws Exception {
+        // the locator reads the form decoded, the located method reads a value as it was sent
+        assertEquals("a b~|a%20b~", post("/api/decoded-locator/located", "x=a%20b~&y=a%20b~"));
+    }
+
+    @Test
+    void encodedFormParamOfAMultipartForm() throws Exception {
+        // the value of a part is not url-encoded: it is the value as sent
+        String body = "--b\r\nContent-Disposition: form-data; name=\"f\"\r\n\r\na b~\r\n--b--\r\n";
+        HttpResponse<String> response = client.send(HttpRequest.newBuilder(URI.create(server.getURL() + "/api/encoded/multipart"))
+                .header("Content-Type", "multipart/form-data; boundary=b")
+                .POST(HttpRequest.BodyPublishers.ofString(body)).build(),
+            HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, response.statusCode(), response.body());
+        assertEquals("a b~", response.body());
+    }
+
     @ParameterizedTest
     @CsvSource({
         "/api/encoded/form,%GG=value",
         "/api/encoded/form,f=%GG",
+        "/api/encoded/form-async,g=%GG",
     })
     void malformedFormIsABadRequest(String path, String form) throws Exception {
         HttpResponse<String> response = client.send(HttpRequest.newBuilder(URI.create(server.getURL() + path))
@@ -177,6 +196,13 @@ class EncodedParamTest {
         @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
         public CompletionStage<String> formAsync(@Encoded @FormParam("f") String raw, @FormParam("g") String decoded) {
             return CompletableFuture.completedFuture(raw + "|" + decoded);
+        }
+
+        @POST
+        @Path("/multipart")
+        @Consumes(MediaType.MULTIPART_FORM_DATA)
+        public String multipart(@Encoded @FormParam("f") String raw) {
+            return raw;
         }
 
         @POST
@@ -242,6 +268,31 @@ class EncodedParamTest {
         @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
         public String post(@FormParam("y") String y) {
             return raw + "|" + y;
+        }
+    }
+
+    @Requires(property = "spec.name", value = "EncodedParamTest")
+    @Path("/decoded-locator")
+    @Produces(MediaType.TEXT_PLAIN)
+    public static class DecodedLocatorResource {
+
+        @Path("/located")
+        public EncodedLocated located(@FormParam("x") String decoded) {
+            return new EncodedLocated(decoded);
+        }
+    }
+
+    public static class EncodedLocated {
+        private final String decoded;
+
+        EncodedLocated(String decoded) {
+            this.decoded = decoded;
+        }
+
+        @POST
+        @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+        public String post(@Encoded @FormParam("y") String raw) {
+            return decoded + "|" + raw;
         }
     }
 }
