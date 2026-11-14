@@ -413,6 +413,30 @@ class JaxRsClientLifecycleTest {
     }
 
     @Test
+    void aLargeEntityIsUploadedAsynchronouslyOnAnExecutorWithOneThread() throws Exception {
+        ClientTestController.uploadStarted = new java.util.concurrent.CompletableFuture<>();
+        ExecutorService executor = java.util.concurrent.Executors.newSingleThreadExecutor();
+        Client singleThreadClient = ClientBuilder.newBuilder().executorService(executor).build();
+        try {
+            int size = 4 * 1024 * 1024;
+            // written in small pieces: more of them than the upload keeps pending
+            jakarta.ws.rs.core.StreamingOutput entity = output -> {
+                byte[] piece = new byte[1024];
+                for (int i = 0; i < size / piece.length; i++) {
+                    output.write(piece);
+                }
+            };
+            Future<String> received = singleThreadClient.target(server.getURI()).path("client").path("upload").request().async()
+                .post(Entity.entity(entity, MediaType.APPLICATION_OCTET_STREAM), String.class);
+            // the writer and the transport do not wait for each other on the only thread
+            assertEquals(String.valueOf(size), received.get(30, TimeUnit.SECONDS));
+        } finally {
+            singleThreadClient.close();
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
     void anEntityStreamIsReceivedAsItArrivesWithoutBeingBuffered() throws IOException {
         // larger than the max-content-length of the HTTP client, which a buffered body is limited by
         try (Response response = target("large").request().get(); InputStream stream = response.readEntity(InputStream.class)) {
