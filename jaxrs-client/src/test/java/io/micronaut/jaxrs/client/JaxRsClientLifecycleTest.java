@@ -437,6 +437,18 @@ class JaxRsClientLifecycleTest {
     }
 
     @Test
+    void anEmptyChunkedBodyIsNoEntityWhateverTheSizeOfTheRequestEntity() {
+        int large = 2 * 1024 * 1024;
+        for (int size : new int[] {16, large}) {
+            try (Response response = target("empty-chunked").request()
+                .post(Entity.entity(new byte[size], MediaType.APPLICATION_OCTET_STREAM_TYPE))) {
+                assertEquals(200, response.getStatus());
+                assertFalse(response.hasEntity(), "request entity of " + size + " bytes");
+            }
+        }
+    }
+
+    @Test
     void anEntityStreamIsReceivedAsItArrivesWithoutBeingBuffered() throws IOException {
         // larger than the max-content-length of the HTTP client, which a buffered body is limited by
         try (Response response = target("large").request().get(); InputStream stream = response.readEntity(InputStream.class)) {

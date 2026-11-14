@@ -16,7 +16,7 @@
 package io.micronaut.jaxrs.client;
 
 import io.micronaut.core.annotation.Internal;
-import io.micronaut.core.io.buffer.ByteBuffer;
+import io.micronaut.core.io.buffer.ReadBuffer;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpRequest;
@@ -25,8 +25,9 @@ import io.micronaut.http.HttpStatus;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.MutableHttpRequest;
 import io.micronaut.http.MutableHttpResponse;
+import io.micronaut.http.ByteBodyHttpResponse;
 import io.micronaut.http.body.BodyElements;
-import io.micronaut.http.client.exceptions.HttpClientResponseException;
+import io.micronaut.http.body.CloseableByteBody;
 import io.micronaut.http.client.netty.DefaultHttpClient;
 import io.micronaut.http.client.sse.EventStreamDecoder;
 import io.micronaut.http.client.sse.EventStreamState;
@@ -43,6 +44,7 @@ import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -104,7 +106,7 @@ final class JaxRsSseEventSource implements SseEventSource {
     // the last event id and reconnection time of the stream, which the client follows also for a
     // block without data: one per source, kept across connections
     private final EventStreamState streamState = new EventStreamState();
-    private volatile @Nullable BodyElements<ByteBuffer<?>> events;
+    private volatile @Nullable BodyElements<ReadBuffer> events;
     // the entity stream the events are read from: the bytes of the connection, or the stream a filter set
     private volatile @Nullable InputStream replacedStream;
     private volatile @Nullable Future<?> pendingReconnect;
@@ -173,7 +175,7 @@ final class JaxRsSseEventSource implements SseEventSource {
     @Override
     public boolean close(long timeout, TimeUnit unit) {
         Future<?> reconnect;
-        BodyElements<ByteBuffer<?>> current;
+        BodyElements<ReadBuffer> current;
         InputStream replaced;
         DefaultHttpClient client;
         boolean closedAgain;
@@ -278,9 +280,16 @@ final class JaxRsSseEventSource implements SseEventSource {
         }
         // the response filters may block: they run on the executor of the client, not on the
         // event loop of the HTTP client (JAX-RS, ClientBuilder#executorService)
-        client.toAsyncStreaming().exchangeStream(sent).whenComplete((response, error) -> callbacks.dispatch(() -> {
+        CloseableByteBody requestBody;
+        try {
+            requestBody = JaxRsClientExchange.requestBody(sent);
+        } catch (RuntimeException e) {
+            error(e instanceof ProcessingException processing ? processing : new ProcessingException(e));
+            return;
+        }
+        client.toAsyncRaw().exchange(sent, requestBody).whenComplete((response, error) -> callbacks.dispatch(() -> {
             if (error != null) {
-                failed(error instanceof CompletionException && error.getCause() != null ? error.getCause() : error, requestContext);
+                failed(error instanceof CompletionException && error.getCause() != null ? error.getCause() : error);
             } else {
                 receive(response, requestContext);
             }
@@ -291,8 +300,16 @@ final class JaxRsSseEventSource implements SseEventSource {
      * Receive the events of a response: a {@code 204 No Content} has none and ends the
      * processing, and a response that is not an event stream is an error (JAX-RS 9.4).
      */
-    private void receive(HttpResponse<BodyElements<ByteBuffer<?>>> response, JaxRsClientRequestContext requestContext) {
-        BodyElements<ByteBuffer<?>> body = response.body();
+    private void receive(HttpResponse<?> response, JaxRsClientRequestContext requestContext) {
+        CloseableByteBody byteBody = response instanceof ByteBodyHttpResponse<?> byteBodyResponse && byteBodyResponse.hasByteBody()
+            ? byteBodyResponse.byteBody().move() : null;
+        if (byteBody != null && response.code() >= HttpStatus.BAD_REQUEST.getCode()) {
+            // an error response: its entity is read, the filters see it like any other (JAX-RS 6.1)
+            failed(response, byteBody, requestContext);
+            return;
+        }
+        // the pieces of the body as they arrive: closing them while they are read ends the read
+        BodyElements<ReadBuffer> body = byteBody == null ? null : byteBody.toReadBufferElements();
         if (!open) {
             if (body != null) {
                 body.closeAsync();
@@ -330,7 +347,7 @@ final class JaxRsSseEventSource implements SseEventSource {
      * @param unchanged The entity stream before the filters
      * @param body      The events of the connection, {@code null} for an error response
      */
-    private void process(JaxRsMutableResponse filtered, InputStream unchanged, @Nullable BodyElements<ByteBuffer<?>> body) {
+    private void process(JaxRsMutableResponse filtered, InputStream unchanged, @Nullable BodyElements<ReadBuffer> body) {
         InputStream replacement = filtered.getEntityStream() == unchanged ? null : filtered.getEntityStream();
         int status = filtered.getStatus();
         if (status != HttpStatus.OK.getCode() && status != HttpStatus.NO_CONTENT.getCode()) {
@@ -421,7 +438,7 @@ final class JaxRsSseEventSource implements SseEventSource {
         } finally {
             replacedStream = null;
             closeQuietly(stream);
-            BodyElements<ByteBuffer<?>> read = events;
+            BodyElements<ReadBuffer> read = events;
             events = null;
             if (read != null) {
                 read.closeAsync();
@@ -534,22 +551,39 @@ final class JaxRsSseEventSource implements SseEventSource {
             event.getData(), target.getConfiguration());
     }
 
-    private void failed(Throwable throwable, JaxRsClientRequestContext requestContext) {
-        if (throwable instanceof HttpClientResponseException responseException) {
-            // the response filters see an error response like any other (JAX-RS 6.1)
-            JaxRsMutableResponse response = new JaxRsMutableResponse(responseException.getResponse().toMutableResponse());
-            InputStream unchanged = response.getEntityStream();
-            try {
-                filterResponse(response, requestContext);
-            } catch (IOException | RuntimeException e) {
-                closeReplaced(response, unchanged);
-                error(new ResponseProcessingException(response, e));
-                return;
-            }
-            // processed like any other response: a filter may turn the error into an event stream
-            process(response, unchanged, null);
+    /**
+     * Process an error response: the response filters see it like any other, with its entity
+     * (JAX-RS 6.1), and a filter may turn it into an event stream.
+     */
+    private void failed(HttpResponse<?> errorResponse, CloseableByteBody body, JaxRsClientRequestContext requestContext) {
+        byte[] entity;
+        try (InputStream stream = body.toInputStream()) {
+            entity = stream.readAllBytes();
+        } catch (IOException e) {
+            failed(e);
+            return;
+        } finally {
+            body.close();
+        }
+        if (!open) {
             return;
         }
+        MutableHttpResponse<?> head = HttpResponse.status(errorResponse.status(), errorResponse.reason());
+        errorResponse.getHeaders().forEachValue(head::header);
+        JaxRsMutableResponse response = new JaxRsMutableResponse(head);
+        InputStream unchanged = new ByteArrayInputStream(entity);
+        response.setEntityStream(unchanged);
+        try {
+            filterResponse(response, requestContext);
+        } catch (IOException | RuntimeException e) {
+            closeReplaced(response, unchanged);
+            error(new ResponseProcessingException(response, e));
+            return;
+        }
+        process(response, unchanged, null);
+    }
+
+    private void failed(Throwable throwable) {
         if (connected) {
             // a transport error while reconnecting, e.g. the server is restarting: retry later
             LOG.debug("The reconnection failed, retrying: {}", throwable.getMessage(), throwable);
