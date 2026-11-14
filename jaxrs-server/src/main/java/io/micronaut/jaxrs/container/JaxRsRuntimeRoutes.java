@@ -51,6 +51,9 @@ import io.micronaut.web.router.builder.HttpRouteSpec;
 import io.micronaut.web.router.builder.HttpRoutes;
 import io.micronaut.web.router.builder.LocatedHttpRouteBuilder;
 import io.micronaut.web.router.builder.LocatedRoutes;
+import io.micronaut.web.router.builder.SseBodyHandler;
+import io.micronaut.http.sse.SseEmitter;
+import io.micronaut.http.HttpHeaders;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.BeanParam;
 import jakarta.ws.rs.Consumes;
@@ -610,31 +613,27 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         boolean rawEntityForm = encodedForm || usesResourceContext;
         if (method.events()) {
             boolean readsBody = body;
-            routes.handleAsync(declaration, (request, pathVariables, target, requestBody) -> {
-                // the response starts on the first event or when the method returns (JAX-RS 9.5):
-                // the method runs apart, as it may wait for its events to be sent
-                CompletableFuture<HttpResponse<?>> response = new CompletableFuture<>();
-                JaxRsSseEventSink sink = support.sseEventSink(request);
-                sink.onFirstSend(() -> response.complete(HttpResponse.ok()));
+            routes.handleEvents(declaration, (request, pathVariables, target, requestBody, events) -> {
+                // the response starts on the first event (JAX-RS 9.5): the method runs apart, as it
+                // may wait for its events to be sent
+                JaxRsSseEventSink sink = support.sseEventSink(request, events);
                 CompletionStage<?> called;
                 if (form) {
                     called = support.formAsync(request, pathVariables, requestBody, rawEntityForm,
-                        (readRequest, readPathVariables, value) -> callEvents(method, instances, readRequest, readPathVariables, target, value, null, response));
+                        (readRequest, readPathVariables, value) -> callEvents(method, instances, readRequest, readPathVariables, target, value, null, sink));
                 } else if (readsBody) {
                     called = support.entityAsync(request, pathVariables, requestBody,
                         (readRequest, readPathVariables, value) -> callEvents(method, instances, readRequest, readPathVariables, target,
-                            entityForm ? support.entityForm(readRequest, value, rawEntityForm) : null, value, response));
+                            entityForm ? support.entityForm(readRequest, value, rawEntityForm) : null, value, sink));
                 } else {
-                    called = CompletableFuture.supplyAsync(() -> callEvents(method, instances, request, pathVariables, target, null, null, response),
+                    called = CompletableFuture.supplyAsync(() -> callEvents(method, instances, request, pathVariables, target, null, null, sink),
                         support.executor(request));
                 }
                 called.whenComplete((ignored, failure) -> {
-                    if (failure != null && !response.completeExceptionally(failure)) {
-                        // the events started: the failure ends them
-                        sink.close();
+                    if (failure != null) {
+                        eventsFailed(sink, failure);
                     }
                 });
-                return response;
             });
         } else if (method.async()) {
             if (form) {
@@ -684,37 +683,59 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     }
 
     /**
-     * Call a resource method with an event sink, completing its response with its result, or the
-     * one of its stage for an asynchronous method, unless its first event started it.
+     * Call a resource method with an event sink: its result, or the one of its stage for an
+     * asynchronous method, answers the request unless its first event started the event stream.
      */
     private <L, B> CompletionStage<HttpResponse<?>> callEvents(ResourceMethod<B> method, Instances<L, B> instances, HttpRequest<?> request,
-                                                              PathVariables pathVariables, @Nullable L target, @Nullable FormData form,
-                                                              byte @Nullable [] body, CompletableFuture<HttpResponse<?>> response) {
+                                                               PathVariables pathVariables, @Nullable L target, @Nullable FormData form,
+                                                               byte @Nullable [] body, JaxRsSseEventSink sink) {
         try {
             if (method.async()) {
-                // the stage may complete after events more than the sink buffers before the response
                 callAsync(method, instances, request, pathVariables, target, form, body).whenComplete((value, failure) -> {
                     if (failure == null) {
-                        response.complete(value);
+                        eventsReturned(sink, value);
                     } else {
-                        eventsFailed(request, response, failure instanceof CompletionException && failure.getCause() != null
-                            ? failure.getCause() : failure);
+                        eventsFailed(sink, failure);
                     }
                 });
             } else {
-                response.complete(call(method, instances, request, pathVariables, target, form, body));
+                eventsReturned(sink, call(method, instances, request, pathVariables, target, form, body));
             }
         } catch (Exception e) {
-            eventsFailed(request, response, e);
+            eventsFailed(sink, e);
         }
         return CompletableFuture.completedFuture(null);
     }
 
-    private void eventsFailed(HttpRequest<?> request, CompletableFuture<HttpResponse<?>> response, Throwable failure) {
-        if (!response.completeExceptionally(failure)) {
-            // the events started: the failure ends them
-            support.sseEventSink(request).close();
+    /**
+     * The response of a resource method with an event sink: an error answers the request instead
+     * of the events, if none was sent yet; the headers of a success are those of the event stream.
+     */
+    private static void eventsReturned(JaxRsSseEventSink sink, HttpResponse<?> response) {
+        SseEmitter events = sink.events();
+        try {
+            if (response.code() >= 300) {
+                events.respond(response);
+                return;
+            }
+            for (Map.Entry<String, List<String>> header : response.getHeaders()) {
+                if (!HttpHeaders.CONTENT_TYPE.equalsIgnoreCase(header.getKey()) && !HttpHeaders.CONTENT_LENGTH.equalsIgnoreCase(header.getKey())) {
+                    for (String value : header.getValue()) {
+                        events.header(header.getKey(), value);
+                    }
+                }
+            }
+        } catch (IllegalStateException e) {
+            // the events started, or the stream ended: the response was sent
         }
+    }
+
+    /**
+     * A failure of a resource method with an event sink: answered by the error routes before its
+     * first event, ends the event stream after.
+     */
+    private static void eventsFailed(JaxRsSseEventSink sink, Throwable failure) {
+        sink.events().fail(failure instanceof CompletionException && failure.getCause() != null ? failure.getCause() : failure);
     }
 
     /**
@@ -1252,6 +1273,16 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     }
 
     /**
+     * Handles a request of an event stream route, with the target it is located on.
+     *
+     * @param <L> The type of the target
+     */
+    @FunctionalInterface
+    private interface EventsHandler<L> {
+        void handle(HttpRequest<?> request, PathVariables pathVariables, @Nullable L target, AsyncRequestBody body, SseEmitter events) throws Exception;
+    }
+
+    /**
      * Locates the target of a locator, with the form it read, {@code null} if it reads none.
      *
      * @param <L> The type of the target the locator is located on
@@ -1295,6 +1326,8 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         void handleAsync(Declaration route, AsyncHandler<L> handler);
 
         void handleEntityAsync(Declaration route, String executor, AsyncEntityHandler<L> handler);
+
+        void handleEvents(Declaration route, EventsHandler<L> handler);
 
         void locate(String executor, String prefix, boolean form, boolean rawForm, Locator<L> locator);
     }
@@ -1360,6 +1393,12 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         public void handleEntityAsync(Declaration route, String executor, AsyncEntityHandler<L> handler) {
             spec(route).executeOn(executor).body(JaxRsRouteSupport.ENTITY).handleAsync((AsyncBodyRequestHandler<byte[]>) (request, pathVariables, body) ->
                 handler.handle(request, pathVariables, target(pathVariables), body));
+        }
+
+        @Override
+        public void handleEvents(Declaration route, EventsHandler<L> handler) {
+            spec(route).body().sse((SseBodyHandler<AsyncRequestBody>) (request, pathVariables, body, events) ->
+                handler.handle(request, pathVariables, target(pathVariables), body, events));
         }
 
         @Override

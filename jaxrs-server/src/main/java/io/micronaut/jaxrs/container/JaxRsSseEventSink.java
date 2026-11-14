@@ -17,17 +17,13 @@ package io.micronaut.jaxrs.container;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.sse.Event;
+import io.micronaut.http.sse.SseEmitter;
 import jakarta.ws.rs.sse.OutboundSseEvent;
 import jakarta.ws.rs.sse.SseEventSink;
 import org.jspecify.annotations.Nullable;
-import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.ArrayDeque;
-import java.util.Deque;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -38,171 +34,72 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 /**
- * The sink of the events a resource method sends (JAX-RS 9.3): the stream of the
- * {@code text/event-stream} response of the request, see {@link JaxRsServerFilters}. The events
- * sent before the response is written are buffered. The stage of a sent event completes once the
- * response stream took it, as its subscriber requested it, and fails when the client disconnects
- * before: a producer waiting for the stages follows the demand of the connection. The response
- * starts on the first event sent, so that a resource method can wait for the stages of its events.
+ * The sink of the events a resource method sends (JAX-RS 9.3): an adapter over the
+ * {@link SseEmitter} of the {@code text/event-stream} route of the resource method. The emitter
+ * sends the response on the first event, buffers the events of a slow client and completes the
+ * stage of a send once the connection takes it.
  *
  * @author Denis Stepanov
  * @since 5.0.0
  */
 @Internal
-final class JaxRsSseEventSink implements SseEventSink, Publisher<Event<String>>, Subscription {
+final class JaxRsSseEventSink implements SseEventSink {
 
-    // the events waiting for the demand of the connection: a producer ignoring the stages of its
-    // sends fails then, rather than growing the buffer without bound
-    static final int PENDING_LIMIT = 65_536;
-
+    private final SseEmitter events;
     private final Function<OutboundSseEvent, String> dataWriter;
     private final Executor callbackExecutor;
     private final List<Runnable> onClose = new CopyOnWriteArrayList<>();
-    private final Deque<Pending> buffer = new ArrayDeque<>();
-    private volatile boolean closed;
-    // the state of the publisher of the events, guarded by this
-    private @Nullable Subscriber<? super Event<String>> subscriber;
-    private long demand;
-    private boolean completed;
-    private boolean completeSent;
-    private boolean cancelled;
-    private boolean draining;
-    private boolean missed;
-    // called once on the first event sent, to start the response, see #onFirstSend
-    private @Nullable Runnable firstSend;
+    private final AtomicBoolean closed = new AtomicBoolean();
 
     /**
+     * @param events     The emitter of the events of the response
      * @param dataWriter Writes the data of an event as text, with the message body writers
      */
-    JaxRsSseEventSink(Function<OutboundSseEvent, String> dataWriter) {
-        this(dataWriter, Runnable::run);
+    JaxRsSseEventSink(SseEmitter events, Function<OutboundSseEvent, String> dataWriter) {
+        this(events, dataWriter, Runnable::run);
     }
 
     /**
+     * @param events           The emitter of the events of the response, kept open until the sink is closed
      * @param dataWriter       Writes the data of an event as text, with the message body writers
      * @param callbackExecutor The executor of the close callbacks when the client disconnects,
      *                         e.g. the blocking executor: not the event loop reporting it, the
      *                         callbacks of the application can block
      */
-    JaxRsSseEventSink(Function<OutboundSseEvent, String> dataWriter, Executor callbackExecutor) {
+    JaxRsSseEventSink(SseEmitter events, Function<OutboundSseEvent, String> dataWriter, Executor callbackExecutor) {
+        this.events = events;
         this.dataWriter = dataWriter;
         this.callbackExecutor = callbackExecutor;
+        // the resource method may send its events after it returns, until it closes the sink
+        events.keepOpen();
+        events.onClose(failure -> disconnected());
     }
 
     /**
-     * @return The events, the body of the response
+     * The emitter of the events of the response.
+     *
+     * @return The emitter
      */
-    Publisher<Event<String>> publisher() {
-        return this;
+    SseEmitter events() {
+        return events;
     }
 
-    @Override
-    public void subscribe(Subscriber<? super Event<String>> s) {
-        synchronized (this) {
-            if (subscriber == null) {
-                subscriber = s;
-            } else {
-                s.onSubscribe(this);
-                s.onError(new IllegalStateException("The events of a sink have one subscriber"));
-                return;
-            }
-        }
-        s.onSubscribe(this);
-        drain();
-    }
-
-    @Override
-    public void request(long n) {
-        if (n <= 0) {
-            cancel();
+    /**
+     * The client disconnected, or the stream ended otherwise: the close callbacks run on the
+     * callback executor.
+     */
+    void disconnected() {
+        if (!closed.compareAndSet(false, true)) {
             return;
         }
-        synchronized (this) {
-            demand = demand + n < 0 ? Long.MAX_VALUE : demand + n;
-        }
-        drain();
-    }
-
-    @Override
-    public void cancel() {
-        List<Pending> unsent;
-        synchronized (this) {
-            cancelled = true;
-            unsent = List.copyOf(buffer);
-            buffer.clear();
-        }
-        // the client disconnected, reported on the event loop: closed first, then the futures of
-        // the unsent events, whose callbacks can block, e.g. of a broadcaster, and the close
-        // callbacks complete apart
-        boolean wasOpen = markClosed();
-        if (!wasOpen && unsent.isEmpty()) {
-            return;
-        }
-        Runnable disconnected = () -> {
-            IOException failure = new IOException("The client disconnected");
-            for (Pending pending : unsent) {
-                pending.sent.completeExceptionally(failure);
-            }
-            if (wasOpen) {
-                runCallbacks();
-            }
-        };
         try {
-            callbackExecutor.execute(disconnected);
+            callbackExecutor.execute(this::runCallbacks);
         } catch (RejectedExecutionException e) {
             // the executor is shut down: run on this thread
-            disconnected.run();
+            runCallbacks();
         }
-    }
-
-    /**
-     * Deliver the buffered events the subscriber requested, then the completion: one thread at a
-     * time, and without recursion when the subscriber requests more while it receives an event.
-     */
-    private void drain() {
-        synchronized (this) {
-            if (draining) {
-                missed = true;
-                return;
-            }
-            draining = true;
-        }
-        while (true) {
-            Subscriber<? super Event<String>> s;
-            Pending next = null;
-            boolean complete = false;
-            synchronized (this) {
-                s = subscriber;
-                if (s == null || cancelled) {
-                    draining = false;
-                    return;
-                }
-                if (demand > 0 && !buffer.isEmpty()) {
-                    next = buffer.poll();
-                    demand--;
-                } else if (buffer.isEmpty() && completed && !completeSent) {
-                    completeSent = true;
-                    complete = true;
-                } else if (missed) {
-                    missed = false;
-                    continue;
-                } else {
-                    draining = false;
-                    return;
-                }
-            }
-            if (next != null) {
-                try {
-                    s.onNext(next.event);
-                } catch (RuntimeException e) {
-                    next.sent.completeExceptionally(e);
-                    throw e;
-                }
-                next.sent.complete(null);
-            } else if (complete) {
-                s.onComplete();
-            }
-        }
+        // pending sends fail, if the emitter did not notice it yet, e.g. before the response
+        events.fail(new IOException("The client disconnected"));
     }
 
     /**
@@ -218,30 +115,20 @@ final class JaxRsSseEventSink implements SseEventSink, Publisher<Event<String>>,
             }
         };
         onClose.add(once);
-        if (closed) {
+        if (closed.get()) {
             once.run();
         }
         return () -> onClose.remove(once);
     }
 
-    /**
-     * @param callback Called once, when the first event is sent: the response starts then, or
-     *                 when the resource method returns, whichever comes first (JAX-RS 9.5)
-     */
-    void onFirstSend(Runnable callback) {
-        synchronized (this) {
-            firstSend = callback;
-        }
-    }
-
     @Override
     public boolean isClosed() {
-        return closed;
+        return closed.get() || !events.isOpen();
     }
 
     @Override
     public CompletionStage<?> send(OutboundSseEvent event) {
-        if (closed) {
+        if (isClosed()) {
             throw new IllegalStateException("The event sink is closed");
         }
         try {
@@ -253,29 +140,7 @@ final class JaxRsSseEventSink implements SseEventSink, Publisher<Event<String>>,
             if (event.isReconnectDelaySet()) {
                 sent = sent.retry(Duration.ofMillis(event.getReconnectDelay()));
             }
-            Pending pending = new Pending(sent, new CompletableFuture<>());
-            Runnable started;
-            synchronized (this) {
-                if (cancelled) {
-                    return CompletableFuture.failedFuture(new IOException("The client disconnected"));
-                }
-                if (completed) {
-                    // closed while the data was written: not published after the completion
-                    return CompletableFuture.failedFuture(new IllegalStateException("The event sink is closed"));
-                }
-                if (buffer.size() >= PENDING_LIMIT) {
-                    return CompletableFuture.failedFuture(new IllegalStateException(
-                        "Too many events wait to be sent: " + PENDING_LIMIT));
-                }
-                buffer.add(pending);
-                started = firstSend;
-                firstSend = null;
-            }
-            if (started != null) {
-                started.run();
-            }
-            drain();
-            return pending.sent;
+            return events.send(sent);
         } catch (RuntimeException e) {
             return CompletableFuture.failedFuture(e);
         }
@@ -289,31 +154,11 @@ final class JaxRsSseEventSink implements SseEventSink, Publisher<Event<String>>,
     }
 
     @Override
-    public synchronized void close() {
-        if (!closed) {
-            synchronized (this) {
-                completed = true;
-            }
-            drain();
-            closed();
-        }
-    }
-
-    private void closed() {
-        if (markClosed()) {
+    public void close() {
+        if (closed.compareAndSet(false, true)) {
+            events.complete();
             runCallbacks();
         }
-    }
-
-    /**
-     * @return Whether the sink was open
-     */
-    private synchronized boolean markClosed() {
-        if (closed) {
-            return false;
-        }
-        closed = true;
-        return true;
     }
 
     private void runCallbacks() {
@@ -324,15 +169,6 @@ final class JaxRsSseEventSink implements SseEventSink, Publisher<Event<String>>,
 
     @Override
     public String toString() {
-        return "JaxRsSseEventSink[closed=" + closed + "]";
-    }
-
-    /**
-     * An event to send, with the stage completed once it is sent.
-     *
-     * @param event The event
-     * @param sent  The stage of its sending
-     */
-    private record Pending(Event<String> event, CompletableFuture<@Nullable Object> sent) {
+        return "JaxRsSseEventSink[closed=" + isClosed() + "]";
     }
 }

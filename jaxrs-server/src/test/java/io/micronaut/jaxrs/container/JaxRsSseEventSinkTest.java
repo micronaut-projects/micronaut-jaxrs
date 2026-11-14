@@ -4,14 +4,16 @@ import io.micronaut.http.sse.Event;
 import io.micronaut.jaxrs.common.sse.JaxRsOutboundSseEvent;
 import jakarta.ws.rs.sse.OutboundSseEvent;
 import org.junit.jupiter.api.Test;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -21,7 +23,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The stage of a sent event completes once the response stream takes the event (JAX-RS 9.3).
+ * The sink sends the events of a resource method to the emitter of its event stream (JAX-RS 9.3):
+ * the stage of a sent event follows the emitter, which completes it once the connection takes it.
  */
 class JaxRsSseEventSinkTest {
 
@@ -30,36 +33,45 @@ class JaxRsSseEventSinkTest {
     }
 
     @Test
-    void sendCompletesWhenTheEventIsTaken() {
-        var sink = new JaxRsSseEventSink(e -> String.valueOf(e.getData()));
-        var subscription = new AtomicReference<Subscription>();
-        List<String> received = new CopyOnWriteArrayList<>();
-        sink.publisher().subscribe(new TestSubscriber(subscription, received));
+    void theStreamStaysOpenUntilTheSinkIsClosed() throws IOException {
+        var events = new TestSseEmitter();
+        var sink = new JaxRsSseEventSink(events, e -> String.valueOf(e.getData()));
+        // the resource method may send its events after it returns
+        assertTrue(events.keptOpen);
+        assertFalse(sink.isClosed());
 
-        // no demand: the event waits, and so does a producer chaining sends
+        sink.close();
+        assertTrue(events.completed);
+        assertTrue(sink.isClosed());
+    }
+
+    @Test
+    void sendCompletesWhenTheEventIsTaken() {
+        var events = new TestSseEmitter(false);
+        var sink = new JaxRsSseEventSink(events, e -> String.valueOf(e.getData()));
+
+        // the connection did not take the events: a producer chaining sends waits
         CompletableFuture<?> first = sink.send(event("one")).toCompletableFuture();
         CompletableFuture<?> second = sink.send(event("two")).toCompletableFuture();
         assertFalse(first.isDone());
         assertFalse(second.isDone());
 
-        subscription.get().request(1);
+        events.take();
         assertTrue(first.isDone());
         assertFalse(second.isDone());
-        assertEquals(List.of("one"), received);
 
-        subscription.get().request(1);
+        events.take();
         assertTrue(second.isDone());
-        assertEquals(List.of("one", "two"), received);
+        assertEquals(List.of("one", "two"), events.sent.stream().map(Event::getData).toList());
     }
 
     @Test
     void sendFailsWhenTheClientDisconnects() {
-        var sink = new JaxRsSseEventSink(e -> String.valueOf(e.getData()));
-        var subscription = new AtomicReference<Subscription>();
-        sink.publisher().subscribe(new TestSubscriber(subscription, new CopyOnWriteArrayList<>()));
+        var events = new TestSseEmitter(false);
+        var sink = new JaxRsSseEventSink(events, e -> String.valueOf(e.getData()));
         CompletableFuture<?> pending = sink.send(event("one")).toCompletableFuture();
 
-        subscription.get().cancel();
+        events.disconnect();
 
         ExecutionException failure = assertThrows(ExecutionException.class, pending::get);
         assertInstanceOf(IOException.class, failure.getCause());
@@ -69,100 +81,95 @@ class JaxRsSseEventSinkTest {
     }
 
     @Test
-    void disconnectFailsPendingSendsApartAfterClosing() {
-        // the disconnect is reported on the event loop: the callbacks of the stages run apart
-        List<Runnable> offloaded = new CopyOnWriteArrayList<>();
-        var sink = new JaxRsSseEventSink(e -> String.valueOf(e.getData()), offloaded::add);
-        var subscription = new AtomicReference<Subscription>();
-        sink.publisher().subscribe(new TestSubscriber(subscription, new CopyOnWriteArrayList<>()));
-        var closedWhenFailed = new AtomicReference<Boolean>();
+    void aDisconnectNoticedByTheRequestFailsTheStream() {
+        var events = new TestSseEmitter(false);
+        var sink = new JaxRsSseEventSink(events, e -> String.valueOf(e.getData()));
         CompletableFuture<?> pending = sink.send(event("one")).toCompletableFuture();
-        pending.whenComplete((v, t) -> closedWhenFailed.set(sink.isClosed()));
 
-        subscription.get().cancel();
+        // the request was abandoned before the response was sent
+        sink.disconnected();
 
         assertTrue(sink.isClosed());
-        assertFalse(pending.isDone());
-        assertEquals(1, offloaded.size());
-        offloaded.get(0).run();
         assertTrue(pending.isCompletedExceptionally());
-        assertEquals(Boolean.TRUE, closedWhenFailed.get());
+        assertInstanceOf(IOException.class, events.failure);
     }
 
     @Test
-    void eventsBufferedBeforeTheResponseCompleteWhenDelivered() {
-        var sink = new JaxRsSseEventSink(e -> String.valueOf(e.getData()));
-        CompletableFuture<?> first = sink.send(event("one")).toCompletableFuture();
-        assertFalse(first.isDone());
+    void theCloseCallbacksRunOnce() throws IOException {
+        var events = new TestSseEmitter();
+        var sink = new JaxRsSseEventSink(events, e -> String.valueOf(e.getData()));
+        var calls = new AtomicInteger();
+        sink.onClose(calls::incrementAndGet);
 
-        var subscription = new AtomicReference<Subscription>();
-        sink.publisher().subscribe(new TestSubscriber(subscription, new CopyOnWriteArrayList<>()));
-        subscription.get().request(Long.MAX_VALUE);
-        assertTrue(first.isDone());
-        assertFalse(first.isCompletedExceptionally());
+        // closed by the application: the callbacks run on its thread
+        sink.close();
+        assertEquals(1, calls.get());
+        sink.close();
+        events.disconnect();
+        assertEquals(1, calls.get());
+
+        // added once closed: called at once
+        sink.onClose(calls::incrementAndGet);
+        assertEquals(2, calls.get());
     }
 
     @Test
-    void eventsBufferedBeforeACancelledResponseFail() {
-        var sink = new JaxRsSseEventSink(e -> String.valueOf(e.getData()));
-        CompletableFuture<?> sent = sink.send(event("one")).toCompletableFuture();
-        sink.cancel();
-        assertTrue(sent.isCompletedExceptionally());
+    void theCloseCallbacksOfADisconnectRunOnTheCallbackExecutor() throws Exception {
+        ExecutorService executor = Executors.newSingleThreadExecutor(r -> new Thread(r, "callbacks"));
+        try {
+            var events = new TestSseEmitter();
+            var sink = new JaxRsSseEventSink(events, e -> String.valueOf(e.getData()), executor);
+            CompletableFuture<String> thread = new CompletableFuture<>();
+            sink.onClose(() -> thread.complete(Thread.currentThread().getName()));
+            // the disconnect is reported on the event loop
+            events.disconnect();
+            assertTrue(sink.isClosed());
+            assertEquals("callbacks", thread.get(5, TimeUnit.SECONDS));
+        } finally {
+            executor.shutdown();
+        }
     }
 
     @Test
-    void sendFailsWhenTheSinkIsClosedWhileTheEventIsWritten() {
-        var sinkRef = new AtomicReference<JaxRsSseEventSink>();
-        // closed by another thread while the data is written
-        var sink = new JaxRsSseEventSink(e -> {
-            sinkRef.get().close();
-            return String.valueOf(e.getData());
+    void aFailingDataWriterFailsTheSend() {
+        var events = new TestSseEmitter();
+        var sink = new JaxRsSseEventSink(events, e -> {
+            throw new IllegalStateException("no writer");
         });
-        sinkRef.set(sink);
-        var subscription = new AtomicReference<Subscription>();
-        List<String> received = new CopyOnWriteArrayList<>();
-        sink.publisher().subscribe(new TestSubscriber(subscription, received));
-        subscription.get().request(Long.MAX_VALUE);
-
         CompletableFuture<?> sent = sink.send(event("one")).toCompletableFuture();
+        assertInstanceOf(IllegalStateException.class, assertThrows(ExecutionException.class, sent::get).getCause());
+        // the stream stays open
+        assertFalse(sink.isClosed());
+        assertTrue(events.sent.isEmpty());
+    }
 
-        // the stage settles, and the event is not published after the completion
-        ExecutionException failure = assertThrows(ExecutionException.class, sent::get);
-        assertInstanceOf(IllegalStateException.class, failure.getCause());
-        assertTrue(received.isEmpty());
+    @Test
+    void theFieldsOfTheEventAreSent() {
+        var events = new TestSseEmitter();
+        var sink = new JaxRsSseEventSink(events, e -> String.valueOf(e.getData()));
+        sink.send(new JaxRsOutboundSseEvent.Builder().data("d").id("1").name("n").comment("c").reconnectDelay(500).build());
+        sink.send(new JaxRsOutboundSseEvent.Builder().comment("only").build());
+
+        Event<?> first = events.sent.get(0);
+        assertEquals("d", first.getData());
+        assertEquals("1", first.getId());
+        assertEquals("n", first.getName());
+        assertEquals("c", first.getComment());
+        assertEquals(500, first.getRetry().toMillis());
+        // an event without data: the data writer is not asked
+        assertEquals("", events.sent.get(1).getData());
     }
 
     @Test
     void lineBreaksDoNotStartAnotherEvent() {
-        var sink = new JaxRsSseEventSink(e -> String.valueOf(e.getData()));
-        var subscription = new AtomicReference<Subscription>();
-        List<Event<String>> received = new CopyOnWriteArrayList<>();
-        sink.publisher().subscribe(new Subscriber<>() {
-            @Override
-            public void onSubscribe(Subscription s) {
-                subscription.set(s);
-            }
-
-            @Override
-            public void onNext(Event<String> e) {
-                received.add(e);
-            }
-
-            @Override
-            public void onError(Throwable t) {
-            }
-
-            @Override
-            public void onComplete() {
-            }
-        });
-        subscription.get().request(Long.MAX_VALUE);
+        var events = new TestSseEmitter();
+        var sink = new JaxRsSseEventSink(events, e -> String.valueOf(e.getData()));
 
         sink.send(new JaxRsOutboundSseEvent.Builder().data("safe\r\rdata: forged\r\nx")
             .comment("note\revent: forged").build());
         // the stream writer writes every line of the data and the comment as a field
-        assertEquals("safe\r\rdata: forged\r\nx", received.get(0).getData());
-        assertEquals("note\revent: forged", received.get(0).getComment());
+        assertEquals("safe\r\rdata: forged\r\nx", events.sent.get(0).getData());
+        assertEquals("note\revent: forged", events.sent.get(0).getComment());
 
         // the name and the id are one line
         CompletableFuture<?> name = sink.send(new JaxRsOutboundSseEvent.Builder().data("d")
@@ -171,55 +178,24 @@ class JaxRsSseEventSinkTest {
             .id("a\rb").build()).toCompletableFuture();
         assertInstanceOf(IllegalArgumentException.class, assertThrows(ExecutionException.class, name::get).getCause());
         assertInstanceOf(IllegalArgumentException.class, assertThrows(ExecutionException.class, id::get).getCause());
-        assertEquals(1, received.size());
+        assertEquals(1, events.sent.size());
     }
 
     @Test
-    void thePendingEventsAreBounded() {
-        var sink = new JaxRsSseEventSink(e -> String.valueOf(e.getData()));
-        sink.publisher().subscribe(new TestSubscriber(new AtomicReference<>(), new CopyOnWriteArrayList<>()));
-        for (int i = 0; i < JaxRsSseEventSink.PENDING_LIMIT; i++) {
-            sink.send(event("e"));
-        }
-        // a producer ignoring the stages cannot grow the buffer without bound
-        CompletableFuture<?> over = sink.send(event("over")).toCompletableFuture();
-        assertInstanceOf(IllegalStateException.class, assertThrows(ExecutionException.class, over::get).getCause());
-    }
+    void sendFailsWhenTheSinkIsClosedWhileTheEventIsWritten() {
+        var events = new TestSseEmitter();
+        var sinkRef = new AtomicReference<JaxRsSseEventSink>();
+        // closed by another thread while the data is written
+        var sink = new JaxRsSseEventSink(events, e -> {
+            sinkRef.get().close();
+            return String.valueOf(e.getData());
+        });
+        sinkRef.set(sink);
 
-    private record TestSubscriber(AtomicReference<Subscription> subscription,
-                                  List<String> received) implements Subscriber<Event<String>> {
-        @Override
-        public void onSubscribe(Subscription s) {
-            subscription.set(s);
-        }
+        CompletableFuture<?> sent = sink.send(event("one")).toCompletableFuture();
 
-        @Override
-        public void onNext(Event<String> event) {
-            received.add(event.getData());
-        }
-
-        @Override
-        public void onError(Throwable t) {
-        }
-
-        @Override
-        public void onComplete() {
-        }
-    }
-
-    @Test
-    void theCloseCallbacksOfADisconnectRunOnTheCallbackExecutor() throws Exception {
-        java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newSingleThreadExecutor(r -> new Thread(r, "callbacks"));
-        try {
-            var sink = new JaxRsSseEventSink(e -> String.valueOf(e.getData()), executor);
-            CompletableFuture<String> thread = new CompletableFuture<>();
-            sink.onClose(() -> thread.complete(Thread.currentThread().getName()));
-            // the subscription of the connection is cancelled on the event loop
-            sink.cancel();
-            assertTrue(sink.isClosed());
-            assertEquals("callbacks", thread.get(5, java.util.concurrent.TimeUnit.SECONDS));
-        } finally {
-            executor.shutdown();
-        }
+        // the stage settles, and the event is not sent after the completion
+        assertThrows(ExecutionException.class, sent::get);
+        assertTrue(events.sent.isEmpty());
     }
 }

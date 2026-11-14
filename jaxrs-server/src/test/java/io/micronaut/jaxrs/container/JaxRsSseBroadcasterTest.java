@@ -52,8 +52,8 @@ class JaxRsSseBroadcasterTest {
     @Test
     void aThrowingCloseCallbackDoesNotKeepTheOtherSinksOpen() {
         var broadcaster = new JaxRsSseBroadcaster();
-        var first = new JaxRsSseEventSink(e -> String.valueOf(e.getData()));
-        var second = new JaxRsSseEventSink(e -> String.valueOf(e.getData()));
+        var first = new JaxRsSseEventSink(new TestSseEmitter(), e -> String.valueOf(e.getData()));
+        var second = new JaxRsSseEventSink(new TestSseEmitter(), e -> String.valueOf(e.getData()));
         var notified = new java.util.concurrent.atomic.AtomicInteger();
         broadcaster.onClose(s -> {
             throw new IllegalStateException("listener failure");
@@ -71,8 +71,8 @@ class JaxRsSseBroadcasterTest {
     @Test
     void closingAgainFromACloseCallbackIsIgnored() {
         var broadcaster = new JaxRsSseBroadcaster();
-        var first = new JaxRsSseEventSink(e -> String.valueOf(e.getData()));
-        var second = new JaxRsSseEventSink(e -> String.valueOf(e.getData()));
+        var first = new JaxRsSseEventSink(new TestSseEmitter(), e -> String.valueOf(e.getData()));
+        var second = new JaxRsSseEventSink(new TestSseEmitter(), e -> String.valueOf(e.getData()));
         var notified = new java.util.concurrent.atomic.AtomicInteger();
         broadcaster.onClose(s -> {
             notified.incrementAndGet();
@@ -91,7 +91,7 @@ class JaxRsSseBroadcasterTest {
 
     @Test
     void aBroadcasterClosedWithoutCascadingReleasesItsSinks() {
-        var sink = new JaxRsSseEventSink(e -> String.valueOf(e.getData()));
+        var sink = new JaxRsSseEventSink(new TestSseEmitter(), e -> String.valueOf(e.getData()));
         var broadcaster = new JaxRsSseBroadcaster();
         var notified = new java.util.concurrent.atomic.AtomicInteger();
         broadcaster.onClose(s -> notified.incrementAndGet());
@@ -129,7 +129,7 @@ class JaxRsSseBroadcasterTest {
     void aClosedSinkIsNotRetained() {
         var broadcaster = new JaxRsSseBroadcaster();
         for (int i = 0; i < 100; i++) {
-            var sink = new JaxRsSseEventSink(e -> String.valueOf(e.getData()));
+            var sink = new JaxRsSseEventSink(new TestSseEmitter(), e -> String.valueOf(e.getData()));
             sink.close();
             broadcaster.register(sink);
         }
@@ -150,7 +150,7 @@ class JaxRsSseBroadcasterTest {
     void aSinkClosedWhileRegisteredIsNotRetained() throws Exception {
         for (int i = 0; i < 2000; i++) {
             var broadcaster = new JaxRsSseBroadcaster();
-            var sink = new JaxRsSseEventSink(e -> String.valueOf(e.getData()));
+            var sink = new JaxRsSseEventSink(new TestSseEmitter(), e -> String.valueOf(e.getData()));
             var barrier = new CyclicBarrier(2);
             Thread closing = new Thread(() -> {
                 try {
