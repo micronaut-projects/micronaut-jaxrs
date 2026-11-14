@@ -166,9 +166,10 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         element.removeAnnotation(PathAnnotationMapper.RESOURCE_METHOD);
         introspectResourcePath(element);
         if (!runtimeRoutes) {
-            // the runtime routes need the JAX-RS server, and are enabled for Java: other languages,
-            // and compilations without the server, keep the resources as controllers
+            // the runtime routes need the JAX-RS server: a compilation without it keeps the resources as controllers
             if (element.hasAnnotation(Path.class) && !element.isAbstract()) {
+                context.warn("micronaut-jaxrs-server is not on the compilation classpath: the JAX-RS resource is routed as a Micronaut controller, "
+                    + "without the JAX-RS resource lifecycle, @MatrixParam, @BeanParam, @Encoded and request fields", element);
                 element.stringValue(Path.class).ifPresent(p -> {
                     element.annotate(Controller.class, builder -> builder.value(p));
                     element.annotate(UriMapping.class, builder -> builder.value(p));
@@ -413,7 +414,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     @Override
     public void start(VisitorContext visitorContext) {
         stringConversions.reset();
-        runtimeRoutes = visitorContext.getLanguage() == VisitorContext.Language.JAVA && JaxRsResources.isSupported(visitorContext);
+        runtimeRoutes = JaxRsResources.isSupported(visitorContext);
         currentClassElement = null;
         provider = false;
         for (Class<?> type : BINDABLE_TYPES) {
