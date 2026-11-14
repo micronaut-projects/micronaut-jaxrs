@@ -188,6 +188,10 @@ final class JaxRsClientProviders implements Providers {
                                                        Class<P> micronautContract) {
         List<Definition<P>> built = new ArrayList<>();
         for (Component component : components) {
+            if (component.isConstructing()) {
+                // its constructor looks up the providers: it is not one of them yet
+                continue;
+            }
             AnnotationMetadata metadata = component.metadata();
             if (isNotConstrainedToClient(metadata)) {
                 continue;
@@ -397,6 +401,10 @@ final class JaxRsClientProviders implements Providers {
                                                                Function<Class<?>, @Nullable Object> contextValues) {
         var registrations = new ArrayList<BeanRegistration<T>>();
         for (Component component : components) {
+            if (component.isConstructing()) {
+                // its constructor looks up the providers: it is not one of them yet
+                continue;
+            }
             if (!registeredFor(component, type) || isNotConstrainedToClient(component.metadata())) {
                 // registered for other contracts only, or for another runtime (@ConstrainedTo)
                 continue;
