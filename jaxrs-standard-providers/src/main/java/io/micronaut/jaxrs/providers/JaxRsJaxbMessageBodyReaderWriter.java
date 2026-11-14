@@ -17,10 +17,10 @@ package io.micronaut.jaxrs.providers;
 
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.type.Argument;
-import io.micronaut.jaxrs.common.JaxRsCurrentProviders;
 import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.context.BeanProvider;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.annotation.Introspected;
 import io.micronaut.core.annotation.Order;
 import io.micronaut.core.order.Ordered;
 import jakarta.inject.Inject;
@@ -29,6 +29,7 @@ import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.InternalServerErrorException;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.NoContentException;
@@ -69,11 +70,17 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Order(Ordered.LOWEST_PRECEDENCE)
 @Singleton
+// the @Context fields the client injects, without reflection
+@Introspected(accessKind = Introspected.AccessKind.FIELD, visibility = Introspected.Visibility.ANY)
 @Internal
 // application/* for application/*+xml, which isReadable and isWriteable check
 @Consumes({MediaType.TEXT_XML, MediaType.APPLICATION_XML, "application/*"})
 @Produces({MediaType.TEXT_XML, MediaType.APPLICATION_XML, "application/*"})
 public final class JaxRsJaxbMessageBodyReaderWriter implements MessageBodyReader<Object>, MessageBodyWriter<Object> {
+
+    // the providers of the client, which injects them
+    @Context
+    @Nullable Providers clientProviders;
 
     private final @Nullable BeanProvider<Providers> providers;
     private final Map<Class<?>, JAXBContext> contexts = new ConcurrentHashMap<>();
@@ -85,7 +92,7 @@ public final class JaxRsJaxbMessageBodyReaderWriter implements MessageBodyReader
 
     /**
      * A provider of the client: the context resolvers are the ones of the configuration that
-     * reads or writes the entity, see {@link JaxRsCurrentProviders}.
+     * reads or writes the entity, which the client injects.
      */
     JaxRsJaxbMessageBodyReaderWriter() {
         this.providers = null;
@@ -185,7 +192,8 @@ public final class JaxRsJaxbMessageBodyReaderWriter implements MessageBodyReader
     @SuppressWarnings("unchecked")
     private JAXBContext context(Class<?> type, @Nullable MediaType mediaType) throws JAXBException {
         // the ones of the server, else of the client configuration that reads or writes the entity
-        Providers providers = this.providers != null && this.providers.isPresent() ? this.providers.get() : JaxRsCurrentProviders.current();
+        Providers providers = clientProviders != null ? clientProviders
+            : this.providers != null && this.providers.isPresent() ? this.providers.get() : null;
         ContextResolver<JAXBContext> resolver = providers == null ? null : providers.getContextResolver(JAXBContext.class, mediaType);
         if (resolver != null) {
             JAXBContext context = resolver.getContext(type);
