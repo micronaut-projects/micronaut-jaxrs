@@ -16,6 +16,7 @@
 package io.micronaut.jaxrs.client;
 
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.io.service.SoftServiceLoader;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import io.micronaut.core.type.Argument;
@@ -139,7 +140,8 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
         jaxRsConfiguration.registerStandard(new JaxRsMultivaluedStringObjectMapMessageBodyReader());
         jaxRsConfiguration.registerStandard(new JaxRsMultivaluedStringStringMapMessageBodyReader());
         // the standard providers of other modules, e.g. File, DataSource, Source and JAXB
-        for (JaxRsStandardProviders standardProviders : ServiceLoader.load(JaxRsStandardProviders.class, JaxRsClientBuilder.class.getClassLoader())) {
+        for (JaxRsStandardProviders standardProviders : SoftServiceLoader.load(JaxRsStandardProviders.class, JaxRsClientBuilder.class.getClassLoader())
+            .disableFork().collectAll()) {
             standardProviders.providers().forEach(jaxRsConfiguration::registerStandard);
         }
         registerServiceFeatures(jaxRsConfiguration);
