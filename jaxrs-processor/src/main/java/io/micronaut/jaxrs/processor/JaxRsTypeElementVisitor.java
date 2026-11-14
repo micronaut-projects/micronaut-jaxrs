@@ -92,13 +92,21 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     private boolean provider;
     private final StringConversions stringConversions = new StringConversions();
 
-    // Backwards compatibility
+    // Backwards compatibility: the types of the unannotated parameters that are context values,
+    // not the entity, the same as JaxRsRuntimeRoutes.CONTEXT_TYPES
     @NextMajorVersion("Allow only inject values annotated with @Context")
-    private final List<String> JAX_RS_BINDING_TYPES = List.of(
+    private static final Set<String> JAX_RS_BINDING_TYPES = Set.of(
         HttpHeaders.class.getName(),
         Cookie.class.getName(),
         SecurityContext.class.getName(),
         UriInfo.class.getName(),
+        "jakarta.ws.rs.core.Request",
+        "jakarta.ws.rs.core.Application",
+        "jakarta.ws.rs.core.Configuration",
+        "jakarta.ws.rs.ext.Providers",
+        "jakarta.ws.rs.container.ResourceContext",
+        "jakarta.ws.rs.container.ResourceInfo",
+        "io.micronaut.http.HttpRequest",
         "jakarta.servlet.ServletContext",
         "jakarta.servlet.ServletRequest",
         "jakarta.servlet.http.HttpServletRequest",
@@ -294,7 +302,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
                 visitParamOrField(parameter);
                 String parameterTypeName = parameter.getType().getName();
                 if (!JaxRsResources.isRequestAnnotated(parameter)
-                    && JAX_RS_BINDING_TYPES.stream().noneMatch(cl -> cl.equals(parameterTypeName))) {
+                    && !JAX_RS_BINDING_TYPES.contains(parameterTypeName)) {
                     // unannotated, implicit @Body
                     parameter.annotate(Body.class);
                     parameter.annotate(Nullable.class); // JAX-RS controller bodies are nullable by default
