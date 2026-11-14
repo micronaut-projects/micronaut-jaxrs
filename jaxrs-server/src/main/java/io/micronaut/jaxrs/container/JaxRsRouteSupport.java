@@ -18,6 +18,7 @@ package io.micronaut.jaxrs.container;
 import io.micronaut.jaxrs.common.JaxRsIOException;
 import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.context.BeanContext;
+import io.micronaut.context.BeanProvider;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.AnnotationMetadataProvider;
 import io.micronaut.core.annotation.Internal;
@@ -184,8 +185,6 @@ public final class JaxRsRouteSupport {
 
     private final RequestBinderRegistry binderRegistry;
 
-    private final Map<Argument<?>, Optional<ArgumentBinder<Object, HttpRequest<?>>>> contextBinders = new ConcurrentHashMap<>();
-
     private final BeanContext beanContext;
     // the executors of the sub-resource locators that read the form, by name
     private final Map<String, Executor> locatorExecutors = new ConcurrentHashMap<>();
@@ -194,9 +193,10 @@ public final class JaxRsRouteSupport {
 
     private final JaxRsParameterBinding parameters;
 
-    private volatile @Nullable JaxRsMessageBodyReaders<?> readers;
+    // beans that depend on the routes: resolved when first used
+    private final BeanProvider<JaxRsMessageBodyReaders<?>> readers;
 
-    private volatile @Nullable JaxRsContainerFilters containerFilters;
+    private final BeanProvider<JaxRsContainerFilters> containerFilters;
 
     private volatile @Nullable Set<Class<?>> registeredClasses;
 
@@ -209,7 +209,11 @@ public final class JaxRsRouteSupport {
     JaxRsRouteSupport(ApplicationProvider applicationProvider,
                       ConversionService conversionService,
                       RequestBinderRegistry binderRegistry,
-                      BeanContext beanContext) {
+                      BeanContext beanContext,
+                      BeanProvider<JaxRsMessageBodyReaders<?>> readers,
+                      BeanProvider<JaxRsContainerFilters> containerFilters) {
+        this.readers = readers;
+        this.containerFilters = containerFilters;
         this.applicationProvider = applicationProvider;
         this.applicationPath = applicationProvider.getAnnotationMetadata().stringValue(jakarta.ws.rs.ApplicationPath.class)
             .map(ApplicationProvider::decodePath)
@@ -418,12 +422,7 @@ public final class JaxRsRouteSupport {
     }
 
     private JaxRsContainerFilters containerFilters() {
-        JaxRsContainerFilters filters = this.containerFilters;
-        if (filters == null) {
-            filters = beanContext.getBean(JaxRsContainerFilters.class);
-            this.containerFilters = filters;
-        }
-        return filters;
+        return containerFilters.get();
     }
 
     /**
@@ -796,12 +795,7 @@ public final class JaxRsRouteSupport {
     }
 
     private JaxRsMessageBodyReaders<?> readers() {
-        JaxRsMessageBodyReaders<?> readers = this.readers;
-        if (readers == null) {
-            readers = beanContext.getBean(JaxRsMessageBodyReaders.class);
-            this.readers = readers;
-        }
-        return readers;
+        return readers.get();
     }
 
     /**
@@ -936,8 +930,8 @@ public final class JaxRsRouteSupport {
                 return replaced.get();
             }
         }
-        Optional<ArgumentBinder<Object, HttpRequest<?>>> binder = contextBinders.computeIfAbsent(argument,
-            a -> (Optional) binderRegistry.findArgumentBinder((Argument) a));
+        // the registry caches the binders
+        Optional<ArgumentBinder<Object, HttpRequest<?>>> binder = (Optional) binderRegistry.findArgumentBinder((Argument) argument);
         if (binder.isPresent()) {
             ArgumentConversionContext context = ConversionContext.of(argument);
             ArgumentBinder.BindingResult<?> result = binder.get().bind(context, request);

@@ -43,8 +43,6 @@ import java.lang.reflect.Type;
 import java.util.List;
 import java.util.Comparator;
 import java.util.ArrayList;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * The JAX-RS {@link Providers}.
@@ -56,9 +54,6 @@ import java.util.concurrent.ConcurrentHashMap;
 @Singleton
 final class JaxRsProviders implements Providers {
     private final BeanContext beanContext;
-    // what is known of the exception mappers and of the context resolvers, by bean definition
-    private final Map<BeanDefinition<?>, MapperMetadata> mappers = new ConcurrentHashMap<>();
-    private final Map<BeanDefinition<?>, ResolverMetadata> resolvers = new ConcurrentHashMap<>();
 
     JaxRsProviders(BeanContext beanContext) {
         this.beanContext = beanContext;
@@ -148,7 +143,7 @@ final class JaxRsProviders implements Providers {
         int nearestPriority = Integer.MAX_VALUE;
         for (BeanRegistration<ExceptionMapper> registration : beanContext.getBeanRegistrations(ExceptionMapper.class,
                 MatchArgumentQualifier.contravariant(ExceptionMapper.class, Argument.of(type)))) {
-            MapperMetadata metadata = mappers.computeIfAbsent(registration.getBeanDefinition(), MapperMetadata::of);
+            MapperMetadata metadata = MapperMetadata.of(registration.getBeanDefinition());
             if (!registry.isRegistered(registration.getBeanDefinition().getBeanType(), ExceptionMapper.class)
                 || !metadata.server()) {
                 // not registered, or constrained to the client (@ConstrainedTo)
@@ -179,7 +174,7 @@ final class JaxRsProviders implements Providers {
         JaxRsContainerMessageBodyHandlerRegistry registry = registry();
         List<Candidate<T>> candidates = new ArrayList<>();
         for (BeanRegistration<ContextResolver> registration : beanContext.getBeanRegistrations(ContextResolver.class)) {
-            ResolverMetadata metadata = resolvers.computeIfAbsent(registration.getBeanDefinition(), ResolverMetadata::of);
+            ResolverMetadata metadata = ResolverMetadata.of(registration.getBeanDefinition());
             // a raw resolver, whose context type is not known, may resolve the context type too: its
             // contexts are checked, see below
             Class<?> resolved = metadata.contextType();

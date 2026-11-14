@@ -83,7 +83,6 @@ final class JaxRsParameterBinding {
 
     private final Supplier<List<ParamConverterProvider>> paramConverterProviders;
 
-    private final Map<ConverterKey, StringConverter> converters = new ConcurrentHashMap<>();
 
     private final Map<Class<?>, BeanParamBinder> beanParams = new ConcurrentHashMap<>();
 
@@ -503,15 +502,6 @@ final class JaxRsParameterBinding {
     }
 
     /**
-     * The key of the converter of a parameter: its type, and its annotations.
-     *
-     * @param argument    The parameter
-     * @param annotations The annotations of the parameter
-     */
-    private record ConverterKey(Argument<?> argument, AnnotationMetadata annotations) {
-    }
-
-    /**
      * How the string values of a parameter are converted to its type, decided when its reader is
      * built: its shape (a collection, an array or a single value), the type of its elements, and
      * the converter of the elements, resolved when first used.
@@ -585,14 +575,12 @@ final class JaxRsParameterBinding {
         }
 
         /**
-         * The converter of the elements, of the shared ones: the annotations are part of the key,
-         * as a {@link ParamConverterProvider} sees them, and arguments are equal without them.
+         * The converter of the elements, resolved when first used.
          */
         private StringConverter converter() {
             StringConverter c = converter;
             if (c == null) {
-                c = converters.computeIfAbsent(new ConverterKey(target, target.getAnnotationMetadata()),
-                    key -> JaxRsParameterBinding.this.converter(key.argument()));
+                c = JaxRsParameterBinding.this.converter(target);
                 converter = c;
             }
             return c;
