@@ -142,10 +142,11 @@ final class JaxRsServerFilters implements HttpRoutes {
     }
 
     private boolean underApplicationPath(String rawPath) {
-        // the application path is decoded: the path is compared decoded too
+        // the application path is decoded: the path is compared decoded too, but for an encoded
+        // slash, which is not a segment separator
         String path;
         try {
-            path = ApplicationProvider.decodePath(rawPath);
+            path = ApplicationProvider.decodePath(rawPath.replace("%2F", "%252F").replace("%2f", "%252f"));
         } catch (IllegalArgumentException e) {
             path = rawPath;
         }
