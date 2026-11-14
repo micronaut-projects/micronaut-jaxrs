@@ -464,6 +464,13 @@ final class JaxRsConfiguration implements Configuration {
 
         int priority();
 
+        /**
+         * @return Whether the component is being instantiated on the current thread
+         */
+        default boolean isConstructing() {
+            return false;
+        }
+
         List<ComponentContract> components();
 
         /**
@@ -511,6 +518,8 @@ final class JaxRsConfiguration implements Configuration {
         private final List<ComponentContract> components;
         private final AnnotationMetadata metadata;
         private volatile @Nullable Object instance;
+        // the thread that instantiates it, null if none
+        private volatile @Nullable Thread constructing;
 
         ClassComponent(Class<?> componentClass, int priority, List<ComponentContract> components) {
             this.componentClass = componentClass;
@@ -541,13 +550,23 @@ final class JaxRsConfiguration implements Configuration {
                     if (current == null) {
                         // with the longest constructor of its context values (JAX-RS 4.1.3), its
                         // fields injected once, with the context of the configuration that uses it first
-                        current = JaxRsReflection.get().instantiate(componentClass, contextValues);
+                        constructing = Thread.currentThread();
+                        try {
+                            current = JaxRsReflection.get().instantiate(componentClass, contextValues);
+                        } finally {
+                            constructing = null;
+                        }
                         JaxRsClientProviders.inject(current, contextValues);
                         instance = current;
                     }
                 }
             }
             return current;
+        }
+
+        @Override
+        public boolean isConstructing() {
+            return constructing == Thread.currentThread();
         }
 
         @Override

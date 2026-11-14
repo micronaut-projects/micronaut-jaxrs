@@ -87,6 +87,75 @@ class JaxRsClientRegressionTest {
     }
 
     @Test
+    void aReaderLookingUpTheEntityProvidersInItsConstructorIsInstantiatedOnce() {
+        ProviderLookingIntegerReader.instances.set(0);
+        Integer read = client.target(server.getURI()).path("regression").path("number")
+            .register(ProviderLookingIntegerReader.class)
+            .request()
+            .get(Integer.class);
+
+        assertEquals(42, read);
+        assertEquals(1, ProviderLookingIntegerReader.instances.get());
+    }
+
+    @Test
+    void aWriterLookingUpTheEntityProvidersInItsConstructorIsInstantiatedOnce() {
+        ProviderLookingIntegerWriter.instances.set(0);
+        String echoed = client.target(server.getURI()).path("regression").path("echo")
+            .register(ProviderLookingIntegerWriter.class)
+            .request()
+            .post(jakarta.ws.rs.client.Entity.text(42), String.class);
+
+        assertEquals("int:42", echoed);
+        assertEquals(1, ProviderLookingIntegerWriter.instances.get());
+    }
+
+    static void lookUpStringProviders(Providers providers) {
+        providers.getMessageBodyReader(String.class, String.class, new Annotation[0], MediaType.TEXT_PLAIN_TYPE);
+        providers.getMessageBodyWriter(String.class, String.class, new Annotation[0], MediaType.TEXT_PLAIN_TYPE);
+    }
+
+    public static class ProviderLookingIntegerReader implements MessageBodyReader<Integer> {
+        static final AtomicInteger instances = new AtomicInteger();
+
+        public ProviderLookingIntegerReader(@Context Providers providers) {
+            instances.incrementAndGet();
+            lookUpStringProviders(providers);
+        }
+
+        @Override
+        public boolean isReadable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+            return type == Integer.class;
+        }
+
+        @Override
+        public Integer readFrom(Class<Integer> type, Type genericType, Annotation[] annotations, MediaType mediaType,
+                                MultivaluedMap<String, String> httpHeaders, InputStream entityStream) throws java.io.IOException {
+            return Integer.valueOf(new String(entityStream.readAllBytes(), StandardCharsets.UTF_8).strip());
+        }
+    }
+
+    public static class ProviderLookingIntegerWriter implements jakarta.ws.rs.ext.MessageBodyWriter<Integer> {
+        static final AtomicInteger instances = new AtomicInteger();
+
+        public ProviderLookingIntegerWriter(@Context Providers providers) {
+            instances.incrementAndGet();
+            lookUpStringProviders(providers);
+        }
+
+        @Override
+        public boolean isWriteable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+            return type == Integer.class;
+        }
+
+        @Override
+        public void writeTo(Integer value, Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType,
+                            MultivaluedMap<String, Object> httpHeaders, java.io.OutputStream entityStream) throws java.io.IOException {
+            entityStream.write(("int:" + value).getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    @Test
     void aFilterLookingUpTheEntityProvidersInItsConstructorIsInstantiatedOnce() {
         ProviderLookingFilter.instances.set(0);
         String text = client.target(server.getURI()).path("regression").path("text")
@@ -158,6 +227,16 @@ class JaxRsClientRegressionTest {
         @Get(value = "/text", produces = io.micronaut.http.MediaType.TEXT_PLAIN)
         String text() {
             return "text";
+        }
+
+        @Get(value = "/number", produces = io.micronaut.http.MediaType.TEXT_PLAIN)
+        String number() {
+            return "42";
+        }
+
+        @io.micronaut.http.annotation.Post(value = "/echo", consumes = io.micronaut.http.MediaType.TEXT_PLAIN, produces = io.micronaut.http.MediaType.TEXT_PLAIN)
+        String echo(@io.micronaut.http.annotation.Body String body) {
+            return body;
         }
 
         @Get(value = "/endless-error", produces = io.micronaut.http.MediaType.TEXT_EVENT_STREAM)
