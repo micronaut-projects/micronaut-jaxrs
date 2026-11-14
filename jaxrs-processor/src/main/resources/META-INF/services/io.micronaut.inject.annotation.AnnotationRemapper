@@ -1,1 +1,4 @@
 io.micronaut.jaxrs.processor.transformer.JaxRsAnnotationRemapper
+io.micronaut.jaxrs.processor.transformer.JaxRsAnnotationRemapper$CorePackage
+io.micronaut.jaxrs.processor.transformer.JaxRsAnnotationRemapper$ContainerPackage
+io.micronaut.jaxrs.processor.transformer.JaxRsAnnotationRemapper$ExtPackage
