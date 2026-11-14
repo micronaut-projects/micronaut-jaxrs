@@ -641,9 +641,10 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 routes.handleAsync(declaration, (request, pathVariables, target, requestBody) -> support.formAsync(request, pathVariables, requestBody,
                     rawEntityForm, (readRequest, readPathVariables, value) -> callAsync(method, instances, readRequest, readPathVariables, target, value, null)));
             } else if (body) {
-                routes.handleAsync(declaration, (request, pathVariables, target, requestBody) -> support.entityAsync(request, pathVariables, requestBody,
-                    (readRequest, readPathVariables, value) -> callAsync(method, instances, readRequest, readPathVariables, target,
-                        entityForm ? support.entityForm(readRequest, value, rawEntityForm) : null, value)));
+                // the entity is read by the router, the method runs on its executor
+                routes.handleEntityAsync(declaration, executor(method.method().metadata(), AnnotationMetadata.EMPTY_METADATA),
+                    (request, pathVariables, target, value) -> callAsync(method, instances, request, pathVariables, target,
+                        entityForm ? support.entityForm(request, value, rawEntityForm) : null, value));
             } else {
                 // the body is not read
                 routes.handleAsync(declaration, (request, pathVariables, target, requestBody) ->
@@ -1240,6 +1241,17 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     }
 
     /**
+     * Handles a request of an asynchronous route with the entity the router read.
+     *
+     * @param <L> The type of the target
+     */
+    @FunctionalInterface
+    private interface AsyncEntityHandler<L> {
+        CompletionStage<? extends HttpResponse<?>> handle(HttpRequest<?> request, PathVariables pathVariables,
+                                                          @Nullable L target, byte @Nullable [] entity) throws Exception;
+    }
+
+    /**
      * Locates the target of a locator, with the form it read, {@code null} if it reads none.
      *
      * @param <L> The type of the target the locator is located on
@@ -1281,6 +1293,8 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         void handleForm(Declaration route, Handler<L, FormData> handler);
 
         void handleAsync(Declaration route, AsyncHandler<L> handler);
+
+        void handleEntityAsync(Declaration route, String executor, AsyncEntityHandler<L> handler);
 
         void locate(String executor, String prefix, boolean form, boolean rawForm, Locator<L> locator);
     }
@@ -1340,6 +1354,12 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         public void handleForm(Declaration route, Handler<L, FormData> handler) {
             spec(route).form().handle((BodyRequestHandler<FormData>) (request, pathVariables, form) ->
                 handler.handle(request, pathVariables, target(pathVariables), form));
+        }
+
+        @Override
+        public void handleEntityAsync(Declaration route, String executor, AsyncEntityHandler<L> handler) {
+            spec(route).executeOn(executor).body(JaxRsRouteSupport.ENTITY).handleAsync((AsyncBodyRequestHandler<byte[]>) (request, pathVariables, body) ->
+                handler.handle(request, pathVariables, target(pathVariables), body));
         }
 
         @Override
