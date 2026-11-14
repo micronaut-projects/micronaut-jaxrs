@@ -131,11 +131,19 @@ class EncodedParamTest {
         assertEquals("a b~", response.body());
     }
 
+    @Test
+    void malformedRawFormOfAnAsynchronousMethodIsABadRequest() throws Exception {
+        HttpResponse<String> response = client.send(HttpRequest.newBuilder(URI.create(server.getURL() + "/api/encoded/form-async"))
+                .header("Content-Type", MediaType.APPLICATION_FORM_URLENCODED)
+                .POST(HttpRequest.BodyPublishers.ofString("g=%GG")).build(),
+            HttpResponse.BodyHandlers.ofString());
+        assertEquals(400, response.statusCode(), response.body());
+    }
+
     @ParameterizedTest
     @CsvSource({
         "/api/encoded/form,%GG=value",
         "/api/encoded/form,f=%GG",
-        "/api/encoded/form-async,g=%GG",
     })
     void malformedFormIsABadRequest(String path, String form) throws Exception {
         HttpResponse<String> response = client.send(HttpRequest.newBuilder(URI.create(server.getURL() + path))
