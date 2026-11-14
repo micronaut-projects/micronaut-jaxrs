@@ -6,7 +6,6 @@ import io.micronaut.http.annotation.Body
 import io.micronaut.http.annotation.CookieValue
 import io.micronaut.http.annotation.Header
 import io.micronaut.http.annotation.PathVariable
-import io.micronaut.http.annotation.QueryValue
 import jakarta.ws.rs.BeanParam
 import jakarta.ws.rs.CookieParam
 import jakarta.ws.rs.FormParam
@@ -46,7 +45,7 @@ class Test {
         HeaderParam | Header       | "test"
         CookieParam | CookieValue  | "test"
         QueryParam  | QueryParam   | "test"
-        FormParam   | QueryValue   | "test"
+        FormParam   | Body         | "test"
     }
 
     void "an unannotated context parameter is not the entity"() {
