@@ -55,8 +55,6 @@ final class JaxRsResources {
 
     private static final String SUPPORT = "io.micronaut.jaxrs.container.JaxRsRouteSupport";
 
-    private static final String ROUTER = "io.micronaut.web.router.builder.";
-
     // the JAX-RS parameter annotations: the values of the request, but the @Context ones
     private static final List<Class<? extends java.lang.annotation.Annotation>> PARAMETER_ANNOTATIONS = List.of(
         PathParam.class, QueryParam.class, MatrixParam.class, HeaderParam.class, CookieParam.class,
@@ -68,12 +66,10 @@ final class JaxRsResources {
 
     /**
      * @param context The visitor context
-     * @return Whether the compilation has the JAX-RS server and the route builder, which route
-     * the resources at runtime
+     * @return Whether the compilation has the JAX-RS server, which routes the resources at runtime
      */
     public static boolean isSupported(VisitorContext context) {
-        return context.getClassElement(SUPPORT).isPresent()
-            && context.getClassElement(ROUTER + "RequestHandler").isPresent();
+        return context.getClassElement(SUPPORT).isPresent();
     }
 
     /**

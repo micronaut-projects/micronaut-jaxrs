@@ -24,27 +24,68 @@ import java.lang.annotation.Inherited;
 import java.util.List;
 
 /**
- * The validation annotations remapper.
+ * Makes the JAX-RS annotations inherited: registered for each package of JAX-RS annotations, the
+ * remappers are keyed by package.
  *
  * @author Denis Stepanov
  * @since 4.6
  */
 @Internal
-public final class JaxRsAnnotationRemapper implements AnnotationRemapper {
+public class JaxRsAnnotationRemapper implements AnnotationRemapper {
+
+    private final String packageName;
+
+    /**
+     * The remapper of the annotations of {@code jakarta.ws.rs}.
+     */
+    public JaxRsAnnotationRemapper() {
+        this("jakarta.ws.rs");
+    }
+
+    JaxRsAnnotationRemapper(String packageName) {
+        this.packageName = packageName;
+    }
 
     @Override
     public String getPackageName() {
-        return AnnotationRemapper.ALL_PACKAGES;
+        return packageName;
     }
 
     @Override
     public List<AnnotationValue<?>> remap(AnnotationValue<?> annotation, VisitorContext visitorContext) {
-        if (annotation.getAnnotationName().startsWith("jakarta.ws.rs")) {
-            return List.of(
-                annotation.mutate().stereotype(
-                    AnnotationValue.builder(Inherited.class).build()
-                ).build());
+        return List.of(
+            annotation.mutate().stereotype(
+                AnnotationValue.builder(Inherited.class).build()
+            ).build());
+    }
+
+    /**
+     * The remapper of the annotations of {@code jakarta.ws.rs.core}.
+     */
+    @Internal
+    public static final class CorePackage extends JaxRsAnnotationRemapper {
+        public CorePackage() {
+            super("jakarta.ws.rs.core");
         }
-        return List.of(annotation);
+    }
+
+    /**
+     * The remapper of the annotations of {@code jakarta.ws.rs.container}.
+     */
+    @Internal
+    public static final class ContainerPackage extends JaxRsAnnotationRemapper {
+        public ContainerPackage() {
+            super("jakarta.ws.rs.container");
+        }
+    }
+
+    /**
+     * The remapper of the annotations of {@code jakarta.ws.rs.ext}.
+     */
+    @Internal
+    public static final class ExtPackage extends JaxRsAnnotationRemapper {
+        public ExtPackage() {
+            super("jakarta.ws.rs.ext");
+        }
     }
 }

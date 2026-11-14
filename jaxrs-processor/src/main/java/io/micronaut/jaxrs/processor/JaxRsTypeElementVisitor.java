@@ -88,15 +88,25 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     @Nullable
     private ClassElement currentClassElement;
     private boolean runtimeRoutes;
+    // whether the class visited is a provider: its members are not the ones of a resource
+    private boolean provider;
     private final StringConversions stringConversions = new StringConversions();
 
-    // Backwards compatibility
+    // Backwards compatibility: the types of the unannotated parameters that are context values,
+    // not the entity, the same as JaxRsRuntimeRoutes.CONTEXT_TYPES
     @NextMajorVersion("Allow only inject values annotated with @Context")
-    private final List<String> JAX_RS_BINDING_TYPES = List.of(
+    private static final Set<String> JAX_RS_BINDING_TYPES = Set.of(
         HttpHeaders.class.getName(),
         Cookie.class.getName(),
         SecurityContext.class.getName(),
         UriInfo.class.getName(),
+        "jakarta.ws.rs.core.Request",
+        "jakarta.ws.rs.core.Application",
+        "jakarta.ws.rs.core.Configuration",
+        "jakarta.ws.rs.ext.Providers",
+        "jakarta.ws.rs.container.ResourceContext",
+        "jakarta.ws.rs.container.ResourceInfo",
+        "io.micronaut.http.HttpRequest",
         "jakarta.servlet.ServletContext",
         "jakarta.servlet.ServletRequest",
         "jakarta.servlet.http.HttpServletRequest",
@@ -123,7 +133,9 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
 
     @Override
     public void visitClass(ClassElement element, VisitorContext context) {
-        if (element.hasStereotype(Provider.class)) {
+        currentClassElement = element;
+        provider = element.hasStereotype(Provider.class);
+        if (provider) {
             if (element.isEnum()) {
                 return;
             }
@@ -150,15 +162,14 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         }
         // the @Path of a class maps to the annotation of a resource method or locator: the
         // methods of the class are not all resource methods
-        element.removeStereotype(HttpMethodMappingMapper.RESOURCE_METHOD);
-        element.removeAnnotation(HttpMethodMappingMapper.RESOURCE_METHOD);
-        currentClassElement = element;
+        element.removeStereotype(PathAnnotationMapper.RESOURCE_METHOD);
+        element.removeAnnotation(PathAnnotationMapper.RESOURCE_METHOD);
         introspectResourcePath(element);
-        runtimeRoutes = context.getLanguage() == VisitorContext.Language.JAVA && JaxRsResources.isSupported(context);
         if (!runtimeRoutes) {
-            // the runtime routes need the JAX-RS server, and are enabled for Java: other languages,
-            // and compilations without the server, keep the resources as controllers
+            // the runtime routes need the JAX-RS server: a compilation without it keeps the resources as controllers
             if (element.hasAnnotation(Path.class) && !element.isAbstract()) {
+                context.warn("micronaut-jaxrs-server is not on the compilation classpath: the JAX-RS resource is routed as a Micronaut controller, "
+                    + "without the JAX-RS resource lifecycle, @MatrixParam, @BeanParam, @Encoded and request fields", element);
                 element.stringValue(Path.class).ifPresent(p -> {
                     element.annotate(Controller.class, builder -> builder.value(p));
                     element.annotate(UriMapping.class, builder -> builder.value(p));
@@ -238,6 +249,9 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     @Override
     public void visitMethod(MethodElement element, VisitorContext context) {
         JaxRsAnnotationInheritance.normalizeMethod(element);
+        if (provider) {
+            return;
+        }
         if (runtimeRoutes && element.hasAnnotation(Context.class) && !element.hasStereotype(HttpMethod.class)
             && JaxRsResources.isCreatedPerRequest(element.getOwningType())) {
             // a setter injected by the runtime routes
@@ -247,8 +261,8 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         boolean isPublic = element.isPublic() || element.getDeclaringType().isInterface() && !element.isPrivate();
         if (runtimeRoutes && !isPublic && (element.hasStereotype(HttpMethod.class) || element.hasDeclaredAnnotation(Path.class))) {
             // routed at runtime only when public
-            element.removeStereotype(HttpMethodMappingMapper.RESOURCE_METHOD);
-            element.removeAnnotation(HttpMethodMappingMapper.RESOURCE_METHOD);
+            element.removeStereotype(PathAnnotationMapper.RESOURCE_METHOD);
+            element.removeAnnotation(PathAnnotationMapper.RESOURCE_METHOD);
             // not a resource method nor a sub-resource locator: only public methods are (JAX-RS 3.3.1),
             // the runtime routes leave it out
             context.warn("The method is not public, so it is not a JAX-RS resource method or sub-resource locator, and it is not routed", element);
@@ -289,7 +303,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
                 visitParamOrField(parameter);
                 String parameterTypeName = parameter.getType().getName();
                 if (!JaxRsResources.isRequestAnnotated(parameter)
-                    && JAX_RS_BINDING_TYPES.stream().noneMatch(cl -> cl.equals(parameterTypeName))) {
+                    && !JAX_RS_BINDING_TYPES.contains(parameterTypeName)) {
                     // unannotated, implicit @Body
                     parameter.annotate(Body.class);
                     parameter.annotate(Nullable.class); // JAX-RS controller bodies are nullable by default
@@ -300,6 +314,9 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
 
     @Override
     public void visitField(FieldElement element, VisitorContext context) {
+        if (provider) {
+            return;
+        }
         visitParamOrField(element);
         if (runtimeRoutes) {
             // the runtime routes inject the fields of a type created per request
@@ -397,6 +414,9 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     @Override
     public void start(VisitorContext visitorContext) {
         stringConversions.reset();
+        runtimeRoutes = JaxRsResources.isSupported(visitorContext);
+        currentClassElement = null;
+        provider = false;
         for (Class<?> type : BINDABLE_TYPES) {
             visitorContext.getClassElement(type).ifPresent(bindable -> bindable.annotate(Bindable.class));
         }

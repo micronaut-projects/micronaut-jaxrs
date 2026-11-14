@@ -76,8 +76,9 @@ public class HttpMethodMapper implements NamedAnnotationMapper {
                     ? AnnotationValue.builder(QUERY_ANNOTATION)
                     : AnnotationValue.builder(CustomHttpMethod.class).member("method", name);
             };
-            return Collections.singletonList(
-                builder.value(UriMapping.DEFAULT_URI).build()
+            return List.of(
+                builder.value(UriMapping.DEFAULT_URI).build(),
+                AnnotationValue.builder(PathAnnotationMapper.RESOURCE_METHOD).build()
             );
         }
         return Collections.emptyList();

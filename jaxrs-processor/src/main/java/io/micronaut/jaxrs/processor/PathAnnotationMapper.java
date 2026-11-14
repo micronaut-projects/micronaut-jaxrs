@@ -24,7 +24,6 @@ import io.micronaut.inject.annotation.NamedAnnotationMapper;
 import io.micronaut.inject.visitor.VisitorContext;
 
 import java.lang.annotation.Annotation;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -36,6 +35,13 @@ import java.util.List;
 @Internal
 public class PathAnnotationMapper implements NamedAnnotationMapper {
 
+    /**
+     * The name of the annotation of a resource method or sub-resource locator, which the runtime
+     * routes of the JAX-RS server process on startup. The visitor removes it from the classes and
+     * from the methods that are not public.
+     */
+    static final String RESOURCE_METHOD = "io.micronaut.jaxrs.container.JaxRsResourceMethod";
+
     @NonNull
     @Override
     public String getName() {
@@ -46,6 +52,6 @@ public class PathAnnotationMapper implements NamedAnnotationMapper {
     public List<AnnotationValue<?>> map(AnnotationValue<Annotation> annotation, VisitorContext visitorContext) {
         final AnnotationValueBuilder<HttpMethodMapping> builder = AnnotationValue.builder(HttpMethodMapping.class);
         annotation.stringValue().ifPresent(builder::value);
-        return Collections.singletonList(builder.build());
+        return List.of(builder.build(), AnnotationValue.builder(RESOURCE_METHOD).build());
     }
 }

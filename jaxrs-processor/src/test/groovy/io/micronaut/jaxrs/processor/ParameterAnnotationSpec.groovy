@@ -2,6 +2,7 @@ package io.micronaut.jaxrs.processor
 
 import io.micronaut.annotation.processing.test.AbstractTypeElementSpec
 import io.micronaut.core.bind.annotation.Bindable
+import io.micronaut.http.annotation.Body
 import io.micronaut.http.annotation.CookieValue
 import io.micronaut.http.annotation.Header
 import io.micronaut.http.annotation.PathVariable
@@ -46,6 +47,25 @@ class Test {
         CookieParam | CookieValue  | "test"
         QueryParam  | QueryParam   | "test"
         FormParam   | QueryValue   | "test"
+    }
+
+    void "an unannotated context parameter is not the entity"() {
+        given:
+        def definition = buildBeanDefinition('test.Test', """
+package test;
+
+@jakarta.ws.rs.Path("/test")
+class Test {
+
+    @jakarta.ws.rs.GET
+    void test(jakarta.ws.rs.core.Request request) {}
+}
+""")
+
+        def metadata = definition.getRequiredMethod("test", jakarta.ws.rs.core.Request).arguments[0].getAnnotationMetadata()
+
+        expect:
+        !metadata.hasAnnotation(Body)
     }
 
     void "test default value"() {

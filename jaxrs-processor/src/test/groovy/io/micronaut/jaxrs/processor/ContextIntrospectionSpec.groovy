@@ -38,6 +38,31 @@ public class TestProvider implements ContextResolver<String> {
         introspection.getProperty("other").get().isWriteOnly()
     }
 
+    void "the members of a provider are not read as the members of a resource"() {
+        when:
+        def definition = buildBeanDefinition('test.TestProvider', '''
+package test;
+
+import jakarta.ws.rs.HeaderParam;
+import jakarta.ws.rs.ext.ContextResolver;
+import jakarta.ws.rs.ext.Provider;
+
+@Provider
+public class TestProvider implements ContextResolver<String> {
+    @HeaderParam("name")
+    String name;
+
+    @Override
+    public String getContext(Class<?> type) {
+        return null;
+    }
+}
+''')
+
+        then:
+        definition != null
+    }
+
     void "a provider already annotated with @Introspected keeps its members and includes its injection points"() {
         when:
         def introspection = buildBeanIntrospection('test.TestProvider', '''
