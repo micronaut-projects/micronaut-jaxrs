@@ -15,6 +15,8 @@
  */
 package io.micronaut.jaxrs.common.body.standard;
 
+import io.micronaut.http.form.FormConfiguration;
+import io.micronaut.http.uri.QueryStringDecoder;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.core.MultivaluedMap;
@@ -22,13 +24,32 @@ import org.jspecify.annotations.Nullable;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
 
 /**
  * The shared parts of the standard form providers.
  */
 final class FormMaps {
 
+    /**
+     * The default limits of a form, for a client without a context.
+     */
+    static final FormConfiguration DEFAULT_CONFIGURATION = () -> 1024;
+
     private FormMaps() {
+    }
+
+    /**
+     * @param form              The form
+     * @param charset           The charset of the form
+     * @param formConfiguration The limits of a form
+     * @return Every value of each field
+     */
+    static Map<String, List<String>> decode(String form, Charset charset, FormConfiguration formConfiguration) {
+        return new QueryStringDecoder(form, charset, false,
+            formConfiguration.getMaxDecodedKeyValueParameters(),
+            formConfiguration.isSemicolonIsNormalChar()).parameters();
     }
 
     /**

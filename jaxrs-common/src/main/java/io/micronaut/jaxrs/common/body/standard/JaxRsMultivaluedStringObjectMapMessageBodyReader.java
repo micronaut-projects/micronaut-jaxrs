@@ -20,6 +20,8 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.Order;
 import io.micronaut.core.io.IOUtils;
 import io.micronaut.core.order.Ordered;
+import io.micronaut.http.form.FormConfiguration;
+import jakarta.inject.Inject;
 import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.core.MediaType;
@@ -51,7 +53,22 @@ import java.util.Map;
 @Prototype
 public final class JaxRsMultivaluedStringObjectMapMessageBodyReader implements MessageBodyReader<MultivaluedMap<String, Object>> {
 
-    private final DefaultFormUrlEncodedDecoder formUrlEncodedDecoder = new DefaultFormUrlEncodedDecoder();
+    private final FormConfiguration formConfiguration;
+
+    /**
+     * A reader with the default limits of a form, for a client without a context.
+     */
+    public JaxRsMultivaluedStringObjectMapMessageBodyReader() {
+        this(FormMaps.DEFAULT_CONFIGURATION);
+    }
+
+    /**
+     * @param formConfiguration The limits of a form
+     */
+    @Inject
+    public JaxRsMultivaluedStringObjectMapMessageBodyReader(FormConfiguration formConfiguration) {
+        this.formConfiguration = formConfiguration;
+    }
 
     @Override
     public boolean isReadable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
@@ -67,7 +84,7 @@ public final class JaxRsMultivaluedStringObjectMapMessageBodyReader implements M
             Charset charset = FormMaps.charset(mediaType);
             // the raw bytes are in the charset of the form, like its escapes
             BufferedReader reader = new BufferedReader(new InputStreamReader(entityStream, charset));
-            decoded = formUrlEncodedDecoder.decodeAll(IOUtils.readText(reader), charset);
+            decoded = FormMaps.decode(IOUtils.readText(reader), charset, formConfiguration);
         } catch (IllegalArgumentException e) {
             // a malformed escape or an unsupported charset is a malformed entity, not a server failure
             throw new BadRequestException("The form entity is malformed", e);

@@ -28,7 +28,10 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
+import java.net.URLEncoder;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.StringJoiner;
 import java.util.List;
 import java.util.Map;
 
@@ -54,13 +57,22 @@ public final class JaxRsMultivaluedMapMessageBodyWriter implements MessageBodyWr
     public void writeTo(MultivaluedMap<String, String> map, Class<?> type, Type genericType, Annotation[] annotations,
                         MediaType mediaType, MultivaluedMap<String, Object> httpHeaders,
                         OutputStream entityStream) throws IOException {
-        QueryStringEncoder encoder = new QueryStringEncoder("", FormMaps.charset(mediaType));
+        Charset charset = FormMaps.charset(mediaType);
+        StringJoiner form = new StringJoiner("&");
         // any multivalued map, e.g. MultivaluedMap<String, Object>: the values as strings
         for (Map.Entry<String, ? extends List<?>> e : ((Map<String, ? extends List<?>>) map).entrySet()) {
-            e.getValue().forEach(value -> encoder.addParam(e.getKey(), String.valueOf(value)));
+            String name = encode(e.getKey(), charset);
+            e.getValue().forEach(value -> form.add(name + '=' + encode(String.valueOf(value), charset)));
         }
-        // the encoder builds a query: the form is without its leading '?'
-        String form = encoder.toString();
-        entityStream.write((form.startsWith("?") ? form.substring(1) : form).getBytes(StandardCharsets.UTF_8));
+        // the encoded form is ASCII
+        entityStream.write(form.toString().getBytes(StandardCharsets.US_ASCII));
+    }
+
+    /**
+     * A form value encoded with a space as {@code %20}: a '+' of the encoder is always a space,
+     * as it encodes a '+' itself as {@code %2B}.
+     */
+    private static String encode(String value, Charset charset) {
+        return URLEncoder.encode(value, charset).replace("+", "%20");
     }
 }

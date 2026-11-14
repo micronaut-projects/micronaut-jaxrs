@@ -18,6 +18,7 @@ package io.micronaut.jaxrs.client;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.context.BeanRegistration;
 import org.jspecify.annotations.Nullable;
+import io.micronaut.core.io.buffer.ByteArrayBufferFactory;
 import io.micronaut.core.io.buffer.ByteBuffer;
 import io.micronaut.core.type.Argument;
 import io.micronaut.core.type.Headers;
@@ -28,7 +29,6 @@ import io.micronaut.http.MutableHttpMessage;
 import io.micronaut.http.MutableHttpRequest;
 import io.micronaut.http.body.MessageBodyHandlerRegistry;
 import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
-import io.micronaut.jaxrs.common.ByteArrayByteBuffer;
 import io.micronaut.jaxrs.common.HttpMessageEntityReader;
 import io.micronaut.jaxrs.common.JaxRsIOException;
 import io.micronaut.jaxrs.common.JaxRsInterceptedRead;
@@ -160,7 +160,7 @@ final class JaxRsClientEntityIO {
 
             private <T> @Nullable T readEntityOfConfiguration(HttpMessage<?> message, Argument<T> entityType) {
                 ByteBuffer<?> byteBuffer = message.getBody(ByteBuffer.class)
-                    .or(() -> message.getBody(byte[].class).map(ByteArrayByteBuffer::new))
+                    .or(() -> message.getBody(byte[].class).map(ByteArrayBufferFactory.INSTANCE::wrap))
                     .orElse(null);
                 if (byteBuffer != null) {
                     List<BeanRegistration<ReaderInterceptor>> readerInterceptors = providers.getReaderInterceptors();
