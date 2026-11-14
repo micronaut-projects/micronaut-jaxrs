@@ -88,6 +88,8 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     @Nullable
     private ClassElement currentClassElement;
     private boolean runtimeRoutes;
+    // whether the class visited is a provider: its members are not the ones of a resource
+    private boolean provider;
     private final StringConversions stringConversions = new StringConversions();
 
     // Backwards compatibility
@@ -123,7 +125,9 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
 
     @Override
     public void visitClass(ClassElement element, VisitorContext context) {
-        if (element.hasStereotype(Provider.class)) {
+        currentClassElement = element;
+        provider = element.hasStereotype(Provider.class);
+        if (provider) {
             if (element.isEnum()) {
                 return;
             }
@@ -152,9 +156,7 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
         // methods of the class are not all resource methods
         element.removeStereotype(HttpMethodMappingMapper.RESOURCE_METHOD);
         element.removeAnnotation(HttpMethodMappingMapper.RESOURCE_METHOD);
-        currentClassElement = element;
         introspectResourcePath(element);
-        runtimeRoutes = context.getLanguage() == VisitorContext.Language.JAVA && JaxRsResources.isSupported(context);
         if (!runtimeRoutes) {
             // the runtime routes need the JAX-RS server, and are enabled for Java: other languages,
             // and compilations without the server, keep the resources as controllers
@@ -238,6 +240,9 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     @Override
     public void visitMethod(MethodElement element, VisitorContext context) {
         JaxRsAnnotationInheritance.normalizeMethod(element);
+        if (provider) {
+            return;
+        }
         if (runtimeRoutes && element.hasAnnotation(Context.class) && !element.hasStereotype(HttpMethod.class)
             && JaxRsResources.isCreatedPerRequest(element.getOwningType())) {
             // a setter injected by the runtime routes
@@ -300,6 +305,9 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
 
     @Override
     public void visitField(FieldElement element, VisitorContext context) {
+        if (provider) {
+            return;
+        }
         visitParamOrField(element);
         if (runtimeRoutes) {
             // the runtime routes inject the fields of a type created per request
@@ -397,6 +405,9 @@ public class JaxRsTypeElementVisitor implements TypeElementVisitor<Object, Objec
     @Override
     public void start(VisitorContext visitorContext) {
         stringConversions.reset();
+        runtimeRoutes = visitorContext.getLanguage() == VisitorContext.Language.JAVA && JaxRsResources.isSupported(visitorContext);
+        currentClassElement = null;
+        provider = false;
         for (Class<?> type : BINDABLE_TYPES) {
             visitorContext.getClassElement(type).ifPresent(bindable -> bindable.annotate(Bindable.class));
         }
