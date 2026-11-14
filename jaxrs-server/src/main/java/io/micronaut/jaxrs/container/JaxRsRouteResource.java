@@ -95,7 +95,11 @@ final class JaxRsRouteResource {
 
     @Override
     public boolean equals(Object o) {
-        return o instanceof JaxRsRouteResource other && identity.equals(other.identity);
+        if (o == this) {
+            return true;
+        }
+        // the resource method of a route is equal to itself only, see #identity
+        return isController() && o instanceof JaxRsRouteResource other && identity.equals(other.identity);
     }
 
     @Override

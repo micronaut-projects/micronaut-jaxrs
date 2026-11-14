@@ -448,7 +448,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 if (resourceMethod != null) {
                     boolean usesResourceContext = typeUsesResourceContext
                         || Arrays.stream(method.arguments()).anyMatch(argument -> usesResourceContext(argument, 0));
-                    route(routes, resourceMethod, instances, rootUsesForm, rootEncodedForm, usesResourceContext);
+                    route(routes, classMetadata, resourceMethod, instances, rootUsesForm, rootEncodedForm, usesResourceContext);
                 }
             } else if (methodPath != null) {
                 // a resource method is selected before a locator: the end of its @Path is marked
@@ -588,8 +588,8 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         return resourceFactory.initResource(resource, request, pathVariables);
     }
 
-    private <L, B> void route(Routes<L> routes, ResourceMethod<B> method, Instances<L, B> instances, boolean chainUsesForm,
-                              boolean chainEncodedForm, boolean usesResourceContext) {
+    private <L, B> void route(Routes<L> routes, AnnotationMetadata classMetadata, ResourceMethod<B> method, Instances<L, B> instances,
+                              boolean chainUsesForm, boolean chainEncodedForm, boolean usesResourceContext) {
         String name = method.httpMethod();
         Declaration declaration = new Declaration(name, method.template(), method.metadata(), method.responseType());
         boolean body = method.entity() >= 0 && !method.formEntity() && !"GET".equals(name);
@@ -642,7 +642,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                     rawEntityForm, (readRequest, readPathVariables, value) -> callAsync(method, instances, readRequest, readPathVariables, target, value, null)));
             } else if (body) {
                 // the entity is read by the router, the method runs on its executor
-                routes.handleEntityAsync(declaration, executor(method.method().metadata(), AnnotationMetadata.EMPTY_METADATA),
+                routes.handleEntityAsync(declaration, executor(method.method().metadata(), classMetadata),
                     (request, pathVariables, target, value) -> callAsync(method, instances, request, pathVariables, target,
                         entityForm ? support.entityForm(request, value, rawEntityForm) : null, value));
             } else {

@@ -141,7 +141,14 @@ final class JaxRsServerFilters implements HttpRoutes {
         }
     }
 
-    private boolean underApplicationPath(String path) {
+    private boolean underApplicationPath(String rawPath) {
+        // the application path is decoded: the path is compared decoded too
+        String path;
+        try {
+            path = ApplicationProvider.decodePath(rawPath);
+        } catch (IllegalArgumentException e) {
+            path = rawPath;
+        }
         String applicationPath = applicationProvider.getPath();
         if (applicationPath.endsWith("/")) {
             applicationPath = applicationPath.substring(0, applicationPath.length() - 1);
