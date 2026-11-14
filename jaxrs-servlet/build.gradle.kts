@@ -12,9 +12,12 @@ dependencies {
     annotationProcessor(mn.micronaut.graal)
 
     api(projects.micronautJaxrsServer)
-    api(mnServlet.micronaut.servlet.engine)
+    api(mnServlet.servlet.api)
+    // the signatures of JaxRsRouteSupport
+    compileOnly(mn.micronaut.router)
 
     testImplementation(mnServlet.micronaut.http.server.jetty)
+    testImplementation(mnServlet.micronaut.servlet.engine)
 
     // for Java
     testAnnotationProcessor(mn.micronaut.inject.java)

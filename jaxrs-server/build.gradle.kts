@@ -11,8 +11,6 @@ dependencies {
 	implementation(mn.micronaut.router)
 	implementation(mn.micronaut.http.server)
     implementation(projects.micronautJaxrsCommon)
-    // a @Context servlet request is a stub when the server is not a servlet container
-    compileOnly(mnServlet.servlet.api)
     // the SSLContext of a Java SE bootstrap configuration is applied to the Netty server, when it is the server
     compileOnly(mn.micronaut.http.server.netty)
 
@@ -29,7 +27,8 @@ dependencies {
     // the reflection of the classes the annotation processors never saw, see JaxRsReflection
     testRuntimeOnly(projects.micronautJaxrsReflection)
 	testImplementation(mn.micronaut.http.server.netty)
-    testImplementation(mnServlet.servlet.api)
+    // the stub servlet request of a @Context servlet request, see StubHttpServletRequestTest
+    testImplementation(projects.micronautJaxrsServlet)
 	testImplementation(mn.micronaut.http.client)
 	testImplementation(mnValidation.micronaut.validation)
 	testImplementation(mnTest.micronaut.test.junit5)

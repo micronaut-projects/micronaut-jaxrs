@@ -13,9 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.micronaut.jaxrs.container;
+package io.micronaut.jaxrs.servlet;
 
 import io.micronaut.context.BeanProvider;
+import io.micronaut.jaxrs.container.JaxRsRouteSupport;
 import io.micronaut.context.annotation.Requires;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.type.Argument;

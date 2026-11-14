@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.micronaut.jaxrs.container;
+package io.micronaut.jaxrs.servlet;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.HttpHeaders;
@@ -78,10 +78,10 @@ final class JaxRsStubHttpServletRequest implements HttpServletRequest {
      * @param request     The request
      * @param contextPath The context path of the server
      */
-    JaxRsStubHttpServletRequest(HttpRequest<?> request, String contextPath) {
+    JaxRsStubHttpServletRequest(HttpRequest<?> request, String contextPath, Map<String, Object> attributes) {
         this.request = request;
         this.contextPath = contextPath.equals("/") ? "" : contextPath;
-        this.attributes = JaxRsContainerRequestContext.properties(request);
+        this.attributes = attributes;
     }
 
     @Override

@@ -195,6 +195,8 @@ public final class JaxRsRouteSupport {
     private final BeanProvider<JaxRsMessageBodyReaders<?>> readers;
 
     private final BeanProvider<JaxRsContainerFilters> containerFilters;
+    // the servlet request emulation of the micronaut-jaxrs-servlet module, if present
+    private final BeanProvider<JaxRsServletRequestFactory> servletRequestFactory;
     private volatile @Nullable Set<Class<?>> registeredClasses;
 
     // the thread selection of the server, resolved when first used
@@ -208,7 +210,9 @@ public final class JaxRsRouteSupport {
                       RequestBinderRegistry binderRegistry,
                       BeanContext beanContext,
                       BeanProvider<JaxRsMessageBodyReaders<?>> readers,
-                      BeanProvider<JaxRsContainerFilters> containerFilters) {
+                      BeanProvider<JaxRsContainerFilters> containerFilters,
+                      BeanProvider<JaxRsServletRequestFactory> servletRequestFactory) {
+        this.servletRequestFactory = servletRequestFactory;
         this.readers = readers;
         this.containerFilters = containerFilters;
         this.applicationProvider = applicationProvider;
@@ -957,7 +961,7 @@ public final class JaxRsRouteSupport {
                 return result.get();
             }
         }
-        if (SERVLET_REQUEST_TYPES.contains(type.getName())) {
+        if (SERVLET_REQUEST_TYPES.contains(type.getName()) && servletRequestFactory.isPresent()) {
             // not a servlet container
             return stubServletRequest(request);
         }
@@ -972,7 +976,7 @@ public final class JaxRsRouteSupport {
     private Object stubServletRequest(HttpRequest<?> request) {
         Object stub = request.getAttribute(STUB_SERVLET_REQUEST).orElse(null);
         if (stub == null) {
-            stub = new JaxRsStubHttpServletRequest(request, applicationProvider.getContextPath());
+            stub = servletRequestFactory.get().create(request, applicationProvider.getContextPath(), JaxRsContainerRequestContext.properties(request));
             request.setAttribute(STUB_SERVLET_REQUEST, stub);
         }
         return stub;
