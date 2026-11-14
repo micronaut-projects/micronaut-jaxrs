@@ -17,14 +17,9 @@ package io.micronaut.jaxrs.client;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.io.service.SoftServiceLoader;
-import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.MediaType;
-import io.micronaut.http.body.ContextlessMessageBodyHandlerRegistry;
-import io.micronaut.http.body.MessageBodyHandlerRegistry;
-import io.micronaut.http.body.MessageBodyReader;
-import io.micronaut.http.body.MessageBodyWriter;
 import io.micronaut.http.client.DefaultHttpClientConfiguration;
 import io.micronaut.http.client.netty.DefaultHttpClient;
 import io.micronaut.jaxrs.common.JaxRsStandardProviders;
@@ -38,7 +33,6 @@ import io.micronaut.jaxrs.common.body.standard.JaxRsReaderMessageBodyWriter;
 import io.micronaut.jaxrs.common.body.standard.JaxRsStreamingOutputMessageBodyWriter;
 import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.client.ClientBuilder;
-import jakarta.ws.rs.client.Entity;
 import jakarta.ws.rs.core.Configuration;
 import jakarta.ws.rs.core.Feature;
 
@@ -49,7 +43,6 @@ import java.time.Duration;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -107,25 +100,8 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
             .configuration(configuration)
             .eventLoopOf(httpClient)
             .build();
-        ContextlessMessageBodyHandlerRegistry handlerRegistry = (ContextlessMessageBodyHandlerRegistry) httpClient.getHandlerRegistry();
         // the properties and components registered on this builder, then the standard ones
         JaxRsConfiguration jaxRsConfiguration = config.copy();
-        httpClient.setHandlerRegistry(new MessageBodyHandlerRegistry() {
-
-            @Override
-            public <T> Optional<MessageBodyReader<T>> findReader(@NonNull Argument<T> type, @Nullable List<MediaType> mediaType) {
-                return handlerRegistry.findReader(type, mediaType);
-            }
-
-            @Override
-            public <T> Optional<MessageBodyWriter<T>> findWriter(@NonNull Argument<T> type, @NonNull List<MediaType> mediaType) {
-                if (type.getType().equals(Entity.class)) {
-                    return Optional.of((MessageBodyWriter<T>) new JaxRsEntityMessageBodyWriter(handlerRegistry, mediaType));
-                }
-                return handlerRegistry.findWriter(type, mediaType);
-            }
-
-        });
         jaxRsConfiguration.setHandlerRegistry(httpClient.getHandlerRegistry());
         jaxRsConfiguration.registerStandard(httpClient.getHandlerRegistry().findReader(Argument.STRING, List.of(MediaType.ALL_TYPE)).get());
         jaxRsConfiguration.registerStandard(httpClient.getHandlerRegistry().findReader(Argument.of(byte[].class), List.of(MediaType.ALL_TYPE)).get());
