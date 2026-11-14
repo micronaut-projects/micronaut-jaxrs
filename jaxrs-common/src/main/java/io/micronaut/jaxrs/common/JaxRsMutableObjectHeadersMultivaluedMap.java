@@ -17,7 +17,6 @@ package io.micronaut.jaxrs.common;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.type.MutableHeaders;
-import jakarta.inject.Singleton;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.ext.RuntimeDelegate;
 import org.jspecify.annotations.Nullable;
@@ -31,7 +30,6 @@ import java.util.List;
  * @since 4.6.0
  */
 @Internal
-@Singleton
 public final class JaxRsMutableObjectHeadersMultivaluedMap extends JaxRsObjectHeadersMultivaluedMap {
 
     private final MutableHeaders headers;

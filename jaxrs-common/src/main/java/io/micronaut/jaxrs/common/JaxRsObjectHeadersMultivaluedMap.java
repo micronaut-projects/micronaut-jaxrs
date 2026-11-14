@@ -17,7 +17,6 @@ package io.micronaut.jaxrs.common;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.type.Headers;
-import jakarta.inject.Singleton;
 import jakarta.ws.rs.core.MultivaluedMap;
 import org.jspecify.annotations.Nullable;
 
@@ -38,7 +37,6 @@ import java.util.stream.Stream;
  * @since 4.6.0
  */
 @Internal
-@Singleton
 public class JaxRsObjectHeadersMultivaluedMap extends AbstractMap<String, List<Object>> implements MultivaluedMap<String, Object> {
 
     private final Headers headers;
