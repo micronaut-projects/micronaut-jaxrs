@@ -24,7 +24,6 @@ import io.micronaut.core.annotation.AnnotationMetadataProvider;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.RouteInfo;
-import io.micronaut.web.router.MethodBasedRouteInfo;
 import io.micronaut.http.simple.SimpleHttpHeaders;
 import io.micronaut.jaxrs.common.JaxRsUtils;
 import io.micronaut.http.body.AsyncRequestBody;
@@ -107,7 +106,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PushbackInputStream;
 import java.io.UncheckedIOException;
-import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
@@ -197,7 +195,6 @@ public final class JaxRsRouteSupport {
     private final BeanProvider<JaxRsMessageBodyReaders<?>> readers;
 
     private final BeanProvider<JaxRsContainerFilters> containerFilters;
-
     private volatile @Nullable Set<Class<?>> registeredClasses;
 
     // the thread selection of the server, resolved when first used
@@ -388,15 +385,36 @@ public final class JaxRsRouteSupport {
         route.produces(metadata.produces.length == 0 ? new MediaType[]{MediaType.ALL_TYPE} : mediaTypes(metadata.produces));
         Optional<? extends ExecutableMethod<?, ?>> method = beanContext.findBeanDefinition(metadata.resourceClass)
             .flatMap(definition -> definition.findMethod(metadata.methodName, metadata.parameterTypes));
-        if (method.isPresent() && method.get().getDeclaringType() != metadata.resourceClass) {
-            // implemented by a superclass: its annotations are inherited in the resource class
-            route.annotationMetadata(new InheritedResourceMethod(metadata.resourceClass, method.get()));
-        } else if (method.isPresent()) {
-            route.annotationMetadata(method.get());
+        Class<?> resourceClass = metadata.resourceClass;
+        JaxRsRouteResource resource;
+        if (method.isPresent()) {
+            ExecutableMethod<?, ?> executable = method.get();
+            route.annotationMetadata(executable);
+            if (executable.getDeclaringType() != resourceClass) {
+                // implemented by a superclass: its annotations are inherited in the resource class
+                resource = new JaxRsRouteResource(resourceClass, () -> JaxRsReflection.get().targetMethod(executable),
+                    () -> JaxRsReflection.get().methodAnnotations(resourceClass, executable),
+                    () -> JaxRsReflection.get().annotations(resourceClass, executable));
+            } else {
+                resource = new JaxRsRouteResource(resourceClass, () -> JaxRsReflection.get().targetMethod(executable),
+                    () -> JaxRsReflection.get().methodAnnotations(executable),
+                    () -> JaxRsReflection.get().annotations(executable));
+            }
         } else {
             // a sub-resource that is not a bean: the route has the annotations of its method and class
-            route.annotationMetadata(new SubResourceMethod(metadata, subResourceAnnotations(metadata)));
+            AnnotationMetadata subResource = subResourceAnnotations(metadata);
+            route.annotationMetadata(new AnnotationMetadataProvider() {
+                @Override
+                public AnnotationMetadata getAnnotationMetadata() {
+                    return subResource;
+                }
+            });
+            Supplier<AnnotationMetadata> annotations = () -> JaxRsReflection.get().methodAnnotations(resourceClass, metadata.methodName, metadata.parameterTypes);
+            resource = new JaxRsRouteResource(resourceClass,
+                () -> JaxRsReflection.get().targetMethod(resourceClass, metadata.methodName, metadata.parameterTypes), annotations,
+                () -> JaxRsReflection.get().annotations(annotations.get(), resourceClass.getClassLoader()));
         }
+        route.attribute(JaxRsRouteResource.ATTRIBUTE, resource);
         // the post-matching request filters of the resource method (JAX-RS 6.7.2), once the entity
         // they may read is buffered
         return route.beforeReplacingAsync(request -> containerFilters().filterRequestAsync(RouteAttributes.getRouteInfo(request).orElseThrow(), request)).and();
@@ -1097,40 +1115,12 @@ public final class JaxRsRouteSupport {
     }
 
     /**
-     * The element of the resource method a route implements: the bean method given to the route,
-     * or the {@link RouteMetadata} of a sub-resource that is not a bean. A handler route has no
-     * Java method of its own.
-     *
-     * @param route The route
-     * @return The element, or {@code null} for a route that is not a JAX-RS resource method
-     */
-    static @Nullable Object resourceMethodKey(@Nullable RouteInfo<?> route) {
-        AnnotationMetadataProvider provider = provider(route);
-        if (provider instanceof ExecutableMethod<?, ?> method) {
-            return method;
-        }
-        if (provider instanceof InheritedResourceMethod inherited) {
-            return inherited;
-        }
-        return provider instanceof SubResourceMethod subResource ? subResource.metadata() : null;
-    }
-
-    /**
      * @param route The route
      * @return The resource method it implements, or {@code null} for a route that is not a JAX-RS resource method
      */
     static @Nullable Method resourceMethod(@Nullable RouteInfo<?> route) {
-        AnnotationMetadataProvider provider = provider(route);
-        if (provider instanceof ExecutableMethod<?, ?> method) {
-            return JaxRsReflection.get().targetMethod(method);
-        }
-        if (provider instanceof InheritedResourceMethod(Class<?> ignored, ExecutableMethod<?, ?> method)) {
-            return JaxRsReflection.get().targetMethod(method);
-        }
-        if (provider instanceof SubResourceMethod(RouteMetadata metadata, AnnotationMetadata ignored)) {
-            return JaxRsReflection.get().targetMethod(metadata.resourceClass, metadata.methodName, metadata.parameterTypes);
-        }
-        return null;
+        JaxRsRouteResource resource = JaxRsRouteResource.of(route);
+        return resource == null ? null : resource.method();
     }
 
     /**
@@ -1139,37 +1129,8 @@ public final class JaxRsRouteSupport {
      * its class, or {@code null} for a route that is not a JAX-RS resource method
      */
     static @Nullable AnnotationMetadata resourceMethodAnnotations(@Nullable RouteInfo<?> route) {
-        AnnotationMetadataProvider provider = provider(route);
-        if (provider instanceof ExecutableMethod<?, ?> method) {
-            return JaxRsReflection.get().methodAnnotations(method);
-        }
-        if (provider instanceof InheritedResourceMethod(Class<?> resourceClass, ExecutableMethod<?, ?> method)) {
-            return JaxRsReflection.get().methodAnnotations(resourceClass, method);
-        }
-        if (provider instanceof SubResourceMethod(RouteMetadata metadata, AnnotationMetadata ignored)) {
-            return JaxRsReflection.get().methodAnnotations(metadata.resourceClass, metadata.methodName, metadata.parameterTypes);
-        }
-        return null;
-    }
-
-    /**
-     * @param route The route
-     * @return The annotations of the resource method it implements as objects, as JAX-RS hands
-     * them to the providers, or {@code null} for a route that is not a JAX-RS resource method
-     */
-    static Annotation @Nullable [] resourceMethodAnnotationObjects(@Nullable RouteInfo<?> route) {
-        AnnotationMetadataProvider provider = provider(route);
-        if (provider instanceof ExecutableMethod<?, ?> method) {
-            return JaxRsReflection.get().annotations(method);
-        }
-        if (provider instanceof InheritedResourceMethod(Class<?> resourceClass, ExecutableMethod<?, ?> method)) {
-            return JaxRsReflection.get().annotations(resourceClass, method);
-        }
-        if (provider instanceof SubResourceMethod(RouteMetadata metadata, AnnotationMetadata ignored)) {
-            AnnotationMetadata annotations = JaxRsReflection.get().methodAnnotations(metadata.resourceClass, metadata.methodName, metadata.parameterTypes);
-            return JaxRsReflection.get().annotations(annotations, metadata.resourceClass.getClassLoader());
-        }
-        return null;
+        JaxRsRouteResource resource = JaxRsRouteResource.of(route);
+        return resource == null ? null : resource.annotations();
     }
 
     /**
@@ -1177,17 +1138,11 @@ public final class JaxRsRouteSupport {
      * @return The resource class of the resource method it implements
      */
     static @Nullable Class<?> resourceClass(@Nullable RouteInfo<?> route) {
-        if (provider(route) instanceof SubResourceMethod subResource) {
-            return subResource.metadata().resourceClass;
-        }
-        if (provider(route) instanceof InheritedResourceMethod inherited) {
-            return inherited.resourceClass();
+        JaxRsRouteResource resource = JaxRsRouteResource.of(route);
+        if (resource != null) {
+            return resource.resourceClass();
         }
         return route == null ? null : route.getDeclaringType();
-    }
-
-    private static @Nullable AnnotationMetadataProvider provider(@Nullable RouteInfo<?> route) {
-        return route instanceof MethodBasedRouteInfo<?, ?> methodRoute ? methodRoute.getAnnotationMetadataProvider().orElse(null) : null;
     }
 
     /**
@@ -1509,27 +1464,6 @@ public final class JaxRsRouteSupport {
      * @param metadata           The metadata of the resource method
      * @param annotationMetadata The annotations of the method and its class
      */
-    /**
-     * The resource method of a resource class implemented by a superclass: its annotations are the
-     * ones of the method, the JAX-RS ones it inherits are resolved from the resource class.
-     *
-     * @param resourceClass The resource class
-     * @param method        The executable method, of the superclass
-     */
-    private record InheritedResourceMethod(Class<?> resourceClass, ExecutableMethod<?, ?> method) implements AnnotationMetadataProvider {
-        @Override
-        public AnnotationMetadata getAnnotationMetadata() {
-            return method.getAnnotationMetadata();
-        }
-    }
-
-    private record SubResourceMethod(RouteMetadata metadata, AnnotationMetadata annotationMetadata) implements AnnotationMetadataProvider {
-        @Override
-        public AnnotationMetadata getAnnotationMetadata() {
-            return annotationMetadata;
-        }
-    }
-
     /**
      * The entity of a response that no writer writes as an acceptable type, which a response
      * filter can repair: by replacing it, or by giving it a type, annotations or a media type a

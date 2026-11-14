@@ -30,8 +30,6 @@ import org.jspecify.annotations.Nullable;
 
 import java.lang.annotation.Annotation;
 import java.util.Arrays;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Prepares the entity of a response for the response filters and the writers: not the entity
@@ -44,11 +42,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * @since 5.2.0
  */
 final class JaxRsEntityPreparation {
-
-    private static final Annotation[] NONE = new Annotation[0];
-
-    // the Java annotations of the resource methods, by resource method, see #methodAnnotations
-    private final Map<Object, Annotation[]> methodAnnotations = new ConcurrentHashMap<>();
 
     /**
      * Prepare the entity of a response.
@@ -142,15 +135,8 @@ final class JaxRsEntityPreparation {
      * is not a JAX-RS resource method.
      */
     private Annotation @Nullable [] methodAnnotations(@Nullable RouteInfo<?> routeInfo) {
-        Object key = JaxRsRouteSupport.resourceMethodKey(routeInfo);
-        if (key == null) {
-            return JaxRsRouteSupport.resourceMethodAnnotationObjects(routeInfo);
-        }
-        Annotation[] annotations = methodAnnotations.computeIfAbsent(key, k -> {
-            Annotation[] read = JaxRsRouteSupport.resourceMethodAnnotationObjects(routeInfo);
-            return read == null ? NONE : read;
-        });
-        return annotations == NONE ? null : annotations.clone();
+        JaxRsRouteResource resource = JaxRsRouteResource.of(routeInfo);
+        return resource == null ? null : resource.annotationObjects();
     }
 
     /**

@@ -309,7 +309,7 @@ final class JaxRsServerFilters implements HttpRoutes {
      * designator, e.g. {@code @GET}.
      */
     private static boolean isJaxRs(RouteInfo<?> routeInfo) {
-        if (JaxRsRouteSupport.resourceMethodKey(routeInfo) != null) {
+        if (JaxRsRouteResource.of(routeInfo) != null) {
             // a route of the JAX-RS resource methods, of a bean or not
             return true;
         }
