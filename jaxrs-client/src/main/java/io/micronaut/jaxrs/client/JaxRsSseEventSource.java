@@ -557,8 +557,15 @@ final class JaxRsSseEventSource implements SseEventSource {
      */
     private void failed(HttpResponse<?> errorResponse, CloseableByteBody body, JaxRsClientRequestContext requestContext) {
         byte[] entity;
+        DefaultHttpClient client = httpClient;
+        // bounded like a buffered body of the HTTP client
+        int maxLength = client == null ? Integer.MAX_VALUE - 8 : (int) Math.min(Integer.MAX_VALUE - 8, client.getConfiguration().getMaxContentLength());
         try (InputStream stream = body.toInputStream()) {
-            entity = stream.readAllBytes();
+            entity = stream.readNBytes(maxLength);
+            if (stream.read() != -1) {
+                failed(new ProcessingException("The error response is larger than " + maxLength + " bytes"));
+                return;
+            }
         } catch (IOException e) {
             failed(e);
             return;

@@ -2,6 +2,7 @@ package io.micronaut.jaxrs.client;
 
 import io.micronaut.context.annotation.Property;
 import io.micronaut.context.annotation.Requires;
+import io.micronaut.http.HttpResponse;
 import io.micronaut.http.annotation.Controller;
 import io.micronaut.http.annotation.Get;
 import io.micronaut.runtime.server.EmbeddedServer;
@@ -14,17 +15,22 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.ext.MessageBodyReader;
 import jakarta.ws.rs.ext.Providers;
+import jakarta.ws.rs.sse.SseEventSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import reactor.core.publisher.Flux;
 
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
  * Regressions of the providers and the event sources of the client.
@@ -58,6 +64,23 @@ class JaxRsClientRegressionTest {
 
         assertEquals("read:text", read);
         assertEquals(1, ResolverLookingReader.instances.get());
+    }
+
+    @Test
+    void anEndlessErrorResponseOfAnEventSourceIsAnError() throws Exception {
+        Throwable error = awaitError("endless-error");
+        assertFalse(error instanceof OutOfMemoryError);
+    }
+
+    private Throwable awaitError(String path) throws Exception {
+        CompletableFuture<Throwable> error = new CompletableFuture<>();
+        try (SseEventSource source = SseEventSource.target(client.target(server.getURI()).path("regression").path(path)).build()) {
+            source.register(event -> { }, error::complete, () -> error.complete(null));
+            source.open();
+            Throwable failure = error.get(30, TimeUnit.SECONDS);
+            assertFalse(source.isOpen());
+            return failure;
+        }
     }
 
     public static final class Thing {
@@ -95,6 +118,12 @@ class JaxRsClientRegressionTest {
         @Get(value = "/text", produces = io.micronaut.http.MediaType.TEXT_PLAIN)
         String text() {
             return "text";
+        }
+
+        @Get(value = "/endless-error", produces = io.micronaut.http.MediaType.TEXT_EVENT_STREAM)
+        HttpResponse<Flux<byte[]>> endlessError() {
+            byte[] piece = new byte[64 * 1024];
+            return HttpResponse.<Flux<byte[]>>serverError().body(Flux.<byte[]>generate(sink -> sink.next(piece)));
         }
     }
 }
