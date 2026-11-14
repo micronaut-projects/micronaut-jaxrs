@@ -173,6 +173,9 @@ public final class JaxRsRouteSupport {
     // the attribute of the request that holds its stub servlet request
     private static final String STUB_SERVLET_REQUEST = JaxRsRouteSupport.class.getName() + ".servletRequest";
 
+    // a part whose file was streamed, see #formStream
+    private static final FormPart STREAMED = new FormPart(null, jakarta.ws.rs.core.MediaType.WILDCARD_TYPE, new byte[0]);
+
     private final ApplicationProvider applicationProvider;
 
     private final String applicationPath;
@@ -1424,9 +1427,6 @@ public final class JaxRsRouteSupport {
      * @param mediaType The media type
      * @param content   The content
      */
-    // a part whose file was streamed, see #formStream
-    private static final FormPart STREAMED = new FormPart(null, jakarta.ws.rs.core.MediaType.WILDCARD_TYPE, new byte[0]);
-
     private record FormPart(@Nullable String fileName, jakarta.ws.rs.core.MediaType mediaType, byte[] content) {
     }
 

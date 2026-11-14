@@ -82,8 +82,6 @@ final class JaxRsParameterBinding {
     private final ConversionService conversionService;
 
     private final Supplier<List<ParamConverterProvider>> paramConverterProviders;
-
-
     private final Map<Class<?>, BeanParamBinder> beanParams = new ConcurrentHashMap<>();
 
     /**
