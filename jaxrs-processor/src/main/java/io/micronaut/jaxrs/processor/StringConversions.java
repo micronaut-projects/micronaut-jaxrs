@@ -58,6 +58,7 @@ import java.util.SortedSet;
 final class StringConversions {
 
     private static final String SERVICE = "io.micronaut.jaxrs.common.reflect.StringConversion";
+    private static final String CLIENT = "io.micronaut.http.client.annotation.Client";
     private static final String SUFFIX = "$JaxRsStringConversion";
     private static final List<Class<? extends Annotation>> PARAMETERS = List.of(QueryParam.class, MatrixParam.class,
         HeaderParam.class, CookieParam.class, FormParam.class, PathParam.class);
@@ -79,8 +80,8 @@ final class StringConversions {
      * @param context The visitor context
      */
     void generate(ClassElement element, VisitorContext context) {
-        if (context.getClassElement(SERVICE).isEmpty()) {
-            // the runtime is not on the classpath
+        if (context.getClassElement(SERVICE).isEmpty() || element.hasStereotype(CLIENT)) {
+            // the runtime is not on the classpath, or a declarative client, which does not convert Strings
             return;
         }
         for (FieldElement field : element.getEnclosedElements(ElementQuery.ALL_FIELDS)) {

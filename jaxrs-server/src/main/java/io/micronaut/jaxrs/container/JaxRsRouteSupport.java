@@ -176,6 +176,9 @@ public final class JaxRsRouteSupport {
     // a part whose file was streamed, see #formStream
     private static final FormPart STREAMED = new FormPart(null, jakarta.ws.rs.core.MediaType.WILDCARD_TYPE, new byte[0]);
 
+    // a part whose file was streamed, see #formStream
+    private static final FormPart STREAMED = new FormPart(null, jakarta.ws.rs.core.MediaType.WILDCARD_TYPE, new byte[0]);
+
     private final ApplicationProvider applicationProvider;
 
     private final String applicationPath;

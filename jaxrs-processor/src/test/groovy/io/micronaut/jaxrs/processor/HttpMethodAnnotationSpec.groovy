@@ -41,7 +41,7 @@ interface Test {
         def method = definition.getRequiredMethod("test")
 
         expect:
-        method.hasAnnotation(target)
+        method.hasStereotype(target)
         method.stringValue(HttpMethodMapping)
                 .get() == '/foo'
         method.stringValue(Produces)
@@ -114,7 +114,7 @@ class Test {
         def method = definition.getRequiredMethod("test")
 
         expect:
-        method.hasAnnotation(target)
+        method.hasStereotype(target)
         method.stringValue(HttpMethodMapping)
                 .get() == '/foo'
         method.stringValue(Produces)
@@ -149,7 +149,7 @@ class Test {
         def method = definition.getRequiredMethod("test")
 
         expect:
-        method.hasAnnotation(Get)
+        method.hasStereotype(Get)
         method.stringValue(HttpMethodMapping)
                 .get() == '/'
         method.stringValue(Produces)
@@ -176,7 +176,7 @@ class Test {
         def method = definition.getRequiredMethod("test")
 
         expect:
-        method.hasAnnotation(Get)
+        method.hasStereotype(Get)
         method.stringValue(HttpMethodMapping)
                 .get() == '/'
         method.stringValue(Produces)
@@ -206,7 +206,7 @@ class Test {
 
         expect:
         definition.isProxy()
-        method.hasAnnotation(Get)
+        method.hasStereotype(Get)
         method.stringValue(HttpMethodMapping)
                 .get() == '/'
         method.stringValue(Produces)
@@ -235,7 +235,7 @@ class Test {
 
         expect:
         definition.isProxy()
-        method.hasAnnotation(Get)
+        method.hasStereotype(Get)
         method.stringValue(HttpMethodMapping)
                 .get() == '/'
 
@@ -390,7 +390,7 @@ class Test implements TestService {
         def method = definition.getRequiredMethod("test")
 
         expect:
-        method.hasAnnotation(target)
+        method.hasStereotype(target)
         method.stringValue(HttpMethodMapping)
                 .get() == '/foo'
         method.stringValue(Produces)
@@ -440,12 +440,12 @@ class Test implements TestService {
         expect:
         definition.stringValue(Controller.class)
                 .get() == "/rest"
-        firstMethod.hasAnnotation(Get)
+        firstMethod.hasStereotype(Get)
         firstMethod.stringValue(HttpMethodMapping)
                 .get() == '/foo'
         firstMethod.stringValue(Produces)
                 .get() == 'text/plain'
-        secondMethod.hasAnnotation(Get)
+        secondMethod.hasStereotype(Get)
         secondMethod.stringValue(HttpMethodMapping)
                 .get() == '/'
     }
@@ -498,12 +498,12 @@ interface Test extends TestService {
         def secondMethod = definition.getRequiredMethod("test2")
 
         expect:
-        firstMethod.hasAnnotation(target)
+        firstMethod.hasStereotype(target)
         firstMethod.stringValue(HttpMethodMapping)
                 .get() == '/foo'
         firstMethod.stringValue(Produces)
                 .get() == 'text/plain'
-        secondMethod.hasAnnotation(target)
+        secondMethod.hasStereotype(target)
         secondMethod.stringValue(HttpMethodMapping)
                 .get() == "/"
 
