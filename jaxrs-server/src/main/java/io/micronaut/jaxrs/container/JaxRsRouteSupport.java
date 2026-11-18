@@ -34,6 +34,7 @@ import io.micronaut.http.context.ServerRequestContext;
 import io.micronaut.core.beans.BeanIntrospection;
 import io.micronaut.core.beans.BeanMethod;
 import io.micronaut.inject.annotation.AnnotationMetadataHierarchy;
+import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.core.bind.ArgumentBinder;
 import io.micronaut.core.convert.ArgumentConversionContext;
 import io.micronaut.core.convert.ConversionContext;
@@ -144,7 +145,13 @@ public final class JaxRsRouteSupport {
      * The body of a route with an entity: its bytes, {@code null} without a body. The route reads
      * the entity with the JAX-RS readers, see {@link #entity(HttpRequest, byte[], Argument)}.
      */
-    public static final Argument<byte[]> ENTITY = HttpRouteBuilder.nullableBody(Argument.of(byte[].class));
+    public static final Argument<byte[]> ENTITY = HttpRouteBuilder.nullableBody(Argument.of(byte[].class, rawEntityMetadata()));
+
+    /**
+     * The annotation that marks {@link #ENTITY}: its bytes are read by a Micronaut reader, not by
+     * the JAX-RS readers of the application, see {@link JaxRsMessageBodyHandlerSelector}.
+     */
+    static final String RAW_ENTITY = "io.micronaut.jaxrs.container.RawEntity";
 
     /**
      * The attribute of the request that holds its event sink.
@@ -1530,5 +1537,11 @@ public final class JaxRsRouteSupport {
          * @throws Exception An error
          */
         @Nullable T locate(FormData form) throws Exception;
+    }
+
+    private static AnnotationMetadata rawEntityMetadata() {
+        MutableAnnotationMetadata metadata = new MutableAnnotationMetadata();
+        metadata.addDeclaredAnnotation(RAW_ENTITY, Map.of());
+        return metadata;
     }
 }

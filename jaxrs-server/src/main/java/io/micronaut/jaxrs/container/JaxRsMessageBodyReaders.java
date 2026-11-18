@@ -17,12 +17,11 @@ package io.micronaut.jaxrs.container;
 
 import io.micronaut.context.BeanProvider;
 import io.micronaut.context.BeanRegistration;
+import io.micronaut.context.annotation.Bean;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
-import io.micronaut.core.annotation.Order;
 import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.io.buffer.ByteBuffer;
-import io.micronaut.core.order.Ordered;
 import io.micronaut.core.type.Argument;
 import io.micronaut.core.type.Headers;
 import io.micronaut.http.MediaType;
@@ -46,14 +45,16 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Uses JAX-RS reads to red the controller body.
+ * Uses JAX-RS reads to read the controller body: the reader the registry of Micronaut selects for the
+ * types a JAX-RS reader of the application reads, see {@link JaxRsMessageBodyHandlerSelector}. It is
+ * not a reader bean itself.
  *
  * @param <T> The body type
  * @author Denis Stepanov
  * @since 4.9
  */
-@Order(Ordered.HIGHEST_PRECEDENCE)
 @Singleton
+@Bean(typed = JaxRsMessageBodyReaders.class)
 final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
 
     private final JaxRsContainerMessageBodyHandlerRegistry registry;
