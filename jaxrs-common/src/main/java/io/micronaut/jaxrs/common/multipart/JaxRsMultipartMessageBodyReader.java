@@ -20,6 +20,9 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.Introspected;
 import io.micronaut.core.annotation.Order;
 import io.micronaut.core.order.Ordered;
+import io.micronaut.http.exceptions.ContentLengthExceededException;
+import io.micronaut.http.form.MalformedMultipartException;
+import io.micronaut.http.form.MultipartReader;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.Consumes;
@@ -36,9 +39,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -55,10 +56,6 @@ import java.util.Optional;
 @Introspected(accessKind = Introspected.AccessKind.FIELD, visibility = Introspected.Visibility.ANY)
 @Internal
 public final class JaxRsMultipartMessageBodyReader implements MessageBodyReader<List<EntityPart>> {
-
-    private static final byte[] CRLF = {'\r', '\n'};
-    private static final byte[] CLOSE = {'-', '-'};
-    private static final byte[] HEADERS_END = {'\r', '\n', '\r', '\n'};
 
     // injected by the client, or by the bean context of the server
     @Context
@@ -84,52 +81,32 @@ public final class JaxRsMultipartMessageBodyReader implements MessageBodyReader<
         if (boundary == null) {
             throw new BadRequestException("The multipart entity has no boundary");
         }
-        byte[] entity = entityStream.readAllBytes();
-        byte[] delimiter = ("--" + boundary).getBytes(StandardCharsets.ISO_8859_1);
-        // every delimiter but the first follows a line break
-        byte[] nextDelimiter = ("\r\n--" + boundary).getBytes(StandardCharsets.ISO_8859_1);
-        // the first delimiter starts the entity, or a line after a preamble (RFC 2046 section 5.1.1)
-        int position;
-        if (startsWith(entity, 0, delimiter) && isDelimiterEnd(entity, delimiter.length)) {
-            position = delimiter.length;
-        } else {
-            position = delimiterIndex(entity, nextDelimiter, 0);
-            if (position < 0) {
-                throw new BadRequestException("The multipart entity has no part");
-            }
-            position += nextDelimiter.length;
-        }
         List<EntityPart> parts = new ArrayList<>();
-        while (!startsWith(entity, position, CLOSE)) {
-            position = indexOf(entity, CRLF, position);
-            if (position < 0) {
-                throw new BadRequestException("The multipart entity is not terminated");
+        try {
+            MultipartReader reader;
+            try {
+                reader = MultipartReader.of(entityStream, boundary, MultipartReader.Limits.UNLIMITED);
+            } catch (IllegalArgumentException e) {
+                throw new BadRequestException("The multipart entity has an invalid boundary", e);
             }
-            position += CRLF.length;
-            int headersEnd = startsWith(entity, position, CRLF) ? position : indexOf(entity, HEADERS_END, position);
-            int nextPart = delimiterIndex(entity, nextDelimiter, position);
-            if (headersEnd > position && nextPart >= 0 && nextPart < headersEnd) {
-                // the headers of the part must end before the next delimiter, else those of the next part are taken
-                throw new BadRequestException("A part of the multipart entity has no end of its headers");
+            // an entity of only the close delimiter has no part; one without a delimiter is malformed
+            for (MultipartReader.Part part = reader.next(); part != null; part = reader.next()) {
+                parts.add(part(part));
             }
-            int end = headersEnd < 0 ? -1 : delimiterIndex(entity, nextDelimiter, headersEnd);
-            if (end < 0) {
-                throw new BadRequestException("The multipart entity is not terminated");
-            }
-            MultivaluedMap<String, String> headers = headers(new String(entity, position, headersEnd - position, StandardCharsets.UTF_8));
-            int contentStart = headersEnd + (headersEnd == position ? CRLF.length : HEADERS_END.length);
-            // the content of a part is a range of the entity, not a copy
-            parts.add(part(headers, entity, contentStart, end - contentStart));
-            position = end + nextDelimiter.length;
+        } catch (MalformedMultipartException | ContentLengthExceededException e) {
+            throw new BadRequestException(e.getMessage(), e);
         }
         return parts;
     }
 
-    private EntityPart part(MultivaluedMap<String, String> headers, byte[] entity, int offset, int length) {
-        String disposition = headers.getFirst(Multipart.CONTENT_DISPOSITION);
-        String name = disposition == null ? null : Multipart.parameter(disposition, "name");
+    private EntityPart part(MultipartReader.Part part) throws IOException {
+        String name = part.name();
         if (name == null) {
             throw new BadRequestException("A part of the multipart entity has no name");
+        }
+        MultivaluedMap<String, String> headers = JaxRsEntityPart.headers();
+        for (String headerName : part.headers().names()) {
+            headers.addAll(headerName, part.headers().getAll(headerName));
         }
         String contentType = headers.getFirst(HttpHeaders.CONTENT_TYPE);
         MediaType mediaType;
@@ -142,59 +119,7 @@ public final class JaxRsMultipartMessageBodyReader implements MessageBodyReader<
             // the default type (RFC 7578 section 4.4) is the one of the headers too
             headers.putSingle(HttpHeaders.CONTENT_TYPE, mediaType.toString());
         }
-        return JaxRsEntityPart.read(name, Multipart.parameter(disposition, "filename"), mediaType, headers, entity, offset, length, providers);
-    }
-
-    private static MultivaluedMap<String, String> headers(String block) {
-        MultivaluedMap<String, String> headers = JaxRsEntityPart.headers();
-        // the folded lines are unfolded (RFC 822 section 3.1.1)
-        for (String line : block.replaceAll("\r\n[ \t]+", " ").split("\r\n")) {
-            int colon = line.indexOf(':');
-            if (colon > 0) {
-                headers.add(line.substring(0, colon).trim(), line.substring(colon + 1).trim());
-            }
-        }
-        return headers;
-    }
-
-    /**
-     * The index of a delimiter: the boundary followed by the end of its line, after optional
-     * transport padding, or by the two hyphens of the close delimiter (RFC 2046 section 5.1.1),
-     * not a boundary prefix within the content of a part.
-     */
-    private static int delimiterIndex(byte[] entity, byte[] delimiter, int from) {
-        int index = indexOf(entity, delimiter, from);
-        while (index >= 0 && !isDelimiterEnd(entity, index + delimiter.length)) {
-            index = indexOf(entity, delimiter, index + 1);
-        }
-        return index;
-    }
-
-    private static boolean isDelimiterEnd(byte[] entity, int position) {
-        boolean close = startsWith(entity, position, CLOSE);
-        if (close) {
-            position += CLOSE.length;
-        }
-        while (position < entity.length && (entity[position] == ' ' || entity[position] == '\t')) {
-            position++;
-        }
-        // the close delimiter may also end the entity, without an epilogue
-        return startsWith(entity, position, CRLF) || (close && position == entity.length);
-    }
-
-    private static boolean startsWith(byte[] array, int position, byte[] prefix) {
-        if (position + prefix.length > array.length) {
-            return false;
-        }
-        return Arrays.equals(array, position, position + prefix.length, prefix, 0, prefix.length);
-    }
-
-    private static int indexOf(byte[] array, byte[] target, int from) {
-        for (int i = from; i <= array.length - target.length; i++) {
-            if (startsWith(array, i, target)) {
-                return i;
-            }
-        }
-        return -1;
+        // the body of a part is valid until the next part is read
+        return JaxRsEntityPart.read(name, part.fileName(), mediaType, headers, part.body().readAllBytes(), providers);
     }
 }

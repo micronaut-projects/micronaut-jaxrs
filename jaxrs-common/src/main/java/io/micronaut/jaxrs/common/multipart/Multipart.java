@@ -43,55 +43,6 @@ final class Multipart {
     }
 
     /**
-     * The value of a parameter of a {@code Content-Disposition} (RFC 2183, RFC 7578 4.2): parameters are separated
-     * by semicolons outside quoted-strings, and a quoted-string value is unescaped (RFC 9110 5.6.4).
-     *
-     * @return The value of the first parameter with the name, unquoted
-     */
-    static @Nullable String parameter(String disposition, String name) {
-        int length = disposition.length();
-        int i = disposition.indexOf(';');
-        while (i >= 0 && i < length) {
-            i++;
-            int equals = i;
-            while (equals < length && disposition.charAt(equals) != '=' && disposition.charAt(equals) != ';') {
-                equals++;
-            }
-            String parameterName = disposition.substring(i, equals).trim();
-            if (equals == length || disposition.charAt(equals) == ';') {
-                i = equals;
-                continue;
-            }
-            int start = equals + 1;
-            while (start < length && (disposition.charAt(start) == ' ' || disposition.charAt(start) == '\t')) {
-                start++;
-            }
-            String value;
-            if (start < length && disposition.charAt(start) == '"') {
-                StringBuilder unquoted = new StringBuilder();
-                i = start + 1;
-                while (i < length && disposition.charAt(i) != '"') {
-                    char c = disposition.charAt(i);
-                    if (c == '\\' && i + 1 < length) {
-                        c = disposition.charAt(++i);
-                    }
-                    unquoted.append(c);
-                    i++;
-                }
-                value = unquoted.toString();
-                i = disposition.indexOf(';', Math.min(i + 1, length));
-            } else {
-                i = disposition.indexOf(';', start);
-                value = disposition.substring(start, i < 0 ? length : i).trim();
-            }
-            if (parameterName.equalsIgnoreCase(name)) {
-                return value;
-            }
-        }
-        return null;
-    }
-
-    /**
      * @return The value escaped in a quoted parameter: a quote or backslash as a quoted-pair, a line break
      * percent-encoded (RFC 7578 4.2) so it cannot end the header
      */
