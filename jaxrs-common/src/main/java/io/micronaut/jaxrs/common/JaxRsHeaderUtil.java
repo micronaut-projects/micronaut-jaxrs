@@ -50,7 +50,8 @@ public final class JaxRsHeaderUtil {
 
     /**
      * Split a header value at the delimiters outside quoted strings (RFC 9110 5.6.4), in which a
-     * backslash quotes the next character.
+     * backslash quotes the next character, e.g. the cookies of a header, whose names are case
+     * sensitive, at semicolons. A comma-separated list is split by {@link io.micronaut.http.util.HeaderElement#splitList}.
      *
      * @param value      The value
      * @param delimiters The delimiter characters
@@ -92,26 +93,5 @@ public final class JaxRsHeaderUtil {
             buffer.append(c);
         }
         return buffer.append('"');
-    }
-
-    /**
-     * Remove the quotes of a quoted string and unescape its quoted-pairs (RFC 9110 5.6.4).
-     *
-     * @param value The value, trimmed
-     * @return The value, unchanged if it is not quoted
-     */
-    public static String unquote(String value) {
-        if (value.length() < 2 || value.charAt(0) != '"' || value.charAt(value.length() - 1) != '"') {
-            return value;
-        }
-        StringBuilder unquoted = new StringBuilder(value.length() - 2);
-        for (int i = 1; i < value.length() - 1; i++) {
-            char c = value.charAt(i);
-            if (c == '\\' && i + 1 < value.length() - 1) {
-                c = value.charAt(++i);
-            }
-            unquoted.append(c);
-        }
-        return unquoted.toString();
     }
 }

@@ -17,6 +17,7 @@ package io.micronaut.jaxrs.common;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.util.clhm.ConcurrentLinkedHashMap;
+import io.micronaut.http.util.HeaderElement;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.ext.RuntimeDelegate;
 
@@ -40,7 +41,6 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Ob
     private static final Map<MediaType, String> REVERSE_MAP = new ConcurrentLinkedHashMap.Builder<MediaType, String>()
         .maximumWeightedCapacity(200)
         .build();
-    private static final String TOKEN_DELIMITERS = "\"(),/:;<=>?@[\\]{}";
     private static final char[] QUOTED_CHARS = "()<>@,;:\\\"/[]?= \t\r\n".toCharArray();
 
     private static MediaType parse(String type) {
@@ -99,7 +99,8 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Ob
         if (major.isEmpty() || subtype.isEmpty()) {
             throw new IllegalArgumentException(INVALID_MEDIA_TYPE + type);
         }
-        if (!isValid(major) || !isValid(subtype)) {
+        // RFC 9110 5.6.2: a type and a subtype are tokens
+        if (!HeaderElement.isToken(major) || !HeaderElement.isToken(subtype)) {
             throw new IllegalArgumentException(INVALID_MEDIA_TYPE + type);
         }
         String params = null;
@@ -107,25 +108,12 @@ final class MediaTypeHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Ob
             params = type.substring(paramIndex + 1);
         }
         if (params != null && !params.isEmpty()) {
-            Map<String, String> typeParams = new ParameterParser().parse(params, ';');
-            // a parameter without a value is kept as an empty value, MediaType must not hold a null
-            typeParams.replaceAll((name, value) -> value == null ? "" : value);
+            // a parameter without a value is an empty value
+            Map<String, String> typeParams = HeaderElement.parse(";" + params).parameters();
             return new MediaType(major, subtype, typeParams);
         } else {
             return new MediaType(major, subtype);
         }
-    }
-
-    private static boolean isValid(String str) {
-        if (str == null || str.isEmpty()) {
-            return false;
-        }
-        // RFC 9110 5.6.2: a type and a subtype are tokens
-        return str.chars().allMatch(MediaTypeHeaderDelegate::isTokenChar);
-    }
-
-    private static boolean isTokenChar(int c) {
-        return c > 0x20 && c < 0x7F && TOKEN_DELIMITERS.indexOf(c) < 0;
     }
 
     @Override

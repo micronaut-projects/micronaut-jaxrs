@@ -82,7 +82,12 @@ final class Explainers {
                 return throwsIn(ours) ? "IMPL no HeaderDelegate<Locale> (Jersey has one; JAX-RS does not require it)" : null;
             }
             case "media-type", "media-type-toString" -> {
-                return throwsIn(jersey) ? "IMPL MediaType.valueOf is lenient (accepts '*', spaces, empty parameter names/values)" : null;
+                if (throwsIn(jersey)) {
+                    return "IMPL MediaType.valueOf is lenient (accepts '*', spaces, empty parameter names/values)";
+                }
+                // the header element tokenizer of core keeps the first of a repeated parameter
+                return input.matches(".*;\\s*([^=;\\s]+)\\s*=.*;\\s*\\1\\s*=.*")
+                    ? "IMPL MediaType.valueOf keeps the first of a repeated parameter (Jersey the last)" : null;
             }
             default -> {
                 return null;

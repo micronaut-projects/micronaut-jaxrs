@@ -17,6 +17,7 @@ package io.micronaut.jaxrs.common;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.util.CollectionUtils;
+import io.micronaut.http.util.HeaderElement;
 import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
@@ -26,6 +27,7 @@ import org.jspecify.annotations.Nullable;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -44,6 +46,8 @@ public sealed class JaxRsHttpHeaders implements HttpHeaders permits JaxRsMutable
 
     // the language of any language (JAX-RS, HttpHeaders#getAcceptableLanguages)
     private static final Locale WILDCARD_LOCALE = Locale.of("*");
+    // by descending quality, a stable sort keeps the order of the values of equal quality
+    private static final Comparator<Weighted<?>> BY_QUALITY = Comparator.comparingDouble((Weighted<?> weighted) -> weighted.quality()).reversed();
 
     private final io.micronaut.http.HttpHeaders httpHeaders;
     private final boolean isResponse;
@@ -119,11 +123,9 @@ public sealed class JaxRsHttpHeaders implements HttpHeaders permits JaxRsMutable
         List<String> accept = httpHeaders.getAll(io.micronaut.http.HttpHeaders.ACCEPT);
         List<MediaType> types = accept
             .stream()
-            // a comma in a quoted parameter value does not separate media ranges
-            .flatMap(text -> JaxRsHeaderUtil.split(text, ",").stream())
-            .map(String::trim)
-            // RFC 9110 5.6.1: empty list elements are ignored
-            .filter(element -> !element.isEmpty())
+            // a comma in a quoted parameter value does not separate media ranges, and empty list
+            // elements are ignored (RFC 9110 5.6.1)
+            .flatMap(text -> HeaderElement.splitList(text).stream())
             .<Weighted<MediaType>>mapMulti((element, consumer) -> {
                 MediaType type;
                 try {
@@ -133,10 +135,10 @@ public sealed class JaxRsHttpHeaders implements HttpHeaders permits JaxRsMutable
                     // an invalid media range is ignored, as by the route negotiation
                     return;
                 }
-                consumer.accept(element.indexOf(';') > -1 ? new Weighted<>(type, type.getParameters()) : new Weighted<>(type));
+                consumer.accept(new Weighted<>(type, HeaderElement.parse(element).quality()));
             })
-            .sorted()
-            .map(Weighted::getObject)
+            .sorted(BY_QUALITY)
+            .map(Weighted::value)
             .toList();
         // any type is acceptable without an Accept header, or without a valid media range
         return types.isEmpty() ? List.of(MediaType.WILDCARD_TYPE) : types;
@@ -151,23 +153,12 @@ public sealed class JaxRsHttpHeaders implements HttpHeaders permits JaxRsMutable
 
     private List<Locale> acceptLanguages() {
         // the values of every header line, sorted together
-        return httpHeaders.getAll(io.micronaut.http.HttpHeaders.ACCEPT_LANGUAGE)
+        return HeaderElement.parseList(httpHeaders.getAll(io.micronaut.http.HttpHeaders.ACCEPT_LANGUAGE))
             .stream()
-            .filter(text -> !text.isEmpty())
-            .flatMap(text -> Arrays.stream(text.split(",")))
-            .map(String::trim)
-            .filter(str -> !str.isEmpty())
-            .map(str -> {
-                final int i = str.indexOf(';');
-                if (i > -1) {
-                    final Locale locale = language(str.substring(0, i).trim());
-                    return new Weighted<>(locale, Weighted.parseParameters(str));
-                } else {
-                    return new Weighted<>(language(str));
-                }
-            })
-            .sorted()
-            .map(Weighted::getObject)
+            .filter(element -> !element.value().isEmpty())
+            .map(element -> new Weighted<>(language(element.value()), element.quality()))
+            .sorted(BY_QUALITY)
+            .map(Weighted::value)
             .toList();
     }
 
@@ -218,5 +209,15 @@ public sealed class JaxRsHttpHeaders implements HttpHeaders permits JaxRsMutable
             return length;
         }
         return -1;
+    }
+
+    /**
+     * An accepted value and its quality.
+     *
+     * @param value   The value
+     * @param quality The quality
+     * @param <T>     The type of the value
+     */
+    private record Weighted<T>(T value, double quality) {
     }
 }

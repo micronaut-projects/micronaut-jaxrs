@@ -16,6 +16,7 @@
 package io.micronaut.jaxrs.common;
 
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.http.util.HeaderElement;
 import io.micronaut.core.util.ArgumentUtils;
 import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.NewCookie;
@@ -73,7 +74,7 @@ class NewCookieHeaderDelegate implements RuntimeDelegate.HeaderDelegate<Object> 
             }
             int eq = trimmed.indexOf('=');
             String name = eq < 0 ? trimmed : trimmed.substring(0, eq).trim();
-            String value = eq < 0 ? null : JaxRsHeaderUtil.unquote(trimmed.substring(eq + 1).trim());
+            String value = eq < 0 ? null : HeaderElement.unquote(trimmed.substring(eq + 1).trim());
             if (cookieName == null) {
                 cookieName = name;
                 cookieValue = value;

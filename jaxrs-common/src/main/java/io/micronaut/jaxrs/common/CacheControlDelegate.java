@@ -16,6 +16,7 @@
 package io.micronaut.jaxrs.common;
 
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.http.util.HeaderElement;
 import io.micronaut.core.util.ArgumentUtils;
 import org.jspecify.annotations.Nullable;
 import jakarta.ws.rs.core.CacheControl;
@@ -57,7 +58,7 @@ class CacheControlDelegate implements RuntimeDelegate.HeaderDelegate<CacheContro
         for (String directive : directives(value)) {
             int eq = directive.indexOf('=');
             String name = (eq < 0 ? directive : directive.substring(0, eq)).trim();
-            String val = eq < 0 ? null : JaxRsHeaderUtil.unquote(directive.substring(eq + 1).trim());
+            String val = eq < 0 ? null : HeaderElement.unquote(directive.substring(eq + 1).trim());
 
             String lowercase = name.toLowerCase(Locale.ROOT);
             switch (lowercase) {
@@ -101,14 +102,7 @@ class CacheControlDelegate implements RuntimeDelegate.HeaderDelegate<CacheContro
      * {@code private} or {@code no-cache} value are separated by commas as well (RFC 9111 5.2.2.7).
      */
     private static List<String> directives(String value) {
-        var directives = new ArrayList<String>();
-        for (String directive : JaxRsHeaderUtil.split(value, ",")) {
-            String trimmed = directive.trim();
-            if (!trimmed.isEmpty()) {
-                directives.add(trimmed);
-            }
-        }
-        return directives;
+        return HeaderElement.splitList(value);
     }
 
     private static void addFields(@Nullable String value, List<String> fields) {

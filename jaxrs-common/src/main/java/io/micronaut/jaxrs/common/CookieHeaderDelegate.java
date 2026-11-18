@@ -17,6 +17,7 @@ package io.micronaut.jaxrs.common;
 
 
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.http.util.HeaderElement;
 import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.ext.RuntimeDelegate;
 
@@ -54,7 +55,7 @@ public final class CookieHeaderDelegate implements RuntimeDelegate.HeaderDelegat
             for (String part : JaxRsHeaderUtil.split(cookieHeader, ";,")) {
                 String[] nv = part.split("=", 2);
                 String name = nv.length > 0 ? nv[0].trim() : "";
-                String value = nv.length > 1 ? JaxRsHeaderUtil.unquote(nv[1].trim()) : "";
+                String value = nv.length > 1 ? HeaderElement.unquote(nv[1].trim()) : "";
                 if (name.isEmpty()) {
                     // an empty part, or a value without a name, is not a cookie
                     continue;

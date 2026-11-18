@@ -20,7 +20,7 @@ import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpMethod;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.context.ServerRequestContext;
-import io.micronaut.jaxrs.common.JaxRsHeaderUtil;
+import io.micronaut.http.util.HeaderElement;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.core.EntityTag;
@@ -452,32 +452,19 @@ final class JaxRsContextRequest implements Request {
 
     private static List<Weighted> weighted(List<String> headers) {
         List<Weighted> values = new ArrayList<>();
-        for (String header : headers) {
-            // the delimiters inside quoted parameter values do not separate (RFC 9110, 5.6.4)
-            for (String part : JaxRsHeaderUtil.split(header, ",")) {
-                List<String> parameters = JaxRsHeaderUtil.split(part.trim(), ";");
-                if (parameters.get(0).isBlank()) {
-                    continue;
-                }
-                double quality = 1;
-                // keep the parameters of a media type except the quality, whatever the whitespace
-                // around them (RFC 9110, 5.6.6)
-                StringBuilder value = new StringBuilder(parameters.get(0).trim());
-                for (int i = 1; i < parameters.size(); i++) {
-                    String parameter = parameters.get(i).trim();
-                    int equals = parameter.indexOf('=');
-                    if (equals > 0 && parameter.substring(0, equals).trim().equalsIgnoreCase("q")) {
-                        try {
-                            quality = Double.parseDouble(parameter.substring(equals + 1).trim());
-                        } catch (NumberFormatException e) {
-                            quality = 0;
-                        }
-                    } else {
-                        value.append(';').append(parameter);
-                    }
-                }
-                values.add(new Weighted(value.toString(), quality));
+        // the delimiters inside quoted parameter values do not separate (RFC 9110, 5.6.4)
+        for (HeaderElement element : HeaderElement.parseList(headers)) {
+            if (element.value().isEmpty()) {
+                continue;
             }
+            // keep the parameters of a media type except the quality
+            StringBuilder value = new StringBuilder(element.value());
+            element.parameters().forEach((name, parameter) -> {
+                if (!HeaderElement.QUALITY_PARAMETER.equals(name)) {
+                    value.append(';').append(name).append('=').append(HeaderElement.quoteIfNeeded(parameter));
+                }
+            });
+            values.add(new Weighted(value.toString(), element.quality()));
         }
         return values;
     }

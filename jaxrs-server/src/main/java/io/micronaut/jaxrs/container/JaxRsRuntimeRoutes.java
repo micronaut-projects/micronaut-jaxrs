@@ -15,7 +15,6 @@
  */
 package io.micronaut.jaxrs.container;
 
-import io.micronaut.jaxrs.common.JaxRsHeaderUtil;
 import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.context.BeanContext;
 import io.micronaut.context.processor.ExecutableMethodProcessor;
@@ -53,6 +52,7 @@ import io.micronaut.web.router.builder.LocatedHttpRouteBuilder;
 import io.micronaut.web.router.builder.LocatedRoutes;
 import io.micronaut.web.router.builder.SseBodyHandler;
 import io.micronaut.http.sse.SseEmitter;
+import io.micronaut.http.util.HeaderElement;
 import io.micronaut.http.HttpHeaders;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.BeanParam;
@@ -1064,12 +1064,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         List<String> mediaTypes = new ArrayList<>();
         for (String value : values) {
             // a comma in a quoted parameter value does not separate media types
-            for (String mediaType : JaxRsHeaderUtil.split(value, ",")) {
-                String trimmed = mediaType.trim();
-                if (!trimmed.isEmpty()) {
-                    mediaTypes.add(trimmed);
-                }
-            }
+            mediaTypes.addAll(HeaderElement.splitList(value));
         }
         return mediaTypes;
     }
