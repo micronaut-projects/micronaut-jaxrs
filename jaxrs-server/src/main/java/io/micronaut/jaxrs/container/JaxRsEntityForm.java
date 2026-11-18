@@ -44,14 +44,15 @@ import java.util.concurrent.CompletionStage;
 final class JaxRsEntityForm implements FormData {
 
     private final Map<String, List<String>> fields = new LinkedHashMap<>();
+    // the values as they appear in the entity, see #raw()
+    private final Map<String, List<String>> rawFields = new LinkedHashMap<>();
 
     /**
      * @param entity  The url-encoded form
      * @param charset Its charset
-     * @param raw     Whether the values are kept as they appear, not percent-decoded: the names are decoded
      * @throws BadRequestException if the form is not well percent-encoded
      */
-    JaxRsEntityForm(String entity, Charset charset, boolean raw) {
+    JaxRsEntityForm(String entity, Charset charset) {
         for (String pair : entity.split("&")) {
             if (pair.isEmpty()) {
                 continue;
@@ -62,15 +63,28 @@ final class JaxRsEntityForm implements FormData {
             try {
                 name = URLDecoder.decode(equals < 0 ? pair : pair.substring(0, equals), charset);
                 String encoded = equals < 0 ? "" : pair.substring(equals + 1);
-                // a raw value is decoded too, to reject it when malformed like a decoded one
-                String decoded = URLDecoder.decode(encoded, charset);
-                value = raw ? encoded : decoded;
+                // the decoded value, and the raw one for the raw view
+                value = URLDecoder.decode(encoded, charset);
+                rawFields.computeIfAbsent(name, n -> new ArrayList<>()).add(encoded);
             } catch (IllegalArgumentException e) {
                 // a malformed percent-encoding is a malformed request
                 throw new BadRequestException("Malformed form entity: " + e.getMessage(), e);
             }
             fields.computeIfAbsent(name, n -> new ArrayList<>()).add(value);
         }
+    }
+
+    private JaxRsEntityForm(Map<String, List<String>> fields) {
+        this.fields.putAll(fields);
+        this.rawFields.putAll(fields);
+    }
+
+    /**
+     * @return The form with the values as they appear in the entity, for {@code @Encoded} form parameters
+     */
+    @Override
+    public FormData raw() {
+        return new JaxRsEntityForm(rawFields);
     }
 
     @Override

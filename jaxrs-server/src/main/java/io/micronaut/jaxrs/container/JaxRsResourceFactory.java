@@ -280,7 +280,7 @@ final class JaxRsResourceFactory {
      * read, else an empty one, not the query.
      */
     private static FormData contextForm(HttpRequest<?> request) {
-        return request.getAttribute(JaxRsRuntimeRoutes.FORM, FormData.class).orElseGet(() -> new JaxRsEntityForm("", StandardCharsets.UTF_8, false));
+        return request.getAttribute(JaxRsRuntimeRoutes.FORM, FormData.class).orElseGet(() -> new JaxRsEntityForm("", StandardCharsets.UTF_8));
     }
 
     @SuppressWarnings("unchecked")

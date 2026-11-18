@@ -49,8 +49,6 @@ import jakarta.ws.rs.ext.ParamConverterProvider;
 import org.jspecify.annotations.Nullable;
 
 import java.io.InputStream;
-import java.net.URLDecoder;
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -256,22 +254,23 @@ final class JaxRsParameterBinding {
             }
             return support.formPart(request, form, name);
         }
-        // the form of a route with an @Encoded form parameter is read with its raw values
-        List<String> values = form.getValues(name);
-        if (JaxRsRouteSupport.isRawForm(request)) {
-            if (!encoded) {
-                Charset charset = JaxRsRouteSupport.formCharset(request);
-                try {
-                    values = values.stream().map(value -> URLDecoder.decode(value, charset)).toList();
-                } catch (IllegalArgumentException e) {
-                    // a malformed percent-encoding is a malformed request
-                    throw new BadRequestException("Malformed form entity: " + e.getMessage(), e);
-                }
-            }
-        }
-        // else the values as sent: a multipart form has no encoded values, and encoding the decoded
-        // values again does not give the values as they were sent
+        // the form of a route with an @Encoded form parameter is read with its raw view; else the
+        // values as sent: a multipart form has no encoded values, and encoding the decoded values
+        // again does not give the values as they were sent
+        List<String> values = (encoded ? raw(form) : form).getValues(name);
         return conversion.convert(values, false);
+    }
+
+    /**
+     * The raw view of a form, with the values as they appear in the body: the form itself if it
+     * has none, e.g. a form not read with its raw view.
+     */
+    private static FormData raw(FormData form) {
+        try {
+            return form.raw();
+        } catch (UnsupportedOperationException e) {
+            return form;
+        }
     }
 
     /**

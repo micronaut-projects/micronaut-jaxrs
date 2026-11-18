@@ -113,7 +113,6 @@ import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.io.ByteArrayOutputStream;
-import java.net.URLDecoder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
@@ -165,7 +164,6 @@ public final class JaxRsRouteSupport {
      */
     static final String MATCHED_SEGMENTS = JaxRsRouteSupport.class.getName() + ".matchedSegments";
 
-    private static final String RAW_FORM = JaxRsRouteSupport.class.getName() + ".rawForm";
 
     // the types of header values with a header delegate, a subtype first (NewCookie of Cookie)
     private static final List<Class<?>> HEADER_TYPES = List.of(
@@ -195,7 +193,6 @@ public final class JaxRsRouteSupport {
 
     private final BeanContext beanContext;
     // the executors of the sub-resource locators that read the form, by name
-    private final Map<String, Executor> locatorExecutors = new ConcurrentHashMap<>();
 
     private final JaxRsRouteTemplateEngine templates = new JaxRsRouteTemplateEngine();
 
@@ -484,12 +481,8 @@ public final class JaxRsRouteSupport {
     public CompletionStage<? extends HttpResponse<?>> formAsync(HttpRequest<?> request, PathVariables pathVariables,
                                                                 AsyncRequestBody body, boolean raw, JaxRsAsyncHandler<FormData> handler) {
         CompletionStage<FormData> read;
-        if (raw && isUrlEncoded(request)) {
-            request.setAttribute(RAW_FORM, Boolean.TRUE);
-            read = body.form(FormOptions.defaults().withRawValues());
-        } else {
-            read = body.form();
-        }
+        // with the raw view of an url-encoded form for @Encoded form parameters
+        read = raw ? body.form(FormOptions.defaults().withRawView()) : body.form();
         Executor executor = propagating(request, executor(request));
         return read
             .thenComposeAsync(form -> call(handler, request, pathVariables, filteredForm(request, form)), executor);
@@ -497,54 +490,20 @@ public final class JaxRsRouteSupport {
 
     /**
      * Locate the target of a sub-resource locator that reads the form, or one of a resource that
-     * leads to it, does: the locator runs once the form is read, off the event loop, on the
-     * executor of its {@code @ExecuteOn}, like a locator that reads no form. The located routes
-     * read the same form.
-     *
-     * @param executorName The name of the executor of the locator
-     * @param request      The request
-     * @param form         The form, read by the locator route
-     * @param locator      Locates the target with the form
-     * @param <T>          The type of the target
-     * @return The stage of the target
-     */
-    public <T> CompletionStage<@Nullable T> locateWithForm(String executorName, HttpRequest<?> request,
-                                                           CompletionStage<FormData> form, FormLocator<T> locator) {
-        Executor executor = locatorExecutor(executorName);
-        PropagatedContext context = PropagatedContext.getOrEmpty();
-        return form
-            .thenApplyAsync(read -> context.propagate(() -> {
-                try {
-                    FormData filtered = filteredForm(request, read);
-                    return locator.locate(filtered == null ? read : filtered);
-                } catch (Exception e) {
-                    // the router answers the cause with the error routes
-                    throw new CompletionException(e);
-                }
-            }), executor);
-    }
-
-    /**
-     * The form a sub-resource locator reads from a copy of the body, with the raw values of an
-     * url-encoded form for an {@code @Encoded} form parameter: the empty form of a request that
-     * is not a form, whose body is not read.
+     * leads to it, does: the router runs the locator once the form is read, off the event loop,
+     * on the executor of its {@code @ExecuteOn}, like a locator that reads no form. The located
+     * routes read the same form.
      *
      * @param request The request
-     * @param body    A copy of the body
-     * @return The form
+     * @param form    The form, read by the locator route
+     * @param locator Locates the target with the form
+     * @param <T>     The type of the target
+     * @return The target
+     * @throws Exception The failure of the locator, which the router answers with the error routes
      */
-    public CompletionStage<FormData> rawLocatorForm(HttpRequest<?> request, AsyncRequestBody body) {
-        if (isUrlEncoded(request)) {
-            request.setAttribute(RAW_FORM, Boolean.TRUE);
-            return body.form(FormOptions.defaults().withRawValues());
-        }
-        boolean multipart = request.getContentType().map(MediaType.MULTIPART_FORM_DATA_TYPE::matches).orElse(false);
-        return multipart ? body.form() : CompletableFuture.completedFuture(FormData.empty());
-    }
-
-    private Executor locatorExecutor(String name) {
-        return locatorExecutors.computeIfAbsent(name, n -> beanContext.getBean(ExecutorSelector.class).select(n)
-            .orElseThrow(() -> new ConfigurationException("No executor configured for name: " + n + ", of a sub-resource locator")));
+    public <T> @Nullable T locateWithForm(HttpRequest<?> request, FormData form, FormLocator<T> locator) throws Exception {
+        FormData filtered = filteredForm(request, form);
+        return locator.locate(filtered == null ? form : filtered);
     }
 
     /**
@@ -689,10 +648,9 @@ public final class JaxRsRouteSupport {
      *
      * @param request The request
      * @param body    The entity, {@code null} for an empty body
-     * @param raw     Whether the values are kept as they appear, for {@code @Encoded} form parameters
-     * @return The form
+     * @return The form, whose raw view has the values as they appear, for {@code @Encoded} form parameters
      */
-    public @Nullable FormData entityForm(HttpRequest<?> request, byte @Nullable [] body, boolean raw) {
+    public @Nullable FormData entityForm(HttpRequest<?> request, byte @Nullable [] body) {
         MediaType contentType = request.getContentType().orElse(null);
         byte[] replaced = replacedForm(request);
         if (replaced != null) {
@@ -701,15 +659,12 @@ public final class JaxRsRouteSupport {
         if (body == null || contentType == null || !MediaType.APPLICATION_FORM_URLENCODED_TYPE.matches(contentType)) {
             return null;
         }
-        if (raw) {
-            request.setAttribute(RAW_FORM, Boolean.TRUE);
-        }
         Optional<JaxRsEntityForm> parsed = request.getAttribute(JaxRsEntityForm.class.getName(), JaxRsEntityForm.class);
         if (parsed.isPresent()) {
             return parsed.get();
         }
         Charset charset = contentType.getCharset().orElse(StandardCharsets.UTF_8);
-        JaxRsEntityForm form = new JaxRsEntityForm(new String(body, charset), charset, raw);
+        JaxRsEntityForm form = new JaxRsEntityForm(new String(body, charset), charset);
         request.setAttribute(JaxRsEntityForm.class.getName(), form);
         return form;
     }
@@ -729,7 +684,7 @@ public final class JaxRsRouteSupport {
         JaxRsEntityForm parsed = request.getAttribute(JaxRsEntityForm.class.getName(), JaxRsEntityForm.class).orElse(null);
         if (parsed == null) {
             Charset charset = formCharset(request);
-            parsed = new JaxRsEntityForm(new String(replaced, charset), charset, isRawForm(request));
+            parsed = new JaxRsEntityForm(new String(replaced, charset), charset);
             request.setAttribute(JaxRsEntityForm.class.getName(), parsed);
         }
         return parsed;
@@ -764,11 +719,9 @@ public final class JaxRsRouteSupport {
      */
     public Object formEntity(HttpRequest<?> request, FormData form, Argument<?> argument) {
         MultivaluedMap<String, String> map = new MultivaluedHashMap<>();
-        // the entity has the decoded values, also of a form read raw for @Encoded parameters
-        Charset charset = isRawForm(request) ? formCharset(request) : null;
+        // the entity has the decoded values, also of a form read with its raw view for @Encoded parameters
         for (String name : form.names()) {
-            List<String> values = form.getValues(name);
-            map.put(name, charset == null ? new ArrayList<>(values) : new ArrayList<>(values.stream().map(value -> URLDecoder.decode(value, charset)).toList()));
+            map.put(name, new ArrayList<>(form.getValues(name)));
         }
         return argument.getType() == Form.class ? new Form(map) : map;
     }
@@ -1413,10 +1366,6 @@ public final class JaxRsRouteSupport {
 
     private static boolean isUrlEncoded(HttpRequest<?> request) {
         return request.getContentType().map(MediaType.APPLICATION_FORM_URLENCODED_TYPE::matches).orElse(false);
-    }
-
-    static boolean isRawForm(HttpRequest<?> request) {
-        return request.getAttribute(RAW_FORM).isPresent();
     }
 
     static Charset formCharset(HttpRequest<?> request) {

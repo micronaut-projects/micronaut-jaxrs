@@ -28,6 +28,7 @@ import io.micronaut.core.type.Executable;
 import io.micronaut.core.util.SupplierUtil;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.body.AsyncRequestBody;
+import io.micronaut.http.body.FormOptions;
 import io.micronaut.http.context.ServerRequestContext;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.MediaType;
@@ -624,7 +625,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 } else if (readsBody) {
                     called = support.entityAsync(request, pathVariables, requestBody,
                         (readRequest, readPathVariables, value) -> callEvents(method, instances, readRequest, readPathVariables, target,
-                            entityForm ? support.entityForm(readRequest, value, rawEntityForm) : null, value, sink));
+                            entityForm ? support.entityForm(readRequest, value) : null, value, sink));
                 } else {
                     called = CompletableFuture.supplyAsync(() -> callEvents(method, instances, request, pathVariables, target, null, null, sink),
                         support.executor(request));
@@ -643,7 +644,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 // the entity is read by the router, the method runs on its executor
                 routes.handleEntityAsync(declaration, executor(method.method().metadata(), classMetadata),
                     (request, pathVariables, target, value) -> callAsync(method, instances, request, pathVariables, target,
-                        entityForm ? support.entityForm(request, value, rawEntityForm) : null, value));
+                        entityForm ? support.entityForm(request, value) : null, value));
             } else {
                 // the body is not read
                 routes.handleAsync(declaration, (request, pathVariables, target, requestBody) ->
@@ -652,11 +653,11 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         } else if (form && encodedForm && method.formEntity()) {
             // the form of the entity, with its raw values: an url-encoded form, the only one with encoded values
             routes.handleEntity(declaration, (request, pathVariables, target, value) ->
-                call(method, instances, request, pathVariables, target, support.entityForm(request, value, true), null));
+                call(method, instances, request, pathVariables, target, support.entityForm(request, value), null));
         } else if (form && (encodedForm || usesResourceContext)) {
             // an @Encoded form parameter, or the resources of the ResourceContext that may have @Encoded form members:
-            // an url-encoded form, the only one with encoded values, is read with its raw values, which the form
-            // parameters that are not @Encoded decode; a multipart form is read as it is
+            // an url-encoded form, the only one with encoded values, is read with its raw view, whose raw values the
+            // @Encoded form parameters read; a multipart form is read as it is
             routes.handleAsync(declaration, (request, pathVariables, target, requestBody) -> support.formAsync(request, pathVariables, requestBody,
                 true, (readRequest, readPathVariables, value) -> CompletableFuture.completedFuture(
                     call(method, instances, readRequest, readPathVariables, target, value, null))));
@@ -665,7 +666,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 call(method, instances, request, pathVariables, target, support.filteredForm(request, value), null));
         } else if (body) {
             routes.handleEntity(declaration, (request, pathVariables, target, value) ->
-                call(method, instances, request, pathVariables, target, entityForm ? support.entityForm(request, value, rawEntityForm) : null, value));
+                call(method, instances, request, pathVariables, target, entityForm ? support.entityForm(request, value) : null, value));
         } else {
             routes.handle(declaration, (request, pathVariables, target, value) ->
                 call(method, instances, request, pathVariables, target, null, null));
@@ -1415,16 +1416,13 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             if (!form) {
                 routes.<Object>locateOn(executor, prefix, (request, pathVariables) -> commits(request, prefix)
                     ? locator.locate(request, pathVariables, target(pathVariables), null) : null, support.locatedRoutes());
-            } else if (rawForm) {
-                routes.locator(prefix).body().<Object>locateAsync((request, pathVariables, body) -> commits(request, prefix)
-                    ? support.locateWithForm(executor, request, support.rawLocatorForm(request, body),
-                        read -> locator.locate(request, pathVariables, target(pathVariables), read))
-                    : CompletableFuture.completedFuture(null), support.locatedRoutes());
             } else {
-                routes.locator(prefix).form().<Object>locateAsync((request, pathVariables, read) -> commits(request, prefix)
-                    ? support.locateWithForm(executor, request, CompletableFuture.completedFuture(read),
-                        value -> locator.locate(request, pathVariables, target(pathVariables), value))
-                    : CompletableFuture.completedFuture(null), support.locatedRoutes());
+                // with the raw view of an url-encoded form for @Encoded form parameters; the router
+                // runs the locator on its executor once the form is read
+                FormOptions options = rawForm ? FormOptions.defaults().withRawView() : FormOptions.defaults();
+                routes.locator(prefix).executeOn(executor).form(options).<Object>locate((request, pathVariables, read) -> commits(request, prefix)
+                    ? support.locateWithForm(request, read, value -> locator.locate(request, pathVariables, target(pathVariables), value))
+                    : null, support.locatedRoutes());
             }
         }
     }
