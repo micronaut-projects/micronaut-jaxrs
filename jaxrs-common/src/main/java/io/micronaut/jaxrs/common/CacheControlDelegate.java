@@ -22,7 +22,6 @@ import org.jspecify.annotations.Nullable;
 import jakarta.ws.rs.core.CacheControl;
 import jakarta.ws.rs.ext.RuntimeDelegate;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
