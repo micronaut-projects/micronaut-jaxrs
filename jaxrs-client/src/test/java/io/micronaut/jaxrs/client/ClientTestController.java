@@ -130,6 +130,13 @@ class ClientTestController {
         return Flux.interval(java.time.Duration.ofMillis(50)).map(i -> Event.of("tick " + i));
     }
 
+    static final java.util.concurrent.CompletableFuture<Void> CANCELLED = new java.util.concurrent.CompletableFuture<>();
+
+    @Get(value = "/cancellable", produces = MediaType.TEXT_EVENT_STREAM)
+    Publisher<Event<String>> cancellable() {
+        return Flux.interval(java.time.Duration.ofMillis(50)).map(i -> Event.of("tick " + i)).doOnCancel(() -> CANCELLED.complete(null));
+    }
+
     @Get(value = "/flood", produces = MediaType.TEXT_EVENT_STREAM)
     Publisher<Event<String>> flood() {
         return Flux.range(0, 100_000).map(i -> Event.of("event " + i));

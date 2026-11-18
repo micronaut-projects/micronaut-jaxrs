@@ -34,7 +34,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ForkJoinPool;
-import java.util.function.Supplier;
 
 /**
  * The implementation of {@link Client}.
@@ -46,7 +45,6 @@ import java.util.function.Supplier;
 public final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
 
     private final DefaultHttpClient httpClient;
-    private final Supplier<DefaultHttpClient> httpClients;
     private final JaxRsConfiguration config;
     private final @Nullable ExecutorService executorService;
     private final @Nullable ScheduledExecutorService scheduledExecutorService;
@@ -58,8 +56,6 @@ public final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
 
     /**
      * @param httpClient       The HTTP client
-     * @param httpClients      Creates the other HTTP clients of the client, configured like its own
-     *                         and on the event loop of its own, which owns it
      * @param config           The configuration
      * @param executorService  The executor service of the builder
      * @param scheduledExecutorService The scheduled executor service of the builder
@@ -67,29 +63,17 @@ public final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
      * @param hostnameVerifier The host name verifier of the builder
      */
     JaxRsClient(DefaultHttpClient httpClient,
-                Supplier<DefaultHttpClient> httpClients,
                 JaxRsConfiguration config,
                 @Nullable ExecutorService executorService,
                 @Nullable ScheduledExecutorService scheduledExecutorService,
                 SSLContext sslContext,
                 @Nullable HostnameVerifier hostnameVerifier) {
         this.httpClient = httpClient;
-        this.httpClients = httpClients;
         this.config = config;
         this.executorService = executorService;
         this.scheduledExecutorService = scheduledExecutorService;
         this.sslContext = sslContext;
         this.hostnameVerifier = hostnameVerifier;
-    }
-
-    /**
-     * An HTTP client configured like the one of this client, e.g. for an event source, which
-     * disconnects by closing it.
-     *
-     * @return A new HTTP client
-     */
-    DefaultHttpClient newHttpClient() {
-        return httpClients.get();
     }
 
     /**
@@ -129,8 +113,7 @@ public final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
         // closing again has no effect
         if (!closed) {
             closed = true;
-            // the event sources and their HTTP clients first: the main HTTP client shuts down the
-            // event loop they run on
+            // the event sources first: they receive their events through the HTTP client
             for (SseEventSource source : eventSources) {
                 source.close();
             }
@@ -141,7 +124,7 @@ public final class JaxRsClient implements Client, JaxRsConfigurable<Client> {
 
     /**
      * @return Whether an event source of a target of this client is open: closing the client
-     * would close it and shut down the event loop it runs on
+     * would close it and the connection it receives its events on
      */
     boolean hasOpenEventSources() {
         return !eventSources.isEmpty();

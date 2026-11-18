@@ -29,7 +29,7 @@ import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.http.ByteBodyHttpResponse;
 import io.micronaut.http.body.BodyElements;
 import io.micronaut.http.body.CloseableByteBody;
-import io.micronaut.http.client.netty.DefaultHttpClient;
+import io.micronaut.http.client.RawRequestOptions;
 import io.micronaut.http.client.sse.EventStreamDecoder;
 import io.micronaut.http.client.sse.EventStreamState;
 import io.micronaut.http.sse.Event;
@@ -81,6 +81,12 @@ final class JaxRsSseEventSource implements SseEventSource {
     private static final Logger LOG = LoggerFactory.getLogger(JaxRsSseEventSource.class);
 
     /**
+     * Closing the events of a connection disconnects at once, which the server sees, instead of
+     * draining the endless stream so that the connection could be reused.
+     */
+    private static final RawRequestOptions OPTIONS = RawRequestOptions.builder().closeOnDiscard(true).build();
+
+    /**
      * Releases the connections of the closed event sources, which may block: its threads do not
      * keep the JVM alive.
      */
@@ -111,8 +117,6 @@ final class JaxRsSseEventSource implements SseEventSource {
     // the entity stream the events are read from: the bytes of the connection, or the stream a filter set
     private volatile @Nullable InputStream replacedStream;
     private volatile @Nullable Future<?> pendingReconnect;
-    // an own client: closing it disconnects, which the server sees, where cancelling a stream drains it
-    private volatile @Nullable DefaultHttpClient httpClient;
 
     JaxRsSseEventSource(JaxRsWebTarget target, long reconnectDelay) {
         this.target = target;
@@ -178,17 +182,14 @@ final class JaxRsSseEventSource implements SseEventSource {
         Future<?> reconnect;
         BodyElements<ReadBuffer> current;
         InputStream replaced;
-        DefaultHttpClient client;
         boolean closedAgain;
         synchronized (this) {
             closedAgain = closed;
             reconnect = pendingReconnect;
             current = events;
             replaced = replacedStream;
-            client = httpClient;
             closed = true;
             open = false;
-            httpClient = null;
         }
         if (closedAgain) {
             // closed again: true only once the processing completed (JAX-RS, SseEventSource#close),
@@ -205,17 +206,10 @@ final class JaxRsSseEventSource implements SseEventSource {
         // one deadline for the release of the connection and the processing
         long deadline = System.nanoTime() + unit.toNanos(timeout);
         CompletableFuture<Void> released = CompletableFuture.completedFuture(null);
-        if (replaced != null || client != null) {
-            // closing the stream a filter set unblocks the read of the events, and closing the
-            // client disconnects: both may block, waited for until the deadline only
-            Runnable release = () -> {
-                if (replaced != null) {
-                    closeQuietly(replaced);
-                }
-                if (client != null) {
-                    client.close();
-                }
-            };
+        if (replaced != null) {
+            // closing the stream a filter set unblocks the read of the events: it may block,
+            // waited for until the deadline only
+            Runnable release = () -> closeQuietly(replaced);
             try {
                 released = CompletableFuture.runAsync(release, CLOSER);
             } catch (RejectedExecutionException e) {
@@ -235,13 +229,6 @@ final class JaxRsSseEventSource implements SseEventSource {
             return false;
         }
         return callbacks.awaitProcessed(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
-    }
-
-    /**
-     * @return The HTTP client of the connection, {@code null} before connecting and after closing
-     */
-    @Nullable DefaultHttpClient httpClient() {
-        return httpClient;
     }
 
     private void connect() {
@@ -266,18 +253,8 @@ final class JaxRsSseEventSource implements SseEventSource {
             error(e instanceof ProcessingException processing ? processing : new ProcessingException(e));
             return;
         }
-        DefaultHttpClient client;
-        synchronized (this) {
-            // a close before the lock wins: no client is created after it
-            if (!open) {
-                return;
-            }
-            client = httpClient;
-            if (client == null) {
-                // configured like the HTTP client of the JAX-RS client: its timeouts and SSL
-                client = target.client().newHttpClient();
-                httpClient = client;
-            }
+        if (!open) {
+            return;
         }
         // the response filters may block: they run on the executor of the client, not on the
         // event loop of the HTTP client (JAX-RS, ClientBuilder#executorService)
@@ -288,7 +265,7 @@ final class JaxRsSseEventSource implements SseEventSource {
             error(e instanceof ProcessingException processing ? processing : new ProcessingException(e));
             return;
         }
-        client.toAsyncRaw().exchange(sent, requestBody).whenComplete((response, error) -> callbacks.dispatch(() -> {
+        target.client().httpClient().toAsyncRaw().exchange(sent, requestBody, OPTIONS).whenComplete((response, error) -> callbacks.dispatch(() -> {
             if (error != null) {
                 failed(error instanceof CompletionException && error.getCause() != null ? error.getCause() : error);
             } else {
@@ -418,8 +395,7 @@ final class JaxRsSseEventSource implements SseEventSource {
             replacedStream = stream;
             connected = true;
         }
-        DefaultHttpClient client = httpClient;
-        long maxLength = client == null ? Integer.MAX_VALUE : client.getConfiguration().getMaxContentLength();
+        long maxLength = target.client().httpClient().getConfiguration().getMaxContentLength();
         var decoder = new EventStreamDecoder(maxLength, streamState);
         byte[] buffer = new byte[8192];
         Throwable failure = null;
@@ -558,9 +534,8 @@ final class JaxRsSseEventSource implements SseEventSource {
      */
     private void failed(HttpResponse<?> errorResponse, CloseableByteBody body, JaxRsClientRequestContext requestContext) {
         byte[] entity;
-        DefaultHttpClient client = httpClient;
         // bounded like a buffered body of the HTTP client
-        int maxLength = client == null ? Integer.MAX_VALUE - 8 : (int) Math.min(Integer.MAX_VALUE - 8, client.getConfiguration().getMaxContentLength());
+        int maxLength = (int) Math.min(Integer.MAX_VALUE - 8, target.client().httpClient().getConfiguration().getMaxContentLength());
         try (InputStream stream = body.toInputStream()) {
             entity = stream.readNBytes(maxLength);
             if (stream.read() != -1) {

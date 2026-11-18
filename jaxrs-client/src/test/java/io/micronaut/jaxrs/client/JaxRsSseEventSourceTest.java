@@ -165,7 +165,7 @@ class JaxRsSseEventSourceTest {
     }
 
     @Test
-    void closingTheClientShutsDownTheEventLoopOfItsEventSources() throws Exception {
+    void closingTheClientClosesItsHttpClientAndEventSources() throws Exception {
         JaxRsClient client = (JaxRsClient) ClientBuilder.newClient();
         CountDownLatch received = new CountDownLatch(1);
         WebTarget target = target(client, "events")
@@ -174,14 +174,27 @@ class JaxRsSseEventSourceTest {
         source.register(event -> received.countDown());
         source.open();
         assertTrue(received.await(10, TimeUnit.SECONDS));
-        // the HTTP client of the event source runs on the event loop of the main HTTP client
-        HttpClient sourceClient = source.httpClient();
         HttpClient mainClient = client.getHttpClient();
-        assertTrue(sourceClient.isRunning());
         client.close();
         assertFalse(source.isOpen());
         assertFalse(mainClient.isRunning());
-        assertFalse(sourceClient.isRunning());
+    }
+
+    @Test
+    void closingAnEventSourceDisconnectsAtOnce() throws Exception {
+        Client client = ClientBuilder.newClient();
+        try {
+            CountDownLatch received = new CountDownLatch(1);
+            SseEventSource source = SseEventSource.target(target(client, "cancellable")).build();
+            source.register(event -> received.countDown());
+            source.open();
+            assertTrue(received.await(10, TimeUnit.SECONDS));
+            source.close();
+            // the connection is closed, not drained for seconds: the server sees it at once
+            ClientTestController.CANCELLED.get(2, TimeUnit.SECONDS);
+        } finally {
+            client.close();
+        }
     }
 
     @Test
@@ -233,7 +246,6 @@ class JaxRsSseEventSourceTest {
             source.open();
             completed.get(10, TimeUnit.SECONDS);
             assertFalse(source.isOpen());
-            assertNull(source.httpClient());
         } finally {
             client.close();
         }
@@ -253,7 +265,6 @@ class JaxRsSseEventSourceTest {
 
         completed.get(10, TimeUnit.SECONDS);
         assertFalse(source.isOpen());
-        assertNull(source.httpClient());
     }
 
     @Test

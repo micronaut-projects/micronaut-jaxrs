@@ -48,7 +48,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
 /**
  * The implementation of {@link ClientBuilder}.
@@ -93,13 +92,7 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
         // connects with the context it reports
         SSLContext clientSslContext = JaxRsClientSsl.sslContext(sslContext, keyStore, keyStorePassword, trustStore, hostnameVerifier);
         JaxRsClientSsl.configure(configuration.getSslConfiguration(), clientSslContext, hostnameVerifier);
-        // the main HTTP client owns the event loop: the other HTTP clients of the client, e.g. of
-        // its event sources, run on it, and it shuts it down when it closes
         DefaultHttpClient httpClient = DefaultHttpClient.builder().configuration(configuration).build();
-        Supplier<DefaultHttpClient> httpClients = () -> DefaultHttpClient.builder()
-            .configuration(configuration)
-            .eventLoopOf(httpClient)
-            .build();
         // the properties and components registered on this builder, then the standard ones
         JaxRsConfiguration jaxRsConfiguration = config.copy();
         jaxRsConfiguration.setHandlerRegistry(httpClient.getHandlerRegistry());
@@ -122,7 +115,7 @@ public final class JaxRsClientBuilder extends ClientBuilder implements JaxRsConf
         }
         registerServiceFeatures(jaxRsConfiguration);
 
-        return new JaxRsClient(httpClient, httpClients, jaxRsConfiguration, executorService, scheduledExecutorService,
+        return new JaxRsClient(httpClient, jaxRsConfiguration, executorService, scheduledExecutorService,
             clientSslContext, hostnameVerifier);
     }
 
