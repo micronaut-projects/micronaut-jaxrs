@@ -165,25 +165,33 @@ class MultipartPartHeadersSpec extends Specification {
             new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8)))
     }
 
-    void "a boundary prefix within the content is not a delimiter"() {
+    void "a boundary at the start of a line followed by other text is a bad request"() {
         given:
         def body = "--abc\r\n" +
             "Content-Disposition: form-data; name=\"x\"\r\n" +
             "\r\n" +
             "one\r\n--abcX\r\ntwo\r\n" +
-            "--abc \r\n" +
-            "Content-Disposition: form-data; name=\"y\"\r\n" +
-            "\r\n" +
-            "three\r\n" +
             "--abc--\r\n"
 
         when:
-        def parts = read(body, "abc")
+        read(body, "abc")
 
         then:
-        parts.size() == 2
-        parts[0].getContent(String) == "one\r\n--abcX\r\ntwo"
-        parts[1].getContent(String) == "three"
+        thrown(jakarta.ws.rs.BadRequestException)
+    }
+
+    void "a CR in a part header is a bad request"() {
+        when:
+        read(header, "b")
+
+        then:
+        thrown(jakarta.ws.rs.BadRequestException)
+
+        where:
+        header << [
+            "--b\r\nContent-Disposition: form-data; name=\"x\"\r\nX-A: a\rSet-Cookie: x\r\n\r\none\r\n--b--\r\n",
+            "--b\r\nContent-Disposition: form-data; name=\"x\"; filename=\"a\rb\"\r\n\r\none\r\n--b--\r\n"
+        ]
     }
 
     void "a typed read closes the content stream"() {
@@ -445,13 +453,14 @@ class MultipartPartHeadersSpec extends Specification {
         out.toString(StandardCharsets.UTF_8) == "HEADfirstsecond"
     }
 
-    void "a close delimiter followed by other text is not one"() {
+    void "a close delimiter followed by other text is a bad request"() {
         when:
-        def parts = read("--b\r\nContent-Disposition: form-data; name=\"x\"\r\n\r\none\r\n--b--NOT_A_BOUNDARY\r\nsuffix\r\n--b--\r\n", "b")
+        read("--b\r\nContent-Disposition: form-data; name=\"x\"\r\n\r\none\r\n--b--NOT_A_BOUNDARY\r\nsuffix\r\n--b--\r\n", "b")
 
         then:
-        parts.size() == 1
-        parts[0].getContent(String) == "one\r\n--b--NOT_A_BOUNDARY\r\nsuffix"
+        thrown(jakarta.ws.rs.BadRequestException)
+
+        and:
         read("--b\r\nContent-Disposition: form-data; name=\"x\"\r\n\r\none\r\n--b--", "b")[0].getContent(String) == "one"
         read("--b\r\nContent-Disposition: form-data; name=\"x\"\r\n\r\none\r\n--b-- \r\nepilogue", "b")[0].getContent(String) == "one"
     }

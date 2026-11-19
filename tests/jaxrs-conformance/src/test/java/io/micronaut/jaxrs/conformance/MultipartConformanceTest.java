@@ -109,14 +109,10 @@ class MultipartConformanceTest {
             out.writeBytes(large);
         }
         byte[] content = out.toByteArray();
-        // RFC 2046: the boundary must not appear in the content as a delimiter line
-        String text = "\r\n" + new String(content, StandardCharsets.ISO_8859_1) + "\r\n";
-        String delimiter = "\r\n--" + boundary;
-        for (int i = text.indexOf(delimiter); i >= 0; i = text.indexOf(delimiter, i + 1)) {
-            String rest = text.substring(i + delimiter.length());
-            if (rest.startsWith("--") || rest.replaceFirst("^[ \t]*", "").startsWith("\r\n")) {
-                return content(r, boundary);
-            }
+        // RFC 2046 5.1.1: a boundary at the start of a line is a delimiter whatever follows, so it must not appear in the content
+        String text = "\r\n" + new String(content, StandardCharsets.ISO_8859_1);
+        if (text.contains("\r\n--" + boundary)) {
+            return content(r, boundary);
         }
         return content;
     }
@@ -215,7 +211,7 @@ class MultipartConformanceTest {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             List<String> features = new ArrayList<>();
             if (r.nextInt(4) == 0) {
-                String preamble = new String[]{"preamble\r\n", "\r\n", "x--" + boundary + "\r\n", "--" + boundary + "x\r\n"}[r.nextInt(4)];
+                String preamble = new String[]{"preamble\r\n", "\r\n", "x--" + boundary + "\r\n", "-" + boundary + "x\r\n"}[r.nextInt(4)];
                 features.add("preamble=" + escape(preamble));
                 out.writeBytes(preamble.getBytes(StandardCharsets.ISO_8859_1));
             }
