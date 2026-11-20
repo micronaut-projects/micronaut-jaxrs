@@ -84,6 +84,21 @@ class MultipartTest {
     }
 
     @Test
+    void aPartReadAsAStreamFirstIsAFormParameterToo() throws Exception {
+        HttpResponse<String> response = post("params-stream-first");
+        assertEquals(200, response.statusCode(), response.body());
+        assertEquals("file content|file.txt:file content", response.body());
+    }
+
+    @Test
+    void theHeadersOfAPartOfAFormParameter() throws Exception {
+        HttpResponse<String> response = post("part-headers");
+        assertEquals(200, response.statusCode(), response.body());
+        assertEquals("form-data; name=\"file\"; filename=\"file.txt\"|application/octet-stream|form-data; name=\"text\"|text/plain",
+            response.body());
+    }
+
+    @Test
     void aFilePartIsStreamed() throws Exception {
         HttpResponse<String> response = post("stream");
         assertEquals(200, response.statusCode(), response.body());
@@ -171,6 +186,22 @@ class MultipartTest {
                              @FormParam("file") InputStream stream) throws IOException {
             return text + "|" + file.getFileName().orElse(null) + ":" + file.getContent(String.class)
                 + "|" + new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+
+        @POST
+        @Path("params-stream-first")
+        @Consumes(MediaType.MULTIPART_FORM_DATA)
+        public String paramsStreamFirst(@FormParam("file") InputStream stream,
+                                        @FormParam("file") EntityPart file) throws IOException {
+            return new String(stream.readAllBytes(), StandardCharsets.UTF_8) + "|" + file.getFileName().orElse(null) + ":" + file.getContent(String.class);
+        }
+
+        @POST
+        @Path("part-headers")
+        @Consumes(MediaType.MULTIPART_FORM_DATA)
+        public String partHeaders(@FormParam("file") EntityPart file, @FormParam("text") EntityPart text) {
+            return file.getHeaders().getFirst("Content-Disposition") + "|" + file.getHeaders().getFirst("Content-Type")
+                + "|" + text.getHeaders().getFirst("Content-Disposition") + "|" + text.getHeaders().getFirst("Content-Type");
         }
 
         @POST

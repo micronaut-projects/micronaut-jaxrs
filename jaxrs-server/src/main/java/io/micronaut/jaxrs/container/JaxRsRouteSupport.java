@@ -176,7 +176,6 @@ public final class JaxRsRouteSupport {
     // the attribute of the request that holds its stub servlet request
     private static final String STUB_SERVLET_REQUEST = JaxRsRouteSupport.class.getName() + ".servletRequest";
     // a part whose file was streamed, see #formStream
-    private static final FormPart STREAMED = new FormPart(null, jakarta.ws.rs.core.MediaType.WILDCARD_TYPE, new byte[0]);
 
     private final ApplicationProvider applicationProvider;
 
@@ -532,8 +531,8 @@ public final class JaxRsRouteSupport {
     }
 
     @SuppressWarnings("unchecked")
-    private static Map<String, FormPart> formParts(HttpRequest<?> request) {
-        Map<String, FormPart> parts = request.getAttribute(FormPart.class.getName(), Map.class).orElse(null);
+    private static Map<String, Object> formParts(HttpRequest<?> request) {
+        Map<String, Object> parts = request.getAttribute(FormPart.class.getName(), Map.class).orElse(null);
         if (parts == null) {
             parts = new HashMap<>();
             request.setAttribute(FormPart.class.getName(), parts);
@@ -543,7 +542,37 @@ public final class JaxRsRouteSupport {
 
     private static FormPart filePart(FileUpload upload, byte[] content) {
         MediaType mediaType = upload.contentType().orElse(MediaType.APPLICATION_OCTET_STREAM_TYPE);
-        return new FormPart(upload.fileName(), jakarta.ws.rs.core.MediaType.valueOf(mediaType.toString()), content);
+        jakarta.ws.rs.core.MediaType partType = jakarta.ws.rs.core.MediaType.valueOf(mediaType.toString());
+        MultivaluedMap<String, String> headers = JaxRsEntityPart.headers();
+        // the headers of the part as the client sent them, when the server keeps them
+        upload.headers().forEachValue(headers::add);
+        if (!headers.containsKey(HttpHeaders.CONTENT_DISPOSITION)) {
+            headers.putSingle(HttpHeaders.CONTENT_DISPOSITION, contentDisposition(upload.name(), upload.fileName()));
+        }
+        if (!headers.containsKey(HttpHeaders.CONTENT_TYPE)) {
+            headers.putSingle(HttpHeaders.CONTENT_TYPE, partType.toString());
+        }
+        return new FormPart(upload.fileName(), partType, headers, content);
+    }
+
+    private static FormPart fieldPart(String name, String value) {
+        MultivaluedMap<String, String> headers = JaxRsEntityPart.headers();
+        headers.putSingle(HttpHeaders.CONTENT_DISPOSITION, contentDisposition(name, null));
+        headers.putSingle(HttpHeaders.CONTENT_TYPE, jakarta.ws.rs.core.MediaType.TEXT_PLAIN);
+        return new FormPart(null, jakarta.ws.rs.core.MediaType.TEXT_PLAIN_TYPE, headers, value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * The {@code Content-Disposition} of a part of a form (RFC 7578 section 4.2), for a part whose
+     * headers the server did not keep.
+     */
+    private static String contentDisposition(String name, @Nullable String fileName) {
+        String disposition = "form-data; name=\"" + quoted(name) + "\"";
+        return fileName == null ? disposition : disposition + "; filename=\"" + quoted(fileName) + "\"";
+    }
+
+    private static String quoted(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     @SuppressWarnings("unchecked")
@@ -559,16 +588,24 @@ public final class JaxRsRouteSupport {
     /**
      * A part of a multipart form: a new {@link EntityPart} each time, as its content is read once,
      * over the content of the field, which is read once per request, off the event loop, from where
-     * the server stored it.
+     * the server stored it. A file the request streams, see {@link #formStream}, is read into
+     * memory instead if nothing read the stream yet, e.g. for parameters of the same method that
+     * read it as a stream and as a part, whatever their order.
      */
     @Nullable EntityPart formPart(HttpRequest<?> request, FormData form, String name) {
-        Map<String, FormPart> parts = formParts(request);
+        Map<String, Object> parts = formParts(request);
         FormPart part;
         synchronized (parts) {
-            part = parts.get(name);
-        }
-        if (part == STREAMED) {
-            throw new IllegalStateException("The content of the part " + name + " was read as a stream already");
+            Object stored = parts.get(name);
+            if (stored instanceof PartStream stream) {
+                byte[] content = stream.materialize();
+                if (content == null) {
+                    throw new IllegalStateException("The content of the part " + name + " was read as a stream already");
+                }
+                stored = filePart(stream.upload, content);
+                parts.put(name, stored);
+            }
+            part = (FormPart) stored;
         }
         if (part == null) {
             Optional<FileUpload> file = form.findFile(name);
@@ -584,14 +621,14 @@ public final class JaxRsRouteSupport {
                 if (values.isEmpty()) {
                     return null;
                 }
-                part = new FormPart(null, jakarta.ws.rs.core.MediaType.TEXT_PLAIN_TYPE, values.get(0).getBytes(StandardCharsets.UTF_8));
+                part = fieldPart(name, values.get(0));
             }
             synchronized (parts) {
                 parts.put(name, part);
             }
         }
         // read with the registered readers (EntityPart.getContent)
-        return JaxRsEntityPart.read(name, part.fileName(), part.mediaType(), part.content(),
+        return JaxRsEntityPart.read(name, part.fileName(), part.mediaType(), part.headers(), part.content(),
             beanContext.findBean(jakarta.ws.rs.ext.Providers.class).orElse(null));
     }
 
@@ -599,13 +636,13 @@ public final class JaxRsRouteSupport {
      * The content of a part of a multipart form as a stream: the file is streamed from where the server stored it, e.g. on disk, not read into memory.
      */
     @Nullable InputStream formStream(HttpRequest<?> request, FormData form, String name) {
-        Map<String, FormPart> parts = formParts(request);
+        Map<String, Object> parts = formParts(request);
         synchronized (parts) {
             if (!parts.containsKey(name)) {
                 Optional<FileUpload> file = form.findFile(name);
                 if (file.isPresent()) {
-                    parts.put(name, STREAMED);
-                    InputStream stream = file.get().takeBody().toInputStream();
+                    PartStream stream = new PartStream(file.get());
+                    parts.put(name, stream);
                     ServerHttpRequest<?> serverRequest = JaxRsAsyncResponse.serverRequest(request);
                     if (serverRequest != null) {
                         // released with the request, also when the resource method does not close it
@@ -1421,7 +1458,80 @@ public final class JaxRsRouteSupport {
      * @param mediaType The media type
      * @param content   The content
      */
-    private record FormPart(@Nullable String fileName, jakarta.ws.rs.core.MediaType mediaType, byte[] content) {
+    private record FormPart(@Nullable String fileName, jakarta.ws.rs.core.MediaType mediaType, MultivaluedMap<String, String> headers,
+                            byte[] content) {
+    }
+
+    /**
+     * The stream of a file of a multipart form, from where the server stored it: read into memory
+     * instead, if nothing read it yet, when the file is also read as a part, see {@link #formPart}.
+     */
+    private static final class PartStream extends InputStream {
+        private final FileUpload upload;
+        private @Nullable InputStream delegate;
+        private boolean read;
+
+        PartStream(FileUpload upload) {
+            this.upload = upload;
+        }
+
+        /**
+         * @return The content, which the stream then reads too, {@code null} if it was read already
+         */
+        synchronized byte @Nullable [] materialize() {
+            if (read) {
+                return null;
+            }
+            try (InputStream content = upload.takeBody().toInputStream()) {
+                byte[] bytes = content.readAllBytes();
+                delegate = new java.io.ByteArrayInputStream(bytes);
+                return bytes;
+            } catch (IOException e) {
+                throw new java.io.UncheckedIOException(e);
+            }
+        }
+
+        private synchronized InputStream delegate() {
+            read = true;
+            InputStream stream = delegate;
+            if (stream == null) {
+                stream = upload.takeBody().toInputStream();
+                delegate = stream;
+            }
+            return stream;
+        }
+
+        @Override
+        public int read() throws IOException {
+            return delegate().read();
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            return delegate().read(b, off, len);
+        }
+
+        @Override
+        public long skip(long n) throws IOException {
+            return delegate().skip(n);
+        }
+
+        @Override
+        public int available() throws IOException {
+            return delegate().available();
+        }
+
+        @Override
+        public synchronized void close() throws IOException {
+            InputStream stream = delegate;
+            if (stream != null) {
+                stream.close();
+            } else if (!read) {
+                read = true;
+                // never read: the body the server stored is released
+                upload.takeBody().close();
+            }
+        }
     }
 
     /**
