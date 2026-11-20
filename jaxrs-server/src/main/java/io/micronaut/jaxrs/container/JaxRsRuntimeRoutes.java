@@ -443,8 +443,10 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             String methodPath = metadata.stringValue(Path.class).orElse(null);
             if (httpMethod != null) {
                 String path = template("", methodPath == null ? "" : methodPath);
+                // a method with a @Path is a sub-resource method, also with @Path("/") (JAX-RS 3.7.2, step 2(a))
+                boolean subResourceMethod = methodPath != null;
                 ResourceMethod<B> resourceMethod = resourceMethod(type, classMetadata, method, httpMethod,
-                    () -> routes.template(root, path, false));
+                    () -> routes.template(root, path, false, subResourceMethod));
                 if (resourceMethod != null) {
                     boolean usesResourceContext = typeUsesResourceContext
                         || Arrays.stream(method.arguments()).anyMatch(argument -> usesResourceContext(argument, 0));
@@ -452,7 +454,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 }
             } else if (methodPath != null) {
                 // a resource method is selected before a locator: the template of its prefix knows it is one
-                locator(routes, classMetadata, method, () -> routes.template(root, template("", methodPath), true), instances,
+                locator(routes, classMetadata, method, () -> routes.template(root, template("", methodPath), true, false), instances,
                     rootUsesForm, rootEncodedForm);
             }
         }
@@ -1329,7 +1331,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      */
     private interface Routes<L> {
 
-        RouteTemplate template(@Nullable String root, String path, boolean locator);
+        RouteTemplate template(@Nullable String root, String path, boolean locator, boolean subResourceMethod);
 
         void handle(Declaration route, Handler<L, Void> handler);
 
@@ -1362,8 +1364,8 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         }
 
         @Override
-        public RouteTemplate template(@Nullable String root, String path, boolean locator) {
-            return support.template(root, path, locator);
+        public RouteTemplate template(@Nullable String root, String path, boolean locator, boolean subResourceMethod) {
+            return support.template(root, path, locator, subResourceMethod);
         }
 
         /**

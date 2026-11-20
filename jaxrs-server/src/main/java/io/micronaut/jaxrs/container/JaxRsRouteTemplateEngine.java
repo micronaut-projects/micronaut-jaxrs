@@ -125,21 +125,39 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
      * @return The template
      */
     public RouteTemplate template(@Nullable String root, String path, boolean locator) {
+        return template(root, path, locator, false);
+    }
+
+    /**
+     * The template of a resource method or of the prefix of a sub-resource locator.
+     *
+     * @param root              The {@code @Path} of the root resource class, under the application path, or
+     *                          {@code null} for a template of a located target, relative to the prefix of its locator
+     * @param path              The path after the {@code @Path} of the root resource class, or the template of a located target
+     * @param locator           Whether it is the prefix of a sub-resource locator: a resource method is
+     *                          selected before a locator that matches as specifically (section 3.7.2, step 2)
+     * @param subResourceMethod Whether it is a resource method with a {@code @Path}: a sub-resource
+     *                          method also with {@code @Path("/")}, which matches like the class, and
+     *                          which the resource methods of the class exclude (section 3.7.2, step 2(a))
+     * @return The template
+     */
+    public RouteTemplate template(@Nullable String root, String path, boolean locator, boolean subResourceMethod) {
         int locators = locator ? 1 : 0;
         if (root == null) {
-            return new Parsed(this, path, parts(path), null, null, false, locators);
+            return new Parsed(this, path, parts(path), null, null, subResourceMethod, locators);
         }
         // the root resource class is selected first (section 3.7.2, step 1), also one with an empty @Path;
         // the path after it is matched with the rest of the path the class matched (steps 1 and 2)
         String rootExpression = strip(root);
         Parsed rootPart = new Parsed(null, rootExpression, parts(rootExpression), null, null, false, 0);
         String restPath = JaxRsRuntimeRoutes.template("", path);
-        boolean subResource = !"/".equals(restPath);
-        String expression = subResource ? rootExpression + restPath : rootExpression;
+        boolean emptyRest = "/".equals(restPath);
+        boolean subResource = !emptyRest || subResourceMethod;
+        String expression = emptyRest ? rootExpression : rootExpression + restPath;
         if (expression.isEmpty()) {
             expression = "/";
         }
-        Parsed parsed = new Parsed(this, expression, parts(expression), rootPart, subResource ? parts(restPath) : List.of(),
+        Parsed parsed = new Parsed(this, expression, parts(expression), rootPart, emptyRest ? List.of() : parts(restPath),
             subResource, locators);
         addRoot(rootPart, null, parsed);
         return parsed;
@@ -201,7 +219,7 @@ public final class JaxRsRouteTemplateEngine implements RouteTemplateParser, Rout
         if (!(template instanceof Parsed parsed)) {
             return false;
         }
-        if (parsed.rootPart != null) {
+        if (parsed.rootPart != null || parsed.subResource) {
             return parsed.subResource;
         }
         String path = strip(parsed.expression);

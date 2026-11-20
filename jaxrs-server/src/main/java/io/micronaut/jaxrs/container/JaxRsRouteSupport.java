@@ -325,10 +325,12 @@ public final class JaxRsRouteSupport {
      * @param root    The {@code @Path} of the root resource class, or {@code null} for a located target
      * @param path    The joined {@code @Path} values after the one of the root resource class
      * @param locator Whether it is the prefix of a sub-resource locator
+     * @param subResourceMethod Whether it is a resource method with a {@code @Path}, also {@code @Path("/")}
      * @return The template
      */
-    public RouteTemplate template(@Nullable String root, String path, boolean locator) {
-        return templates.template(root == null ? null : underApplicationPath(JaxRsRuntimeRoutes.template("", root)), path, locator);
+    public RouteTemplate template(@Nullable String root, String path, boolean locator, boolean subResourceMethod) {
+        return templates.template(root == null ? null : underApplicationPath(JaxRsRuntimeRoutes.template("", root)), path, locator,
+            subResourceMethod);
     }
 
     /**
