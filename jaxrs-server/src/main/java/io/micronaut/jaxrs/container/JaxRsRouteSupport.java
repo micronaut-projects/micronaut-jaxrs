@@ -1458,6 +1458,7 @@ public final class JaxRsRouteSupport {
      *
      * @param fileName  The file name, {@code null} for a text field
      * @param mediaType The media type
+     * @param headers   The headers of the part
      * @param content   The content
      */
     private record FormPart(@Nullable String fileName, jakarta.ws.rs.core.MediaType mediaType, MultivaluedMap<String, String> headers,

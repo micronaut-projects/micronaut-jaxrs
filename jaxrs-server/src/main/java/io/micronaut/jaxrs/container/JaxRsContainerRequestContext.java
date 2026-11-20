@@ -365,6 +365,45 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
         request.getAttribute(ENTITY_STREAMS, EntityStreams.class).ifPresent(EntityStreams::close);
     }
 
+    @Override
+    public @Nullable SecurityContext getSecurityContext() {
+        return securityContext == null ? null : securityContext.get();
+    }
+
+    @Override
+    public void setSecurityContext(SecurityContext context) {
+        checkRequestFilteringInProgress();
+        this.securityContext = () -> context;
+        // the security context of the request, for the resource and the later filters
+        mutableHttpRequest.setAttribute(SECURITY_CONTEXT, context);
+    }
+
+    @Override
+    public void abortWith(Response response) {
+        checkRequestFilteringInProgress();
+        this.response = response;
+    }
+
+    public @Nullable Response getResponse() {
+        return response;
+    }
+
+    public void finished() {
+        this.finished = true;
+    }
+
+    private void checkRequestFilteringInProgress() {
+        if (finished) {
+            throw new IllegalStateException("Request is already commited");
+        }
+    }
+
+    private void checkIsRequestPreMatchingInProgress() {
+        if (!preMatching || finished) {
+            throw new IllegalStateException("Request is already commited");
+        }
+    }
+
     /**
      * The entity streams of a request the runtime closes once it is processed: a stream added
      * once they were closed is closed at once.
@@ -415,45 +454,6 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
             } catch (IOException e) {
                 // the response is processed: nothing reads it anymore
             }
-        }
-    }
-
-    @Override
-    public @Nullable SecurityContext getSecurityContext() {
-        return securityContext == null ? null : securityContext.get();
-    }
-
-    @Override
-    public void setSecurityContext(SecurityContext context) {
-        checkRequestFilteringInProgress();
-        this.securityContext = () -> context;
-        // the security context of the request, for the resource and the later filters
-        mutableHttpRequest.setAttribute(SECURITY_CONTEXT, context);
-    }
-
-    @Override
-    public void abortWith(Response response) {
-        checkRequestFilteringInProgress();
-        this.response = response;
-    }
-
-    public @Nullable Response getResponse() {
-        return response;
-    }
-
-    public void finished() {
-        this.finished = true;
-    }
-
-    private void checkRequestFilteringInProgress() {
-        if (finished) {
-            throw new IllegalStateException("Request is already commited");
-        }
-    }
-
-    private void checkIsRequestPreMatchingInProgress() {
-        if (!preMatching || finished) {
-            throw new IllegalStateException("Request is already commited");
         }
     }
 }

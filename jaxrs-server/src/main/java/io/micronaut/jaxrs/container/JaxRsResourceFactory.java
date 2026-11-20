@@ -250,14 +250,6 @@ final class JaxRsResourceFactory {
     }
 
     /**
-     * Destroys a bean.
-     */
-    @FunctionalInterface
-    private interface DestroyAction {
-        void destroy() throws Exception;
-    }
-
-    /**
      * Destroy the instances a request owns once its response is processed, on a server that does
      * not report when the response is done, see {@link #owned}.
      *
@@ -675,5 +667,13 @@ final class JaxRsResourceFactory {
     record RequestType<T>(Class<T> type, boolean bean, boolean scoped, @Nullable BeanIntrospection<T> introspection,
                                JaxRsParameterBinding.@Nullable ValueReader[] constructorReaders, int[] requestIndexes, String[] requestNames,
                                   List<Member<T>> members, boolean usesForm, boolean encodedForm) {
+    }
+
+    /**
+     * Destroys a bean.
+     */
+    @FunctionalInterface
+    private interface DestroyAction {
+        void destroy() throws Exception;
     }
 }
