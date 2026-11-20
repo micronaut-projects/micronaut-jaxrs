@@ -225,16 +225,19 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
         s.run();
         if (s.outputIntercepted) {
             return ByteBodyHttpResponseWrapper.wrap(httpResponse, Objects.requireNonNull(s.body));
-        } else {
-            return Objects.requireNonNull(s.innerResponse);
+        } else if (s.innerResponse != null) {
+            return s.innerResponse;
         }
+        // an interceptor neither proceeded nor wrote: the entity is empty (JAX-RS 6.3)
+        return ByteBodyHttpResponseWrapper.wrap(httpResponse, bodyFactory.createEmpty());
     }
 
     @Override
     public @NonNull CloseableByteBody writePiece(@NonNull ByteBodyFactory bodyFactory, @NonNull HttpRequest<?> request, @NonNull HttpResponse<?> response, @NonNull Argument<GenericEntity<T>> type, @NonNull MediaType mediaType, GenericEntity<T> genericEntity) throws CodecException {
         var s = new ByteBodyState(bodyFactory, request, response, mediaType, genericEntity);
         s.run();
-        return Objects.requireNonNull(s.body);
+        // empty when an interceptor neither proceeded nor wrote (JAX-RS 6.3)
+        return s.body == null ? bodyFactory.createEmpty() : s.body;
     }
 
     /**

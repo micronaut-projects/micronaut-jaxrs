@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -96,6 +97,39 @@ class WriterInterceptorReleaseTest {
             assertThrows(IllegalStateException.class, () -> genericWriter.writeTo(genericEntityArgument(), MediaType.TEXT_PLAIN_TYPE,
                 new GenericEntity<>(new Payload("x"), Payload.class), HttpResponse.ok().getHeaders(), out));
             assertTrue(interceptor.closed);
+        }
+    }
+
+    @Test
+    void anInterceptorThatDoesNotProceedWritesAnEmptyEntity() throws IOException {
+        try (ApplicationContext context = ApplicationContext.run(Map.of("spec.name", "WriterInterceptorReleaseTest.suppressed"))) {
+            List<BeanRegistration<WriterInterceptor>> interceptors = new ArrayList<>(context.getBeanRegistrations(WriterInterceptor.class));
+            var genericWriter = new JaxRsGenericEntityMessageBodyWriter<Payload>(
+                context.getBean(JaxRsContainerMessageBodyHandlerRegistry.class),
+                new SingleWriterRegistry(new TrackingWriter()),
+                interceptors,
+                metadata -> true,
+                routeInterceptors(context));
+            ByteBodyFactory bodyFactory = ByteBodyFactory.createDefault(NettyByteBufferFactory.DEFAULT);
+            MutableHttpResponse<GenericEntity<Payload>> response = HttpResponse.ok();
+            ByteBodyHttpResponse<?> written = genericWriter.write(bodyFactory, HttpRequest.GET("/"), response,
+                genericEntityArgument(), MediaType.TEXT_PLAIN_TYPE, new GenericEntity<>(new Payload("x"), Payload.class));
+            try (written) {
+                assertEquals(0, written.byteBody().expectedLength().orElse(-1));
+            }
+            try (CloseableByteBody piece = genericWriter.writePiece(bodyFactory, HttpRequest.GET("/"), HttpResponse.ok(),
+                genericEntityArgument(), MediaType.TEXT_PLAIN_TYPE, new GenericEntity<>(new Payload("x"), Payload.class))) {
+                assertEquals(0, piece.expectedLength().orElse(-1));
+            }
+        }
+    }
+
+    @Requires(property = "spec.name", value = "WriterInterceptorReleaseTest.suppressed")
+    @Singleton
+    static class SuppressingInterceptor implements WriterInterceptor {
+        @Override
+        public void aroundWriteTo(WriterInterceptorContext context) {
+            // neither proceeds nor writes: no entity
         }
     }
 
