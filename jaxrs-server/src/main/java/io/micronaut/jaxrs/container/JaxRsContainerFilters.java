@@ -15,6 +15,8 @@
  */
 package io.micronaut.jaxrs.container;
 
+import io.micronaut.http.exceptions.BufferLengthExceededException;
+import io.micronaut.http.exceptions.ContentLengthExceededException;
 import io.micronaut.context.BeanContext;
 import io.micronaut.context.BeanRegistration;
 import io.micronaut.core.annotation.Internal;
@@ -286,8 +288,7 @@ final class JaxRsContainerFilters {
     }
 
     /**
-     * Run the pre-matching request filters, once the entity is buffered, see
-     * {@link #withBufferedEntity}.
+     * Run the pre-matching request filters, see {@link #withBufferedEntity}.
      *
      * @param request The request
      * @return The stage of the response a filter aborted with, the request with the method a
@@ -301,8 +302,7 @@ final class JaxRsContainerFilters {
     }
 
     /**
-     * Run the post-matching request filters of a resource method, once the entity is buffered,
-     * see {@link #withBufferedEntity}.
+     * Run the post-matching request filters of a resource method, see {@link #withBufferedEntity}.
      *
      * @param routeInfo The route of the resource method
      * @param request   The request
@@ -316,16 +316,17 @@ final class JaxRsContainerFilters {
     }
 
     /**
-     * Run request filters once the entity of the request is buffered: a filter reads it with
-     * {@link ContainerRequestContext#getEntityStream()}, which must not block, e.g. the event
-     * loop, while it streams. A copy of the body is buffered, the resource method still reads
-     * the body, and it is consumed here, so nothing is left to release. The copy is split with
-     * {@code FASTEST} backpressure: the resource method only reads its body once the filters ran,
-     * so demand of the copy alone must pull the body, else a body larger than what the server
-     * reads ahead, or one sent after {@code 100 Continue}, never completes. The original body
-     * keeps what the copy read, bounded by the maximum request size of the server.
-     * The filters of a request the server received run on the blocking executor, not on the
-     * event loop: a filter can block, e.g. on a database.
+     * Run request filters. The filters of a request the server received run on the blocking
+     * executor, not on the event loop: a filter can block, e.g. on a database, or on the entity
+     * it streams with {@link ContainerRequestContext#getEntityStream()}, a copy of the body read
+     * only if a filter asks for it, see {@link JaxRsContainerRequestContext#getEntityStream()}.
+     * Without a blocking executor the filters run where the request is, which may be the event
+     * loop, so a copy of the entity is buffered before they run: it is then bounded by the
+     * maximum buffer size of the server. The copy is split with {@code FASTEST} backpressure:
+     * the resource method only reads its body once the filters ran, so demand of the copy alone
+     * must pull the body, else a body larger than what the server reads ahead, or one sent after
+     * {@code 100 Continue}, never completes. The original body keeps what a copy read, bounded
+     * by the maximum buffer size of the server, also when the copy is streamed.
      */
     private <M> CompletionStage<@Nullable M> withBufferedEntity(MutableHttpRequest<?> request, Filtering<M> filtering) {
         if (!(request instanceof ServerHttpRequest<?> serverHttpRequest)) {
@@ -333,16 +334,16 @@ final class JaxRsContainerFilters {
         }
         Executor executor = blockingExecutor.get();
         PropagatedContext propagatedContext = PropagatedContext.getOrEmpty();
-        if (request.getAttribute(JaxRsContainerRequestContext.BUFFERED_ENTITY).isPresent()
-            || !hasEntity(serverHttpRequest)) {
-            if (executor == null) {
-                return run(filtering);
-            }
+        if (executor != null) {
+            // the entity is streamed if a filter reads it, see JaxRsContainerRequestContext#getEntityStream
             return CompletableFuture.supplyAsync(() -> {
                 try (PropagatedContext.Scope ignore = propagatedContext.propagate()) {
                     return run(filtering);
                 }
             }, executor).thenCompose(Function.identity());
+        }
+        if (request.getAttribute(JaxRsContainerRequestContext.BUFFERED_ENTITY).isPresent() || !hasEntity(serverHttpRequest)) {
+            return run(filtering);
         }
         Function<CloseableAvailableByteBody, CompletionStage<@Nullable M>> filter = body -> {
             request.setAttribute(JaxRsContainerRequestContext.BUFFERED_ENTITY, body.toByteArray());
@@ -351,8 +352,7 @@ final class JaxRsContainerFilters {
                 return run(filtering);
             }
         };
-        CompletionStage<? extends CloseableAvailableByteBody> buffered = serverHttpRequest.byteBody().split(ByteBody.SplitBackpressureMode.FASTEST).buffer();
-        return executor == null ? buffered.thenCompose(filter) : buffered.thenComposeAsync(filter, executor);
+        return serverHttpRequest.byteBody().split(ByteBody.SplitBackpressureMode.FASTEST).buffer().thenCompose(filter);
     }
 
     /**
@@ -376,6 +376,12 @@ final class JaxRsContainerFilters {
     private static <M> CompletionStage<@Nullable M> run(Filtering<M> filtering) {
         try {
             return CompletableFuture.completedFuture(filtering.filter());
+        } catch (IOException e) {
+            // a limit of the server the copy of the entity a filter streams exceeded: answered by its handler, e.g. 413
+            if (e.getCause() instanceof BufferLengthExceededException || e.getCause() instanceof ContentLengthExceededException) {
+                return CompletableFuture.failedFuture(e.getCause());
+            }
+            return CompletableFuture.failedFuture(e);
         } catch (Exception e) {
             return CompletableFuture.failedFuture(e);
         }

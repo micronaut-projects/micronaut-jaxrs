@@ -303,8 +303,11 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
             return new ByteArrayInputStream(buffered);
         }
         if (bodyRequest instanceof ServerHttpRequest<?> serverHttpRequest) {
-            // a copy: the resource method still reads the entity, later, so the copy pulls the body
-            return serverHttpRequest.byteBody().split(ByteBody.SplitBackpressureMode.FASTEST).toInputStream();
+            // a copy, of all of the entity for each filter: the resource method still reads the
+            // entity, later, so the copy pulls the body; closed once the request is processed
+            InputStream copy = serverHttpRequest.byteBody().split(ByteBody.SplitBackpressureMode.FASTEST).toInputStream();
+            own(copy);
+            return copy;
         }
         return bodyRequest.getBody(byte[].class)
             .<InputStream>map(ByteArrayInputStream::new)
@@ -315,7 +318,13 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
     public void setEntityStream(InputStream input) {
         checkRequestFilteringInProgress();
         mutableHttpRequest.setAttribute(ENTITY_STREAM, input);
-        // closed once the request is processed, see #closeEntityStreams
+        own(input);
+    }
+
+    /**
+     * Close a stream once the request is processed, see {@link #closeEntityStreams}.
+     */
+    private void own(InputStream input) {
         @SuppressWarnings("unchecked")
         List<InputStream> streams = mutableHttpRequest.getAttribute(ENTITY_STREAMS, List.class).orElse(null);
         if (streams == null) {
