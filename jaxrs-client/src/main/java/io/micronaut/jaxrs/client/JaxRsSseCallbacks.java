@@ -211,8 +211,10 @@ final class JaxRsSseCallbacks {
             try {
                 executor.execute(this::drainCallbacks);
             } catch (RejectedExecutionException e) {
-                // the executor is shut down: run on this thread
-                drainCallbacks();
+                // the executor is shut down, or saturated: the callbacks may block, e.g. the read of
+                // the events, so they do not run on this thread, which may be the event loop that
+                // delivers the events
+                Thread.ofVirtual().name("jaxrs-sse-callbacks").start(this::drainCallbacks);
             }
         }
     }
