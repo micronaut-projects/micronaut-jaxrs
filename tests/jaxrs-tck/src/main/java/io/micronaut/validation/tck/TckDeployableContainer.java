@@ -162,8 +162,6 @@ public final class TckDeployableContainer implements DeployableContainer<TckCont
 
             Map<String, Object> properties = new HashMap<>(Map.of(
                 "micronaut.server.port", 0,
-                "micronaut.server.dispatch-options-requests", true,
-                "micronaut.server.not-found-on-missing-body", false,
                 "micronaut.server.context-path", archive.getName().replaceAll("\\.war$", "")
             ));
             // the Application the servlet of the web.xml names
