@@ -120,7 +120,9 @@ final class MetadataJaxRsReflection implements JaxRsReflection {
 
     @Override
     public Annotation[] annotations(AnnotationMetadata metadata, ClassLoader classLoader) {
-        return metadata.synthesizeAll();
+        // the types the class loader of the provider defines, e.g. the ones of a deployment with a
+        // class loader of its own, not the first ones loaded under the same name
+        return metadata.synthesizeAll(classLoader);
     }
 
     @Override
