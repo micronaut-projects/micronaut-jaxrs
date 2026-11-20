@@ -29,13 +29,18 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.annotation.Annotation;
+import java.lang.ref.Cleaner;
 import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * The standard provider of {@link File} for all media types (JAX-RS 4.2.4): an entity is read
- * into a temporary file.
+ * into a temporary file, deleted once the {@link File} it is read as is no longer reachable, or
+ * at the latest when the JVM exits normally. An application that keeps the file beyond that
+ * moves it, or keeps the {@link File}.
  *
  * @author Denis Stepanov
  * @since 5.0.0
@@ -44,6 +49,16 @@ import java.nio.file.Path;
 @Singleton
 @Internal
 public final class JaxRsFileMessageBodyReaderWriter implements MessageBodyReader<File>, MessageBodyWriter<File> {
+
+    private static final Cleaner CLEANER = Cleaner.create();
+    // the temporary files not deleted yet, deleted when the JVM exits: unlike File#deleteOnExit,
+    // which keeps every path until then, a deleted file leaves it
+    private static final Set<Path> TEMPORARY_FILES = ConcurrentHashMap.newKeySet();
+
+    static {
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> TEMPORARY_FILES.forEach(JaxRsFileMessageBodyReaderWriter::delete),
+            "jaxrs-entity-files"));
+    }
 
     @Override
     public boolean isReadable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
@@ -61,8 +76,26 @@ public final class JaxRsFileMessageBodyReaderWriter implements MessageBodyReader
             Files.deleteIfExists(file);
             throw e;
         }
-        file.toFile().deleteOnExit();
-        return file.toFile();
+        File read = file.toFile();
+        TEMPORARY_FILES.add(file);
+        CLEANER.register(read, () -> delete(file));
+        return read;
+    }
+
+    /**
+     * @return The number of the temporary files not deleted yet
+     */
+    static int temporaryFiles() {
+        return TEMPORARY_FILES.size();
+    }
+
+    private static void delete(Path file) {
+        TEMPORARY_FILES.remove(file);
+        try {
+            Files.deleteIfExists(file);
+        } catch (IOException e) {
+            // e.g. moved, or removed by the application
+        }
     }
 
     @Override
