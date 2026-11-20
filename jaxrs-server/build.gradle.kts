@@ -13,6 +13,8 @@ dependencies {
     implementation(projects.micronautJaxrsCommon)
     // the SSLContext of a Java SE bootstrap configuration is applied to the Netty server, when it is the server
     compileOnly(mn.micronaut.http.server.netty)
+    // the Bean Validation of the resources, when Micronaut Validation is on the classpath (JAX-RS chapter 7)
+    compileOnly(mnValidation.micronaut.validation)
 
 	// for Java
 	testAnnotationProcessor(mn.micronaut.inject.java)

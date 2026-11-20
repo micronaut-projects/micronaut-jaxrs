@@ -154,6 +154,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     );
 
     private final BeanContext beanContext;
+    private volatile @Nullable JaxRsResourceValidation resourceValidation;
     private final JaxRsRouteSupport support;
     private final Map<Class<?>, Resource<?>> resources = new LinkedHashMap<>();
     // creates the resources, sub-resources and resources of the ResourceContext for a request
@@ -525,6 +526,8 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      */
     private <B> Object locate(JaxRsMethod<B> method, B instance, Reader[] readers, HttpRequest<?> request, PathVariables pathVariables,
                               @Nullable FormData form, int segments) {
+        JaxRsResourceValidation validation = validation();
+        validation.validateResource(instance);
         Object[] arguments = new Object[readers.length];
         Object previous = request.getAttribute(JaxRsRouteSupport.MATCHED_SEGMENTS).orElse(null);
         request.setAttribute(JaxRsRouteSupport.MATCHED_SEGMENTS, segments);
@@ -539,6 +542,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 request.setAttribute(JaxRsRouteSupport.MATCHED_SEGMENTS, previous);
             }
         }
+        validation.validateParameters(instance, method.name(), method.executable(), method.returnType(), arguments);
         // a locator returning null is a 404; while it runs, UriInfo#getMatchedURIs ends with its prefix
         Object result;
         JaxRsMatched.locating(request, segments);
@@ -836,12 +840,30 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             request.setAttribute(FORM, form);
         }
         B instance = instances.get(request, pathVariables, form, target);
+        JaxRsResourceValidation validation = validation();
+        // its fields and properties, then its parameters, then its return value (JAX-RS 7.6)
+        validation.validateResource(instance);
         Reader[] readers = method.readers();
         Object[] arguments = new Object[readers.length];
         for (int i = 0; i < readers.length; i++) {
             arguments[i] = readers[i].read(request, pathVariables, form, body);
         }
-        return method.method().executable().invoke(instance, arguments);
+        JaxRsMethod<B> called = method.method();
+        validation.validateParameters(instance, called.name(), called.executable(), called.returnType(), arguments);
+        Object result = called.executable().invoke(instance, arguments);
+        return validation.validateReturnValue(instance, called.name(), called.executable(), called.returnType(), result);
+    }
+
+    /**
+     * The Bean Validation of the resources, when it is on the classpath (JAX-RS chapter 7).
+     */
+    private JaxRsResourceValidation validation() {
+        JaxRsResourceValidation validation = resourceValidation;
+        if (validation == null) {
+            validation = beanContext.findBean(JaxRsResourceValidation.class).orElse(JaxRsResourceValidation.NONE);
+            resourceValidation = validation;
+        }
+        return validation;
     }
 
     /**
