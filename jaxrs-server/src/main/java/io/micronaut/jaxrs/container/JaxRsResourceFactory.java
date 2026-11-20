@@ -20,6 +20,7 @@ import io.micronaut.aop.Intercepted;
 import io.micronaut.aop.InterceptedProxy;
 import io.micronaut.context.BeanRegistration;
 import io.micronaut.context.annotation.Prototype;
+import io.micronaut.context.scope.CreatedBean;
 import io.micronaut.context.exceptions.NonUniqueBeanException;
 import io.micronaut.http.ServerHttpRequest;
 import io.micronaut.inject.BeanIdentifier;
@@ -172,7 +173,7 @@ final class JaxRsResourceFactory {
         if (requestType != null) {
             return create(requestType, request, pathVariables, contextForm(request));
         }
-        return definition != null ? owned(request, beanContext.getBean(definition)) : beanContext.inject(JaxRsReflection.get().instantiate(type));
+        return definition != null ? ownedBean(request, type) : beanContext.inject(JaxRsReflection.get().instantiate(type));
     }
 
     /**
@@ -194,19 +195,49 @@ final class JaxRsResourceFactory {
         }
         @SuppressWarnings("unchecked")
         BeanDefinition<T> typed = (BeanDefinition<T>) definition;
+        // an instance created without its registration, e.g. with the values of the request: the
+        // dependents it was created with are not known, see #ownedBean
         BeanRegistration<T> registration = BeanRegistration.of(beanContext, BeanIdentifier.of(typed.getBeanType().getName()), typed, instance);
+        destroyWhenDone(request, typed.getBeanType(), () -> beanContext.destroyBean(registration));
+        return instance;
+    }
+
+    /**
+     * A bean of a type created for a request, which the request owns if its definition has no
+     * scope or is a prototype, see {@link #owned}: created with the registration of the beans
+     * created for it, e.g. its injected prototypes, which are destroyed with it.
+     *
+     * @param request The request
+     * @param type    The type of the bean, resolved like it is injected
+     * @param <T>     The type
+     * @return The bean
+     */
+    <T> T ownedBean(HttpRequest<?> request, Class<T> type) {
+        BeanDefinition<T> definition = beanContext.getBeanDefinition(type);
+        if (!isDependent(definition)) {
+            return beanContext.getBean(definition);
+        }
+        CreatedBean<T> created = beanContext.createBeanRegistration(definition);
+        destroyWhenDone(request, type, created::close);
+        return created.bean();
+    }
+
+    /**
+     * Destroy a bean of a request once its response is done, see {@link #owned}.
+     */
+    private void destroyWhenDone(HttpRequest<?> request, Class<?> type, DestroyAction destroyAction) {
         Runnable destroy = () -> {
             try {
-                beanContext.destroyBean(registration);
-            } catch (RuntimeException e) {
-                LOG.warn("Failed to destroy the resource {} of a request: {}", typed.getBeanType().getName(), e.getMessage(), e);
+                destroyAction.destroy();
+            } catch (Exception e) {
+                LOG.warn("Failed to destroy the resource {} of a request: {}", type.getName(), e.getMessage(), e);
             }
         };
         ServerHttpRequest<?> serverRequest = JaxRsAsyncResponse.serverRequest(request);
         // the callback runs on the event loop: the @PreDestroy methods may block
         Executor executor = support.blockingExecutor();
         if (serverRequest != null && serverRequest.whenResponseCompleted(failure -> executor.execute(destroy))) {
-            return instance;
+            return;
         }
         // a server that does not report it: once the response is processed, see #destroyOwned
         @SuppressWarnings("unchecked")
@@ -216,7 +247,14 @@ final class JaxRsResourceFactory {
             request.setAttribute(OWNED, owned);
         }
         owned.add(destroy);
-        return instance;
+    }
+
+    /**
+     * Destroys a bean.
+     */
+    @FunctionalInterface
+    private interface DestroyAction {
+        void destroy() throws Exception;
     }
 
     /**
@@ -402,7 +440,7 @@ final class JaxRsResourceFactory {
         }
         if (requestType.bean() || introspection == null) {
             // the members of a bean are set before its @PostConstruct methods run, see JaxRsResourceInitializer
-            instance = owned(request, initializing(initializing, () -> createBean(requestType.type(), requestType.requestNames(), requestValues)));
+            instance = initializing(initializing, () -> createBean(request, requestType.type(), requestType.requestNames(), requestValues));
         } else {
             T created = values.length == 0 ? introspection.instantiate() : introspection.instantiate(values);
             instance = initializing(initializing, () -> beanContext.inject(created));
@@ -514,24 +552,30 @@ final class JaxRsResourceFactory {
 
     /**
      * Create a resource for a request: a resource whose constructor reads values of the request
-     * is a prototype, and gets them as its {@code @Parameter}s.
+     * is a prototype, and gets them as its {@code @Parameter}s. The request owns it, see
+     * {@link #owned}.
      *
+     * @param request The request
      * @param type   The resource class
      * @param names  The names of the constructor parameters read from the request
      * @param values Their values
      * @param <T>    The type of the resource
      * @return The resource
      */
-    private <T> T createBean(Class<T> type, String[] names, @Nullable Object[] values) {
+    private <T> T createBean(HttpRequest<?> request, Class<T> type, String[] names, @Nullable Object[] values) {
         if (!beanContext.containsBean(type)) {
             // a sub-resource or a bean parameter that is not a bean
             return JaxRsReflection.get().instantiate(type);
+        }
+        if (names.length == 0) {
+            // with the registration of the beans created for it, destroyed with it
+            return ownedBean(request, type);
         }
         Map<String, Object> arguments = new java.util.HashMap<>(names.length * 2);
         for (int i = 0; i < names.length; i++) {
             arguments.put(names[i], values[i]);
         }
-        return beanContext.createBean(type, arguments);
+        return owned(request, beanContext.createBean(type, arguments));
     }
 
     /**

@@ -221,7 +221,9 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         Supplier<B> instances = root.instances();
         Instances<@Nullable Void, B> instance = requestType == null
             ? (request, pathVariables, form, target) -> support.matched(request,
-                root.shared() ? instances.get() : resourceFactory.owned(request, instances.get()), rootSegments.count(pathVariables))
+                root.shared() ? instances.get()
+                    : root.definition() != null ? resourceFactory.ownedBean(request, root.type()) : resourceFactory.owned(request, instances.get()),
+                rootSegments.count(pathVariables))
             : (request, pathVariables, form, target) -> {
                 // its path parameters are the ones of its @Path; its matrix parameters are of the
                 // last segment of the request, as the TCK expects (JAXRSClientIT.matrixParamOnFieldTest)
