@@ -5,7 +5,7 @@ pluginManagement {
     }
 }
 plugins {
-    id 'io.micronaut.build.shared.settings' version '8.1.4'
+    id 'io.micronaut.build.shared.settings' version '8.1.5'
 }
 dependencyResolutionManagement {
     repositories {
@@ -48,4 +48,3 @@ micronautBuild {
     importMicronautCatalog("micronaut-servlet")
     importMicronautCatalog("micronaut-reactor")
 }
-
