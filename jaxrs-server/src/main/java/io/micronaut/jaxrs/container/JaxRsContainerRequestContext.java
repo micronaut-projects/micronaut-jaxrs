@@ -325,19 +325,21 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
      * Close a stream once the request is processed, see {@link #closeEntityStreams}.
      */
     private void own(InputStream input) {
-        @SuppressWarnings("unchecked")
-        List<InputStream> streams = mutableHttpRequest.getAttribute(ENTITY_STREAMS, List.class).orElse(null);
-        if (streams == null) {
-            streams = new ArrayList<>(1);
-            mutableHttpRequest.setAttribute(ENTITY_STREAMS, streams);
-            // closed once the response was written: the resource method may return the stream as its entity
-            HttpRequest<?> request = mutableHttpRequest;
-            ServerHttpRequest<?> serverRequest = JaxRsAsyncResponse.serverRequest(request);
-            if (serverRequest != null && serverRequest.whenResponseCompleted(failure -> closeEntityStreams(request))) {
-                mutableHttpRequest.setAttribute(ENTITY_STREAMS_ON_COMPLETION, Boolean.TRUE);
-            }
+        EntityStreams streams = mutableHttpRequest.getAttribute(ENTITY_STREAMS, EntityStreams.class).orElse(null);
+        if (streams != null) {
+            streams.add(input);
+            return;
         }
+        streams = new EntityStreams();
+        // added before the callback is registered, which may run at once, e.g. once the client disconnected
         streams.add(input);
+        mutableHttpRequest.setAttribute(ENTITY_STREAMS, streams);
+        // closed once the response was written: the resource method may return the stream as its entity
+        ServerHttpRequest<?> serverRequest = JaxRsAsyncResponse.serverRequest(mutableHttpRequest);
+        EntityStreams owned = streams;
+        if (serverRequest != null && serverRequest.whenResponseCompleted(failure -> owned.closeApart())) {
+            mutableHttpRequest.setAttribute(ENTITY_STREAMS_ON_COMPLETION, Boolean.TRUE);
+        }
     }
 
     /**
@@ -360,12 +362,54 @@ final class JaxRsContainerRequestContext implements ContainerRequestContext {
      */
     @SuppressWarnings("unchecked")
     static void closeEntityStreams(HttpRequest<?> request) {
-        List<InputStream> streams = request.getAttribute(ENTITY_STREAMS, List.class).orElse(null);
-        if (streams == null) {
-            return;
+        request.getAttribute(ENTITY_STREAMS, EntityStreams.class).ifPresent(EntityStreams::close);
+    }
+
+    /**
+     * The entity streams of a request the runtime closes once it is processed: a stream added
+     * once they were closed is closed at once.
+     */
+    static final class EntityStreams {
+        private final List<InputStream> streams = new ArrayList<>(1);
+        private boolean closed;
+
+        /**
+         * @param stream A stream to close with the others
+         */
+        void add(InputStream stream) {
+            synchronized (this) {
+                if (!closed) {
+                    streams.add(stream);
+                    return;
+                }
+            }
+            close(stream);
         }
-        request.removeAttribute(ENTITY_STREAMS, List.class);
-        for (InputStream stream : streams) {
+
+        /**
+         * Close the streams, apart from this thread, e.g. the event loop that completed the
+         * response: closing a stream of the application may block.
+         */
+        void closeApart() {
+            Thread.ofVirtual().name("jaxrs-entity-streams").start(this::close);
+        }
+
+        /**
+         * Close the streams, once.
+         */
+        void close() {
+            List<InputStream> closing;
+            synchronized (this) {
+                closed = true;
+                closing = new ArrayList<>(streams);
+                streams.clear();
+            }
+            for (InputStream stream : closing) {
+                close(stream);
+            }
+        }
+
+        private static void close(InputStream stream) {
             try {
                 stream.close();
             } catch (IOException e) {
