@@ -303,7 +303,7 @@ final class JaxRsResponseEntity {
             if (entityType.getType() == InputStream.class) {
                 // it stays the entity stream, which close() closes, read through the reader
                 // interceptors (JAX-RS, Response#readEntity)
-                InputStream read = entityReader.readEntityStream(response, stream);
+                InputStream read = entityReader.readEntityStream(response, stream, entityType);
                 if (read != stream) {
                     readStream = read;
                 }

@@ -118,6 +118,15 @@ final class JaxRsClientEntityIO {
 
             @Override
             public InputStream readEntityStream(HttpMessage<?> message, InputStream entityStream) {
+                return readEntityStream(message, entityStream, Argument.of(InputStream.class));
+            }
+
+            @Override
+            @SuppressWarnings("unchecked")
+            public InputStream readEntityStream(HttpMessage<?> message, InputStream entityStream, Argument<?> entityType) {
+                // the stream with the annotations requested, which select its reader
+                Argument<InputStream> streamType = entityType.getType() == InputStream.class
+                    ? (Argument<InputStream>) entityType : Argument.of(InputStream.class);
                 Providers previous = JaxRsCurrentProviders.set(providers);
                 try {
                     MediaType mediaType = message.getContentType().orElse(MediaType.APPLICATION_OCTET_STREAM_TYPE);
@@ -125,7 +134,7 @@ final class JaxRsClientEntityIO {
                     List<BeanRegistration<ReaderInterceptor>> readerInterceptors = providers.getReaderInterceptors();
                     if (readerInterceptors.isEmpty()) {
                         // the stream is read by the reader of streams, e.g. one of the application
-                        InputStream read = (InputStream) readStream(Argument.of(InputStream.class), mediaType, headers, entityStream);
+                        InputStream read = (InputStream) readStream(streamType, mediaType, headers, entityStream);
                         return read == null ? InputStream.nullInputStream() : read;
                     }
                     InputStream read = new ClientInterceptedRead<InputStream>(readerInterceptors) {
@@ -135,7 +144,7 @@ final class JaxRsClientEntityIO {
                             return (InputStream) readStream(type, mediaType, headers, inputStream);
                         }
 
-                    }.read(Argument.of(InputStream.class), mediaType, headers, entityStream, properties);
+                    }.read(streamType, mediaType, headers, entityStream, properties);
                     return read == null ? InputStream.nullInputStream() : read;
                 } catch (JaxRsIOException e) {
                     throw new ProcessingException(e.getCause());

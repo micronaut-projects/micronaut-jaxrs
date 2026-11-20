@@ -72,6 +72,19 @@ public class HttpMessageEntityReader {
     }
 
     /**
+     * Read the entity stream of a message as a stream, as the type requested, e.g. with the
+     * annotations that select a reader, see {@link #readEntityStream(HttpMessage, InputStream)}.
+     *
+     * @param message      The message
+     * @param entityStream The entity stream
+     * @param entityType   The type requested, an {@link InputStream} with its annotations
+     * @return The entity, the stream the type-less variant reads by default
+     */
+    public InputStream readEntityStream(HttpMessage<?> message, InputStream entityStream, Argument<?> entityType) {
+        return readEntityStream(message, entityStream);
+    }
+
+    /**
      * Read the entity.
      *
      * @param byteBuffer The buffer
