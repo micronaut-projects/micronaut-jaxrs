@@ -64,11 +64,8 @@ import io.micronaut.context.BeanRegistration;
 import io.micronaut.core.util.SupplierUtil;
 import io.micronaut.http.server.HttpServerConfiguration;
 import io.micronaut.scheduling.TaskExecutors;
-import io.micronaut.scheduling.executor.ExecutorSelector;
 import io.micronaut.scheduling.executor.ThreadSelection;
-import io.micronaut.context.exceptions.ConfigurationException;
 import io.micronaut.core.propagation.PropagatedContext;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
@@ -126,7 +123,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -165,7 +161,6 @@ public final class JaxRsRouteSupport {
      * ones of the last of them ({@code MatrixParam}).
      */
     static final String MATCHED_SEGMENTS = JaxRsRouteSupport.class.getName() + ".matchedSegments";
-
 
     // the types of header values with a header delegate, a subtype first (NewCookie of Cookie)
     private static final List<Class<?>> HEADER_TYPES = List.of(
@@ -1410,6 +1405,12 @@ public final class JaxRsRouteSupport {
         return mediaTypes;
     }
 
+    private static AnnotationMetadata rawEntityMetadata() {
+        MutableAnnotationMetadata metadata = new MutableAnnotationMetadata();
+        metadata.addDeclaredAnnotation(RAW_ENTITY, Map.of());
+        return metadata;
+    }
+
     /**
      * The content of a field of a multipart form.
      *
@@ -1516,11 +1517,5 @@ public final class JaxRsRouteSupport {
          * @throws Exception An error
          */
         @Nullable T locate(FormData form) throws Exception;
-    }
-
-    private static AnnotationMetadata rawEntityMetadata() {
-        MutableAnnotationMetadata metadata = new MutableAnnotationMetadata();
-        metadata.addDeclaredAnnotation(RAW_ENTITY, Map.of());
-        return metadata;
     }
 }
