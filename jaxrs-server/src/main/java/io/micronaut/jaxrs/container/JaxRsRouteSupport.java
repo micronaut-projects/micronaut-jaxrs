@@ -208,6 +208,8 @@ public final class JaxRsRouteSupport {
 
     // the executor of the asynchronous routes that run on the event loop, resolved when first used
     private final Supplier<@Nullable Executor> blockingExecutor;
+    // the form field limit of the server, which the forms of the entities it parses have too
+    private final Supplier<Integer> formMaxFields;
 
     JaxRsRouteSupport(ApplicationProvider applicationProvider,
                       ConversionService conversionService,
@@ -243,6 +245,7 @@ public final class JaxRsRouteSupport {
         this.parameters = new JaxRsParameterBinding(this, applicationProvider, conversionService, paramConverterProviders);
         this.threadSelection = SupplierUtil.memoized(() -> beanContext.findBean(HttpServerConfiguration.class)
             .map(HttpServerConfiguration::getThreadSelection).orElse(ThreadSelection.MANUAL));
+        this.formMaxFields = SupplierUtil.memoized(() -> beanContext.findBean(NettyFormLimits.class).map(NettyFormLimits::maxFields).orElse(-1));
         this.blockingExecutor = SupplierUtil.memoized(() ->
             beanContext.findBean(ExecutorService.class, Qualifiers.byName(TaskExecutors.BLOCKING))
                 .or(() -> beanContext.findBean(ExecutorService.class, Qualifiers.byName(TaskExecutors.IO)))
@@ -644,7 +647,7 @@ public final class JaxRsRouteSupport {
             return parsed.get();
         }
         Charset charset = contentType.getCharset().orElse(StandardCharsets.UTF_8);
-        JaxRsEntityForm form = new JaxRsEntityForm(new String(body, charset), charset);
+        JaxRsEntityForm form = new JaxRsEntityForm(new String(body, charset), charset, formMaxFields.get());
         request.setAttribute(JaxRsEntityForm.class.getName(), form);
         return form;
     }
@@ -664,7 +667,7 @@ public final class JaxRsRouteSupport {
         JaxRsEntityForm parsed = request.getAttribute(JaxRsEntityForm.class.getName(), JaxRsEntityForm.class).orElse(null);
         if (parsed == null) {
             Charset charset = formCharset(request);
-            parsed = new JaxRsEntityForm(new String(replaced, charset), charset);
+            parsed = new JaxRsEntityForm(new String(replaced, charset), charset, formMaxFields.get());
             request.setAttribute(JaxRsEntityForm.class.getName(), parsed);
         }
         return parsed;

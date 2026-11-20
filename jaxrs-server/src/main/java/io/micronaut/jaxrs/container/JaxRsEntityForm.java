@@ -19,6 +19,7 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.convert.ConversionService;
 import io.micronaut.http.form.FileUpload;
 import io.micronaut.http.form.FormData;
+import io.micronaut.http.exceptions.ContentLengthExceededException;
 import io.micronaut.http.form.FormFieldException;
 import jakarta.ws.rs.BadRequestException;
 
@@ -53,9 +54,32 @@ final class JaxRsEntityForm implements FormData {
      * @throws BadRequestException if the form is not well percent-encoded
      */
     JaxRsEntityForm(String entity, Charset charset) {
-        for (String pair : entity.split("&")) {
+        this(entity, charset, -1);
+    }
+
+    /**
+     * @param entity    The url-encoded form
+     * @param charset   Its charset
+     * @param maxFields The maximum number of fields, negative for no limit, e.g. the form field
+     *                  limit of the server that a form it reads has
+     * @throws BadRequestException             if the form is not well percent-encoded
+     * @throws ContentLengthExceededException if the form has more fields than the maximum, which the server answers with 413
+     */
+    JaxRsEntityForm(String entity, Charset charset, int maxFields) {
+        int count = 0;
+        int start = 0;
+        while (start <= entity.length()) {
+            int end = entity.indexOf('&', start);
+            if (end < 0) {
+                end = entity.length();
+            }
+            String pair = entity.substring(start, end);
+            start = end + 1;
             if (pair.isEmpty()) {
                 continue;
+            }
+            if (maxFields >= 0 && ++count > maxFields) {
+                throw new ContentLengthExceededException("Number of form fields exceeds configured limit");
             }
             int equals = pair.indexOf('=');
             String name;
