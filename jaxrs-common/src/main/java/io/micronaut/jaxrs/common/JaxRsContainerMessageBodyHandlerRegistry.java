@@ -381,10 +381,6 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
         Class<T> theType = type.getType();
         Type genericType = type.asType();
         List<MediaType> producible = new ArrayList<>();
-        if (isStandardType(theType)) {
-            // the standard providers of JAX-RS write it as any type (section 4.2.4)
-            return List.of(MediaType.ALL_TYPE);
-        }
         for (WriterCandidate<T> candidate : selectingWriter(type, List.of(MediaType.ALL_TYPE)).candidates) {
             List<MediaType> produces = candidate.produces();
             for (MediaType mediaType : produces.isEmpty() ? List.of(MediaType.ALL_TYPE) : produces) {
@@ -394,6 +390,11 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
                     producible.add(mediaType);
                 }
             }
+        }
+        if (isStandardType(theType) && !producible.contains(MediaType.ALL_TYPE)) {
+            // the standard providers of JAX-RS write it as any type (section 4.2.4), besides the
+            // types the writers of the application write it as, e.g. text/csv for a String
+            producible.add(MediaType.ALL_TYPE);
         }
         return producible;
     }
