@@ -17,6 +17,8 @@ dependencies {
 
     // JSON-B is used when the application has an implementation
     compileOnly(libs.jakarta.json.bind.api)
+    // JSON-P is used when the application has the API and an implementation, e.g. Eclipse Parsson
+    compileOnly(libs.jakarta.json.api)
 
     runtimeOnly(libs.jaxb.runtime)
     runtimeOnly(libs.angus.activation)
@@ -32,6 +34,8 @@ dependencies {
     testImplementation(mnTest.micronaut.test.junit5)
     testImplementation(libs.jakarta.json.bind.api)
     testRuntimeOnly(libs.yasson)
+    testImplementation(libs.jakarta.json.api)
+    testRuntimeOnly(libs.parsson)
 
     testRuntimeOnly(mnLogging.logback.classic)
     testRuntimeOnly(mnTest.junit.jupiter.engine)
@@ -43,5 +47,7 @@ noReflection {
     allowIn("io.micronaut.jaxrs.providers.JaxRsJaxbMessageBodyReaderWriter", "CLASS_NAMES", "GENERIC_SIGNATURES")
     // JSON-B finds its implementation with the service loader
     allowIn("io.micronaut.jaxrs.providers.JsonbImplementationCondition", "SERVICE_LOADING")
+    // JSON-P finds its implementation with the service loader
+    allowIn("io.micronaut.jaxrs.providers.JsonpImplementationCondition", "SERVICE_LOADING", "CLASS_LOADING")
     allowIn("io.micronaut.jaxrs.providers.StandardProviders", "CLASS_LOADING")
 }

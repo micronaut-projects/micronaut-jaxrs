@@ -42,6 +42,9 @@ public final class StandardProviders implements JaxRsStandardProviders {
             new JaxRsJaxbElementMessageBodyReaderWriter(jaxb),
             jaxb
         ));
+        if (JsonpImplementationCondition.isPresent()) {
+            providers.add(new JaxRsJsonpMessageBodyReaderWriter());
+        }
         if (ClassUtils.isPresent("jakarta.json.bind.Jsonb", StandardProviders.class.getClassLoader())
             && JsonbImplementationCondition.isPresent()) {
             providers.add(new JaxRsJsonbMessageBodyReaderWriter());
