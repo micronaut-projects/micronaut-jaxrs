@@ -1,6 +1,20 @@
+=== Micronaut JAX-RS 5.2
+
+Micronaut JAX-RS 5.2 implements https://jakarta.ee/specifications/restful-ws/4.0/[Jakarta RESTful Web Services 4.0] instead of mapping a subset of its annotations to Micronaut controllers. Resource methods are served by routes the module registers at runtime, with the JAX-RS rules for matching, content negotiation, providers, filters, interceptors and exception mappers. Applications that relied on the previous behavior should check the following:
+
+* A resource class is created for every request by default (JAX-RS 3.1.1). Annotate it with `@Singleton` to keep one instance; its `@Context` fields are then proxies of the current request.
+* The JAX-RS providers (`MessageBodyReader`, `MessageBodyWriter`, filters, interceptors, `ExceptionMapper`, `ParamConverterProvider`, `ContextResolver`) apply to the routes of JAX-RS resource methods only. Micronaut controllers keep the Micronaut codecs, filters and exception handlers.
+* An exception of a resource method is mapped by the `ExceptionMapper` of the nearest type (JAX-RS 4.4). Without one, a `WebApplicationException` is answered with its response and any other exception with a 500 response, whose body does not disclose the exception message.
+* A resource method returning `null` or `void` answers 204 (JAX-RS 3.3.3), also with the default `micronaut.server.not-found-on-missing-body`, which still applies to Micronaut controllers.
+* An `OPTIONS` request to a resource without an `@OPTIONS` method gets an automatic response with an `Allow` header (JAX-RS 3.3.5), without setting `micronaut.server.dispatch-options-requests`.
+* An `Application` that returns classes or instances from `getClasses()` or `getSingletons()` registers only those resources and providers (JAX-RS 2.3). An application without `@ApplicationPath` can be named with `micronaut.jaxrs.application`.
+* The request entity of a resource method is read into memory before the readers run, see <<container, Container API>>.
+* With `micronaut-jaxrs-standard-providers`, the JSON-P values (`JsonValue` and its subtypes) are read and written by a JSON-P provider when the JSON-P API and an implementation are on the classpath, as they are with Yasson, instead of by JSON-B: an empty entity, or a JSON value of another type than the parameter, is answered with 400.
+* The API documentation links point to Jakarta RESTful Web Services 4.0.
+
 === Micronaut JAX-RS 4
 
-Micronaut JAX-RS 4 migrates to https://jakarta.ee/specifications/restful-ws/3.0//[Jakarta RESTful Web Services 3.0].
+Micronaut JAX-RS 4 migrates to https://jakarta.ee/specifications/restful-ws/3.0/[Jakarta RESTful Web Services 3.0].
 Package namespaces are moved from `javax.ws.rs` to `jakarta.ws.rs`.
 Moreover, it uses transitive dependency `jakarta.ws.rs:jakarta.ws.rs-api` instead of `org.jboss.resteasy:jaxrs-api`.
 

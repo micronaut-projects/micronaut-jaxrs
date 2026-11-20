@@ -1,4 +1,22 @@
-To use this project you to add the following annotation processor to any Micronaut project:
+Add the annotation processor, which generates the metadata of the resources and providers, and the server:
 
 dependency:micronaut-jaxrs-processor[scope="annotationProcessor",groupId="io.micronaut.jaxrs"]
 
+dependency:micronaut-jaxrs-server[scope="implementation",groupId="io.micronaut.jaxrs"]
+
+A resource is a class annotated with `@Path`:
+
+[source,java]
+----
+@Path("/hello")
+public class HelloResource {
+
+    @GET
+    @Produces(MediaType.TEXT_PLAIN)
+    public String hello(@QueryParam("name") @DefaultValue("World") String name) {
+        return "Hello " + name;
+    }
+}
+----
+
+For the client API add `micronaut-jaxrs-client`, see <<client, Client API>>.

@@ -2,6 +2,7 @@ introduction: Introduction
 breaks: Breaking Changes
 releaseHistory: Release History
 quickStart: Quick Start
+supportedApi: Specification Support
 container: Container API
 client: Client API
 repository: Repository
