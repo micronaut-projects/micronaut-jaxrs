@@ -82,7 +82,6 @@ import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -269,12 +268,9 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     private Map<Class<?>, Root<?>> rootResources() {
         Map<Class<?>, Root<?>> roots = new LinkedHashMap<>();
         Application application = beanContext.findBean(Application.class).orElse(null);
-        Set<Class<?>> listed = new HashSet<>();
         Map<Class<?>, Object> singletons = new LinkedHashMap<>();
         if (application != null) {
-            listed.addAll(application.getClasses());
             for (Object singleton : application.getSingletons()) {
-                listed.add(singleton.getClass());
                 singletons.put(singleton.getClass(), singleton);
             }
         }
@@ -287,8 +283,8 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             }
         });
         resources.forEach((type, resource) -> {
-            // a class without a @Path is a sub-resource, unless the application lists it
-            if (!roots.containsKey(type) && (resource.definition().hasAnnotation(Path.class) || listed.contains(type))) {
+            // a class without a @Path is a sub-resource (JAX-RS 3.1), also when the application lists it
+            if (!roots.containsKey(type) && resource.definition().hasAnnotation(Path.class)) {
                 roots.put(type, root(resource));
             }
         });
@@ -344,9 +340,12 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     @SuppressWarnings("unchecked")
     private <T> @Nullable Root<T> singletonRoot(T singleton) {
         Class<T> type = (Class<T>) singleton.getClass();
+        if (!classMetadata(type).hasAnnotation(Path.class)) {
+            // e.g. a provider, or a sub-resource
+            return null;
+        }
         List<JaxRsMethod<T>> methods = methods(type);
         if (methods.isEmpty()) {
-            // e.g. a provider
             return null;
         }
         JaxRsReflection.get().injectFields(singleton, Context.class, contextType -> beanContext.findBean(contextType).orElse(null));
@@ -367,15 +366,8 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     }
 
     private static boolean isRootResource(BeanIntrospection<?> introspection) {
-        if (introspection.hasAnnotation(Path.class)) {
-            return true;
-        }
-        for (BeanMethod<?, ?> method : introspection.getBeanMethods()) {
-            if (httpMethod(method.getAnnotationMetadata()) != null) {
-                return true;
-            }
-        }
-        return false;
+        // a class without a @Path is a sub-resource (JAX-RS 3.1)
+        return introspection.hasAnnotation(Path.class);
     }
 
     /**
