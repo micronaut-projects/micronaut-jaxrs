@@ -22,9 +22,6 @@ import io.micronaut.core.annotation.Vetoed;
 import io.micronaut.inject.ast.ClassElement;
 import io.micronaut.inject.visitor.TypeElementVisitor;
 import io.micronaut.inject.visitor.VisitorContext;
-import jakarta.inject.Named;
-import jakarta.inject.Singleton;
-import jakarta.ws.rs.core.Application;
 
 @Internal
 public final class TestClassVisitor implements TypeElementVisitor<Object, Object> {
@@ -58,21 +55,6 @@ public final class TestClassVisitor implements TypeElementVisitor<Object, Object
                     ce.annotate(Executable.class);
                 }
             });
-        }
-        if (element.isAssignable(Application.class)) {
-            element.annotate(Singleton.class);
-            element.annotate(Named.class);
-            return;
-        }
-        // Fix dynamic providers
-        switch (element.getName()) {
-            case "ee.jakarta.tck.ws.rs.spec.provider.exceptionmapper.ExceptionFromMappedExceptionMapper":
-            case "ee.jakarta.tck.ws.rs.spec.client.typedentities.EntityMessageWriter":
-            case "ee.jakarta.tck.ws.rs.spec.client.typedentities.EntityMessageReader":
-            case "ee.jakarta.tck.ws.rs.spec.filter.lastvalue.SecondReaderInterceptor":
-            case "ee.jakarta.tck.ws.rs.spec.filter.lastvalue.SecondWriterInterceptor":
-                element.annotate(Singleton.class);
-                element.annotate(Named.class);
         }
     }
 }
