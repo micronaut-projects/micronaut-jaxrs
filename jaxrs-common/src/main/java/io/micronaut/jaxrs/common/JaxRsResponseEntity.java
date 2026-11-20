@@ -15,6 +15,7 @@
  */
 package io.micronaut.jaxrs.common;
 
+import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.io.buffer.ByteBuffer;
 import io.micronaut.core.type.Argument;
 import io.micronaut.http.ByteBodyHttpResponse;
@@ -33,6 +34,7 @@ import java.lang.annotation.Annotation;
 import java.io.Reader;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -265,8 +267,22 @@ final class JaxRsResponseEntity {
      * arguments and annotations.
      */
     private static boolean sameEntityType(Argument<?> read, Argument<?> requested) {
-        return read.equalsType(requested)
-            && read.getAnnotationMetadata().getAnnotationNames().equals(requested.getAnnotationMetadata().getAnnotationNames());
+        if (!read.equalsType(requested)) {
+            return false;
+        }
+        AnnotationMetadata readMetadata = read.getAnnotationMetadata();
+        AnnotationMetadata requestedMetadata = requested.getAnnotationMetadata();
+        Set<String> names = readMetadata.getAnnotationNames();
+        if (!names.equals(requestedMetadata.getAnnotationNames())) {
+            return false;
+        }
+        // the same annotations with other values may select another reader, e.g. @Format("a") and @Format("b")
+        for (String name : names) {
+            if (!Objects.equals(readMetadata.findAnnotation(name).orElse(null), requestedMetadata.findAnnotation(name).orElse(null))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
