@@ -713,6 +713,8 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                     }
                 }
             }
+            // the response is sent when the method returns, not with the first event, which may come much later
+            sink.start();
         } catch (IllegalStateException e) {
             // the events started, or the stream ended: the response was sent
         }

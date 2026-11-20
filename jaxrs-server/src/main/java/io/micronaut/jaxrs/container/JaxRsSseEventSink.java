@@ -50,6 +50,8 @@ final class JaxRsSseEventSink implements SseEventSink {
     private final Executor callbackExecutor;
     private final List<Runnable> onClose = new CopyOnWriteArrayList<>();
     private final AtomicBoolean closed = new AtomicBoolean();
+    // whether the response was sent: by an event, or by start
+    private final AtomicBoolean started = new AtomicBoolean();
 
     /**
      * @param events     The emitter of the events of the response
@@ -121,6 +123,21 @@ final class JaxRsSseEventSink implements SseEventSink {
         return () -> onClose.remove(once);
     }
 
+    /**
+     * Send the response, once the resource method returned, if it sent no event yet: the client
+     * receives the status and the headers, then the events whenever the application sends them,
+     * e.g. those of a broadcaster. An empty comment sends it, which the clients ignore.
+     */
+    void start() {
+        if (started.compareAndSet(false, true) && !isClosed()) {
+            try {
+                var _ = events.comment("");
+            } catch (IllegalStateException e) {
+                // the stream ended meanwhile: the response was sent
+            }
+        }
+    }
+
     @Override
     public boolean isClosed() {
         return closed.get() || !events.isOpen();
@@ -140,6 +157,7 @@ final class JaxRsSseEventSink implements SseEventSink {
             if (event.isReconnectDelaySet()) {
                 sent = sent.retry(Duration.ofMillis(event.getReconnectDelay()));
             }
+            started.set(true);
             return events.send(sent);
         } catch (RuntimeException e) {
             return CompletableFuture.failedFuture(e);
