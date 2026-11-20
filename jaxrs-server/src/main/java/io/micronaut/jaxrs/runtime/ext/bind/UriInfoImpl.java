@@ -340,12 +340,10 @@ public final class UriInfoImpl implements UriInfo {
         // relative to the context path of the server
         return io.micronaut.web.router.RouteAttributes.getRouteMatch(request)
             .filter(io.micronaut.web.router.UriRouteMatch.class::isInstance)
-            .map(match -> io.micronaut.jaxrs.container.JaxRsRouteTemplateEngine.withoutMarks(
-                io.micronaut.web.router.RouteLocator.uriTemplate((io.micronaut.web.router.UriRouteMatch<?, ?>) match)))
+            .map(match -> io.micronaut.web.router.RouteLocator.uriTemplate((io.micronaut.web.router.UriRouteMatch<?, ?>) match))
             .or(() -> io.micronaut.web.router.RouteAttributes.getRouteInfo(request)
                 .filter(io.micronaut.web.router.UriRouteInfo.class::isInstance)
-                .map(route -> io.micronaut.jaxrs.container.JaxRsRouteTemplateEngine.withoutMarks(
-                    ((io.micronaut.web.router.UriRouteInfo<?, ?>) route).getRouteTemplate().expression())))
+                .map(route -> ((io.micronaut.web.router.UriRouteInfo<?, ?>) route).getRouteTemplate().expression()))
             .map(template -> !contextPath.isEmpty() && template.startsWith(contextPath) ? template.substring(contextPath.length()) : template)
             .orElse("");
     }
@@ -491,7 +489,7 @@ public final class UriInfoImpl implements UriInfo {
     }
 
     private static String variableName(String name) {
-        int mark = name.indexOf(io.micronaut.jaxrs.container.JaxRsRouteTemplateEngine.LOCATOR_MARK);
+        int mark = name.indexOf(io.micronaut.jaxrs.container.JaxRsRouteTemplateEngine.REPEAT_MARK);
         return mark < 0 ? name : name.substring(0, mark);
     }
 

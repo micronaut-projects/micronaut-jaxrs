@@ -28,9 +28,9 @@ import java.util.function.Function;
 /**
  * The structure of a JAX-RS route template, parsed once: the occurrences of its variables, with
  * the slashes of the template before each of them, and the slashes of the whole template. The
- * template of a route keeps its description, see {@link JaxRsRouteTemplateEngine#description}.
+ * description of the prefix of a sub-resource locator gives the provenance of its captures.
  *
- * @param expression  The template, without the marks of the route template engine
+ * @param expression  The template
  * @param occurrences The occurrences of the variables, in their order in the template
  * @param slashes     The slashes of the template outside its variables
  * @author Denis Stepanov
@@ -42,11 +42,10 @@ record JaxRsTemplateDescription(String expression, List<Occurrence> occurrences,
     /**
      * Parse a template: the regular expression of a variable can have braces.
      *
-     * @param template The template, with or without the marks of the route template engine
+     * @param expression The template
      * @return Its description
      */
-    static JaxRsTemplateDescription of(String template) {
-        String expression = JaxRsRouteTemplateEngine.withoutMarks(template);
+    static JaxRsTemplateDescription of(String expression) {
         List<Occurrence> occurrences = new ArrayList<>();
         int slashes = 0;
         int i = 0;

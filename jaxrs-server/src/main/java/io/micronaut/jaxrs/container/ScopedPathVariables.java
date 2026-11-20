@@ -102,7 +102,7 @@ record ScopedPathVariables(PathVariables delegate, Map<String, Integer> shifts) 
     String key(String name) {
         String base = name;
         int fromLast = 0;
-        int mark = name.lastIndexOf(JaxRsRouteTemplateEngine.LOCATOR_MARK);
+        int mark = name.lastIndexOf(JaxRsRouteTemplateEngine.REPEAT_MARK);
         if (mark > 0) {
             try {
                 fromLast = Integer.parseInt(name.substring(mark + 1));

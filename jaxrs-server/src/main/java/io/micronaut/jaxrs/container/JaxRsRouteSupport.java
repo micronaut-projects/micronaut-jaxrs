@@ -306,47 +306,30 @@ public final class JaxRsRouteSupport {
     }
 
     /**
-     * The prefix of a sub-resource locator, in the language of JAX-RS,
-     * under the {@code @ApplicationPath} of the application.
-     *
-     * @param template The joined {@code @Path} values up to the locator
-     * @return The prefix
-     */
-    public String prefix(String template) {
-        return underApplicationPath(template);
-    }
-
-    /**
      * Whether JAX-RS commits to the root resource class of a sub-resource locator route (section
      * 3.7.2, step 1): no root resource class with a more specific {@code @Path} matches the path.
      *
      * @param request The request
-     * @param prefix  The prefix of the locator route, see {@link #prefix}
+     * @param prefix  The template of the prefix of the locator route, see {@link #template}
      * @return Whether the locator is invoked
      */
-    public boolean commitsToLocator(HttpRequest<?> request, String prefix) {
+    public boolean commitsToLocator(HttpRequest<?> request, RouteTemplate prefix) {
         return templates.commitsToLocator(request, prefix);
     }
 
     /**
-     * The template of a route, in the language of JAX-RS, under the {@code @ApplicationPath} of
-     * the application. The context path is applied by the router.
+     * The template of a route or of the prefix of a sub-resource locator, in the language of
+     * JAX-RS: of a root resource class under the {@code @ApplicationPath} of the application,
+     * the context path being applied by the router, else of a located target, relative to the
+     * prefix of its locator.
      *
-     * @param template The joined {@code @Path} values of the resource method
+     * @param root    The {@code @Path} of the root resource class, or {@code null} for a located target
+     * @param path    The joined {@code @Path} values after the one of the root resource class
+     * @param locator Whether it is the prefix of a sub-resource locator
      * @return The template
      */
-    public RouteTemplate template(String template) {
-        return templates.parse(underApplicationPath(template));
-    }
-
-    /**
-     * The template of a route of a located target, relative to the prefix of its locator.
-     *
-     * @param template The {@code @Path} of the resource method
-     * @return The template
-     */
-    public RouteTemplate locatedTemplate(String template) {
-        return templates.parse(template);
+    public RouteTemplate template(@Nullable String root, String path, boolean locator) {
+        return templates.template(root == null ? null : underApplicationPath(JaxRsRuntimeRoutes.template("", root)), path, locator);
     }
 
     /**

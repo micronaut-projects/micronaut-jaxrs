@@ -54,6 +54,7 @@ import io.micronaut.web.router.builder.LocatedRoutes;
 import io.micronaut.web.router.builder.SseBodyHandler;
 import io.micronaut.http.sse.SseEmitter;
 import io.micronaut.http.util.HeaderElement;
+import io.micronaut.http.uri.RouteTemplate;
 import io.micronaut.http.HttpHeaders;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.BeanParam;
@@ -210,10 +211,9 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
 
     private <B> void route(Routes<@Nullable Void> routes, Class<?> type, Root<B> root) {
         String rootPath = root.metadata().stringValue(Path.class).orElse("");
-        // the root resource class is selected first by the specificity of its @Path: the end
-        // of it is marked in the templates, for the JAX-RS route template engine, also when empty:
-        // the templates of located targets have no mark
-        String prefix = strip(rootPath) + JaxRsRouteTemplateEngine.ROOT_MARK;
+        // the root resource class is selected first by the specificity of its @Path, also when
+        // empty: the templates of located targets have none
+        String rootPrefix = strip(rootPath);
         // a singleton is not created per request: its @Context members are proxies of the current request
         JaxRsResourceFactory.RequestType<B> requestType = root.shared() ? null : resourceFactory.requestType(root.type(), root.definition());
         MatchedSegments rootSegments = MatchedSegments.of(rootPath);
@@ -228,7 +228,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 return support.matched(request, resourceFactory.create(requestType, request, ScopedPathVariables.of(pathVariables, rootVariables), form),
                     rootSegments.count(pathVariables));
             };
-        declare(routes, type, root.methods(), prefix, instance, requestType != null && requestType.usesForm(),
+        declare(routes, type, root.methods(), rootPrefix, instance, requestType != null && requestType.usesForm(),
             requestType != null && requestType.encodedForm());
     }
 
@@ -255,7 +255,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             public void routes(LocatedHttpRouteBuilder<T> routes) {
                 support.locatedRoutes(routes, group -> {
                     Instances<T, T> instances = (request, pathVariables, form, target) -> Objects.requireNonNull(target, "target");
-                    declare(new GroupRoutes<T>(group, true), type, methods(type), "", instances, false, false);
+                    declare(new GroupRoutes<T>(group, true), type, methods(type), null, instances, false, false);
                 });
             }
         };
@@ -438,7 +438,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     /**
      * Declare the routes of the resource methods and locators of a class.
      */
-    private <L, B> void declare(Routes<L> routes, Class<?> type, List<JaxRsMethod<B>> methods, String path,
+    private <L, B> void declare(Routes<L> routes, Class<?> type, List<JaxRsMethod<B>> methods, @Nullable String root,
                                 Instances<L, B> instances, boolean rootUsesForm, boolean rootEncodedForm) {
         AnnotationMetadata classMetadata = classMetadata(type);
         boolean typeUsesResourceContext = usesResourceContext(type);
@@ -447,17 +447,19 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             String httpMethod = httpMethod(metadata);
             String methodPath = metadata.stringValue(Path.class).orElse(null);
             if (httpMethod != null) {
-                String template = template(path, methodPath == null ? "" : methodPath);
-                ResourceMethod<B> resourceMethod = resourceMethod(type, classMetadata, method, httpMethod, template);
+                String path = template("", methodPath == null ? "" : methodPath);
+                ResourceMethod<B> resourceMethod = resourceMethod(type, classMetadata, method, httpMethod,
+                    () -> routes.template(root, path, false));
                 if (resourceMethod != null) {
                     boolean usesResourceContext = typeUsesResourceContext
                         || Arrays.stream(method.arguments()).anyMatch(argument -> usesResourceContext(argument, 0));
                     route(routes, classMetadata, resourceMethod, instances, rootUsesForm, rootEncodedForm, usesResourceContext);
                 }
             } else if (methodPath != null) {
-                // a resource method is selected before a locator: the end of its @Path is marked
-                String prefix = template(path, methodPath) + JaxRsRouteTemplateEngine.LOCATOR_MARK;
-                locator(routes, classMetadata, method, prefix, instances, rootUsesForm, rootEncodedForm);
+                // a resource method is selected before a locator: the template of its prefix knows it is one
+                String prefix = template(root == null ? "" : root, methodPath);
+                locator(routes, classMetadata, method, prefix, () -> routes.template(root, template("", methodPath), true), instances,
+                    rootUsesForm, rootEncodedForm);
             }
         }
     }
@@ -480,7 +482,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      * its target, and the located routes read the same form. A locator that returns a class
      * creates an instance of exactly that class.
      */
-    private <L, B> void locator(Routes<L> routes, AnnotationMetadata classMetadata, JaxRsMethod<B> method, String prefix,
+    private <L, B> void locator(Routes<L> routes, AnnotationMetadata classMetadata, JaxRsMethod<B> method, String prefix, Supplier<RouteTemplate> prefixTemplate,
                                 Instances<L, B> instances, boolean rootUsesForm, boolean rootEncodedForm) {
         Argument<?>[] arguments = arguments(method);
         Reader[] readers = new Reader[arguments.length];
@@ -513,7 +515,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             B instance = instances.get(request, pathVariables, form, target);
             return support.matched(request, locate(method, instance, readers, request, pathVariables, form, segments), segments);
         };
-        routes.locate(executor(method.metadata(), classMetadata), routes.prefix(prefix), usesForm, encodedForm, locator);
+        routes.locate(executor(method.metadata(), classMetadata), prefixTemplate.get(), usesForm, encodedForm, locator);
     }
 
     /**
@@ -909,7 +911,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     }
 
     private <B> @Nullable ResourceMethod<B> resourceMethod(Class<?> owner, AnnotationMetadata classMetadata,
-                                                           JaxRsMethod<B> method, String httpMethod, String template) {
+                                                           JaxRsMethod<B> method, String httpMethod, Supplier<RouteTemplate> template) {
         Argument<?>[] arguments = arguments(method);
         Reader[] readers = new Reader[arguments.length];
         boolean suspended = false;
@@ -987,7 +989,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         List<String> consumes = mediaTypes(method.metadata(), classMetadata, Consumes.class);
         JaxRsRouteSupport.RouteMetadata metadata = new JaxRsRouteSupport.RouteMetadata(owner, method.name(),
             Argument.toClassArray(method.arguments()), produces.toArray(String[]::new), consumes.toArray(String[]::new));
-        return new ResourceMethod<>(method, httpMethod, template, readers, form, formEntity, usesForm, encodedForm, entity, async,
+        return new ResourceMethod<>(method, httpMethod, template.get(), readers, form, formEntity, usesForm, encodedForm, entity, async,
             !produces.isEmpty(), !consumes.isEmpty(), converter(valueType, async), completion(produces, valueType), responseType(valueType), metadata,
             suspended);
     }
@@ -1133,10 +1135,6 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 depth++;
             } else if (c == '}') {
                 depth--;
-            }
-            if (c == JaxRsRouteTemplateEngine.ROOT_MARK || c == JaxRsRouteTemplateEngine.LOCATOR_MARK) {
-                // not a character of the path
-                continue;
             }
             if (c == '/' && depth == 0) {
                 inSegment = false;
@@ -1297,7 +1295,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      * @param metadata     The metadata of the resource method
      * @param responseType The declared type of the entity, or {@code null}
      */
-    private record Declaration(String method, String template, JaxRsRouteSupport.RouteMetadata metadata, @Nullable Argument<?> responseType) {
+    private record Declaration(String method, RouteTemplate template, JaxRsRouteSupport.RouteMetadata metadata, @Nullable Argument<?> responseType) {
     }
 
     /**
@@ -1311,7 +1309,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
 
         boolean located();
 
-        String prefix(String template);
+        RouteTemplate template(@Nullable String root, String path, boolean locator);
 
         void handle(Declaration route, Handler<L, Void> handler);
 
@@ -1325,7 +1323,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
 
         void handleEvents(Declaration route, EventsHandler<L> handler);
 
-        void locate(String executor, String prefix, boolean form, boolean rawForm, Locator<L> locator);
+        void locate(String executor, RouteTemplate prefix, boolean form, boolean rawForm, Locator<L> locator);
     }
 
     /**
@@ -1349,8 +1347,8 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         }
 
         @Override
-        public String prefix(String template) {
-            return located ? template : support.prefix(template);
+        public RouteTemplate template(@Nullable String root, String path, boolean locator) {
+            return support.template(root, path, locator);
         }
 
         /**
@@ -1358,8 +1356,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
          * type of the entity, like the return type of a controller method.
          */
         private HttpRouteSpec spec(Declaration route) {
-            HttpRouteSpec spec = support.configure(routes.route(route.method(),
-                located ? support.locatedTemplate(route.template()) : support.template(route.template())), route.metadata());
+            HttpRouteSpec spec = support.configure(routes.route(route.method(), route.template()), route.metadata());
             return route.responseType() == null ? spec : spec.responseType(route.responseType());
         }
 
@@ -1407,12 +1404,12 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
          * The router does not select a locator route as JAX-RS does: a root resource class with a
          * more specific {@code @Path} that matches the path, but none of whose routes does, answers 404.
          */
-        private boolean commits(HttpRequest<?> request, String prefix) {
+        private boolean commits(HttpRequest<?> request, RouteTemplate prefix) {
             return located || support.commitsToLocator(request, prefix);
         }
 
         @Override
-        public void locate(String executor, String prefix, boolean form, boolean rawForm, Locator<L> locator) {
+        public void locate(String executor, RouteTemplate prefix, boolean form, boolean rawForm, Locator<L> locator) {
             if (!form) {
                 routes.<Object>locateOn(executor, prefix, (request, pathVariables) -> commits(request, prefix)
                     ? locator.locate(request, pathVariables, target(pathVariables), null) : null, support.locatedRoutes());
@@ -1497,7 +1494,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      * @param suspended  Whether it has a {@code @Suspended} asynchronous response
      * @param <B>        The type of the instances it is called on
      */
-    private record ResourceMethod<B>(JaxRsMethod<B> method, String httpMethod, String template, Reader[] readers, boolean form,
+    private record ResourceMethod<B>(JaxRsMethod<B> method, String httpMethod, RouteTemplate template, Reader[] readers, boolean form,
                                      boolean formEntity, boolean usesForm, boolean encodedForm, int entity, boolean async, boolean produces,
                                      boolean consumes, Converter converter, Completion completion, @Nullable Argument<?> responseType,
                                      JaxRsRouteSupport.RouteMetadata metadata, boolean suspended) {
