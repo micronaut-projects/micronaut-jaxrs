@@ -18,6 +18,8 @@ package io.micronaut.jaxrs.container;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.PathVariables;
+import io.micronaut.http.uri.RouteCaptures;
+import io.micronaut.http.uri.RouteTemplateVariable;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -62,23 +64,23 @@ public final class JaxRsMatched {
     }
 
     /**
-     * Record the path variables a sub-resource locator matched, with the path segments each one
-     * captured: the router gives the variables of a located route only the last value of a
-     * variable the locator and the route both capture.
+     * Record the path variables a sub-resource locator matched, with the captures of its locator
+     * route, which tell the path segments each variable captured: the router gives the variables
+     * of a located route only the last value of a variable the locator and the route both capture.
      *
      * @param request       The request
      * @param pathVariables The path variables of the locator
-     * @param description   The description of the template of the locator
+     * @param captures      The captures of the locator route, see
+     *                      {@link io.micronaut.web.router.builder.LocatedRoutes#locatorRouteCapture}, {@code null} if not known
      * @param end           The number of path segments matched up to the end of the locator, negative if unknown
      */
-    static void addLocator(HttpRequest<?> request, PathVariables pathVariables, JaxRsTemplateDescription description, int end) {
+    static void addLocator(HttpRequest<?> request, PathVariables pathVariables, @Nullable RouteCaptures captures, int end) {
         JaxRsMatched matched = get(request);
         if (matched == null) {
             matched = new JaxRsMatched();
             request.setAttribute(ATTRIBUTE, matched);
         }
-        PathVariables raw = pathVariables.raw();
-        matched.locators.add(new Locator(pathVariables, description.captures(key -> raw.findString(key).orElse(null)), end));
+        matched.locators.add(new Locator(pathVariables, captures, end));
     }
 
     /**
@@ -156,16 +158,23 @@ public final class JaxRsMatched {
      * A sub-resource locator that matched, and the provenance of its variables.
      *
      * @param variables The path variables of the locator
-     * @param captures  The path segments each occurrence of a variable captured, from the start of its template
+     * @param captures  The captures of its locator route: the variables of its prefix, then the
+     *                  rest of the path, {@code null} if not known
      * @param end       The number of path segments matched up to its end, negative if unknown
      */
-    public record Locator(PathVariables variables, JaxRsTemplateDescription.Captures captures, int end) {
+    public record Locator(PathVariables variables, @Nullable RouteCaptures captures, int end) {
 
         /**
-         * @return The keys of the occurrences of its variables, see {@link JaxRsTemplateDescription.Occurrence#key()}
+         * @return The keys of the occurrences of the variables of its prefix: the names of the
+         * variables of its template, see {@link JaxRsRouteTemplateEngine#repeated}
          */
         public List<String> keys() {
-            return captures.captures().stream().map(JaxRsTemplateDescription.Capture::key).toList();
+            if (captures == null) {
+                return List.of();
+            }
+            List<RouteTemplateVariable> variables = captures.variables();
+            // the last one is the rest of the path
+            return variables.subList(0, Math.max(0, variables.size() - 1)).stream().map(RouteTemplateVariable::name).toList();
         }
 
         /**
@@ -174,13 +183,33 @@ public final class JaxRsMatched {
          * {@code null} if not known
          */
         public int @Nullable [] segments(String key) {
-            JaxRsTemplateDescription.Capture capture = captures.capture(key);
-            if (capture == null || end < 0) {
+            if (captures == null || end < 0 || !captures.hasOffsets()) {
                 return null;
             }
-            // the template starts with a slash, which precedes its first segment
-            int first = end - captures.slashes() + capture.first() - 1;
-            return first < 0 ? null : new int[] {first, capture.count()};
+            int rest = captures.variables().size() - 1;
+            int index = rest - 1;
+            while (index >= 0 && !captures.variables().get(index).name().equals(key)) {
+                index--;
+            }
+            int start = index < 0 ? -1 : captures.start(index);
+            if (start < 0) {
+                return null;
+            }
+            String path = captures.path();
+            // the prefix ends before the slash the rest follows
+            int prefixEnd = captures.start(rest) < 0 ? path.length() : captures.start(rest) - 1;
+            int first = end - 1 - slashes(path, start, prefixEnd);
+            return first < 0 ? null : new int[] {first, 1 + slashes(path, start, captures.end(index))};
+        }
+
+        private static int slashes(String path, int from, int to) {
+            int slashes = 0;
+            for (int i = from; i < to; i++) {
+                if (path.charAt(i) == '/') {
+                    slashes++;
+                }
+            }
+            return slashes;
         }
     }
 }

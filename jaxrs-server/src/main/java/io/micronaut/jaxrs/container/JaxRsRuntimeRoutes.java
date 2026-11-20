@@ -54,6 +54,7 @@ import io.micronaut.web.router.builder.LocatedRoutes;
 import io.micronaut.web.router.builder.SseBodyHandler;
 import io.micronaut.http.sse.SseEmitter;
 import io.micronaut.http.util.HeaderElement;
+import io.micronaut.http.uri.RouteCaptures;
 import io.micronaut.http.uri.RouteTemplate;
 import io.micronaut.http.HttpHeaders;
 import jakarta.inject.Singleton;
@@ -457,8 +458,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
                 }
             } else if (methodPath != null) {
                 // a resource method is selected before a locator: the template of its prefix knows it is one
-                String prefix = template(root == null ? "" : root, methodPath);
-                locator(routes, classMetadata, method, prefix, () -> routes.template(root, template("", methodPath), true), instances,
+                locator(routes, classMetadata, method, () -> routes.template(root, template("", methodPath), true), instances,
                     rootUsesForm, rootEncodedForm);
             }
         }
@@ -482,7 +482,7 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      * its target, and the located routes read the same form. A locator that returns a class
      * creates an instance of exactly that class.
      */
-    private <L, B> void locator(Routes<L> routes, AnnotationMetadata classMetadata, JaxRsMethod<B> method, String prefix, Supplier<RouteTemplate> prefixTemplate,
+    private <L, B> void locator(Routes<L> routes, AnnotationMetadata classMetadata, JaxRsMethod<B> method, Supplier<RouteTemplate> prefixTemplate,
                                 Instances<L, B> instances, boolean rootUsesForm, boolean rootEncodedForm) {
         Argument<?>[] arguments = arguments(method);
         Reader[] readers = new Reader[arguments.length];
@@ -498,20 +498,13 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             usesForm |= JaxRsResourceFactory.usesForm(argument);
             encodedForm |= JaxRsResourceFactory.usesEncodedForm(argument, encoded(argument, method.metadata(), classMetadata));
         }
-        MatchedSegments matchedSegments = MatchedSegments.of(prefix);
-        JaxRsTemplateDescription description = JaxRsTemplateDescription.of(prefix);
-        boolean located = routes.located();
         Locator<L> locator = (request, pathVariables, target, form) -> {
-            int segments = matchedSegments.count(pathVariables);
-            if (located) {
-                // the prefix is relative to the one of the locator that located the resource
-                JaxRsMatched matched = JaxRsMatched.get(request);
-                int base = matched == null ? -1 : matched.segments().get(0);
-                segments = base < 0 ? -1 : base + segments;
-            }
+            // the captures of its locator route: where its variables and the rest of the path are
+            RouteCaptures captures = LocatedRoutes.locatorRouteCapture(pathVariables);
+            int segments = support.locatorSegments(request, captures);
             // the provenance of its variables, for UriInfo and PathSegment parameters: the located route
             // has only the last value of a variable that repeats
-            JaxRsMatched.addLocator(request, pathVariables, description, segments);
+            JaxRsMatched.addLocator(request, pathVariables, captures, segments);
             B instance = instances.get(request, pathVariables, form, target);
             return support.matched(request, locate(method, instance, readers, request, pathVariables, form, segments), segments);
         };
@@ -1171,7 +1164,40 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
     private record MatchedSegments(int literal, List<String> regexVariables) {
 
         static MatchedSegments of(String template) {
-            return new MatchedSegments(segments(template), JaxRsTemplateDescription.of(template).regexVariables());
+            return new MatchedSegments(segments(template), regexVariables(template));
+        }
+
+        /**
+         * @return The names of the variables with a regular expression, in their order in the
+         * template: the regular expression of a variable can have braces
+         */
+        private static List<String> regexVariables(String template) {
+            List<String> names = new ArrayList<>();
+            int i = 0;
+            while (i < template.length()) {
+                if (template.charAt(i) != '{') {
+                    i++;
+                    continue;
+                }
+                int depth = 1;
+                int end = i + 1;
+                while (end < template.length() && depth > 0) {
+                    char c = template.charAt(end);
+                    if (c == '{') {
+                        depth++;
+                    } else if (c == '}') {
+                        depth--;
+                    }
+                    end++;
+                }
+                String variable = template.substring(i + 1, Math.max(i + 1, end - 1));
+                int colon = variable.indexOf(':');
+                if (colon >= 0) {
+                    names.add(variable.substring(0, colon).trim());
+                }
+                i = end;
+            }
+            return List.copyOf(names);
         }
 
         /**
@@ -1307,8 +1333,6 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      */
     private interface Routes<L> {
 
-        boolean located();
-
         RouteTemplate template(@Nullable String root, String path, boolean locator);
 
         void handle(Declaration route, Handler<L, Void> handler);
@@ -1339,11 +1363,6 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
         GroupRoutes(HttpRouteScope routes, boolean located) {
             this.routes = routes;
             this.located = located;
-        }
-
-        @Override
-        public boolean located() {
-            return located;
         }
 
         @Override

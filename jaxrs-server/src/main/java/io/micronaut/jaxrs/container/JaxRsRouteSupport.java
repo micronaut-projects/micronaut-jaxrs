@@ -22,6 +22,7 @@ import io.micronaut.context.BeanProvider;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.AnnotationMetadataProvider;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.jaxrs.runtime.ext.bind.UriInfoImpl;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.RouteInfo;
 import io.micronaut.http.simple.SimpleHttpHeaders;
@@ -74,6 +75,7 @@ import java.util.function.Supplier;
 import io.micronaut.jaxrs.common.JaxRsMutableResponse;
 import io.micronaut.http.form.FormData;
 import io.micronaut.web.router.builder.HttpRouteBuilder;
+import io.micronaut.http.uri.RouteCaptures;
 import io.micronaut.http.uri.RouteTemplate;
 import io.micronaut.http.PathVariables;
 import io.micronaut.web.router.builder.HttpRouteGroup;
@@ -1125,6 +1127,51 @@ public final class JaxRsRouteSupport {
     public <T> T matched(HttpRequest<?> request, T resource, int segments) {
         JaxRsMatched.add(request, resource, segments);
         return resource;
+    }
+
+    /**
+     * The number of path segments from the base URI to the end of the prefix of a running
+     * sub-resource locator: the segments of the request path but the ones of the rest of the
+     * path the locator leaves to the routes it locates, the last capture of its locator route.
+     *
+     * @param request  The request
+     * @param captures The captures of the locator route, see
+     *                 {@link io.micronaut.web.router.builder.LocatedRoutes#locatorRouteCapture}
+     * @return The number of segments, negative if not known
+     */
+    int locatorSegments(HttpRequest<?> request, @Nullable RouteCaptures captures) {
+        if (captures == null || captures.values().isEmpty()) {
+            return -1;
+        }
+        List<@Nullable String> values = captures.values();
+        String rest = values.get(values.size() - 1);
+        String path = new UriInfoImpl(request, applicationProvider.getPath(), applicationProvider.getContextPath()).getPath(false);
+        int segments = segments(path) - (rest == null ? 0 : segments(rest));
+        return segments < 0 ? -1 : segments;
+    }
+
+    /**
+     * @return The segments of a relative path, without its leading and trailing slashes
+     */
+    private static int segments(String path) {
+        int start = 0;
+        int end = path.length();
+        while (start < end && path.charAt(start) == '/') {
+            start++;
+        }
+        while (end > start && path.charAt(end - 1) == '/') {
+            end--;
+        }
+        if (start == end) {
+            return 0;
+        }
+        int segments = 1;
+        for (int i = start; i < end; i++) {
+            if (path.charAt(i) == '/') {
+                segments++;
+            }
+        }
+        return segments;
     }
 
     /**

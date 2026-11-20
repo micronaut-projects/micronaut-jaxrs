@@ -77,9 +77,9 @@ final class JaxRsPathSegments {
     }
 
     /**
-     * The path segments a path variable matched, with their matrix parameters: located by the
-     * provenance of the occurrence of the variable the parameter reads, see
-     * {@link JaxRsTemplateDescription#captures}, else by their text.
+     * The path segments a path variable matched, with their matrix parameters: located by where
+     * the template of the matched route, or of the sub-resource locator that matched the
+     * variables, captured the occurrence of the variable the parameter reads, else by their text.
      *
      * @param request       The request
      * @param pathVariables The path variables the parameter is read from
@@ -198,7 +198,7 @@ final class JaxRsPathSegments {
      * path, or the prefixes of the sub-resource locators of a located route.
      *
      * @param request  The request
-     * @param key      The key of the occurrence, see {@link JaxRsTemplateDescription.Occurrence#key()}
+     * @param key      The key of the occurrence, the name of a variable of the template, see {@link JaxRsRouteTemplateEngine#repeated}
      * @param segments The number of segments of the request path
      * @return The location, {@code null} if not known
      */
