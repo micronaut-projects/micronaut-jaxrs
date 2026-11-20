@@ -77,13 +77,23 @@ final class JaxRsRouteResource {
         }
         JaxRsRouteResource resource = route.getAttribute(ATTRIBUTE, JaxRsRouteResource.class).orElse(null);
         if (resource == null && route instanceof MethodBasedRouteInfo<?, ?> methodRoute
-            && methodRoute.getAnnotationMetadataProvider().orElse(null) instanceof ExecutableMethod<?, ?> method) {
+            && methodRoute.getAnnotationMetadataProvider().orElse(null) instanceof ExecutableMethod<?, ?> method
+            && isResourceMethod(method)) {
             // a controller route, of a resource compiled as a controller: equal for the same method
             resource = new JaxRsRouteResource(route.getDeclaringType(), () -> JaxRsReflection.get().targetMethod(method),
                 () -> JaxRsReflection.get().methodAnnotations(method), () -> JaxRsReflection.get().annotations(method));
             resource.identity = method;
         }
         return resource;
+    }
+
+    /**
+     * Whether the method of a controller route is the one of a JAX-RS resource compiled as a
+     * controller: a route of a Micronaut controller of the application is not, and the JAX-RS
+     * providers do not apply to it.
+     */
+    private static boolean isResourceMethod(ExecutableMethod<?, ?> method) {
+        return method.hasStereotype(jakarta.ws.rs.Path.class) || method.hasStereotype(jakarta.ws.rs.HttpMethod.class);
     }
 
     /**
