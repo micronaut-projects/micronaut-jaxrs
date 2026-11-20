@@ -18,6 +18,7 @@ package io.micronaut.jaxrs.container;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.PathVariables;
+import io.micronaut.http.uri.RouteCaptures;
 import io.micronaut.jaxrs.runtime.ext.bind.JaxRsRequestUri;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.UriRouteMatch;
@@ -30,7 +31,6 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Supplier;
 
 /**
@@ -193,8 +193,9 @@ final class JaxRsPathSegments {
 
     /**
      * The segments of the request path an occurrence of a variable in the template of the matched
-     * route is in, by the provenance of its captures, from the end of the path, which can have a
-     * prefix the template does not, e.g. the context path.
+     * route is in, by where the template reported its value in the path it matched, which is the
+     * end of the request path: the request path can have a prefix it does not, e.g. the context
+     * path, or the prefixes of the sub-resource locators of a located route.
      *
      * @param request  The request
      * @param key      The key of the occurrence, see {@link JaxRsTemplateDescription.Occurrence#key()}
@@ -202,32 +203,42 @@ final class JaxRsPathSegments {
      * @return The location, {@code null} if not known
      */
     private static @Nullable Location locate(HttpRequest<?> request, String key, int segments) {
-        UriRouteMatch<?, ?> match = RouteAttributes.getRouteMatch(request)
+        RouteCaptures captures = RouteAttributes.getRouteMatch(request)
             .filter(UriRouteMatch.class::isInstance)
-            .<UriRouteMatch<?, ?>>map(m -> (UriRouteMatch<?, ?>) m)
+            .map(m -> ((UriRouteMatch<?, ?>) m).getRouteCaptures())
             .orElse(null);
-        if (match == null) {
+        if (captures == null || !captures.hasOffsets()) {
             return null;
         }
-        Map<String, Object> rawValues = match.getRawVariableValues();
-        JaxRsTemplateDescription description = JaxRsRouteTemplateEngine.description(match.getRouteInfo().getRouteTemplate());
-        JaxRsTemplateDescription.Captures captures = description.captures(k -> {
-            Object raw = rawValues.get(k);
-            return raw == null ? null : raw.toString();
-        });
-        JaxRsTemplateDescription.Capture capture = captures.capture(key);
-        if (capture == null) {
+        int index = captures.variables().size() - 1;
+        while (index >= 0 && !captures.variables().get(index).name().equals(key)) {
+            index--;
+        }
+        int start = index < 0 ? -1 : captures.start(index);
+        if (start < 0) {
             return null;
         }
+        String matched = captures.path();
+        // the segments from the one the value starts in to the end of the matched path, and the ones of the value
+        int after = 1 + slashes(matched, start, matched.length());
+        int count = 1 + slashes(matched, start, captures.end(index));
         String path = request.getUri().getRawPath();
-        // a trailing slash the template does not have
-        int pathSlashes = segments - 1 - (path.endsWith("/") && !description.expression().endsWith("/") ? 1 : 0);
-        int offset = pathSlashes - captures.slashes();
-        int index = capture.first() + offset;
-        if (offset < 0 || index + capture.count() > segments) {
+        // a trailing slash the matched path does not have
+        int first = segments - after - (path.endsWith("/") && !matched.endsWith("/") ? 1 : 0);
+        if (first < 1 || first + count > segments) {
             return null;
         }
-        return new Location(index, capture.count());
+        return new Location(first, count);
+    }
+
+    private static int slashes(String path, int from, int to) {
+        int slashes = 0;
+        for (int i = from; i < to; i++) {
+            if (path.charAt(i) == '/') {
+                slashes++;
+            }
+        }
+        return slashes;
     }
 
     private static boolean matches(String segment, String value) {
