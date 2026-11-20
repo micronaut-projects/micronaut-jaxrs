@@ -117,6 +117,8 @@ final class JaxRsSseEventSource implements SseEventSource {
     // the entity stream the events are read from: the bytes of the connection, or the stream a filter set
     private volatile @Nullable InputStream replacedStream;
     private volatile @Nullable Future<?> pendingReconnect;
+    // the exchange of the current connection until its response arrives, cancelled by close
+    private volatile @Nullable CompletableFuture<?> pendingExchange;
 
     JaxRsSseEventSource(JaxRsWebTarget target, long reconnectDelay) {
         this.target = target;
@@ -182,10 +184,12 @@ final class JaxRsSseEventSource implements SseEventSource {
         Future<?> reconnect;
         BodyElements<ReadBuffer> current;
         InputStream replaced;
+        CompletableFuture<?> exchange;
         boolean closedAgain;
         synchronized (this) {
             closedAgain = closed;
             reconnect = pendingReconnect;
+            exchange = pendingExchange;
             current = events;
             replaced = replacedStream;
             closed = true;
@@ -202,6 +206,10 @@ final class JaxRsSseEventSource implements SseEventSource {
         }
         if (current != null) {
             current.closeAsync();
+        }
+        if (exchange != null && !exchange.isDone()) {
+            // a connection that waits for its response: the request is aborted, which closes it
+            exchange.cancel(false);
         }
         // one deadline for the release of the connection and the processing
         long deadline = System.nanoTime() + unit.toNanos(timeout);
@@ -265,7 +273,16 @@ final class JaxRsSseEventSource implements SseEventSource {
             error(e instanceof ProcessingException processing ? processing : new ProcessingException(e));
             return;
         }
-        target.client().httpClient().toAsyncRaw().exchange(sent, requestBody, OPTIONS).whenComplete((response, error) -> callbacks.dispatch(() -> {
+        CompletableFuture<? extends HttpResponse<?>> exchange = target.client().httpClient().toAsyncRaw().exchange(sent, requestBody, OPTIONS)
+            .toCompletableFuture();
+        synchronized (this) {
+            pendingExchange = exchange;
+        }
+        if (!open) {
+            // closed meanwhile, before it saw the exchange
+            exchange.cancel(false);
+        }
+        exchange.whenComplete((response, error) -> callbacks.dispatch(() -> {
             if (error != null) {
                 failed(error instanceof CompletionException && error.getCause() != null ? error.getCause() : error);
             } else {
