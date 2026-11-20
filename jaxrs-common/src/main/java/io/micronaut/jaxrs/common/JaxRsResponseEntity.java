@@ -31,6 +31,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
 import java.io.Reader;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -83,6 +85,9 @@ final class JaxRsResponseEntity {
     // the stream readEntity returned of the entity stream, e.g. one of the reader interceptors
     @Nullable
     private InputStream readStream;
+    // the entity streams a filter replaced, e.g. the one of the body as it arrives, which closing the response closes too
+    @Nullable
+    private List<InputStream> replacedStreams;
 
     /**
      * @param response        The response
@@ -237,6 +242,14 @@ final class JaxRsResponseEntity {
      * @param entityStream The entity stream of a mutable response
      */
     void setEntityStream(InputStream entityStream) {
+        InputStream replaced = this.entityStream;
+        if (replaced != null && replaced != entityStream) {
+            // a filter may replace the stream of the body with another one, not a wrapper of it
+            if (replacedStreams == null) {
+                replacedStreams = new ArrayList<>(1);
+            }
+            replacedStreams.add(replaced);
+        }
         this.entityStream = entityStream;
     }
 
@@ -451,6 +464,13 @@ final class JaxRsResponseEntity {
             }
             if (body instanceof Closeable closeable && closeable != stream && closeable != read) {
                 failure = close(closeable, failure);
+            }
+            List<InputStream> replaced = replacedStreams;
+            if (replaced != null) {
+                replacedStreams = null;
+                for (InputStream replacedStream : replaced) {
+                    failure = close(replacedStream, failure);
+                }
             }
         }
         if (failure != null) {
