@@ -14,7 +14,23 @@ The request entity of a resource method is read into memory before the reader in
 
 ==== Bean Validation
 
-The JAX-RS runtime does not implement Jakarta Bean Validation of resources (JAX-RS chapter 7). With https://micronaut-projects.github.io/micronaut-validation/latest/guide/[Micronaut Validation] on the classpath and its annotation processor in the compilation, the constraint annotations of the resource method parameters and return values of a resource that is a bean are validated by Micronaut Validation, and a violation is answered with 400 by its exception handler, also for a return value, which JAX-RS answers with 500 (JAX-RS 7.6). The fields and the properties of a resource and of a `@BeanParam`, and the resources that are not beans, are not validated, and an `ExceptionMapper<ValidationException>` is not used.
+With https://micronaut-projects.github.io/micronaut-validation/latest/guide/[Micronaut Validation] on the classpath and its annotation processor in the compilation, the resources are validated as JAX-RS specifies (chapter 7):
+
+dependency:micronaut-validation-processor[scope="annotationProcessor",groupId="io.micronaut.validation"]
+
+dependency:micronaut-validation[scope="implementation",groupId="io.micronaut.validation"]
+
+For every request, in this order (JAX-RS 7.6):
+
+. the fields and properties of the resource, and the constraints of its class, once it is created and injected; the constraints of a getter, also of a resource method that is a getter, are the ones of a property,
+. the parameters of the resource method or sub-resource locator, including its entity and its bean parameters: a `@Valid` parameter cascades, and a `@BeanParam` without `@Valid` is validated too,
+. the return value of the resource method: the value a `CompletionStage` completes with, for the constraints of the method and of its type argument, and the entity of a `Response` the method annotates with `@Valid`.
+
+A violation of a return value is answered with 500, any other one with 400 and the messages of the violations. An `ExceptionMapper` of the application for the exception, e.g. an `ExceptionMapper<ValidationException>` or `ExceptionMapper<ConstraintViolationException>`, answers it instead. This applies to the resources that are beans and to the ones that are not, e.g. the sub-resources a locator creates; the validation advice of Micronaut Validation is not applied to the resource methods and locators, so they are validated once.
+
+The executable validation rules of Bean Validation apply (JAX-RS 7.4): a resource method annotated with `@ValidateOnExecution(type = ExecutableType.NONE)`, or of a class so annotated, is not validated on execution. The groups are the default one, or the ones of the Micronaut Validation `@Validated` annotation on the method or the class, and `@ConvertGroup` converts the groups of a cascade. Setting `micronaut.validator.enabled` to `false` disables the validation of the resources too.
+
+Not validated: the value an `AsyncResponse` is resumed with, the resources of `ResourceContext.getResource` and `initResource` until one of their methods is called, the constructor parameters of a resource, and a `null` returned for a `Response`. The fields and properties of a resource are validated from its introspection, which the JAX-RS processor generates for the classes annotated with `@Path`.
 
 ==== Asynchronous responses
 

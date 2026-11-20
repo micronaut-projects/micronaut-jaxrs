@@ -10,6 +10,7 @@ Micronaut JAX-RS 5.2 implements https://jakarta.ee/specifications/restful-ws/4.0
 * An `Application` that returns classes or instances from `getClasses()` or `getSingletons()` registers only those resources and providers (JAX-RS 2.3). An application without `@ApplicationPath` can be named with `micronaut.jaxrs.application`.
 * The request entity of a resource method is read into memory before the readers run, see <<container, Container API>>.
 * With `micronaut-jaxrs-standard-providers`, the JSON-P values (`JsonValue` and its subtypes) are read and written by a JSON-P provider when the JSON-P API and an implementation are on the classpath, as they are with Yasson, instead of by JSON-B: an empty entity, or a JSON value of another type than the parameter, is answered with 400.
+* With Micronaut Validation, the resources are validated by the JAX-RS runtime (JAX-RS chapter 7) instead of the validation advice of Micronaut Validation: a violation of a return value is answered with 500 instead of 400, an `ExceptionMapper` of the application for `ValidationException` answers the violations, the fields, properties and bean parameters of the resources are validated, and `micronaut.validator.enabled=false` disables it.
 * The API documentation links point to Jakarta RESTful Web Services 4.0.
 
 === Micronaut JAX-RS 4
