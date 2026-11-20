@@ -198,7 +198,7 @@ final class JaxRsInvocation implements Invocation, CompletionStageRxInvoker, Asy
                 if (result.isDone()) {
                     // cancelled: the received response is not delivered
                     if (exchanged != null) {
-                        discard(exchanged.response(), null);
+                        exchanged.discard();
                     }
                     return;
                 }

@@ -83,7 +83,7 @@ import java.util.concurrent.TimeoutException;
 final class JaxRsClientExchange {
 
     // the attribute of a received response: the stream of its body as it arrives
-    private static final String RECEIVED_ENTITY_STREAM = "io.micronaut.jaxrs.client.receivedEntityStream";
+    static final String RECEIVED_ENTITY_STREAM = "io.micronaut.jaxrs.client.receivedEntityStream";
     private static final ByteBodyFactory BODY_FACTORY = ByteBodyFactory.createDefault(ByteArrayBufferFactory.INSTANCE);
 
     private final JaxRsClient client;
@@ -544,5 +544,27 @@ final class JaxRsClientExchange {
      * @param requestContext The context of the request
      */
     record Exchanged(Response response, JaxRsClientRequestContext requestContext) {
+
+        /**
+         * Release a response nobody receives, e.g. of a cancelled invocation, also before the
+         * response filters saw it: its entity stream is then still an attribute of the response,
+         * see {@link JaxRsClientExchange#filterable}, which closing the response does not close.
+         */
+        void discard() {
+            if (response instanceof JaxRsMutableResponse mutableResponse) {
+                mutableResponse.getResponse().removeAttribute(RECEIVED_ENTITY_STREAM, InputStream.class).ifPresent(stream -> {
+                    try {
+                        stream.close();
+                    } catch (IOException e) {
+                        // nothing to release more
+                    }
+                });
+            }
+            try {
+                response.close();
+            } catch (RuntimeException e) {
+                // nobody receives the response
+            }
+        }
     }
 }
