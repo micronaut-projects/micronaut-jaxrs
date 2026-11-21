@@ -87,7 +87,7 @@ final class JaxRsHttpStatusExceptionHandler implements ExceptionHandler<HttpStat
      * of another application name, does not reach the application, nor its exception mappers.
      */
     private boolean isInApplication(HttpRequest<?> request) {
-        String applicationPath = applicationProvider.getPath();
+        String applicationPath = applicationProvider.of(request).getPath();
         if (applicationPath.isEmpty() || "/".equals(applicationPath)) {
             return true;
         }

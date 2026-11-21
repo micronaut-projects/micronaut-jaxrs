@@ -20,8 +20,8 @@ import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.inject.BeanDefinition;
 import io.micronaut.context.ApplicationContext;
-import io.micronaut.context.event.ApplicationEventListener;
-import io.micronaut.context.event.StartupEvent;
+import io.micronaut.inject.annotation.MutableAnnotationMetadata;
+import io.micronaut.context.RuntimeBeanDefinition;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.order.OrderUtil;
 import io.micronaut.http.context.ServerRequestContext;
@@ -31,8 +31,6 @@ import io.micronaut.jaxrs.common.JaxRsUtils;
 import io.micronaut.jaxrs.common.NameBindingPredicate;
 import io.micronaut.web.router.RouteAttributes;
 import io.micronaut.web.router.RouteInfo;
-import io.micronaut.web.router.Router;
-import jakarta.inject.Singleton;
 import jakarta.ws.rs.NameBinding;
 import jakarta.ws.rs.container.ContainerRequestFilter;
 import jakarta.ws.rs.container.ContainerResponseFilter;
@@ -80,8 +78,7 @@ import java.util.function.Predicate;
  * @since 5.2.0
  */
 @Internal
-@Singleton
-public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationEventListener<StartupEvent> {
+public final class JaxRsFeatures implements JaxRsRouteInterceptors {
 
     // the contracts of the providers of the server, see Configuration#getContracts
     static final List<Class<?>> CONTRACTS = List.of(
@@ -111,6 +108,7 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
     // the properties of the application the features removed
     final Set<String> removedProperties = ConcurrentHashMap.newKeySet();
 
+    private final JaxRsApplicationScope scope;
     private final JaxRsContainerMessageBodyHandlerRegistry registry;
     private final List<Feature> features;
     // the dynamic features the features register are added when they are configured
@@ -123,10 +121,16 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
     // the features are configured: the global registrations do not change any more
     private volatile boolean complete;
 
-    JaxRsFeatures(ApplicationContext context, JaxRsContainerMessageBodyHandlerRegistry registry) {
-        this.context = context;
-        this.registry = registry;
-        Application application = context.findBean(Application.class).orElse(null);
+    /**
+     * The features of an application.
+     *
+     * @param scope The scope of the application
+     */
+    JaxRsFeatures(JaxRsApplicationScope scope) {
+        this.scope = scope;
+        this.context = scope.context();
+        this.registry = scope.registry();
+        Application application = scope.application();
         // not the ones constrained to the client (@ConstrainedTo)
         this.features = collect(Feature.class, application).stream()
             .filter(this::isServerComponent)
@@ -333,8 +337,16 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
     <T> List<BeanRegistration<T>> eligible(Class<T> contract, Predicate<Class<?>> eligible) {
         List<BeanRegistration<T>> beans = new ArrayList<>();
         for (BeanDefinition<T> definition : context.getBeanDefinitions(contract)) {
-            if (JaxRsUtils.isServerProvider(definition.getAnnotationMetadata()) && eligible.test(definition.getBeanType())) {
+            if (JaxRsUtils.isServerProvider(definition.getAnnotationMetadata()) && eligible.test(definition.getBeanType())
+                && !scope.isLocal(definition.getBeanType())) {
                 beans.add(context.getBeanRegistration(definition));
+            }
+        }
+        // the instances this application keeps, which replace the beans of their classes
+        for (BeanRegistration<T> local : scope.localRegistrations(contract)) {
+            BeanDefinition<T> definition = local.getBeanDefinition();
+            if (JaxRsUtils.isServerProvider(definition.getAnnotationMetadata()) && eligible.test(definition.getBeanType())) {
+                beans.add(local);
             }
         }
         OrderUtil.sort(beans);
@@ -359,7 +371,7 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
     @Override
     public <I> List<BeanRegistration<I>> registered(List<BeanRegistration<I>> beans, Class<I> contract) {
         List<BeanRegistration<I>> registered = new ArrayList<>(beans.size());
-        for (BeanRegistration<I> bean : beans) {
+        for (BeanRegistration<I> bean : scope.registrations(contract, beans)) {
             if (!JaxRsUtils.isServerProvider(bean.getBeanDefinition().getAnnotationMetadata())) {
                 // constrained to the client (@ConstrainedTo)
                 continue;
@@ -378,20 +390,6 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
             }
         }
         return registered;
-    }
-
-    /**
-     * Configure the dynamic features for the resource methods of the routes, at deployment
-     * ({@link DynamicFeature#configure}): a feature that fails, fails the startup.
-     *
-     * @param event The startup event
-     */
-    @Override
-    public void onApplicationEvent(StartupEvent event) {
-        if (dynamicFeatures.isEmpty()) {
-            return;
-        }
-        context.findBean(Router.class).ifPresent(router -> router.uriRoutes().forEach(this::components));
     }
 
     /**
@@ -492,6 +490,10 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
      * An instance of a component class: the bean, or else the class instantiated and injected.
      */
     Object instance(Class<?> type) {
+        Object local = scope.localInstance(type);
+        if (local != null) {
+            return local;
+        }
         if (context.containsBean(type)) {
             return context.getBean(type);
         }
@@ -508,6 +510,58 @@ public final class JaxRsFeatures implements JaxRsRouteInterceptors, ApplicationE
         Object injected = context.inject(component);
         JaxRsReflection.get().injectFields(injected, jakarta.ws.rs.core.Context.class, type -> context.findBean(type).orElse(null));
         return injected;
+    }
+
+    /**
+     * @return The scope of the application of these features
+     */
+    JaxRsApplicationScope scope() {
+        return scope;
+    }
+
+    /**
+     * Register a component class a feature registered that is not a bean: a bean of the
+     * context, or, with several applications, an instance in the scope of this one.
+     *
+     * @param componentClass The class
+     */
+    void registerComponentClass(Class<?> componentClass) {
+        if (scope.isMultiple()) {
+            if (!scope.isLocal(componentClass)) {
+                scope.addLocal(instance(componentClass));
+            }
+            return;
+        }
+        RuntimeBeanDefinition<?> definition = JaxRsReflection.get().beanDefinition(componentClass);
+        if (definition != null) {
+            // a class the annotation processors never saw becomes a bean
+            JaxRsApplicationSingletons.registerReflective(context, definition);
+        } else {
+            // an introspected class that is not a bean, e.g. not annotated with @Provider
+            JaxRsApplicationSingletons.registerIntrospected(context, componentClass);
+        }
+    }
+
+    /**
+     * Register a component instance a feature registered: the bean of its class, or, with
+     * several applications, an instance in the scope of this one.
+     *
+     * @param component The instance, injected
+     */
+    @SuppressWarnings("unchecked")
+    <T> void registerComponentInstance(T component) {
+        if (scope.isMultiple()) {
+            scope.addLocal(component);
+        } else if (context.containsBean(component.getClass())) {
+            context.registerSingleton(component);
+        } else {
+            // with the annotations of its class, e.g. its @Priority
+            Class<T> type = (Class<T>) component.getClass();
+            context.registerBeanDefinition(RuntimeBeanDefinition.builder(type, () -> component)
+                .singleton(true)
+                .annotationMetadata(MutableAnnotationMetadata.of(JaxRsRouteInterceptors.metadata(type)))
+                .build());
+        }
     }
 
     @Override

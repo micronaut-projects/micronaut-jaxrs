@@ -17,6 +17,7 @@ package io.micronaut.jaxrs.common;
 
 import io.micronaut.context.BeanContext;
 import io.micronaut.context.BeanRegistration;
+import io.micronaut.context.Qualifier;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.inject.BeanDefinition;
@@ -33,6 +34,7 @@ import io.micronaut.http.codec.CodecException;
 import io.micronaut.inject.BeanType;
 import io.micronaut.inject.qualifiers.FilteringQualifier;
 import io.micronaut.inject.qualifiers.Qualifiers;
+import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.Produces;
@@ -71,6 +73,11 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
     private static final int MAX_CACHED = 256;
 
     private final BeanContext beanLocator;
+    private final Supplier<@Nullable Application> application;
+    private final @Nullable Supplier<@Nullable JaxRsProviderRegistrations> scopedRegistrations;
+    private final @Nullable JaxRsLocalProviders localProviders;
+    // with several applications, the registry of the application of the current request
+    private volatile @Nullable Supplier<JaxRsContainerMessageBodyHandlerRegistry> current;
     private volatile @Nullable Set<Class<?>> registeredClasses;
     private volatile @Nullable Optional<JaxRsProviderRegistrations> providerRegistrations;
     private final Map<HandlerKey<?>, io.micronaut.http.body.MessageBodyReader<?>> readers = new ConcurrentHashMap<>(10);
@@ -84,8 +91,86 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
      *
      * @param beanLocators The bean locator.
      */
+    @Inject
     public JaxRsContainerMessageBodyHandlerRegistry(BeanContext beanLocators) {
         this.beanLocator = beanLocators;
+        this.application = () -> beanLocators.findBean(Application.class).orElse(null);
+        this.scopedRegistrations = null;
+        this.localProviders = null;
+    }
+
+    /**
+     * The registry of one application among several in a context.
+     *
+     * @param beanLocator    The bean locator
+     * @param application    The application
+     * @param registrations  The registrations of its providers
+     * @param localProviders Its instances, which replace the beans of their classes
+     */
+    public JaxRsContainerMessageBodyHandlerRegistry(BeanContext beanLocator,
+                                                    Supplier<@Nullable Application> application,
+                                                    Supplier<@Nullable JaxRsProviderRegistrations> registrations,
+                                                    JaxRsLocalProviders localProviders) {
+        this.beanLocator = beanLocator;
+        this.application = application;
+        this.scopedRegistrations = registrations;
+        this.localProviders = localProviders;
+    }
+
+    /**
+     * The registry of the application of the current request: this one, or, with several
+     * applications in the context, the one of the application that serves the request.
+     *
+     * @return The registry
+     */
+    public JaxRsContainerMessageBodyHandlerRegistry current() {
+        Supplier<JaxRsContainerMessageBodyHandlerRegistry> c = current;
+        return c == null ? this : c.get();
+    }
+
+    /**
+     * @param current Resolves the registry of the application of the current request, with
+     *                several applications in the context
+     */
+    public void current(Supplier<JaxRsContainerMessageBodyHandlerRegistry> current) {
+        this.current = current;
+    }
+
+    /**
+     * The providers of a contract in the application: the beans, without the ones its instances
+     * replace, and its instances, see {@link JaxRsLocalProviders}.
+     *
+     * @param contract The contract
+     * @param beans    The beans of the contract
+     * @param <T>      The type of the contract
+     * @return The providers
+     */
+    public <T> Collection<BeanRegistration<T>> registrations(Class<T> contract, Collection<BeanRegistration<T>> beans) {
+        JaxRsLocalProviders local = localProviders;
+        return local == null ? beans : local.registrations(contract, beans);
+    }
+
+    /**
+     * The beans of a contract that a qualifier selects, with the instances of the application,
+     * which replace the beans of their classes, see {@link JaxRsLocalProviders}.
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private Collection<BeanRegistration> lookup(Class contract, Qualifier qualifier) {
+        Collection<BeanRegistration> beans = (Collection) beanLocator.getBeanRegistrations(Argument.of(contract), qualifier);
+        JaxRsLocalProviders local = localProviders;
+        if (local == null) {
+            return beans;
+        }
+        Set<BeanRegistration> selected = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        selected.addAll(beans);
+        List<BeanRegistration> merged = new ArrayList<>();
+        for (Object o : local.registrations(contract, (Collection) beans)) {
+            BeanRegistration registration = (BeanRegistration) o;
+            if (selected.contains(registration) || qualifier.reduce(contract, java.util.stream.Stream.of(registration)).findAny().isPresent()) {
+                merged.add(registration);
+            }
+        }
+        return merged;
     }
 
     /**
@@ -96,8 +181,8 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
     private <T> List<ReaderCandidate<T>> findJaxRsReaders(Argument<T> type, List<MediaType> mediaTypes) {
         Class<T> theType = type.getType();
         List<Ranked<BeanRegistration<MessageBodyReader<T>>>> ranked = new ArrayList<>();
-        for (BeanRegistration br : beanLocator.getBeanRegistrations(
-                Argument.of(MessageBodyReader.class), // Select all readers and eliminate by the type later
+        for (BeanRegistration br : lookup(MessageBodyReader.class,
+                // Select all readers and eliminate by the type later
                 // the type is matched below: isReadable decides, e.g. for a reader of a subtype
                 new MediaTypeQualifier<>(Argument.of(MessageBodyReader.class, type), mediaTypes, Consumes.class))) {
             BeanRegistration<MessageBodyReader<T>> registration = (BeanRegistration<MessageBodyReader<T>>) br;
@@ -130,8 +215,8 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
     private <T> List<WriterCandidate<T>> findJaxRsBodyWriters(Argument<T> type, List<MediaType> mediaTypes) {
         Class<T> theType = type.getType();
         List<Ranked<BeanRegistration<MessageBodyWriter<T>>>> ranked = new ArrayList<>();
-        for (BeanRegistration br : beanLocator.getBeanRegistrations(
-                Argument.of(MessageBodyWriter.class), // Select all writers and eliminate by the type later
+        for (BeanRegistration br : lookup(MessageBodyWriter.class,
+                // Select all writers and eliminate by the type later
                 Qualifiers.byQualifiers(
                     // Filter by media types first before filtering by the type hierarchy
                     // the type is matched below: MessageBodyWriter<Object> writes every type
@@ -425,12 +510,13 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
         Set<Class<?>> registered = registeredClasses;
         if (registered == null) {
             Set<Class<?>> classes = new HashSet<>();
-            beanLocator.findBean(Application.class).ifPresent(application -> {
-                classes.addAll(application.getClasses());
-                for (Object singleton : application.getSingletons()) {
+            Application app = application.get();
+            if (app != null) {
+                classes.addAll(app.getClasses());
+                for (Object singleton : app.getSingletons()) {
                     classes.add(singleton.getClass());
                 }
-            });
+            }
             registered = classes;
             registeredClasses = registered;
         }
@@ -467,7 +553,8 @@ public final class JaxRsContainerMessageBodyHandlerRegistry {
     private @Nullable JaxRsProviderRegistrations providerRegistrations() {
         Optional<JaxRsProviderRegistrations> registrations = providerRegistrations;
         if (registrations == null) {
-            registrations = beanLocator.findBean(JaxRsProviderRegistrations.class);
+            Supplier<@Nullable JaxRsProviderRegistrations> scoped = scopedRegistrations;
+            registrations = scoped != null ? Optional.ofNullable(scoped.get()) : beanLocator.findBean(JaxRsProviderRegistrations.class);
             providerRegistrations = registrations;
         }
         return registrations.orElse(null);

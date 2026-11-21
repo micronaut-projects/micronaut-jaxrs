@@ -50,6 +50,8 @@ final class JaxRsRouteResource {
     private final Supplier<AnnotationMetadata> annotations;
     private final Supplier<Annotation[]> annotationObjects;
     private volatile JaxRsFeatures.@Nullable Components components;
+    // the application of the route, null for a route of a located target or of a controller
+    private volatile @Nullable JaxRsApplicationScope scope;
     // what it is equal by: itself, or the method of a controller route
     private Object identity = this;
 
@@ -119,6 +121,21 @@ final class JaxRsRouteResource {
 
     Class<?> resourceClass() {
         return resourceClass;
+    }
+
+    /**
+     * @return The scope of the application of the route, {@code null} for a route of a located
+     * target, which is the one of the request, or of a controller
+     */
+    @Nullable JaxRsApplicationScope scope() {
+        return scope;
+    }
+
+    /**
+     * @param scope The scope of the application of the route
+     */
+    void scope(@Nullable JaxRsApplicationScope scope) {
+        this.scope = scope;
     }
 
     @Nullable Method method() {

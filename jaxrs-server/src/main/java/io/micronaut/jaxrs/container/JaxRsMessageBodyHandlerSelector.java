@@ -41,10 +41,10 @@ import java.util.List;
 final class JaxRsMessageBodyHandlerSelector implements MessageBodyHandlerSelector {
 
     // looked up when a reader is selected: the readers depend on the registry this selector is part of
-    private final BeanProvider<JaxRsMessageBodyReaders<?>> readers;
+    private final BeanProvider<JaxRsApplications> applications;
 
-    JaxRsMessageBodyHandlerSelector(BeanProvider<JaxRsMessageBodyReaders<?>> readers) {
-        this.readers = readers;
+    JaxRsMessageBodyHandlerSelector(BeanProvider<JaxRsApplications> applications) {
+        this.applications = applications;
     }
 
     @Override
@@ -56,7 +56,8 @@ final class JaxRsMessageBodyHandlerSelector implements MessageBodyHandlerSelecto
             // the bytes of the entity of a resource method, which it reads with the JAX-RS readers
             return null;
         }
-        JaxRsMessageBodyReaders<T> jaxRsReaders = (JaxRsMessageBodyReaders<T>) readers.get();
+        // the readers of the application of the current request
+        JaxRsMessageBodyReaders<T> jaxRsReaders = (JaxRsMessageBodyReaders<T>) applications.get().current().readers();
         if (mediaTypes.isEmpty()) {
             return jaxRsReaders.isReadable(type, null) ? jaxRsReaders : null;
         }

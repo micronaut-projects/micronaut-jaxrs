@@ -60,6 +60,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -75,7 +76,7 @@ final class JaxRsParameterBinding {
 
     private final JaxRsRouteSupport support;
 
-    private final ApplicationProvider applicationProvider;
+    private final Function<HttpRequest<?>, ApplicationProvider> applicationProvider;
 
     private final ConversionService conversionService;
 
@@ -85,16 +86,25 @@ final class JaxRsParameterBinding {
 
     /**
      * @param support                 The route support, which reads the context values and the parts of forms
-     * @param applicationProvider     The application
+     * @param applicationProvider     The application of a request
      * @param conversionService       The conversion service
      * @param paramConverterProviders The registered parameter converter providers, resolved when first used
      */
-    JaxRsParameterBinding(JaxRsRouteSupport support, ApplicationProvider applicationProvider, ConversionService conversionService,
+    JaxRsParameterBinding(JaxRsRouteSupport support, Function<HttpRequest<?>, ApplicationProvider> applicationProvider, ConversionService conversionService,
                           Supplier<List<ParamConverterProvider>> paramConverterProviders) {
         this.support = support;
         this.applicationProvider = applicationProvider;
         this.conversionService = conversionService;
         this.paramConverterProviders = paramConverterProviders;
+    }
+
+    /**
+     * @param request A request
+     * @return Its URI information, relative to the path of its application
+     */
+    private UriInfoImpl uriInfo(HttpRequest<?> request) {
+        ApplicationProvider application = applicationProvider.apply(request);
+        return new UriInfoImpl(request, application.getPath(), application.getContextPath());
     }
 
     /**
@@ -112,7 +122,7 @@ final class JaxRsParameterBinding {
         PathVariables variables = encoded ? pathVariables.raw() : pathVariables;
         Optional<String> value = variables.findString(name);
         Class<?> type = argument.getType();
-        Supplier<List<PathSegment>> relative = () -> new UriInfoImpl(request, applicationProvider.getPath(), applicationProvider.getContextPath())
+        Supplier<List<PathSegment>> relative = () -> uriInfo(request)
             .getPathSegments(!encoded);
         if (type == PathSegment.class) {
             return value.map(v -> JaxRsPathSegments.pathSegment(request, pathVariables, name, v, encoded, relative)).orElse(null);
@@ -173,7 +183,7 @@ final class JaxRsParameterBinding {
         int matched = request.getAttribute(JaxRsRouteSupport.MATCHED_SEGMENTS, Integer.class).orElse(-1);
         if (matched > 0) {
             // a parameter of a sub-resource locator: of the last segment it matched
-            List<PathSegment> segments = new UriInfoImpl(request, applicationProvider.getPath(), applicationProvider.getContextPath())
+            List<PathSegment> segments = uriInfo(request)
                 .getPathSegments(!encoded);
             List<String> values = new ArrayList<>(1);
             if (matched <= segments.size()) {

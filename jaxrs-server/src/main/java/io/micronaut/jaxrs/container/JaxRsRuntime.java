@@ -38,7 +38,7 @@ public class JaxRsRuntime {
      * @param application The application
      */
     protected JaxRsRuntime(ApplicationContext applicationContext, Application application) {
-        this(applicationContext, application, applicationContext.getBean(JaxRsFeatures.class));
+        this(applicationContext);
     }
 
     /**
@@ -46,15 +46,30 @@ public class JaxRsRuntime {
      * @param application        The application
      * @param features           The features, configured at startup
      */
-    @jakarta.inject.Inject
     protected JaxRsRuntime(ApplicationContext applicationContext, Application application, JaxRsFeatures features) {
-        // before the container filters are created: the components of the features are beans
-        features.configure();
-        applicationContext.getEnvironment().addPropertySource(
-            PropertySource.of(
-                application.getClass().getName(),
-                application.getProperties()
-            )
-        );
+        this(applicationContext);
+    }
+
+    /**
+     * Configure the features of the applications, and add the properties of each one as a
+     * property source.
+     *
+     * @param applicationContext The application context
+     */
+    @jakarta.inject.Inject
+    protected JaxRsRuntime(ApplicationContext applicationContext) {
+        for (JaxRsApplicationScope scope : applicationContext.getBean(JaxRsApplications.class).scopes()) {
+            // before the container filters are created: the components of the features are beans
+            scope.features().configure();
+            Application application = scope.application();
+            if (application != null) {
+                applicationContext.getEnvironment().addPropertySource(
+                    PropertySource.of(
+                        application.getClass().getName(),
+                        application.getProperties()
+                    )
+                );
+            }
+        }
     }
 }

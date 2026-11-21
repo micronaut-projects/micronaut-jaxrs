@@ -41,6 +41,8 @@ import jakarta.ws.rs.ext.ParamConverterProvider;
 import jakarta.ws.rs.ext.ReaderInterceptor;
 import jakarta.ws.rs.ext.WriterInterceptor;
 
+import org.jspecify.annotations.Nullable;
+
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -72,6 +74,7 @@ final class JaxRsApplicationSingletons implements BeanCreatedEventListener<Appli
     private final ApplicationContext context;
     // the classes registered with a reflective definition, which does not inject their @Context members
     private final Set<Class<?>> reflective = ConcurrentHashMap.newKeySet();
+    private volatile @Nullable Boolean multiple;
 
     JaxRsApplicationSingletons(ApplicationContext context) {
         this.context = context;
@@ -81,6 +84,13 @@ final class JaxRsApplicationSingletons implements BeanCreatedEventListener<Appli
     @SuppressWarnings("unchecked")
     public Application onCreated(BeanCreatedEvent<Application> event) {
         Application application = event.getBean();
+        if (multiple == null) {
+            multiple = JaxRsApplications.isMultiple(context);
+        }
+        if (multiple) {
+            // with several applications, each one keeps its instances, see JaxRsApplicationScope
+            return application;
+        }
         for (Object singleton : application.getSingletons()) {
             if (isProvider(singleton) && isRegistered(singleton.getClass())) {
                 // registered by the Java SE bootstrap, which does not inject it: the
@@ -144,7 +154,7 @@ final class JaxRsApplicationSingletons implements BeanCreatedEventListener<Appli
         registerReflective(context, definition);
     }
 
-    private static boolean isProviderClass(Class<?> type) {
+    static boolean isProviderClass(Class<?> type) {
         for (Class<?> contract : PROVIDER_CONTRACTS) {
             if (contract.isAssignableFrom(type)) {
                 return true;
@@ -186,7 +196,7 @@ final class JaxRsApplicationSingletons implements BeanCreatedEventListener<Appli
      * The {@code @Context} fields of an instance, like the ones of a bean of its class, also of a
      * class the annotation processors never saw, with reflection.
      */
-    private static <T> T inject(ApplicationContext context, T instance) {
+    static <T> T inject(ApplicationContext context, T instance) {
         T injected = context.inject(instance);
         JaxRsReflection.get().injectFields(injected, jakarta.ws.rs.core.Context.class, t -> context.findBean(t).orElse(null));
         return injected;
@@ -214,7 +224,7 @@ final class JaxRsApplicationSingletons implements BeanCreatedEventListener<Appli
         return true;
     }
 
-    private static boolean isProvider(Object singleton) {
+    static boolean isProvider(Object singleton) {
         for (Class<?> contract : PROVIDER_CONTRACTS) {
             if (contract.isInstance(singleton)) {
                 return true;

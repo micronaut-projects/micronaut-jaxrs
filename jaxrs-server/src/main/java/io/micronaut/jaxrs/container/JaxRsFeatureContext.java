@@ -15,12 +15,9 @@
  */
 package io.micronaut.jaxrs.container;
 
-import io.micronaut.context.RuntimeBeanDefinition;
 import io.micronaut.core.annotation.AnnotationMetadata;
-import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.jaxrs.common.JaxRsRouteInterceptors;
 import io.micronaut.jaxrs.common.JaxRsUtils;
-import io.micronaut.jaxrs.common.reflect.JaxRsReflection;
 import jakarta.ws.rs.container.ContainerRequestFilter;
 import jakarta.ws.rs.container.ContainerResponseFilter;
 import jakarta.ws.rs.core.Configuration;
@@ -239,14 +236,7 @@ final class JaxRsFeatureContext implements FeatureContext {
         if (features.context.containsBean(componentClass)) {
             return;
         }
-        RuntimeBeanDefinition<?> definition = JaxRsReflection.get().beanDefinition(componentClass);
-        if (definition != null) {
-            // a class the annotation processors never saw becomes a bean
-            JaxRsApplicationSingletons.registerReflective(features.context, definition);
-        } else {
-            // an introspected class that is not a bean, e.g. not annotated with @Provider
-            JaxRsApplicationSingletons.registerIntrospected(features.context, componentClass);
-        }
+        features.registerComponentClass(componentClass);
     }
 
     private void registerInstance(Object component, @Nullable Set<Class<?>> contracts) {
@@ -259,21 +249,7 @@ final class JaxRsFeatureContext implements FeatureContext {
         if (!isOtherProvider(component.getClass(), contracts)) {
             return;
         }
-        if (features.context.containsBean(component.getClass())) {
-            features.context.registerSingleton(component);
-        } else {
-            // with the annotations of its class, e.g. its @Priority
-            registerSingleton(component);
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private <T> void registerSingleton(T component) {
-        Class<T> type = (Class<T>) component.getClass();
-        features.context.registerBeanDefinition(RuntimeBeanDefinition.builder(type, () -> component)
-            .singleton(true)
-            .annotationMetadata(MutableAnnotationMetadata.of(JaxRsRouteInterceptors.metadata(type)))
-            .build());
+        features.registerComponentInstance(component);
     }
 
     /**
@@ -292,7 +268,7 @@ final class JaxRsFeatureContext implements FeatureContext {
 
     @Override
     public Configuration getConfiguration() {
-        Configuration configuration = features.context.getBean(Configuration.class);
+        Configuration configuration = features.scope().configuration();
         // the one of a dynamic feature has the properties and components of the method too
         return global ? configuration : new MethodConfiguration(configuration, this);
     }

@@ -20,7 +20,7 @@ class ContextConfigurationPropertiesTest {
     @Test
     void propertiesOfTheApplicationCannotBeChangedThroughTheConfiguration() {
         try (ApplicationContext context = ApplicationContext.run(Map.of("spec.name", "ContextConfigurationPropertiesTest"))) {
-            Map<String, Object> properties = context.getBean(JaxRsContextConfiguration.class).getProperties();
+            Map<String, Object> properties = context.getBean(jakarta.ws.rs.core.Configuration.class).getProperties();
             assertEquals("value", properties.get("name"));
             assertThrows(UnsupportedOperationException.class, () -> properties.put("other", "value"));
             assertEquals(1, context.getBean(PropertiesApplication.class).getProperties().size());

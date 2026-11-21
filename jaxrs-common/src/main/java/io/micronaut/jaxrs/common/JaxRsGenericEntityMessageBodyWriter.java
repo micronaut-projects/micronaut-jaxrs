@@ -173,7 +173,7 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
     private <K> void write(Argument<K> argument, MediaType mediaType, K entity, MutableHeaders outgoingHeaders, OutputStream outputStream) {
         List<MediaType> mediaTypes = List.of(mediaType);
         // JaxRs writers
-        Optional<MessageBodyWriter<K>> writer = jaxRsMessageBodyHandlerRegistry.findWriter(argument, mediaTypes);
+        Optional<MessageBodyWriter<K>> writer = jaxRsMessageBodyHandlerRegistry.current().findWriter(argument, mediaTypes);
         if (writer.isEmpty()) {
             // Micronaut HTTP writers
             writer = registry.findWriter(argument, mediaTypes);
@@ -509,7 +509,7 @@ final class JaxRsGenericEntityMessageBodyWriter<T> implements ResponseBodyWriter
         final void writeInner() {
             List<MediaType> mediaTypes = List.of(mediaType);
             // JaxRs writers
-            Optional<MessageBodyWriter<T>> writer = jaxRsMessageBodyHandlerRegistry.findWriter(this.argument, mediaTypes);
+            Optional<MessageBodyWriter<T>> writer = jaxRsMessageBodyHandlerRegistry.current().findWriter(this.argument, mediaTypes);
             if (writer.isEmpty()) {
                 // Micronaut HTTP writers
                 writer = registry.findWriter(this.argument, mediaTypes);

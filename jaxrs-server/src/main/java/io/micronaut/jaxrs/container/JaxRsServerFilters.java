@@ -54,14 +54,21 @@ import java.util.ArrayDeque;
 @Internal
 final class JaxRsServerFilters implements HttpRoutes {
 
-    private final JaxRsContainerFilters filters;
-    private final ApplicationProvider applicationProvider;
+    private final JaxRsApplications applications;
     private final Providers providers;
 
-    JaxRsServerFilters(JaxRsContainerFilters filters, ApplicationProvider applicationProvider, Providers providers) {
-        this.filters = filters;
-        this.applicationProvider = applicationProvider;
+    JaxRsServerFilters(JaxRsApplications applications, Providers providers) {
+        this.applications = applications;
         this.providers = providers;
+    }
+
+    /**
+     * The application of a request that is not matched yet: the one whose path is the longest
+     * prefix of its path.
+     */
+    private JaxRsApplicationScope preMatching(HttpRequest<?> request) {
+        JaxRsApplicationScope single = applications.single();
+        return single != null ? single : applications.forPath(request.getPath());
     }
 
     @Override
@@ -69,7 +76,7 @@ final class JaxRsServerFilters implements HttpRoutes {
         FilterSpec<?> after = routes.serverFilter("/**").preMatching()
             .beforeReplacingAsync(request -> {
                 boolean normalized = normalize(request);
-                return filters.filterPreMatchingRequestAsync(request).thenApply(message -> {
+                return preMatching(request).containerFilters().filterPreMatchingRequestAsync(request).thenApply(message -> {
                     // the request URI a pre-matching filter set is normalized too
                     if (message == null) {
                         // a request whose URI only changed in the case of its percent-encodings is
@@ -94,7 +101,7 @@ final class JaxRsServerFilters implements HttpRoutes {
                     JaxRsAsyncResponse.completed(request);
                 }
             });
-        if (filters.mayFilterResponses()) {
+        if (applications.scopes().stream().anyMatch(scope -> scope.containerFilters().mayFilterResponses())) {
             // a response filter can block, e.g. on a database: not on the event loop
             after.executeOn(TaskExecutors.BLOCKING);
         }
@@ -140,6 +147,15 @@ final class JaxRsServerFilters implements HttpRoutes {
     }
 
     private boolean underApplicationPath(String rawPath) {
+        for (JaxRsApplicationScope scope : applications.scopes()) {
+            if (underApplicationPath(scope.applicationProvider(), rawPath)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean underApplicationPath(ApplicationProvider applicationProvider, String rawPath) {
         // the application path is decoded: the segments of the path are compared decoded, each
         // apart, as an encoded slash is part of a segment, not a separator
         String[] applicationSegments = segments(applicationProvider.getPath());
@@ -274,7 +290,7 @@ final class JaxRsServerFilters implements HttpRoutes {
             return;
         }
         resolveLocation(request, response);
-        MutableHttpResponse<?> filtered = filters.filterResponse(route, request, response);
+        MutableHttpResponse<?> filtered = applications.current(request).containerFilters().filterResponse(route, request, response);
         if (filtered != response) {
             // the response of a JAX-RS Response entity: the filters run on it
             replace(response, filtered);
@@ -297,6 +313,7 @@ final class JaxRsServerFilters implements HttpRoutes {
             return;
         }
         if (!uri.isAbsolute()) {
+            ApplicationProvider applicationProvider = applications.current(request).applicationProvider();
             URI base = new UriInfoImpl(request, applicationProvider.getPath(), applicationProvider.getContextPath()).getBaseUri();
             response.getHeaders().set(HttpHeaders.LOCATION, base.resolve(uri).toString());
         }

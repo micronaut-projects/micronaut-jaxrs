@@ -41,7 +41,6 @@ import io.micronaut.jaxrs.common.NameBindingPredicate;
 import io.micronaut.jaxrs.runtime.ext.bind.HttpHeadersBinder;
 import io.micronaut.jaxrs.runtime.ext.bind.UriInfoImpl;
 import io.micronaut.web.router.RouteInfo;
-import jakarta.inject.Singleton;
 import jakarta.ws.rs.container.ContainerRequestFilter;
 import jakarta.ws.rs.container.ContainerResponseFilter;
 import jakarta.ws.rs.container.PreMatching;
@@ -75,7 +74,6 @@ import java.util.function.ToIntFunction;
  * @author Denis Stepanov
  * @since 1.0
  */
-@Singleton
 @Internal
 final class JaxRsContainerFilters {
 

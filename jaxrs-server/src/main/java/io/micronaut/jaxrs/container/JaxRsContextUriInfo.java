@@ -47,7 +47,8 @@ final class JaxRsContextUriInfo implements UriInfo {
     private UriInfoImpl getUriInfo() {
         HttpRequest<?> request = ServerRequestContext.currentRequest()
             .orElseThrow(() -> new IllegalStateException("UriInfo is used outside of the scope of a request"));
-        return new UriInfoImpl(request, applicationProvider.getPath(), applicationProvider.getContextPath());
+        ApplicationProvider application = applicationProvider.of(request);
+        return new UriInfoImpl(request, application.getPath(), application.getContextPath());
     }
 
     @Override

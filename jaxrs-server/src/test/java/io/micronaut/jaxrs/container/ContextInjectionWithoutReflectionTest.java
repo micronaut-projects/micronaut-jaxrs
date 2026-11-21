@@ -47,8 +47,8 @@ class ContextInjectionWithoutReflectionTest {
     @Test
     void providerContextFieldAndSetterAreInjected() {
         assertFalse(JaxRsReflection.get().isReflective());
-        Providers providers = new JaxRsProviders(null);
-        Providers kept = new JaxRsProviders(null);
+        Providers providers = new JaxRsProviders(null, null);
+        Providers kept = new JaxRsProviders(null, null);
         ContextProvider provider = new ContextProvider();
         provider.preset = kept;
         JaxRsReflection.get().injectFields(provider, Context.class, type -> type == Providers.class ? providers : null);
@@ -59,7 +59,7 @@ class ContextInjectionWithoutReflectionTest {
 
     @Test
     void shadowedSuperClassFieldIsInjected() {
-        Providers providers = new JaxRsProviders(null);
+        Providers providers = new JaxRsProviders(null, null);
         ShadowingProvider provider = new ShadowingProvider();
         JaxRsReflection.get().injectFields(provider, Context.class, type -> type == Providers.class ? providers : null);
         assertSame(providers, provider.providers);

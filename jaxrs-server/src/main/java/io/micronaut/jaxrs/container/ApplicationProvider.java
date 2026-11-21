@@ -24,6 +24,8 @@ import io.micronaut.core.annotation.Internal;
 import io.micronaut.inject.BeanDefinition;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
+import io.micronaut.http.HttpRequest;
+import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.ApplicationPath;
 import jakarta.ws.rs.core.Application;
@@ -31,6 +33,7 @@ import jakarta.ws.rs.core.Application;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
+import java.util.function.Function;
 
 /**
  * The application path provider.
@@ -45,6 +48,8 @@ public final class ApplicationProvider implements AnnotationMetadataProvider {
     private final String path;
     private final String contextPath;
     private final AnnotationMetadata annotationMetadata;
+    // with several applications, the one of a request, see JaxRsApplications
+    private volatile @Nullable Function<HttpRequest<?>, ApplicationProvider> resolver;
 
     /**
      * Constructs a new uri naming strategy for the given property.
@@ -53,9 +58,21 @@ public final class ApplicationProvider implements AnnotationMetadataProvider {
      * @param contextPath The context path
      */
 
+    @Inject
     ApplicationProvider(BeanContext beanContext,
                         @Value("${micronaut.server.context-path}") @Nullable String contextPath) {
-        this.annotationMetadata = applicationMetadata(beanContext);
+        // with several applications, each one has its own, see JaxRsApplicationScope
+        this(JaxRsApplications.isMultiple(beanContext) ? AnnotationMetadata.EMPTY_METADATA : applicationMetadata(beanContext), contextPath);
+    }
+
+    /**
+     * The path of an application.
+     *
+     * @param annotationMetadata The annotations of the application class
+     * @param contextPath        The context path
+     */
+    ApplicationProvider(AnnotationMetadata annotationMetadata, @Nullable String contextPath) {
+        this.annotationMetadata = annotationMetadata;
         String applicationPath = annotationMetadata.stringValue(ApplicationPath.class)
             .map(ApplicationProvider::decodePath)
             .orElse("/");
@@ -86,6 +103,26 @@ public final class ApplicationProvider implements AnnotationMetadataProvider {
         return beanContext.findBeanDefinition(applicationType)
             .map(AnnotationMetadataProvider::getAnnotationMetadata)
             .orElseGet(() -> JaxRsRouteInterceptors.metadata(applicationType));
+    }
+
+    /**
+     * The application of a request: this one, or, with several applications, the one that
+     * serves the request.
+     *
+     * @param request The request
+     * @return The application
+     */
+    @NonNull
+    public ApplicationProvider of(HttpRequest<?> request) {
+        Function<HttpRequest<?>, ApplicationProvider> r = resolver;
+        return r == null ? this : r.apply(request);
+    }
+
+    /**
+     * @param resolver Resolves the application of a request, with several applications
+     */
+    void resolver(Function<HttpRequest<?>, ApplicationProvider> resolver) {
+        this.resolver = resolver;
     }
 
     /**

@@ -18,7 +18,7 @@ class ContextFieldInjectionTest {
 
     @Test
     void privateContextFieldsOfTheHierarchyAreInjected() {
-        Providers providers = new JaxRsProviders(null);
+        Providers providers = new JaxRsProviders(null, null);
         Provider provider = new Provider();
         JaxRsReflection.get().injectFields(provider, Context.class, type -> type == Providers.class ? providers : null);
         assertSame(providers, provider.inherited());

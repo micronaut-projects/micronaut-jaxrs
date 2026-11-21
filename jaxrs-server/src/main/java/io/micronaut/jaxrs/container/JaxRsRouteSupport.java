@@ -59,8 +59,6 @@ import io.micronaut.jaxrs.common.JaxRsGenericEntity;
 import jakarta.ws.rs.core.GenericType;
 import jakarta.ws.rs.core.GenericEntity;
 import io.micronaut.jaxrs.common.JaxRsArgumentUtil;
-import io.micronaut.jaxrs.common.JaxRsContainerMessageBodyHandlerRegistry;
-import io.micronaut.context.BeanRegistration;
 import io.micronaut.core.util.SupplierUtil;
 import io.micronaut.http.server.HttpServerConfiguration;
 import io.micronaut.scheduling.TaskExecutors;
@@ -92,14 +90,12 @@ import jakarta.ws.rs.WebApplicationException;
 import io.micronaut.http.sse.SseEmitter;
 import jakarta.ws.rs.sse.SseEventSink;
 import jakarta.ws.rs.sse.OutboundSseEvent;
-import jakarta.ws.rs.core.Application;
 import jakarta.ws.rs.core.Form;
 import jakarta.ws.rs.core.MultivaluedHashMap;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.NoContentException;
 import jakarta.ws.rs.core.SecurityContext;
 import jakarta.ws.rs.core.Response;
-import jakarta.ws.rs.ext.ParamConverterProvider;
 import org.jspecify.annotations.Nullable;
 
 import java.io.ByteArrayInputStream;
@@ -118,7 +114,6 @@ import java.util.Objects;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -177,30 +172,24 @@ public final class JaxRsRouteSupport {
     private static final String STUB_SERVLET_REQUEST = JaxRsRouteSupport.class.getName() + ".servletRequest";
     // a part whose file was streamed, see #formStream
 
-    private final ApplicationProvider applicationProvider;
-
-    private final String applicationPath;
+    private final BeanProvider<JaxRsApplications> applications;
 
     private final ConversionService conversionService;
-
-    private final Supplier<List<ParamConverterProvider>> paramConverterProviders;
 
     private final RequestBinderRegistry binderRegistry;
 
     private final BeanContext beanContext;
     // the executors of the sub-resource locators that read the form, by name
 
-    private final JaxRsRouteTemplateEngine templates = new JaxRsRouteTemplateEngine();
+    // the templates of the routes of located targets, with several applications
+    private final JaxRsRouteTemplateEngine locatedTemplates = new JaxRsRouteTemplateEngine();
+    // the application whose routes are declared, see #routes
+    private volatile @Nullable JaxRsApplicationScope declaring;
 
     private final JaxRsParameterBinding parameters;
 
-    // beans that depend on the routes: resolved when first used
-    private final BeanProvider<JaxRsMessageBodyReaders<?>> readers;
-
-    private final BeanProvider<JaxRsContainerFilters> containerFilters;
     // the servlet request emulation of the micronaut-jaxrs-servlet module, if present
     private final BeanProvider<JaxRsServletRequestFactory> servletRequestFactory;
-    private volatile @Nullable Set<Class<?>> registeredClasses;
 
     // the thread selection of the server, resolved when first used
     private final Supplier<ThreadSelection> threadSelection;
@@ -210,38 +199,18 @@ public final class JaxRsRouteSupport {
     // the form field limit of the server, which the forms of the entities it parses have too
     private final Supplier<Integer> formMaxFields;
 
-    JaxRsRouteSupport(ApplicationProvider applicationProvider,
+    JaxRsRouteSupport(BeanProvider<JaxRsApplications> applications,
                       ConversionService conversionService,
                       RequestBinderRegistry binderRegistry,
                       BeanContext beanContext,
-                      BeanProvider<JaxRsMessageBodyReaders<?>> readers,
-                      BeanProvider<JaxRsContainerFilters> containerFilters,
                       BeanProvider<JaxRsServletRequestFactory> servletRequestFactory) {
         this.servletRequestFactory = servletRequestFactory;
-        this.readers = readers;
-        this.containerFilters = containerFilters;
-        this.applicationProvider = applicationProvider;
-        this.applicationPath = applicationProvider.getAnnotationMetadata().stringValue(jakarta.ws.rs.ApplicationPath.class)
-            .map(ApplicationProvider::decodePath)
-            .orElse("");
+        this.applications = applications;
         this.conversionService = conversionService;
-        // the registered ones (JAX-RS 2.3), resolved when first used: after the instances of the
-        // application replaced the beans of their classes, see JaxRsApplicationSingletons
-        this.paramConverterProviders = SupplierUtil.memoized(() -> {
-            JaxRsContainerMessageBodyHandlerRegistry registry = beanContext.getBean(JaxRsContainerMessageBodyHandlerRegistry.class);
-            return beanContext.getBeanRegistrations(ParamConverterProvider.class).stream()
-                .filter(registration -> registry.isRegistered(registration.getBeanDefinition().getBeanType(), ParamConverterProvider.class))
-                // not the ones constrained to the client (@ConstrainedTo)
-                .filter(registration -> JaxRsUtils.isServerProvider(registration.getBeanDefinition().getAnnotationMetadata()))
-                // the one of the highest priority, the lowest value, first: the priority a feature
-                // registered it with, else its @Priority
-                .sorted(java.util.Comparator.comparingInt(registration -> registry.priority(registration, ParamConverterProvider.class)))
-                .map(BeanRegistration::getBean)
-                .toList();
-        });
         this.binderRegistry = binderRegistry;
         this.beanContext = beanContext;
-        this.parameters = new JaxRsParameterBinding(this, applicationProvider, conversionService, paramConverterProviders);
+        this.parameters = new JaxRsParameterBinding(this, request -> current(request).applicationProvider(), conversionService,
+            () -> current().paramConverterProviders());
         this.threadSelection = SupplierUtil.memoized(() -> beanContext.findBean(HttpServerConfiguration.class)
             .map(HttpServerConfiguration::getThreadSelection).orElse(ThreadSelection.MANUAL));
         this.formMaxFields = SupplierUtil.memoized(() -> beanContext.findBean(NettyFormLimits.class).map(NettyFormLimits::maxFields).orElse(-1));
@@ -252,27 +221,26 @@ public final class JaxRsRouteSupport {
     }
 
     /**
-     * Whether a root resource class is registered with the application: an {@code Application}
-     * that lists its classes or singletons registers only those (JAX-RS 2.3), and one that lists
-     * none, every resource.
-     *
-     * @param resourceClass The class
-     * @return Whether it is registered
+     * @return The scope of the application of the current request
      */
-    public boolean isRegistered(Class<?> resourceClass) {
-        Set<Class<?>> registered = registeredClasses;
-        if (registered == null) {
-            Set<Class<?>> classes = new HashSet<>();
-            beanContext.findBean(Application.class).ifPresent(application -> {
-                classes.addAll(application.getClasses());
-                for (Object singleton : application.getSingletons()) {
-                    classes.add(singleton.getClass());
-                }
-            });
-            registered = classes;
-            registeredClasses = registered;
-        }
-        return registered.isEmpty() || registered.contains(resourceClass);
+    JaxRsApplicationScope current() {
+        return applications.get().current();
+    }
+
+    /**
+     * @param request A request
+     * @return The scope of the application that serves it
+     */
+    JaxRsApplicationScope current(HttpRequest<?> request) {
+        return applications.get().current(request);
+    }
+
+    /**
+     * @return The scope of the application whose routes are declared, {@code null} for the routes
+     * of a located target, which are the ones of the application of the request
+     */
+    @Nullable JaxRsApplicationScope declaring() {
+        return declaring;
     }
 
     /**
@@ -282,10 +250,29 @@ public final class JaxRsRouteSupport {
      * @param declarations Declares the routes
      */
     public void routes(HttpRouteBuilder routes, Consumer<HttpRouteGroup> declarations) {
+        for (JaxRsApplicationScope scope : applications.get().scopes()) {
+            routes(routes, scope, group -> declarations.accept(group));
+        }
+    }
+
+    /**
+     * Declare the routes of an application: with its templates, selected by JAX-RS among its routes.
+     *
+     * @param routes       The builder
+     * @param scope        The scope of the application
+     * @param declarations Declares the routes
+     */
+    void routes(HttpRouteBuilder routes, JaxRsApplicationScope scope, Consumer<HttpRouteGroup> declarations) {
+        JaxRsRouteTemplateEngine templates = scope.templates();
         routes.group(group -> {
             group.templates(templates);
             group.selectedBy(templates);
-            declarations.accept(group);
+            declaring = scope;
+            try {
+                declarations.accept(group);
+            } finally {
+                declaring = null;
+            }
         });
     }
 
@@ -297,6 +284,8 @@ public final class JaxRsRouteSupport {
      * @param <T>          The type of the target
      */
     public <T> void locatedRoutes(LocatedHttpRouteBuilder<T> routes, Consumer<LocatedHttpRouteGroup<T>> declarations) {
+        JaxRsApplicationScope single = applications.get().single();
+        JaxRsRouteTemplateEngine templates = single != null ? single.templates() : locatedTemplates;
         routes.group(group -> {
             group.templates(templates);
             group.selectedBy(templates);
@@ -313,7 +302,7 @@ public final class JaxRsRouteSupport {
      * @return Whether the locator is invoked
      */
     public boolean commitsToLocator(HttpRequest<?> request, RouteTemplate prefix) {
-        return templates.commitsToLocator(request, prefix);
+        return current(request).templates().commitsToLocator(request, prefix);
     }
 
     /**
@@ -329,7 +318,14 @@ public final class JaxRsRouteSupport {
      * @return The template
      */
     public RouteTemplate template(@Nullable String root, String path, boolean locator, boolean subResourceMethod) {
-        return templates.template(root == null ? null : underApplicationPath(JaxRsRuntimeRoutes.template("", root)), path, locator,
+        JaxRsApplicationScope scope = declaring;
+        JaxRsApplicationScope single = applications.get().single();
+        if (scope == null) {
+            scope = single;
+        }
+        JaxRsRouteTemplateEngine templates = scope != null ? scope.templates() : locatedTemplates;
+        String applicationPath = scope != null ? scope.applicationPath() : "";
+        return templates.template(root == null ? null : underApplicationPath(applicationPath, JaxRsRuntimeRoutes.template("", root)), path, locator,
             subResourceMethod);
     }
 
@@ -352,7 +348,7 @@ public final class JaxRsRouteSupport {
         return beanContext.getBean(JaxRsRuntimeRoutes.class).locatedRoutes(type);
     }
 
-    private String underApplicationPath(String template) {
+    private static String underApplicationPath(String applicationPath, String template) {
         if (applicationPath.isEmpty() || "/".equals(applicationPath)) {
             return template;
         }
@@ -409,10 +405,14 @@ public final class JaxRsRouteSupport {
                 () -> JaxRsReflection.get().targetMethod(resourceClass, metadata.methodName, metadata.parameterTypes), annotations,
                 () -> JaxRsReflection.get().annotations(annotations.get(), resourceClass.getClassLoader()));
         }
+        JaxRsApplicationScope scope = declaring;
+        resource.scope(scope);
         route.attribute(JaxRsRouteResource.ATTRIBUTE, resource);
         // the post-matching request filters of the resource method (JAX-RS 6.7.2), once the entity
-        // they may read is buffered
-        return route.beforeReplacingAsync(request -> containerFilters().filterRequestAsync(RouteAttributes.getRouteInfo(request).orElseThrow(), request)).and();
+        // they may read is buffered: of its application, else, for a located target, of the
+        // application of the request
+        return route.beforeReplacingAsync(request -> (scope != null ? scope : current(request)).containerFilters()
+            .filterRequestAsync(RouteAttributes.getRouteInfo(request).orElseThrow(), request)).and();
     }
 
     /**
@@ -432,10 +432,6 @@ public final class JaxRsRouteSupport {
             }
         }
         return introspection.getAnnotationMetadata();
-    }
-
-    private JaxRsContainerFilters containerFilters() {
-        return containerFilters.get();
     }
 
     /**
@@ -802,7 +798,7 @@ public final class JaxRsRouteSupport {
     }
 
     private JaxRsMessageBodyReaders<?> readers() {
-        return readers.get();
+        return current().readers();
     }
 
     /**
@@ -812,7 +808,7 @@ public final class JaxRsRouteSupport {
     @SuppressWarnings({"unchecked", "rawtypes"})
     private @Nullable Object emptyEntity(HttpRequest<?> request, Argument<Object> argument, MediaType mediaType, Headers headers) {
         Class<?> type = argument.getType();
-        Optional<MessageBodyReader<Object>> reader = beanContext.getBean(JaxRsContainerMessageBodyHandlerRegistry.class)
+        Optional<MessageBodyReader<Object>> reader = current().registry()
             .findReader(argument, List.of(mediaType));
         if (reader.isPresent()) {
             return reader.get().read(argument, mediaType, headers, InputStream.nullInputStream());
@@ -880,7 +876,7 @@ public final class JaxRsRouteSupport {
         Argument<?> generic = genericType == null ? null : JaxRsArgumentUtil.from(new GenericType<>(genericType));
         Argument<Object> type = (Argument) sseDataType(event.getType(), generic, data);
         List<MediaType> mediaTypes = List.of(mediaType);
-        Optional<io.micronaut.http.body.MessageBodyWriter<Object>> writer = beanContext.getBean(JaxRsContainerMessageBodyHandlerRegistry.class)
+        Optional<io.micronaut.http.body.MessageBodyWriter<Object>> writer = current().registry()
             .findWriter(type, mediaTypes);
         if (writer.isEmpty()) {
             writer = beanContext.getBean(MessageBodyHandlerRegistry.class).findWriter(type, mediaTypes);
@@ -937,6 +933,13 @@ public final class JaxRsRouteSupport {
                 return replaced.get();
             }
         }
+        if (type == jakarta.ws.rs.core.Application.class) {
+            JaxRsApplicationScope scope = current(request);
+            if (scope.isMultiple()) {
+                // the application of the request, among the Application beans
+                return scope.application();
+            }
+        }
         // the registry caches the binders
         Optional<ArgumentBinder<Object, HttpRequest<?>>> binder = (Optional) binderRegistry.findArgumentBinder((Argument) argument);
         if (binder.isPresent()) {
@@ -961,7 +964,7 @@ public final class JaxRsRouteSupport {
     private Object stubServletRequest(HttpRequest<?> request) {
         Object stub = request.getAttribute(STUB_SERVLET_REQUEST).orElse(null);
         if (stub == null) {
-            stub = servletRequestFactory.get().create(request, applicationProvider.getContextPath(), JaxRsContainerRequestContext.properties(request));
+            stub = servletRequestFactory.get().create(request, current(request).applicationProvider().getContextPath(), JaxRsContainerRequestContext.properties(request));
             request.setAttribute(STUB_SERVLET_REQUEST, stub);
         }
         return stub;
@@ -1182,6 +1185,7 @@ public final class JaxRsRouteSupport {
         }
         List<@Nullable String> values = captures.values();
         String rest = values.get(values.size() - 1);
+        ApplicationProvider applicationProvider = current(request).applicationProvider();
         String path = new UriInfoImpl(request, applicationProvider.getPath(), applicationProvider.getContextPath()).getPath(false);
         int segments = segments(path) - (rest == null ? 0 : segments(rest));
         return segments < 0 ? -1 : segments;
@@ -1239,7 +1243,7 @@ public final class JaxRsRouteSupport {
             return response;
         }
         Argument<?> type = entityType(request, body, returnType);
-        List<MediaType> producible = beanContext.getBean(JaxRsContainerMessageBodyHandlerRegistry.class).producibleTypes((Argument) type);
+        List<MediaType> producible = current().registry().producibleTypes((Argument) type);
         if (producible.isEmpty()) {
             // no application writer writes the entity: the response is left to Micronaut, in an
             // acceptable type it has a writer for
@@ -1316,7 +1320,7 @@ public final class JaxRsRouteSupport {
      */
     private MutableHttpResponse<?> unacceptable(HttpRequest<?> request, MutableHttpResponse<?> response, Object body, boolean deferrable,
                                                 boolean serverError) {
-        if (!deferrable || !containerFilters().filtersResponse(RouteAttributes.getRouteInfo(request).orElse(null))) {
+        if (!deferrable || !current(request).containerFilters().filtersResponse(RouteAttributes.getRouteInfo(request).orElse(null))) {
             throw UnwritableEntity.failure(serverError);
         }
         request.setAttribute(JaxRsContainerFilters.UNWRITABLE_ENTITY,
@@ -1334,7 +1338,7 @@ public final class JaxRsRouteSupport {
             return true;
         }
         List<MediaType> mediaTypes = List.of(mediaType);
-        if (beanContext.getBean(JaxRsContainerMessageBodyHandlerRegistry.class).findWriter((Argument) type, mediaTypes).isPresent()) {
+        if (current().registry().findWriter((Argument) type, mediaTypes).isPresent()) {
             return true;
         }
         Optional<io.micronaut.http.body.MessageBodyWriter<Object>> writer = beanContext.getBean(MessageBodyHandlerRegistry.class)

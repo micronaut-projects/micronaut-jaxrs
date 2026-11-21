@@ -16,6 +16,7 @@
 package io.micronaut.jaxrs.container;
 
 import io.micronaut.context.BeanContext;
+import io.micronaut.context.BeanProvider;
 import io.micronaut.context.BeanRegistration;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.type.Argument;
@@ -54,9 +55,11 @@ import java.util.ArrayList;
 @Singleton
 final class JaxRsProviders implements Providers {
     private final BeanContext beanContext;
+    private final BeanProvider<JaxRsApplications> applications;
 
-    JaxRsProviders(BeanContext beanContext) {
+    JaxRsProviders(BeanContext beanContext, BeanProvider<JaxRsApplications> applications) {
         this.beanContext = beanContext;
+        this.applications = applications;
     }
 
     @Override
@@ -104,8 +107,11 @@ final class JaxRsProviders implements Providers {
         };
     }
 
+    /**
+     * The readers and writers of the application of the current request.
+     */
     private JaxRsContainerMessageBodyHandlerRegistry registry() {
-        return beanContext.getBean(JaxRsContainerMessageBodyHandlerRegistry.class);
+        return applications.get().current().registry();
     }
 
     @SuppressWarnings({"unchecked"})
@@ -141,9 +147,13 @@ final class JaxRsProviders implements Providers {
         ExceptionMapper<T> nearest = null;
         int nearestDistance = Integer.MAX_VALUE;
         int nearestPriority = Integer.MAX_VALUE;
-        for (BeanRegistration<ExceptionMapper> registration : beanContext.getBeanRegistrations(ExceptionMapper.class,
-                MatchArgumentQualifier.contravariant(ExceptionMapper.class, Argument.of(type)))) {
+        for (BeanRegistration<ExceptionMapper> registration : registry.registrations(ExceptionMapper.class,
+                beanContext.getBeanRegistrations(ExceptionMapper.class, MatchArgumentQualifier.contravariant(ExceptionMapper.class, Argument.of(type))))) {
             MapperMetadata metadata = MapperMetadata.of(registration.getBeanDefinition());
+            if (!metadata.mapped().isAssignableFrom(type)) {
+                // an instance of the application that maps another type
+                continue;
+            }
             if (!registry.isRegistered(registration.getBeanDefinition().getBeanType(), ExceptionMapper.class)
                 || !metadata.server()) {
                 // not registered, or constrained to the client (@ConstrainedTo)
@@ -173,7 +183,8 @@ final class JaxRsProviders implements Providers {
         // application replace, see JaxRsApplicationSingletons
         JaxRsContainerMessageBodyHandlerRegistry registry = registry();
         List<Candidate<T>> candidates = new ArrayList<>();
-        for (BeanRegistration<ContextResolver> registration : beanContext.getBeanRegistrations(ContextResolver.class)) {
+        for (BeanRegistration<ContextResolver> registration : registry.registrations(ContextResolver.class,
+                beanContext.getBeanRegistrations(ContextResolver.class))) {
             ResolverMetadata metadata = ResolverMetadata.of(registration.getBeanDefinition());
             // a raw resolver, whose context type is not known, may resolve the context type too: its
             // contexts are checked, see below

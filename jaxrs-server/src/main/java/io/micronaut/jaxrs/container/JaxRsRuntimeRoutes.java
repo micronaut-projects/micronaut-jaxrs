@@ -200,14 +200,17 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
 
     @Override
     public void routes(HttpRouteBuilder routes) {
-        support.routes(routes, group -> {
-            Routes<@Nullable Void> root = new GroupRoutes<>(group, false);
-            rootResources().forEach((type, resource) -> {
-                if (support.isRegistered(type)) {
-                    route(root, type, resource);
-                }
+        // the resources of each application, under its path
+        for (JaxRsApplicationScope scope : beanContext.getBean(JaxRsApplications.class).scopes()) {
+            support.routes(routes, scope, group -> {
+                Routes<@Nullable Void> root = new GroupRoutes<>(group, false);
+                rootResources(scope).forEach((type, resource) -> {
+                    if (scope.isRegistered(type)) {
+                        route(root, type, resource);
+                    }
+                });
             });
-        });
+        }
     }
 
     private <B> void route(Routes<@Nullable Void> routes, Class<?> type, Root<B> root) {
@@ -268,9 +271,9 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
      * The root resources: the processed bean definitions, and the classes and instances of the
      * {@code Application}.
      */
-    private Map<Class<?>, Root<?>> rootResources() {
+    private Map<Class<?>, Root<?>> rootResources(JaxRsApplicationScope scope) {
         Map<Class<?>, Root<?>> roots = new LinkedHashMap<>();
-        Application application = beanContext.findBean(Application.class).orElse(null);
+        Application application = scope.application();
         Map<Class<?>, Object> singletons = new LinkedHashMap<>();
         if (application != null) {
             for (Object singleton : application.getSingletons()) {
@@ -495,7 +498,12 @@ final class JaxRsRuntimeRoutes implements HttpRoutes, ExecutableMethodProcessor<
             usesForm |= JaxRsResourceFactory.usesForm(argument);
             encodedForm |= JaxRsResourceFactory.usesEncodedForm(argument, encoded(argument, method.metadata(), classMetadata));
         }
+        // the application of the routes of the target it locates, which have none
+        JaxRsApplicationScope scope = support.declaring();
         Locator<L> locator = (request, pathVariables, target, form) -> {
+            if (scope != null) {
+                request.setAttribute(JaxRsApplicationScope.ATTRIBUTE, scope);
+            }
             // the captures of its locator route: where its variables and the rest of the path are
             RouteCaptures captures = LocatedRoutes.locatorRouteCapture(pathVariables);
             int segments = support.locatorSegments(request, captures);

@@ -16,7 +16,6 @@
 package io.micronaut.jaxrs.container;
 
 import io.micronaut.context.BeanContext;
-import io.micronaut.context.BeanProvider;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.inject.BeanDefinition;
 import io.micronaut.inject.qualifiers.Qualifiers;
@@ -26,7 +25,6 @@ import io.micronaut.jaxrs.common.JaxRsUtils;
 import jakarta.ws.rs.Path;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.util.SupplierUtil;
-import jakarta.inject.Singleton;
 import jakarta.ws.rs.RuntimeType;
 import jakarta.ws.rs.core.Application;
 import jakarta.ws.rs.core.Configuration;
@@ -53,23 +51,26 @@ import java.util.function.Supplier;
  * @since 5.2.0
  */
 @Internal
-@Singleton
 final class JaxRsContextConfiguration implements Configuration, JaxRsProviderRegistrations {
 
     private final Supplier<@Nullable Application> application;
-    private final BeanProvider<JaxRsFeatures> features;
+    private final Supplier<JaxRsFeatures> features;
     private final Supplier<Set<Class<?>>> discovered;
     private final BeanContext context;
     // the registrations of the classes, once the features are configured
     private final Map<Class<?>, Boolean> registered = new ConcurrentHashMap<>();
     private final Map<Class<?>, Map<Class<?>, Integer>> contracts = new ConcurrentHashMap<>();
 
-    JaxRsContextConfiguration(BeanProvider<Application> application, BeanProvider<JaxRsFeatures> features, BeanContext context) {
-        this.features = features;
-        this.context = context;
+    /**
+     * The configuration of an application.
+     *
+     * @param scope The scope of the application
+     */
+    JaxRsContextConfiguration(JaxRsApplicationScope scope) {
+        this.features = scope::features;
+        this.context = scope.context();
         this.discovered = SupplierUtil.memoized(() -> discovered(context));
-        // the Application may itself be injected with this configuration
-        this.application = SupplierUtil.memoized(() -> application.isPresent() ? application.get() : null);
+        this.application = scope::application;
     }
 
     @Override

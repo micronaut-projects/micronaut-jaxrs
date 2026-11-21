@@ -15,9 +15,7 @@
  */
 package io.micronaut.jaxrs.container;
 
-import io.micronaut.context.BeanProvider;
 import io.micronaut.context.BeanRegistration;
-import io.micronaut.context.annotation.Bean;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import io.micronaut.core.convert.ConversionService;
@@ -35,12 +33,12 @@ import io.micronaut.jaxrs.common.JaxRsContainerMessageBodyHandlerRegistry;
 import io.micronaut.jaxrs.common.JaxRsRequestProperties;
 import io.micronaut.jaxrs.common.JaxRsRouteInterceptors;
 import io.micronaut.jaxrs.common.NameBindingPredicate;
-import jakarta.inject.Singleton;
 import jakarta.ws.rs.NotSupportedException;
 import jakarta.ws.rs.ext.ReaderInterceptor;
 
 import java.io.InputStream;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -53,22 +51,20 @@ import java.util.Optional;
  * @author Denis Stepanov
  * @since 4.9
  */
-@Singleton
-@Bean(typed = JaxRsMessageBodyReaders.class)
 final class JaxRsMessageBodyReaders<T> implements MessageBodyReader<T> {
 
     private final JaxRsContainerMessageBodyHandlerRegistry registry;
     private final List<BeanRegistration<ReaderInterceptor>> readerInterceptorsRegsRegistrations;
     private final NameBindingPredicate nameBindingPredicate;
     private final JaxRsFeatures features;
-    private final BeanProvider<MessageBodyHandlerRegistry> micronautReaders;
+    private final Supplier<MessageBodyHandlerRegistry> micronautReaders;
     private final ConversionService conversionService;
 
-    public JaxRsMessageBodyReaders(JaxRsContainerMessageBodyHandlerRegistry registry,
+    JaxRsMessageBodyReaders(JaxRsContainerMessageBodyHandlerRegistry registry,
                                    List<BeanRegistration<ReaderInterceptor>> readerInterceptorsRegsRegistrations,
                                    NameBindingPredicate nameBindingPredicate,
                                    JaxRsFeatures features,
-                                   BeanProvider<MessageBodyHandlerRegistry> micronautReaders,
+                                   Supplier<MessageBodyHandlerRegistry> micronautReaders,
                                    ConversionService conversionService) {
         this.conversionService = conversionService;
         this.features = features;
