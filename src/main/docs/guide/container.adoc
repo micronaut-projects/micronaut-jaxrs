@@ -38,7 +38,7 @@ A resource method with a `@Suspended` link:{jaxrsapi}jakarta/ws/rs/container/Asy
 
 ==== Application
 
-A link:{jaxrsapi}jakarta/ws/rs/core/Application.html[Application] subclass annotated with `@ApplicationPath` is a bean, and its path prefixes the resources. One `Application` is supported per application context, see <<supportedApi, Specification Support>>. The resources and providers it returns from `getClasses()` and `getSingletons()` are the only ones registered; an `Application` that returns none registers all of them.
+A link:{jaxrsapi}jakarta/ws/rs/core/Application.html[Application] subclass annotated with `@ApplicationPath` is a bean, and its path prefixes the resources. The resources and providers it returns from `getClasses()` and `getSingletons()` are the only ones registered; an `Application` that returns none registers all of them.
 
 An `Application` subclass without `@ApplicationPath`, which a servlet names with its `jakarta.ws.rs.Application` parameter, can be named with the `micronaut.jaxrs.application` property instead:
 
@@ -48,6 +48,16 @@ micronaut:
   jaxrs:
     application: example.MyApplication
 ----
+
+===== Several Applications
+
+An application context can have several `Application` beans, each with its own `@ApplicationPath`. Each one is a separate JAX-RS application: it serves the resources it registers under its path, and has its own `getClasses()`, `getSingletons()` and `getProperties()`, its own features and dynamic features, and its own `Configuration`. Its filters, interceptors, exception mappers, readers, writers, parameter converters and context resolvers apply to its resources only, and the instances it returns from `getSingletons()` are its own: two applications can return two instances of the same provider class. `@Context` values of the types `Application`, `Configuration`, `Providers` and `UriInfo` are the ones of the application of the request; a sub-resource is served with the application of its locator.
+
+The `@Provider` beans apply to every application that registers them, as with one application (JAX-RS 2.3): an application that lists none of its classes registers all of them, and one that lists its classes, the ones it lists. A `@Provider` bean is one instance for the whole context, unlike the instances of `getSingletons()` and the instances of the listed classes that are not beans, which are one per application.
+
+The application paths must be distinct: two applications with the same path fail the startup. With several applications, the `micronaut.jaxrs.application` property names the only one: the other `Application` beans are not served. The JAX-RS client is not affected by the applications.
+
+A bean that injects an `Application` with `@Inject` must name the class it needs, as several beans are candidates; a resource gets the one of the request with `@Context Application`.
 
 ==== Java SE Bootstrap
 

@@ -48,7 +48,6 @@ The following behaviors differ from the specification on purpose, to keep existi
 
 ==== Limitations
 
-* One `Application` per application context: its `@ApplicationPath`, classes, singletons, properties and features apply to all JAX-RS resources. Define one `Application` bean, or name the one to use with `micronaut.jaxrs.application`.
 * The request entity of a resource method is read into memory before the readers and the reader interceptors run, up to `micronaut.server.max-request-size`. A resource method reading an `InputStream` reads that buffer.
 * `RuntimeDelegate.createEndpoint` throws an `UnsupportedOperationException`, which the specification allows: use the Micronaut server, or `SeBootstrap.start` to start one for an `Application`.
 * On a server that is not a servlet container, a `@Context HttpServletRequest` is a read-only view of the Micronaut request, without servlet context, session, request dispatcher or asynchronous processing, and its entity stream is read by JAX-RS. There is no stub of `HttpServletResponse` or `ServletContext`.
